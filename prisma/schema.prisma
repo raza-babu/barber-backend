@@ -1,0 +1,610 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  fullName       String
+  email          String       @unique
+  password       String?
+  role           UserRoleEnum @default(USER)
+  status         UserStatus   @default(INACTIVE)
+  address        String?
+  isLoggedIn     Boolean      @default(false)
+  image          String?
+  otp            Int?
+  otpExpiry      DateTime?
+  fcmToken       String?
+  fcmTokenEx     String?
+  followerCount  Int          @default(0)
+  followingCount Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relationships
+  roomsSent         Room[]              @relation("SenderRelation")
+  roomsReceived     Room[]              @relation("ReceiverRelation")
+  roomParticipants  RoomUser[]
+  chatsSent         Chat[]              @relation("SenderRelation")
+  chatsReceived     Chat[]              @relation("ReceiverRelation")
+  following         Follow[]            @relation("FollowingRelation") // Users this user is following
+  followers         Follow[]            @relation("FollowerRelation") // Users following this user
+  notifications     Notification[]
+  createdRooms      Room[]              @relation("CreatorRelation")
+  SaloonOwner       SaloonOwner[]
+  Booking           Booking[]
+  Review            Review[]
+  Feedback          Feed[]
+  FavoriteFeed      FavoriteFeed[]
+  JobPost           JobPost[]
+  Barber            Barber?
+  Service           Service[]
+  Faq               Faq[]
+  TermAndCondition  TermAndCondition[]
+  PrivacyPolicy     PrivacyPolicy[]
+  ADMIN             Admin[]
+  AccessFunction    AccessFunction[]
+  Ads               Ads[]
+  SubscriptionOffer SubscriptionOffer[]
+  UserSubscription  UserSubscription[]
+  Support           Support[]
+  Reply             Reply[]
+  SaloonReport      SaloonReport[]
+
+  @@map("users")
+}
+
+// model Customer {
+//   id             String   @id @default(auto()) @map("_id") @db.ObjectId
+//   userId         String   @db.ObjectId
+//   followerCount  Int      @default(0)
+//   followingCount Int      @default(0)
+//   createdAt      DateTime @default(now())
+//   updatedAt      DateTime @updatedAt
+// }
+
+model SaloonOwner {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String   @unique @db.ObjectId
+  shopName           String
+  registrationNumber String
+  number             String
+  shopAddress        String
+  latitude           Float?
+  longitude          Float?
+  shopLogo           String?
+  shopImage          String[]
+  qrCode             String?
+  isVerified         Boolean  @default(false)
+  followerCount      Int      @default(0)
+  followingCount     Int      @default(0)
+  ratingCount        Int      @default(0)
+  avgRating          Float?   @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relationships
+  user              User                @relation(fields: [userId], references: [id])
+  Booking           Booking[]
+  Barber            Barber?
+  NonRegisteredUser NonRegisteredUser[]
+  SaloonReport      SaloonReport[]
+}
+
+model Barber {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @unique @db.ObjectId
+  saloonOwnerId   String?   @unique @db.ObjectId
+  currentWorkDes  String?
+  bio             String?
+  gender          String?
+  dob             DateTime?
+  number          String?
+  images          String?
+  isAvailable     Boolean   @default(false)
+  experienceYears String?
+  skills          String[]
+
+  followerCount  Int      @default(0)
+  followingCount Int      @default(0)
+  ratingCount    Int      @default(0)
+  avgRating      Float?   @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relationships
+  user           User             @relation(fields: [userId], references: [id])
+  saloonOwner    SaloonOwner?     @relation(fields: [saloonOwnerId], references: [userId])
+  Booking        Booking[]
+  Review         Review[]
+  JobApplication JobApplication[]
+}
+
+model Service {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId String      @db.ObjectId
+  serviceName   String
+  availableTo   AvailableTO @default(EVERYONE) // Who can book this service
+  price         Float
+  duration      Int // Duration in minutes
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relationships
+  user    User      @relation(fields: [saloonOwnerId], references: [id])
+  Booking Booking[]
+
+  @@map("services")
+}
+
+model Follow {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  followerId  String   @db.ObjectId
+  followingId String   @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  follower  User @relation("FollowingRelation", fields: [followerId], references: [id])
+  following User @relation("FollowerRelation", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Booking {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String        @db.ObjectId
+  barberId      String        @db.ObjectId
+  serviceId     String        @db.ObjectId
+  saloonOwnerId String        @db.ObjectId
+  appointmentAt DateTime
+  status        BookingStatus @default(PENDING)
+  totalPrice    Float
+  notes         String?
+  barberName    String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relationships
+  user        User        @relation(fields: [userId], references: [id])
+  barber      Barber      @relation(fields: [barberId], references: [userId])
+  service     Service     @relation(fields: [serviceId], references: [id])
+  saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
+
+  @@map("bookings")
+}
+
+model Review {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @db.ObjectId
+  barberId      String   @db.ObjectId
+  saloonOwnerId String   @db.ObjectId
+  rating        Int
+  comment       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relationships
+  user   User   @relation(fields: [userId], references: [id])
+  barber Barber @relation(fields: [barberId], references: [userId])
+
+  @@map("reviews")
+}
+
+model Feed {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @db.ObjectId
+  caption       String
+  images        String[]
+  favoriteCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relationships
+  user         User           @relation(fields: [userId], references: [id])
+  FavoriteFeed FavoriteFeed[]
+
+  @@map("feeds")
+}
+
+model FavoriteFeed {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  feedId    String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+  feed Feed @relation(fields: [feedId], references: [id])
+
+  @@unique([userId, feedId])
+  @@map("favorite_feedbacks")
+}
+
+model JobPost {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  shopName    String
+  shopLogo    String
+  description String
+  hourlyRate  Float?
+  salary      Float?
+  startDate   DateTime?
+  endDate     DateTime?
+  datePosted  DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relationships
+  user           User             @relation(fields: [userId], references: [id])
+  JobApplication JobApplication[]
+
+  @@map("job_posts")
+}
+
+model JobApplication {
+  id        String               @id @default(auto()) @map("_id") @db.ObjectId
+  jobPostId String               @db.ObjectId
+  userId    String               @db.ObjectId
+  status    JobApplicationStatus @default(PENDING)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  // Relationships
+  jobPost JobPost @relation(fields: [jobPostId], references: [id])
+  barber  Barber  @relation(fields: [userId], references: [userId])
+
+  @@map("job_applications")
+}
+
+model Admin {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user                User                  @relation(fields: [userId], references: [id])
+  AdminAccessFunction AdminAccessFunction[]
+
+  @@map("admins")
+}
+
+model AccessFunction {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  function  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user                User                  @relation(fields: [userId], references: [id])
+  AdminAccessFunction AdminAccessFunction[]
+
+  @@map("access_functions")
+}
+
+model AdminAccessFunction {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  adminId          String   @db.ObjectId
+  accessFunctionId String   @db.ObjectId
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  admin          Admin          @relation(fields: [adminId], references: [userId])
+  accessFunction AccessFunction @relation(fields: [accessFunctionId], references: [id])
+
+  @@map("admin_access_functions")
+}
+
+model Ads {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  startDate   DateTime
+  endDate     DateTime
+  description String
+  images      String[]
+  duration    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("ads")
+}
+
+model SubscriptionOffer {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  price       Float
+  currency    String?    @default("usd")
+  duration    Int
+  status      UserStatus @default(ACTIVE)
+  createdBy   String     @db.ObjectId
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relationships
+  creator          User               @relation(fields: [createdBy], references: [id])
+  UserSubscription UserSubscription[]
+
+  @@map("subscription_offers")
+}
+
+model UserSubscription {
+  id                  String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId              String        @db.ObjectId
+  subscriptionOfferId String        @db.ObjectId
+  startDate           DateTime      @default(now())
+  endDate             DateTime
+  paymentStatus       PaymentStatus @default(PENDING)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  // Relationships
+  user              User              @relation(fields: [userId], references: [id])
+  subscriptionOffer SubscriptionOffer @relation(fields: [subscriptionOfferId], references: [id])
+
+  @@map("user_subscriptions")
+}
+
+model NonRegisteredUser {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId String   @db.ObjectId
+  fullName      String
+  email         String?  @unique
+  phone         String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relationships
+  saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
+
+  @@map("non_registered_users")
+}
+
+model RoomUser {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  roomId String @db.ObjectId
+  userId String @db.ObjectId
+
+  // Relationships
+  room Room @relation(fields: [roomId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, roomId])
+  @@map("room_users")
+}
+
+model Room {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  type             RoomType @default(ONE_TO_ONE) // Type: One-to-one or Group chat
+  groupName        String? // Name of the group (for group chats)
+  groupDescription String? // Description of the group (for group chats)
+  groupImage       String? // Image of the group (for group chats)
+  senderId         String?  @db.ObjectId
+  receiverId       String?  @db.ObjectId
+  creatorId        String   @db.ObjectId
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relationships
+  sender   User? @relation("SenderRelation", fields: [senderId], references: [id])
+  receiver User? @relation("ReceiverRelation", fields: [receiverId], references: [id])
+  creator  User  @relation("CreatorRelation", fields: [creatorId], references: [id])
+
+  participants RoomUser[] // Relationship to participants (RoomUser table)
+  chat         Chat[]
+
+  @@map("rooms")
+}
+
+model Chat {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  senderId   String   @db.ObjectId
+  receiverId String?  @db.ObjectId // Nullable for group chats
+  roomId     String   @db.ObjectId
+  message    String
+  images     String[]
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relationships
+  sender   User  @relation("SenderRelation", fields: [senderId], references: [id])
+  receiver User? @relation("ReceiverRelation", fields: [receiverId], references: [id]) // Optional for group chats
+  room     Room  @relation(fields: [roomId], references: [id])
+
+  @@map("chats")
+}
+
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  title     String
+  body      String
+  data      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model Support {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String        @db.ObjectId
+  userName  String
+  subject   String?
+  message   String
+  status    SupportStatus @default(OPEN)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // Relationships
+  user  User    @relation(fields: [userId], references: [id])
+  Reply Reply[]
+
+  @@map("supports")
+}
+
+model SaloonReport {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  saloonId    String   @db.ObjectId
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  user   User        @relation(fields: [userId], references: [id])
+  saloon SaloonOwner @relation(fields: [saloonId], references: [userId])
+  Reply  Reply[]
+
+  @@map("saloon_reports")
+}
+
+model Reply {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String      @db.ObjectId
+  supportId String?     @db.ObjectId
+  reportId  String?     @db.ObjectId
+  message   String
+  type      ReplyType   @default(SUPPORT)
+  status    ReplyStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relationships
+  support      Support?      @relation(fields: [supportId], references: [id])
+  saloonReport SaloonReport? @relation(fields: [reportId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@map("replies")
+}
+
+model Faq {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  question  String
+  answer    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("faqs")
+}
+
+model TermAndCondition {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  heading   String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("terms_and_conditions")
+}
+
+model PrivacyPolicy {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  heading   String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("privacy_policies")
+}
+
+enum UserRoleEnum {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum AvailableTO {
+  EVERYONE
+  MALE
+  FEMALE
+}
+
+enum JobApplicationStatus {
+  PENDING
+  ONGOING
+  COMPLETED
+  REJECTED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  RESCHEDULED
+  NO_SHOW
+  REFUNDED
+}
+
+enum SupportStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum RoomType {
+  ONE_TO_ONE
+  GROUP
+}
+
+enum ReplyType {
+  SUPPORT
+  REPORT
+}
+
+enum ReplyStatus {
+  PENDING
+  IGNORED
+  RESOLVED
+  CLOSED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
