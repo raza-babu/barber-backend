@@ -1,0 +1,6 @@
+enum JobApplicationStatus {
+  PENDING
+  ONGOING
+  COMPLETED
+  REJECTED
+}

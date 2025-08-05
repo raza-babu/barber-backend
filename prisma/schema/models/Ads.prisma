@@ -1,0 +1,17 @@
+model Ads {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  startDate   DateTime
+  endDate     DateTime
+  description String
+  images      String[]
+  duration    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("ads")
+}

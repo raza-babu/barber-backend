@@ -1,0 +1,14 @@
+model BarberDayOff {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String   @db.ObjectId
+  barberId String   @db.ObjectId
+  date     DateTime // Specific date barber is unavailable
+  reason   String? // e.g., "Vacation", "Sick"
+  isAllDay Boolean  @default(true)
+
+  // Relationships
+  barber Barber @relation(fields: [barberId], references: [userId])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("barber_days_off")
+}

@@ -1,0 +1,34 @@
+model Barber {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @unique @db.ObjectId
+  saloonOwnerId   String?   @unique @db.ObjectId
+  currentWorkDes  String?
+  bio             String?
+  gender          String?
+  dob             DateTime?
+  number          String?
+  images          String?
+  isAvailable     Boolean   @default(false)
+  experienceYears String?
+  skills          String[]
+
+  followerCount  Int      @default(0)
+  followingCount Int      @default(0)
+  ratingCount    Int      @default(0)
+  avgRating      Float?   @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relationships
+  user                 User                   @relation(fields: [userId], references: [id])
+  saloonOwner          SaloonOwner?           @relation(fields: [saloonOwnerId], references: [userId])
+  Booking              Booking[]
+  Review               Review[]
+  JobApplication       JobApplication[]
+  BarberSchedule       BarberSchedule[]
+  BarberDayOff         BarberDayOff[]
+  Queue                Queue[]
+  BarberRealTimeStatus BarberRealTimeStatus[]
+
+  @@map("barbers")
+}

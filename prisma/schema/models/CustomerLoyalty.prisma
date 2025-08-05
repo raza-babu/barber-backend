@@ -1,0 +1,17 @@
+model CustomerLoyalty {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String    @unique @db.ObjectId
+  totalPoints    Int       @default(0)
+  redeemedPoints Int       @default(0)
+  visitCount     Int       @default(0)
+  lastVisitAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relationships
+  user        User                @relation(fields: [userId], references: [id])
+  visits      CustomerVisit[]
+  redemptions LoyaltyRedemption[]
+
+  @@map("customer_loyalty")
+}

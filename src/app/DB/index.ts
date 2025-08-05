@@ -26,9 +26,18 @@ const seedSuperAdmin = async () => {
         config.super_admin_password as string,
         Number(config.bcrypt_salt_rounds) || 12,
       );
-      await prisma.user.create({
+      const superAdmin = await prisma.user.create({
         data: superAdminData,
       });
+      const admin = await prisma.admin.create({
+        data: {
+          userId: superAdmin.id,
+          isSuperAdmin: true, // Set isSuperAdmin to true
+        },
+      });
+      // Optionally, you can log the created super admin and admin
+      console.log('Super Admin created:', superAdmin);
+      console.log('Admin created:', admin);
       console.log('Super Admin created successfully.');
     } else {
       return;

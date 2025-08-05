@@ -1,0 +1,20 @@
+model CustomerVisit {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  customerId   String   @db.ObjectId
+  saloonId     String   @db.ObjectId
+  serviceId    String   @db.ObjectId // Which service was taken
+  visitDate    DateTime @default(now())
+  amountSpent  Float? // Bill amount (if tracking spending-based points)
+  earnedPoints Int? // Points earned in this visit
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  customer          User             @relation(fields: [customerId], references: [id])
+  saloon            SaloonOwner      @relation(fields: [saloonId], references: [userId])
+  service           Service          @relation(fields: [serviceId], references: [id])
+  CustomerLoyalty   CustomerLoyalty? @relation(fields: [customerLoyaltyId], references: [id])
+  customerLoyaltyId String?          @db.ObjectId
+
+  @@map("customer_visits")
+}

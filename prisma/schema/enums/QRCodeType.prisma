@@ -1,0 +1,9 @@
+enum QRCodeType {
+  SALOON_REGISTRATION // For saloon owner registration
+  BARBER_PROFILE // Links to barber profile
+  SALOON_PROFILE // Links to saloon profile
+  PROMOTION // For special offers
+  PAYMENT // For quick payments
+  CHECK_IN // For customer check-ins
+  LOYALTY // For loyalty programs
+}

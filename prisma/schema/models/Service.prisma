@@ -1,0 +1,19 @@
+model Service {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId String      @db.ObjectId
+  serviceName   String
+  availableTo   AvailableTO @default(EVERYONE) // Who can book this service
+  price         Float
+  duration      Int // Duration in minutes
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relationships
+  user          User            @relation(fields: [saloonOwnerId], references: [id])
+  Booking       Booking[]
+  CustomerVisit CustomerVisit[]
+  QueueSlot     QueueSlot[]
+
+  @@map("services")
+}

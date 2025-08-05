@@ -12,6 +12,18 @@ router.post(
   UserControllers.registerUser,
 );
 
+router.post(
+  '/register/saloon-owner',
+  validateRequest(UserValidations.createSaloonOwner),
+  UserControllers.registerSaloonOwner,  
+)
+
+router.post(
+  '/register/barber',
+  validateRequest(UserValidations.createBarber),
+  UserControllers.registerBarber,
+)
+
 router.put(
   '/verify-otp',
   validateRequest(UserValidations.verifyOtpSchema),

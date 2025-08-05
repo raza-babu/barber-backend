@@ -1,0 +1,15 @@
+model SaloonHoliday {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  saloonId    String   @db.ObjectId
+  date        DateTime // Specific holiday date
+  name        String // e.g., "New Year's Day"
+  description String?
+  isRecurring Boolean  @default(false) // If holiday repeats annually
+
+  // Relationships
+  saloon SaloonOwner @relation(fields: [saloonId], references: [id])
+  user   User        @relation(fields: [userId], references: [id])
+
+  @@map("saloon_holidays")
+}

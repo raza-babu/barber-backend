@@ -1,0 +1,17 @@
+model LoyaltyReward {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  programId          String   @db.ObjectId
+  name               String
+  description        String?
+  pointsRequired     Int
+  discountPercentage Float
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relationships
+  program     LoyaltyProgram      @relation(fields: [programId], references: [id])
+  redemptions LoyaltyRedemption[]
+
+  @@map("loyalty_rewards")
+}

@@ -1,0 +1,7 @@
+enum UserRoleEnum {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+  BARBER
+  SALOON_OWNER
+}

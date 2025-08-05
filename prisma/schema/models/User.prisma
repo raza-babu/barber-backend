@@ -1,0 +1,65 @@
+model User {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  fullName       String
+  email          String       @unique
+  password       String?
+  role           UserRoleEnum @default(CUSTOMER)
+  status         UserStatus   @default(INACTIVE)
+  intendedRole   UserRoleEnum? 
+  isProfileComplete Boolean      @default(false)
+  address        String?
+  isLoggedIn     Boolean      @default(false)
+  image          String?
+  otp            Int?
+  otpExpiry      DateTime?
+  fcmToken       String?
+  fcmTokenEx     String?
+  followerCount  Int          @default(0)
+  followingCount Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relationships
+  roomsSent         Room[]              @relation("SenderRelation")
+  roomsReceived     Room[]              @relation("ReceiverRelation")
+  roomParticipants  RoomUser[]
+  chatsSent         Chat[]              @relation("SenderRelation")
+  chatsReceived     Chat[]              @relation("ReceiverRelation")
+  following         Follow[]            @relation("FollowingRelation") // Users this user is following
+  followers         Follow[]            @relation("FollowerRelation") // Users following this user
+  notifications     Notification[]
+  createdRooms      Room[]              @relation("CreatorRelation")
+  SaloonOwner       SaloonOwner[]
+  Booking           Booking[]
+  Review            Review[]
+  Feedback          Feed[]
+  FavoriteFeed      FavoriteFeed[]
+  JobPost           JobPost[]
+  Barber            Barber?
+  Service           Service[]
+  Faq               Faq[]
+  TermAndCondition  TermAndCondition[]
+  PrivacyPolicy     PrivacyPolicy[]
+  ADMIN             Admin[]
+  AccessFunction    AccessFunction[]
+  Ads               Ads[]
+  SubscriptionOffer SubscriptionOffer[]
+  UserSubscription  UserSubscription[]
+  Support           Support[]
+  Reply             Reply[]
+  SaloonReport      SaloonReport[]
+  SaloonSchedule    SaloonSchedule[]
+  BarberSchedule    BarberSchedule[]
+  SaloonHoliday     SaloonHoliday[]
+  BarberDayOff      BarberDayOff[]
+  QRCode            QRCode[]
+  QRCodeScan        QRCodeScan[]
+  LoyaltyProgram    LoyaltyProgram[]
+  CustomerLoyalty   CustomerLoyalty?
+  CustomerVisit     CustomerVisit[]
+  LoyaltyPointLog   LoyaltyPointLog[]
+  LoyaltyRedemption LoyaltyRedemption[]
+  QueueSlot         QueueSlot[]
+
+  @@map("users")
+}

@@ -1,0 +1,16 @@
+model QRCodeScan {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  scannedAt  DateTime @default(now())
+  qrCodeId   String   @db.ObjectId
+  scannedBy  String   @db.ObjectId
+  deviceInfo String?
+  location   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relationships
+  qrCode  QRCode @relation(fields: [qrCodeId], references: [id])
+  scanner User   @relation(fields: [scannedBy], references: [id])
+
+  @@map("qr_code_scans")
+}

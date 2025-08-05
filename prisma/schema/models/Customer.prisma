@@ -1,0 +1,8 @@
+// model Customer {
+//   id             String   @id @default(auto()) @map("_id") @db.ObjectId
+//   userId         String   @db.ObjectId
+//   followerCount  Int      @default(0)
+//   followingCount Int      @default(0)
+//   createdAt      DateTime @default(now())
+//   updatedAt      DateTime @updatedAt
+// }

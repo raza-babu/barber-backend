@@ -1,4 +1,5 @@
-import { User, UserStatus } from '@prisma/client';
+import { SaloonOwner } from './../../../../node_modules/.prisma/client/index.d';
+import { User, UserStatus, UserRoleEnum } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import httpStatus from 'http-status';
 import { Secret } from 'jsonwebtoken';
@@ -154,6 +155,114 @@ const resendUserVerificationEmail = async (email: string) => {
   return { message: 'OTP sent via your email successfully' };
 };
 
+const registerSaloonOwnerIntoDB = async (payload: any) => {
+  if (payload.email) {
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email: payload.email,
+      },
+    });
+    if (!existingUser) {
+      throw new AppError(httpStatus.CONFLICT, 'User not exists!');
+    }
+    if(existingUser.password !== null) {
+      const isCorrectPassword: Boolean = await bcrypt.compare(
+    payload.password,
+    existingUser.password,
+  );
+
+  if (!isCorrectPassword) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
+  }
+}
+
+    const existingSaloonOwner = await prisma.saloonOwner.findUnique({
+      where: {
+        userId: existingUser.id,
+      },
+    });
+    if (existingSaloonOwner) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        'Saloon owner already exists for this user!',
+      );
+    }
+  }
+  
+  const result = await prisma.$transaction(async (transactionClient: any) => {
+    const updateUserRole = await transactionClient.user.update({
+      where: { email: payload.email },
+      data: {
+        role: UserRoleEnum.SALOON_OWNER,
+      },
+    });
+    if (!updateUserRole) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'User role not updated!');
+    }
+    const user = await transactionClient.SaloonOwner.create({
+      data: payload,
+    });
+    if (!user) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Saloon shop is not created!');
+    }
+  });
+  return result;
+}
+
+const registerBarberIntoDB = async (payload: any) => {
+  if (payload.email) {
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email: payload.email,
+      },
+    });
+    if (!existingUser) {
+      throw new AppError(httpStatus.CONFLICT, 'User not exists!');
+    }
+    if(existingUser.password !== null) {
+      const isCorrectPassword: Boolean = await bcrypt.compare(
+    payload.password,
+    existingUser.password,
+  );
+
+  if (!isCorrectPassword) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
+  }
+}
+
+    const existingBarber = await prisma.barber.findUnique({
+      where: {
+        userId: existingUser.id,
+      },
+    });
+    if (existingBarber) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        'Barber already exists for this user!',
+      );
+    }
+  }
+
+  const result = await prisma.$transaction(async (transactionClient: any) => {
+    const updateUserRole = await transactionClient.user.update({
+      where: { email: payload.email },
+      data: {
+        role: UserRoleEnum.BARBER,
+      },
+    });
+    if (!updateUserRole) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'User role not updated!');
+    }
+    const user = await transactionClient.barber.create({
+      data: payload,
+    });
+    if (!user) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Barber is not created!');
+    }
+  });
+  return result;
+}
+
 const getMyProfileFromDB = async (id: string) => {
   const Profile = await prisma.user.findUniqueOrThrow({
     where: {
@@ -220,6 +329,10 @@ const changePassword = async (user: any, userId: string, payload: any) => {
       status: UserStatus.ACTIVE,
     },
   });
+
+  if(userData.password === null) {
+    throw new AppError(httpStatus.CONFLICT, 'Password not set for this user');
+  }
 
   const isCorrectPassword: boolean = await bcrypt.compare(
     payload.oldPassword,
@@ -493,6 +606,7 @@ const socialLoginIntoDB = async (payload: any) => {
         id: newUser.id,
         email: newUser.email,
         role: newUser.role,
+        purpose: 'access',
       },
       config.jwt.access_secret as Secret,
       config.jwt.access_expires_in as string,
@@ -501,7 +615,6 @@ const socialLoginIntoDB = async (payload: any) => {
     const refreshedToken = await refreshToken(
         {
           id: newUser.id,
-          fullName: newUser.fullName,
           email: newUser.email,
           role: newUser.role,
         },
@@ -523,6 +636,7 @@ const socialLoginIntoDB = async (payload: any) => {
         id: user.id,
         email: user.email,
         role: user.role,
+        purpose: 'access',
       },
       config.jwt.access_secret as Secret,
       config.jwt.access_expires_in as string,
@@ -530,7 +644,6 @@ const socialLoginIntoDB = async (payload: any) => {
     const refreshedToken = await refreshToken(
       {
         id: user.id,
-        fullName: user.fullName,
         email: user.email,
         role: user.role,
       },
@@ -605,6 +718,8 @@ const updateProfileImageIntoDB = async (
 
 export const UserServices = {
   registerUserIntoDB,
+  registerSaloonOwnerIntoDB,
+  registerBarberIntoDB,
   getMyProfileFromDB,
   updateMyProfileIntoDB,
   updateUserRoleStatusIntoDB,

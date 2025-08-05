@@ -1,0 +1,18 @@
+model Reply {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String      @db.ObjectId
+  supportId String?     @db.ObjectId
+  reportId  String?     @db.ObjectId
+  message   String
+  type      ReplyType   @default(SUPPORT)
+  status    ReplyStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relationships
+  support      Support?      @relation(fields: [supportId], references: [id])
+  saloonReport SaloonReport? @relation(fields: [reportId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@map("replies")
+}

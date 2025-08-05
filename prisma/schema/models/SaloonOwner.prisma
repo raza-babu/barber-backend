@@ -1,0 +1,33 @@
+model SaloonOwner {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String   @unique @db.ObjectId
+  shopName           String
+  registrationNumber String
+  number             String
+  shopAddress        String
+  latitude           Float?
+  longitude          Float?
+  shopLogo           String?
+  shopImage          String[]
+  qrCode             String?
+  isVerified         Boolean  @default(false)
+  followerCount      Int      @default(0)
+  followingCount     Int      @default(0)
+  ratingCount        Int      @default(0)
+  avgRating          Float?   @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relationships
+  user              User                @relation(fields: [userId], references: [id])
+  Booking           Booking[]
+  Barber            Barber?
+  NonRegisteredUser NonRegisteredUser[]
+  SaloonReport      SaloonReport[]
+  SaloonSchedule    SaloonSchedule[]
+  SaloonHoliday     SaloonHoliday[]
+  QRCode            QRCode[]
+  CustomerVisit     CustomerVisit[]
+
+  @@map("saloon_owners")
+}

@@ -1,0 +1,6 @@
+enum RedemptionStatus {
+  PENDING
+  APPLIED
+  EXPIRED
+  CANCELLED
+}

@@ -3,6 +3,7 @@ import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { UserServices } from '../user/user.service';
 import { fileUploader } from '../../utils/fileUploader';
+import AppError from '../../errors/AppError';
 
 const registerUser = catchAsync(async (req, res) => {
   const result = await UserServices.registerUserIntoDB(req.body);
@@ -20,6 +21,24 @@ const resendUserVerificationEmail = catchAsync(async (req, res) => {
   sendResponse(res, {
     statusCode: httpStatus.OK,
     message: 'Verification email sent successfully',
+    data: result,
+  });
+});
+
+const registerSaloonOwner = catchAsync(async (req, res) => {
+  const result = await UserServices.registerSaloonOwnerIntoDB(req.body);
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    message: 'Saloon owner registered successfully',
+    data: result,
+  });
+});
+
+const registerBarber = catchAsync(async (req, res) => {
+  const result = await UserServices.registerBarberIntoDB(req.body);
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    message: 'Barber registered successfully',
     data: result,
   });
 });
@@ -127,6 +146,8 @@ const deleteAccount = catchAsync(async (req, res) => {
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
+    success: true,
+    data: null,
     message: 'Account deleted successfully',
   });
 });
@@ -153,6 +174,8 @@ const updateProfileImage = catchAsync(async (req, res) => {
 
 export const UserControllers = {
   registerUser,
+  registerSaloonOwner,
+  registerBarber,
   getMyProfile,
   updateMyProfile,
   changePassword,

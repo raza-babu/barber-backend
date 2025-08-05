@@ -1,0 +1,18 @@
+model SubscriptionOffer {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  price       Float
+  currency    String?    @default("usd")
+  duration    Int
+  status      UserStatus @default(ACTIVE)
+  createdBy   String     @db.ObjectId
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relationships
+  creator          User               @relation(fields: [createdBy], references: [id])
+  UserSubscription UserSubscription[]
+
+  @@map("subscription_offers")
+}

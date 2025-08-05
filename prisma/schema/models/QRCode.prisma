@@ -1,0 +1,19 @@
+model QRCode {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String     @db.ObjectId
+  saloonOwnerId String     @db.ObjectId
+  code          String     @unique
+  type          QRCodeType @default(SALOON_REGISTRATION)
+  isActive      Boolean    @default(true)
+  metadata      Json?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relationships
+
+  saloonOwner SaloonOwner  @relation(fields: [saloonOwnerId], references: [id])
+  user        User?        @relation(fields: [userId], references: [id])
+  QRCodeScan  QRCodeScan[]
+
+  @@map("qr_codes")
+}

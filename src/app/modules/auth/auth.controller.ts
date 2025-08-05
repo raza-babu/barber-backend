@@ -28,6 +28,7 @@ const logoutUser = catchAsync(async (req, res) => {
   const result = await AuthServices.logoutUserFromDB(user.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
+    data: result,
     message: 'User logged out successfully',
   });
 });

@@ -1,0 +1,5 @@
+enum AvailableTO {
+  EVERYONE
+  MALE
+  FEMALE
+}

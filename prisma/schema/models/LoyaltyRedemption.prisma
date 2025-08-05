@@ -1,0 +1,20 @@
+model LoyaltyRedemption {
+  id         String           @id @default(auto()) @map("_id") @db.ObjectId
+  customerId String           @db.ObjectId
+  rewardId   String           @db.ObjectId
+  pointsUsed Int
+  bookingId  String?          @db.ObjectId // If applied to a booking
+  status     RedemptionStatus @default(PENDING)
+  redeemedAt DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  // Relationships
+  customer          User             @relation(fields: [customerId], references: [id])
+  reward            LoyaltyReward    @relation(fields: [rewardId], references: [id])
+  booking           Booking?         @relation(fields: [bookingId], references: [id])
+  CustomerLoyalty   CustomerLoyalty? @relation(fields: [customerLoyaltyId], references: [id])
+  customerLoyaltyId String?          @db.ObjectId
+
+  @@map("loyalty_redemptions")
+}

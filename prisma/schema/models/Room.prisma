@@ -1,0 +1,22 @@
+model Room {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  type             RoomType @default(ONE_TO_ONE) // Type: One-to-one or Group chat
+  groupName        String? // Name of the group (for group chats)
+  groupDescription String? // Description of the group (for group chats)
+  groupImage       String? // Image of the group (for group chats)
+  senderId         String?  @db.ObjectId
+  receiverId       String?  @db.ObjectId
+  creatorId        String   @db.ObjectId
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relationships
+  sender   User? @relation("SenderRelation", fields: [senderId], references: [id])
+  receiver User? @relation("ReceiverRelation", fields: [receiverId], references: [id])
+  creator  User  @relation("CreatorRelation", fields: [creatorId], references: [id])
+
+  participants RoomUser[] // Relationship to participants (RoomUser table)
+  chat         Chat[]
+
+  @@map("rooms")
+}

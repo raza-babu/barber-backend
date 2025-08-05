@@ -1,0 +1,18 @@
+model LoyaltyPointLog {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  customerId String    @db.ObjectId
+  schemeId   String?   @db.ObjectId // Which scheme earned points
+  points     Int // +ve (earned) or -ve (redeemed)
+  reason     String // "VISIT", "PURCHASE", "REDEMPTION", "BONUS"
+  expiresAt  DateTime? // If points have expiry
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relationships
+  customer         User            @relation(fields: [customerId], references: [id])
+  scheme           LoyaltyScheme?  @relation(fields: [schemeId], references: [id])
+  LoyaltyProgram   LoyaltyProgram? @relation(fields: [loyaltyProgramId], references: [id])
+  loyaltyProgramId String?         @db.ObjectId
+
+  @@map("loyalty_point_logs")
+}

@@ -1,0 +1,21 @@
+model JobPost {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  shopName    String
+  shopLogo    String
+  description String
+  hourlyRate  Float?
+  salary      Float?
+  startDate   DateTime?
+  endDate     DateTime?
+  datePosted  DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relationships
+  user           User             @relation(fields: [userId], references: [id])
+  JobApplication JobApplication[]
+
+  @@map("job_posts")
+}

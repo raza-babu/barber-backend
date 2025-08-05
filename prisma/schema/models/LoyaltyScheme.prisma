@@ -1,0 +1,17 @@
+model LoyaltyScheme {
+  id             String            @id @default(auto()) @map("_id") @db.ObjectId
+  programId      String            @db.ObjectId
+  type           LoyaltySchemeType @default(VISIT_BASED) // Type of scheme: visit-based, spending-based, or service-based
+  points         Int
+  minVisitCount  Int?
+  minSpendAmount Float?
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  // Relationships
+  program         LoyaltyProgram    @relation(fields: [programId], references: [id])
+  LoyaltyPointLog LoyaltyPointLog[]
+
+  @@map("loyalty_schemes")
+}

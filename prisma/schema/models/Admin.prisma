@@ -1,0 +1,13 @@
+model Admin {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  isSuperAdmin Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user                User                  @relation(fields: [userId], references: [id])
+  AdminAccessFunction AdminAccessFunction[]
+
+  @@map("admins")
+}

@@ -1,0 +1,5 @@
+enum LoyaltySchemeType {
+  VISIT_BASED // Points per visit
+  SPENDING_BASED // Points per $ spent
+  SERVICE_BASED // Points for specific services
+}

@@ -1,0 +1,13 @@
+model BarberRealTimeStatus {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  barberId      String   @db.ObjectId
+  isAvailable   Boolean  @default(true)
+  currentSlotId String?  @db.ObjectId
+  lastPing      DateTime @default(now())
+
+  // Relationships
+  barber      Barber     @relation(fields: [barberId], references: [userId])
+  currentSlot QueueSlot? @relation(fields: [currentSlotId], references: [id])
+
+  @@map("barber_realtime_status")
+}

@@ -1,0 +1,14 @@
+model JobApplication {
+  id        String               @id @default(auto()) @map("_id") @db.ObjectId
+  jobPostId String               @db.ObjectId
+  userId    String               @db.ObjectId
+  status    JobApplicationStatus @default(PENDING)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  // Relationships
+  jobPost JobPost @relation(fields: [jobPostId], references: [id])
+  barber  Barber  @relation(fields: [userId], references: [userId])
+
+  @@map("job_applications")
+}
