@@ -3,12 +3,12 @@ model SaloonOwner {
   userId             String   @unique @db.ObjectId
   shopName           String
   registrationNumber String
-  number             String
   shopAddress        String
   latitude           Float?
   longitude          Float?
   shopLogo           String?
-  shopImage          String[]
+  shopImages         String[]
+  shopVideo          String[]
   qrCode             String?
   isVerified         Boolean  @default(false)
   followerCount      Int      @default(0)

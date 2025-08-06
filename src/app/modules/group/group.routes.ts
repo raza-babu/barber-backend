@@ -3,15 +3,15 @@ import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { groupController } from './group.controller';
 import { groupValidation } from './group.validation';
-import { multerUpload } from '../../utils/multerUpload';
 import { parseBody } from '../../middlewares/parseBody';
 import { updateMulterUpload } from '../../utils/updateMulterUpload';
+import { multerUploadMultiple } from '../../utils/multipleFile';
 
 const router = express.Router();
 
 router.post(
   '/',
-  multerUpload.single('groupImage'),
+  multerUploadMultiple.single('groupImage'),
   parseBody,
   validateRequest(groupValidation.createSchema),
   auth(),
@@ -22,7 +22,7 @@ router.get('/', auth(), groupController.getGroupList);
 
 router.post(
   '/image-to-link',
-  multerUpload.single('chatImage'),
+  multerUploadMultiple.single('chatImage'),
   auth(),
   groupController.imageToLink,
 );

@@ -66,6 +66,7 @@ const loginUserFromDB = async (payload: {
     name: userData.fullName,
     email: userData.email,
     role: userData.role,
+    image: userData.image,
     accessToken: accessToken,
     refreshToken: refreshedToken,
   };

@@ -30,6 +30,10 @@ const registerUserIntoDB = async (payload: any) => {
   const userData = {
     ...payload,
     password: hashedPassword,
+    intendedRole: payload.intendedRole
+      ? payload.intendedRole
+      : UserRoleEnum.CUSTOMER,
+      
   };
 
   const result = await prisma.$transaction(async (transactionClient: any) => {
@@ -62,11 +66,12 @@ const registerUserIntoDB = async (payload: any) => {
     `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
     <table width="100%" style="border-collapse: collapse;">
     <tr>
-      <td style="background-color: #000000; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
+      <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
         <h2 style="margin: 0; font-size: 24px;">Verify your email</h2>
       </td>
     </tr>
     <tr>
+
       <td style="padding: 20px;">
         <p style="font-size: 16px; margin: 0;">Hello <strong>${
           userData.fullName
@@ -76,12 +81,12 @@ const registerUserIntoDB = async (payload: any) => {
           <p style="font-size: 18px;" >Verify email using this OTP: <span style="font-weight:bold"> ${otp} </span><br/> This OTP will be Expired in 5 minutes,</p>
         </div>
         <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email. No further action is needed.</p>
-        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Storage manager</p>
+        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
       </td>
     </tr>
     <tr>
       <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
-        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Storage Team. All rights reserved.</p>
+        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Team. All rights reserved.</p>
       </td>
     </tr>
     </table>
@@ -121,10 +126,10 @@ const resendUserVerificationEmail = async (email: string) => {
     'Verify Your Email',
     userData.email,
 
-    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #000000; border-radius: 10px;">
     <table width="100%" style="border-collapse: collapse;">
     <tr>
-      <td style="background-color: #000000; padding: 20px; text-align: center; color: #f5f5f5; border-radius: 10px 10px 0 0;">
+      <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #f5f5f5; border-radius: 10px 10px 0 0;">
         <h2 style="margin: 0; font-size: 24px;">Verify Your Email</h2>
       </td>
     </tr>
@@ -138,12 +143,12 @@ const resendUserVerificationEmail = async (email: string) => {
           <p style="font-size: 18px;" >Verify email using this OTP: <span style="font-weight:bold"> ${otp} </span><br/> This OTP will be Expired in 5 minutes,</p>
         </div>
         <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email. No further action is needed.</p>
-        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Storage manager</p>
+        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
       </td>
     </tr>
     <tr>
       <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
-        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Storage manager Team. All rights reserved.</p>
+        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Time Team. All rights reserved.</p>
       </td>
     </tr>
     </table>
@@ -156,112 +161,182 @@ const resendUserVerificationEmail = async (email: string) => {
 };
 
 const registerSaloonOwnerIntoDB = async (payload: any) => {
-  if (payload.email) {
+  const { email } = payload;
+
+  if (email) {
     const existingUser = await prisma.user.findUnique({
-      where: {
-        email: payload.email,
-      },
+      where: { email },
     });
+
     if (!existingUser) {
       throw new AppError(httpStatus.CONFLICT, 'User not exists!');
     }
-    if(existingUser.password !== null) {
-      const isCorrectPassword: Boolean = await bcrypt.compare(
-    payload.password,
-    existingUser.password,
-  );
 
-  if (!isCorrectPassword) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
-  }
-}
+    if (existingUser.password !== null) {
+      const isCorrectPassword = await bcrypt.compare(payload.password, existingUser.password);
+      if (!isCorrectPassword) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
+      }
+    }
 
     const existingSaloonOwner = await prisma.saloonOwner.findUnique({
-      where: {
-        userId: existingUser.id,
-      },
+      where: { userId: existingUser.id },
     });
+
     if (existingSaloonOwner) {
       throw new AppError(
         httpStatus.CONFLICT,
         'Saloon owner already exists for this user!',
       );
     }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { email, intendedRole: UserRoleEnum.SALOON_OWNER },
+        data: {
+          role: UserRoleEnum.SALOON_OWNER,
+          intendedRole: null,
+          isProfileComplete: true,
+        },
+      });
+
+      if (!updatedUser) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'User role not updated!');
+      }
+
+      const createdSaloonOwner = await tx.saloonOwner.create({
+        data: {
+          ...payload,
+          userId: updatedUser.id,
+        },
+      });
+
+      if (!createdSaloonOwner) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Saloon shop not created!');
+      }
+
+      return createdSaloonOwner;
+    });
+
+    return result;
   }
+
+  throw new AppError(httpStatus.BAD_REQUEST, 'Email is required!');
+};
+
+const updateSaloonOwnerIntoDB = async (userId: string, payload: any) => {
+
+  if (userId) {
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!existingUser) {
+      throw new AppError(httpStatus.CONFLICT, 'User not exists!');
+    }
+
+    const existingSaloonOwner = await prisma.saloonOwner.findUnique({
+      where: { userId: existingUser.id },
+    });
+
+    if (!existingSaloonOwner) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        'Saloon owner does not exist for this user!',
+      );
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
   
-  const result = await prisma.$transaction(async (transactionClient: any) => {
-    const updateUserRole = await transactionClient.user.update({
-      where: { email: payload.email },
-      data: {
-        role: UserRoleEnum.SALOON_OWNER,
-      },
+
+      const updatedSaloonOwner = await tx.saloonOwner.update({
+        where: { userId: existingUser.id },
+        data: payload,
+      });
+
+      if (!updatedSaloonOwner) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Saloon shop not updated!');
+      }
+
+      return updatedSaloonOwner;
     });
-    if (!updateUserRole) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'User role not updated!');
-    }
-    const user = await transactionClient.SaloonOwner.create({
-      data: payload,
-    });
-    if (!user) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Saloon shop is not created!');
-    }
-  });
-  return result;
+
+    return result;
+  }
+
+  throw new AppError(httpStatus.BAD_REQUEST, 'Email is required!');
 }
 
-const registerBarberIntoDB = async (payload: any) => {
-  if (payload.email) {
-    const existingUser = await prisma.user.findUnique({
+const updateBarberIntoDB = async (userId: string, payload: any) => {
+  let existingUser: User | null;
+  if (userId) {
+    existingUser = await prisma.user.findUnique({
       where: {
-        email: payload.email,
+        id: userId
       },
     });
     if (!existingUser) {
       throw new AppError(httpStatus.CONFLICT, 'User not exists!');
     }
-    if(existingUser.password !== null) {
-      const isCorrectPassword: Boolean = await bcrypt.compare(
-    payload.password,
-    existingUser.password,
-  );
-
-  if (!isCorrectPassword) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
-  }
-}
+    
 
     const existingBarber = await prisma.barber.findUnique({
       where: {
         userId: existingUser.id,
       },
     });
-    if (existingBarber) {
-      throw new AppError(
-        httpStatus.CONFLICT,
-        'Barber already exists for this user!',
-      );
+    if (!existingBarber) {
+      const barber = await prisma.barber.create({
+        data: {
+          userId: existingUser.id,
+        },
+      });
+      if (!barber) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Barber is not created!');
+      }
     }
   }
 
   const result = await prisma.$transaction(async (transactionClient: any) => {
-    const updateUserRole = await transactionClient.user.update({
-      where: { email: payload.email },
-      data: {
-        role: UserRoleEnum.BARBER,
-      },
-    });
-    if (!updateUserRole) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'User role not updated!');
-    }
-    const user = await transactionClient.barber.create({
+    // const updateUserRole = await transactionClient.user.update({
+    //   where: { email: payload.email, intendedRole: UserRoleEnum.BARBER },
+    //   data: {
+    //     role: UserRoleEnum.BARBER,
+    //     intendedRole: null,
+    //     isProfileComplete: true,
+    //   },
+    // });
+    // if (!updateUserRole) {
+    //   throw new AppError(httpStatus.BAD_REQUEST, 'User role not updated!');
+    // }
+    
+    const user = await transactionClient.barber.update({
+      where: { userId: existingUser!.id },
       data: payload,
     });
     if (!user) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Barber is not created!');
     }
   });
-  return result;
-}
+  // Fetch and return the updated barber details including related user info
+  const updatedBarber = await prisma.barber.findUnique({
+    where: { userId: existingUser!.id },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          image: true,
+          role: true,
+          isProfileComplete: true,
+        },
+      }, 
+    },
+  });
+
+  return updatedBarber;
+};
 
 const getMyProfileFromDB = async (id: string) => {
   const Profile = await prisma.user.findUniqueOrThrow({
@@ -295,13 +370,16 @@ const updateMyProfileIntoDB = async (id: string, payload: any) => {
     return { updatedUser };
   });
 
-  // Fetch and return the updated user including the profile
+  // Fetch and return the updated user
   const updatedUser = await prisma.user.findUniqueOrThrow({
     where: { id },
     select: {
       id: true,
       fullName: true,
       email: true,
+      dateOfBirth: true,
+      phoneNumber: true,
+      gender: true,
     },
   });
 
@@ -330,7 +408,7 @@ const changePassword = async (user: any, userId: string, payload: any) => {
     },
   });
 
-  if(userData.password === null) {
+  if (userData.password === null) {
     throw new AppError(httpStatus.CONFLICT, 'Password not set for this user');
   }
 
@@ -390,10 +468,10 @@ const forgotPassword = async (payload: { email: string }) => {
     'Verify Your Email',
     userData.email,
 
-    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #000000; border-radius: 10px;">
     <table width="100%" style="border-collapse: collapse;">
     <tr>
-      <td style="background-color: #000000; padding: 20px; text-align: center; color: #f5f5f5; border-radius: 10px 10px 0 0;">
+      <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #f5f5f5; border-radius: 10px 10px 0 0;">
         <h2 style="margin: 0; font-size: 24px;">Reset password OTP</h2>
       </td>
     </tr>
@@ -407,12 +485,12 @@ const forgotPassword = async (payload: { email: string }) => {
           <p style="font-size: 18px;" >Verify email using this OTP: <span style="font-weight:bold"> ${otp} </span><br/> This OTP will be Expired in 5 minutes,</p>
         </div>
         <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email. No further action is needed.</p>
-        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Storage manager</p>
+        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
       </td>
     </tr>
     <tr>
       <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
-        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Storage manager Team. All rights reserved.</p>
+        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Time Team. All rights reserved.</p>
       </td>
     </tr>
     </table>
@@ -453,10 +531,10 @@ const resendOtpIntoDB = async (payload: any) => {
     'Verify Your Email',
     userData.email,
 
-    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #000000; border-radius: 10px;">
     <table width="100%" style="border-collapse: collapse;">
     <tr>
-      <td style="background-color: #000000; padding: 20px; text-align: center; color: #f5f5f5; border-radius: 10px 10px 0 0;">
+      <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #f5f5f5; border-radius: 10px 10px 0 0;">
         <h2 style="margin: 0; font-size: 24px;">Reset Password OTP</h2>
       </td>
     </tr>
@@ -470,12 +548,12 @@ const resendOtpIntoDB = async (payload: any) => {
           <p style="font-size: 18px;" >Verify email using this OTP: <span style="font-weight:bold"> ${otp} </span><br/> This OTP will be Expired in 5 minutes,</p>
         </div>
         <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email. No further action is needed.</p>
-        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Storage manager</p>
+        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
       </td>
     </tr>
     <tr>
       <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
-        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Storage manager Team. All rights reserved.</p>
+        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Time Team. All rights reserved.</p>
       </td>
     </tr>
     </table>
@@ -499,40 +577,52 @@ const verifyOtpInDB = async (bodyData: {
   if (!userData) {
     throw new AppError(httpStatus.CONFLICT, 'User not found!');
   }
-  const currentTime = new Date(Date.now());
 
-  if (userData?.otp !== bodyData.otp) {
+  const currentTime = new Date();
+
+  if (userData.otp !== bodyData.otp) {
     throw new AppError(httpStatus.CONFLICT, 'Your OTP is incorrect!');
-  } else if (!userData.otpExpiry || userData.otpExpiry <= currentTime) {
+  }
+
+  if (!userData.otpExpiry || userData.otpExpiry <= currentTime) {
     throw new AppError(
       httpStatus.CONFLICT,
-      'Your OTP is expired, please send new otp',
+      'Your OTP has expired. Please request a new one.',
     );
   }
 
+  // Prepare common fields
+  const updateData: any = {
+    otp: null,
+    otpExpiry: null,
+  };
+
+  // If user is not active, determine what else to update
   if (userData.status !== UserStatus.ACTIVE) {
-    await prisma.user.update({
-      where: { email: bodyData.email },
-      data: {
-        otp: null,
-        otpExpiry: null,
-        status: UserStatus.ACTIVE,
-      },
-    });
-  } else {
-    await prisma.user.update({
-      where: { email: bodyData.email },
-      data: {
-        otp: null,
-        otpExpiry: null,
-      },
-    });
+    updateData.status = UserStatus.ACTIVE;
+
+    if (userData.intendedRole === UserRoleEnum.SALOON_OWNER) {
+      updateData.intendedRole = UserRoleEnum.SALOON_OWNER;
+      updateData.role = UserRoleEnum.SALOON_OWNER;
+      updateData.isProfileComplete = false;
+    } else if (userData.intendedRole === UserRoleEnum.BARBER) {
+      // updateData.intendedRole = UserRoleEnum.BARBER;
+      updateData.role = UserRoleEnum.BARBER;
+      updateData.isProfileComplete = true;
+    } else {
+      // any other role or null
+      updateData.isProfileComplete = true;
+    }
   }
-  if (!userData.email) {
-    throw new AppError(httpStatus.CONFLICT, 'Email not set for this user');
-  }
+
+  await prisma.user.update({
+    where: { email: bodyData.email },
+    data: updateData,
+  });
+
   return { message: 'OTP verified successfully!' };
 };
+
 
 // verify otp
 const verifyOtpForgotPasswordInDB = async (bodyData: {
@@ -598,7 +688,6 @@ const socialLoginIntoDB = async (payload: any) => {
         fullName: true,
         email: true,
         role: true,
-
       },
     });
     const accessToken = await generateToken(
@@ -613,14 +702,14 @@ const socialLoginIntoDB = async (payload: any) => {
     );
 
     const refreshedToken = await refreshToken(
-        {
-          id: newUser.id,
-          email: newUser.email,
-          role: newUser.role,
-        },
-        config.jwt.refresh_secret as Secret,
-        config.jwt.refresh_expires_in as string,
-      );
+      {
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+      },
+      config.jwt.refresh_secret as Secret,
+      config.jwt.refresh_expires_in as string,
+    );
 
     return { newUser, accessToken, refreshedToken };
   }
@@ -719,7 +808,8 @@ const updateProfileImageIntoDB = async (
 export const UserServices = {
   registerUserIntoDB,
   registerSaloonOwnerIntoDB,
-  registerBarberIntoDB,
+  updateSaloonOwnerIntoDB,
+  updateBarberIntoDB,
   getMyProfileFromDB,
   updateMyProfileIntoDB,
   updateUserRoleStatusIntoDB,

@@ -1,9 +1,10 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
-import { fileUploader } from '../../utils/fileUploader';
 import { UserControllers } from '../user/user.controller';
 import { UserValidations } from '../user/user.validation';
+import { multerUploadMultiple } from '../../utils/multipleFile';
+import { parseBody } from '../../middlewares/parseBody';
 const router = express.Router();
 
 router.post(
@@ -14,14 +15,38 @@ router.post(
 
 router.post(
   '/register/saloon-owner',
+  multerUploadMultiple.fields([
+    { name: 'shop_logo', maxCount: 1 },
+    { name: 'shop_images', maxCount: 5 },
+    { name: 'shop_videos', maxCount: 2 },
+  ]),
+  parseBody,
   validateRequest(UserValidations.createSaloonOwner),
-  UserControllers.registerSaloonOwner,  
-)
+  UserControllers.registerSaloonOwner,
+);
 
-router.post(
-  '/register/barber',
-  validateRequest(UserValidations.createBarber),
-  UserControllers.registerBarber,
+router.patch(
+  '/update/saloon-owner',
+  multerUploadMultiple.fields([
+    { name: 'shop_logo', maxCount: 1 },
+    { name: 'shop_images', maxCount: 5 },
+    { name: 'shop_videos', maxCount: 2 },
+  ]),
+  parseBody,
+  validateRequest(UserValidations.createSaloonOwner),
+  UserControllers.updateSaloonOwner,
+);
+
+
+router.put(
+  '/update/barber',
+  multerUploadMultiple.fields([
+    { name: 'portfolioImages', maxCount: 5 },
+  ]),
+  parseBody,
+  auth(),
+  validateRequest(UserValidations.updateBarber),
+  UserControllers.updateBarber,
 )
 
 router.put(
@@ -81,8 +106,8 @@ router.post('/delete-account', auth(), UserControllers.deleteAccount);
 
 router.put(
   '/update-profile-image',
+  multerUploadMultiple.single('profileImage'),
   auth(),
-  fileUploader.upload.single('profileImage'),
   UserControllers.updateProfileImage,
 );
 

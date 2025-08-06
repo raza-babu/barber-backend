@@ -15,8 +15,8 @@ const registerUser = z.object({
       required_error: 'Password is required!',
     }),
     intendedRole: z
-      .string({
-        required_error: 'Intended role is required!',
+      .enum(['CUSTOMER', 'SALOON_OWNER', 'BARBER'], {
+        required_error: 'Role is required!',
       })
       .optional(),
   }),
@@ -127,12 +127,8 @@ const socialLoginSchema = z.object({
 });
 
 
-export const createSaloonOwner = z.object({
+const createSaloonOwner = z.object({
   body: z.object({
-    userId: z.string({
-      required_error: 'User ID is required!',
-    }),
-
     shopName: z.string({
       required_error: 'Shop name is required!',
     }),
@@ -141,9 +137,6 @@ export const createSaloonOwner = z.object({
       required_error: 'Registration number is required!',
     }),
 
-    number: z.string({
-      required_error: 'Contact number is required!',
-    }),
 
     shopAddress: z.string({
       required_error: 'Shop address is required!',
@@ -199,12 +192,72 @@ export const createSaloonOwner = z.object({
   }),
 });
 
-
-export const createBarber = z.object({
+const updateSaloonOwner = z.object({
   body: z.object({
-    userId: z.string({
-      required_error: 'User ID is required!',
-    }),
+    shopName: z.string({
+      required_error: 'Shop name is required!',
+    }).optional(),
+
+    registrationNumber: z.string({
+      required_error: 'Registration number is required!',
+    }).optional(),
+
+    shopAddress: z.string({
+      required_error: 'Shop address is required!',
+    }).optional(),
+
+    latitude: z
+      .number({
+        invalid_type_error: 'Latitude must be a number!',
+      })
+      .optional(),
+
+    longitude: z
+      .number({
+        invalid_type_error: 'Longitude must be a number!',
+      })
+      .optional(),
+
+    shopLogo: z.string().optional(),
+
+    shopImage: z
+      .array(z.string(), {
+        invalid_type_error: 'Shop images must be an array of strings!',
+      })
+      .optional(),
+
+    qrCode: z.string().optional(),
+
+    isVerified: z.boolean().optional(),
+
+    followerCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .default(0),
+
+    followingCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .default(0),
+
+    ratingCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .default(0),
+
+    avgRating: z
+      .number()
+      .nonnegative()
+      .optional()
+      .default(0),
+  }),
+});
+
+ const updateBarber = z.object({
+  body: z.object({
 
     saloonOwnerId: z.string().optional(),
 
@@ -212,18 +265,11 @@ export const createBarber = z.object({
 
     bio: z.string().optional(),
 
-    gender: z.enum(['Male', 'Female', 'Other']).optional(),
-
-    dob: z
-      .string()
-      .datetime({
-        message: 'Date of birth must be a valid ISO date string!',
+   portfolio: z
+      .array(z.string(), {
+        invalid_type_error: 'Portfolio images must be an array of strings!',
       })
-      .optional(),
-
-    number: z.string().optional(),
-
-    images: z.string().optional(),
+      .optional(), 
 
     isAvailable: z.boolean().optional(),
 
@@ -265,11 +311,12 @@ export const createBarber = z.object({
 export const UserValidations = {
   registerUser,
   updateProfileSchema,
+  updateSaloonOwner,
   updatePasswordSchema,
   forgetPasswordSchema,
   verifyOtpSchema,
   changePasswordSchema,
   socialLoginSchema,
   createSaloonOwner,
-  createBarber,
+  updateBarber,
 };

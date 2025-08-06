@@ -3,7 +3,6 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { groupService } from './group.service';
 import AppError from '../../errors/AppError';
-import { uploadFileToSpace } from '../../utils/multerUpload';
 import { uploadFileToSpaceForUpdate } from '../../utils/updateMulterUpload';
 
 const createGroup = catchAsync(async (req, res) => {
@@ -14,7 +13,7 @@ const createGroup = catchAsync(async (req, res) => {
   if (!file) {
     throw new AppError(httpStatus.CONFLICT, 'file not found');
   }
-  const fileUrl = await uploadFileToSpace(file, 'retire-professional');
+  const fileUrl = await uploadFileToSpaceForUpdate(file, 'retire-professional');
 
   const groupData = {
     data,
@@ -99,7 +98,7 @@ const imageToLink = catchAsync(async (req, res) => {
   if (!file) {
     throw new AppError(httpStatus.CONFLICT, 'file not found');
   }
-  const fileUrl = await uploadFileToSpace(file, 'retire-professional');
+  const fileUrl = await uploadFileToSpaceForUpdate(file, 'retire-professional');
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

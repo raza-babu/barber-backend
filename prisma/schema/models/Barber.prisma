@@ -1,14 +1,11 @@
 model Barber {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String    @unique @db.ObjectId
-  saloonOwnerId   String?   @unique @db.ObjectId
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
+  saloonOwnerId   String?  @unique @db.ObjectId
   currentWorkDes  String?
   bio             String?
-  gender          String?
-  dob             DateTime?
-  number          String?
-  images          String?
-  isAvailable     Boolean   @default(false)
+  portfolio       String[]
+  isAvailable     Boolean  @default(false)
   experienceYears String?
   skills          String[]
 
