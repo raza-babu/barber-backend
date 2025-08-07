@@ -28,6 +28,9 @@ model SaloonOwner {
   SaloonHoliday     SaloonHoliday[]
   QRCode            QRCode[]
   CustomerVisit     CustomerVisit[]
+  Service           Service[]
+  jobPosts          JobPost[]
+  JobApplication    JobApplication[]
 
   @@map("saloon_owners")
 }

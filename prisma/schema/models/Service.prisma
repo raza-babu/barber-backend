@@ -1,6 +1,7 @@
 model Service {
   id            String      @id @default(auto()) @map("_id") @db.ObjectId
   saloonOwnerId String      @db.ObjectId
+  saloonId      String      @db.ObjectId
   serviceName   String
   availableTo   AvailableTO @default(EVERYONE) // Who can book this service
   price         Float
@@ -11,6 +12,7 @@ model Service {
 
   // Relationships
   user          User            @relation(fields: [saloonOwnerId], references: [id])
+  saloon        SaloonOwner     @relation(fields: [saloonId], references: [id])
   Booking       Booking[]
   CustomerVisit CustomerVisit[]
   QueueSlot     QueueSlot[]

@@ -63,6 +63,7 @@ model User {
   LoyaltyPointLog   LoyaltyPointLog[]
   LoyaltyRedemption LoyaltyRedemption[]
   QueueSlot         QueueSlot[]
+  HiredBarber       HiredBarber[]
 
   @@map("users")
 }

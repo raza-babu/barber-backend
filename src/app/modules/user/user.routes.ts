@@ -33,7 +33,8 @@ router.patch(
     { name: 'shop_videos', maxCount: 2 },
   ]),
   parseBody,
-  validateRequest(UserValidations.createSaloonOwner),
+  auth(),
+  validateRequest(UserValidations.updateSaloonOwner),
   UserControllers.updateSaloonOwner,
 );
 

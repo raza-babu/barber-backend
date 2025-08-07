@@ -25,6 +25,7 @@ model Barber {
   BarberSchedule       BarberSchedule[]
   BarberDayOff         BarberDayOff[]
   Queue                Queue[]
+  HiredBarber          HiredBarber[]
   BarberRealTimeStatus BarberRealTimeStatus[]
 
   @@map("barbers")

@@ -129,6 +129,13 @@ const socialLoginSchema = z.object({
 
 const createSaloonOwner = z.object({
   body: z.object({
+    email: z
+      .string({
+        required_error: 'Email is required!',
+      })
+      .email({
+        message: 'Invalid email format!',
+      }),
     shopName: z.string({
       required_error: 'Shop name is required!',
     }),

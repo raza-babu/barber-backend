@@ -215,6 +215,7 @@ model Barber {
   BarberSchedule       BarberSchedule[]
   BarberDayOff         BarberDayOff[]
   Queue                Queue[]
+  HiredBarber          HiredBarber[]
   BarberRealTimeStatus BarberRealTimeStatus[]
 
   @@map("barbers")
@@ -432,39 +433,60 @@ model Follow {
 }
 
 
-model JobApplication {
-  id        String               @id @default(auto()) @map("_id") @db.ObjectId
-  jobPostId String               @db.ObjectId
-  userId    String               @db.ObjectId
-  status    JobApplicationStatus @default(PENDING)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+model HiredBarber {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String    @db.ObjectId
+  barberId   String    @db.ObjectId
+  hourlyRate Float?
+  startDate  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   // Relationships
-  jobPost JobPost @relation(fields: [jobPostId], references: [id])
-  barber  Barber  @relation(fields: [userId], references: [userId])
+  user   User   @relation(fields: [userId], references: [id])
+  barber Barber @relation(fields: [barberId], references: [userId])
+
+  @@map("hired_barbers")
+}
+
+
+model JobApplication {
+  id            String               @id @default(auto()) @map("_id") @db.ObjectId
+  jobPostId     String               @db.ObjectId
+  userId        String               @db.ObjectId
+  saloonOwnerId String               @db.ObjectId
+  status        JobApplicationStatus @default(PENDING)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  // Relationships
+  jobPost     JobPost     @relation(fields: [jobPostId], references: [id])
+  barber      Barber      @relation(fields: [userId], references: [userId])
+  saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
 
   @@map("job_applications")
 }
 
 
 model JobPost {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String    @db.ObjectId
-  shopName    String
-  shopLogo    String
-  description String
-  hourlyRate  Float?
-  salary      Float?
-  startDate   DateTime?
-  endDate     DateTime?
-  datePosted  DateTime?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String    @db.ObjectId
+  saloonOwnerId String    @db.ObjectId
+  shopName      String
+  shopLogo      String
+  description   String
+  hourlyRate    Float?
+  salary        Float?
+  startDate     DateTime?
+  endDate       DateTime?
+  datePosted    DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // Relationships
   user           User             @relation(fields: [userId], references: [id])
+  saloonOwner    SaloonOwner      @relation(fields: [saloonOwnerId], references: [userId])
   JobApplication JobApplication[]
 
   @@map("job_posts")
@@ -823,6 +845,9 @@ model SaloonOwner {
   SaloonHoliday     SaloonHoliday[]
   QRCode            QRCode[]
   CustomerVisit     CustomerVisit[]
+  Service           Service[]
+  jobPosts          JobPost[]
+  JobApplication    JobApplication[]
 
   @@map("saloon_owners")
 }
@@ -867,6 +892,7 @@ model SaloonSchedule {
 model Service {
   id            String      @id @default(auto()) @map("_id") @db.ObjectId
   saloonOwnerId String      @db.ObjectId
+  saloonId      String      @db.ObjectId
   serviceName   String
   availableTo   AvailableTO @default(EVERYONE) // Who can book this service
   price         Float
@@ -877,6 +903,7 @@ model Service {
 
   // Relationships
   user          User            @relation(fields: [saloonOwnerId], references: [id])
+  saloon        SaloonOwner     @relation(fields: [saloonId], references: [id])
   Booking       Booking[]
   CustomerVisit CustomerVisit[]
   QueueSlot     QueueSlot[]
@@ -1003,6 +1030,7 @@ model User {
   LoyaltyPointLog   LoyaltyPointLog[]
   LoyaltyRedemption LoyaltyRedemption[]
   QueueSlot         QueueSlot[]
+  HiredBarber       HiredBarber[]
 
   @@map("users")
 }

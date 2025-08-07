@@ -192,8 +192,8 @@ const router = express.Router();
 
 router.post(
 '/',
-validateRequest(${moduleName}Validation.createSchema),
 auth(),
+validateRequest(${moduleName}Validation.createSchema),
 ${moduleName}Controller.create${capitalizedModule},
 );
 
@@ -203,8 +203,8 @@ router.get('/:id', auth(), ${moduleName}Controller.get${capitalizedModule}ById);
 
 router.put(
 '/:id',
-validateRequest(${moduleName}Validation.updateSchema),
 auth(),
+validateRequest(${moduleName}Validation.updateSchema),
 ${moduleName}Controller.update${capitalizedModule},
 );
 

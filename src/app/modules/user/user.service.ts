@@ -162,22 +162,18 @@ const resendUserVerificationEmail = async (email: string) => {
 
 const registerSaloonOwnerIntoDB = async (payload: any) => {
   const { email } = payload;
+  let userId;
 
   if (email) {
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
+    userId = existingUser?.id;
 
     if (!existingUser) {
       throw new AppError(httpStatus.CONFLICT, 'User not exists!');
     }
-
-    if (existingUser.password !== null) {
-      const isCorrectPassword = await bcrypt.compare(payload.password, existingUser.password);
-      if (!isCorrectPassword) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
-      }
-    }
+  
 
     const existingSaloonOwner = await prisma.saloonOwner.findUnique({
       where: { userId: existingUser.id },
@@ -191,6 +187,16 @@ const registerSaloonOwnerIntoDB = async (payload: any) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      
+
+      // Exclude 'email' from payload before creating saloon owner
+      const { email, ...saloonOwnerData } = payload;
+      const createdSaloonOwner = await tx.saloonOwner.create({
+        data: {
+          ...saloonOwnerData,
+          userId: userId!,
+        },
+      });
       const updatedUser = await tx.user.update({
         where: { email, intendedRole: UserRoleEnum.SALOON_OWNER },
         data: {
@@ -203,13 +209,6 @@ const registerSaloonOwnerIntoDB = async (payload: any) => {
       if (!updatedUser) {
         throw new AppError(httpStatus.BAD_REQUEST, 'User role not updated!');
       }
-
-      const createdSaloonOwner = await tx.saloonOwner.create({
-        data: {
-          ...payload,
-          userId: updatedUser.id,
-        },
-      });
 
       if (!createdSaloonOwner) {
         throw new AppError(httpStatus.BAD_REQUEST, 'Saloon shop not created!');
@@ -468,14 +467,15 @@ const forgotPassword = async (payload: { email: string }) => {
     'Verify Your Email',
     userData.email,
 
-    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #000000; border-radius: 10px;">
+    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
     <table width="100%" style="border-collapse: collapse;">
     <tr>
-      <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #f5f5f5; border-radius: 10px 10px 0 0;">
+      <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
         <h2 style="margin: 0; font-size: 24px;">Reset password OTP</h2>
       </td>
     </tr>
-    <tr>0
+    <tr>
+
       <td style="padding: 20px;">
         <p style="font-size: 16px; margin: 0;">Hello <strong>${
           userData.fullName
@@ -490,7 +490,7 @@ const forgotPassword = async (payload: { email: string }) => {
     </tr>
     <tr>
       <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
-        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Time Team. All rights reserved.</p>
+        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Team. All rights reserved.</p>
       </td>
     </tr>
     </table>

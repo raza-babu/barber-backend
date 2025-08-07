@@ -68,15 +68,15 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
   const payload = {
     ...body,
     shopLogo: uploads.shopLogo,
-    shopImage: uploads.shopImages,
-    shopVideos: uploads.shopVideos? uploads.shopVideos : [],
+    shopImages: uploads.shopImages,
+    shopVideo: uploads.shopVideos? uploads.shopVideos : [],
   };
 
   const result = await UserServices.registerSaloonOwnerIntoDB(payload);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
-    message: 'Saloon owner registered successfully',
+    message: 'Saloon owner profile completed successfully',
     data: result,
   });
 });
@@ -118,8 +118,8 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
   const payload = {
     ...body,
     shopLogo: uploads.shopLogo,
-    shopImage: uploads.shopImages,
-    shopVideos: uploads.shopVideos? uploads.shopVideos : [],
+    shopImages: uploads.shopImages,
+    shopVideo: uploads.shopVideos? uploads.shopVideos : [],
   };
   const result = await UserServices.updateSaloonOwnerIntoDB(user.id, payload);
   sendResponse(res, {
