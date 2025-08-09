@@ -31,6 +31,8 @@ model SaloonOwner {
   Service           Service[]
   jobPosts          JobPost[]
   JobApplication    JobApplication[]
+  Feed              Feed[]
+  Support           Support[]
 
   @@map("saloon_owners")
 }

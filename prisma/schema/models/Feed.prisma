@@ -1,6 +1,7 @@
 model Feed {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   userId        String   @db.ObjectId
+  saloonOwnerId String?  @db.ObjectId
   caption       String
   images        String[]
   favoriteCount Int      @default(0)
@@ -9,6 +10,7 @@ model Feed {
 
   // Relationships
   user         User           @relation(fields: [userId], references: [id])
+  shop         SaloonOwner?   @relation(fields: [saloonOwnerId], references: [id])
   FavoriteFeed FavoriteFeed[]
 
   @@map("feeds")

@@ -6,7 +6,7 @@ import AppError from '../../errors/AppError';
 import { generateToken, refreshToken } from '../../utils/generateToken';
 import prisma from '../../utils/prisma';
 import { verifyToken } from '../../utils/verifyToken';
-import { UserStatus } from '@prisma/client';
+import { UserRoleEnum, UserStatus } from '@prisma/client';
 
 const loginUserFromDB = async (payload: {
   email: string;
@@ -35,6 +35,37 @@ const loginUserFromDB = async (payload: {
       httpStatus.BAD_REQUEST,
       'Please complete your profile before logging in',
     );
+  }
+  if(userData.status === UserStatus.BLOCKED) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Your account is blocked. Please contact support.',
+    );
+  }
+
+  if(userData.role === UserRoleEnum.SALOON_OWNER){
+    const saloon = await prisma.saloonOwner.findFirst({
+      where: {
+        userId: userData.id,
+      },
+    });
+    if (saloon?.isVerified === false) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Your saloon is not verified yet. Please wait for verification.',
+      );
+    }
+  }
+
+  if(userData.role === UserRoleEnum.ADMIN) {
+    const admin = await prisma.admin.findFirst({
+      where: {
+        userId: userData.id,
+      },
+    });
+    if (admin) {
+      
+    }
   }
 
   if (userData.isLoggedIn === false) {

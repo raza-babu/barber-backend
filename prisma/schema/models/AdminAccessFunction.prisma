@@ -1,5 +1,6 @@
 model AdminAccessFunction {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String   @db.ObjectId
   adminId          String   @db.ObjectId
   accessFunctionId String   @db.ObjectId
   createdAt        DateTime @default(now())
@@ -7,6 +8,7 @@ model AdminAccessFunction {
 
   admin          Admin          @relation(fields: [adminId], references: [userId])
   accessFunction AccessFunction @relation(fields: [accessFunctionId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
 
   @@map("admin_access_functions")
 }

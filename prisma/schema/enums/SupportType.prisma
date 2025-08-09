@@ -1,0 +1,4 @@
+enum SupportType {
+  CUSTOMER_QUESTION
+  CUSTOMER_COMPLAINT
+}

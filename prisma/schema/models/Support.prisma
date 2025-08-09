@@ -1,15 +1,19 @@
 model Support {
-  id        String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String        @db.ObjectId
-  userName  String
-  subject   String?
-  message   String
-  status    SupportStatus @default(OPEN)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String        @db.ObjectId
+  userName      String
+  subject       String?
+  message       String
+  status        SupportStatus @default(OPEN)
+  type          SupportType
+  saloonOwnerId String?       @db.ObjectId
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   // Relationships
-  user  User    @relation(fields: [userId], references: [id])
+  user        User         @relation(fields: [userId], references: [id])
+  saloonOwner SaloonOwner? @relation(fields: [saloonOwnerId], references: [id])
+
   Reply Reply[]
 
   @@map("supports")

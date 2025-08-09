@@ -99,6 +99,11 @@ enum SupportStatus {
 }
 
 
+enum SupportType {
+  CUSTOMER_QUESTION
+  CUSTOMER_COMPLAINT
+}
+
 enum UserRoleEnum {
   CUSTOMER
   ADMIN
@@ -141,11 +146,11 @@ model AccessFunction {
 
 
 model Admin {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @unique @db.ObjectId
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @unique @db.ObjectId
   isSuperAdmin Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relationships
   user                User                  @relation(fields: [userId], references: [id])
@@ -157,6 +162,7 @@ model Admin {
 
 model AdminAccessFunction {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String   @db.ObjectId
   adminId          String   @db.ObjectId
   accessFunctionId String   @db.ObjectId
   createdAt        DateTime @default(now())
@@ -164,6 +170,7 @@ model AdminAccessFunction {
 
   admin          Admin          @relation(fields: [adminId], references: [userId])
   accessFunction AccessFunction @relation(fields: [accessFunctionId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
 
   @@map("admin_access_functions")
 }
@@ -403,6 +410,7 @@ model FavoriteFeed {
 model Feed {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   userId        String   @db.ObjectId
+  saloonOwnerId String?  @db.ObjectId
   caption       String
   images        String[]
   favoriteCount Int      @default(0)
@@ -411,6 +419,7 @@ model Feed {
 
   // Relationships
   user         User           @relation(fields: [userId], references: [id])
+  shop         SaloonOwner?   @relation(fields: [saloonOwnerId], references: [id])
   FavoriteFeed FavoriteFeed[]
 
   @@map("feeds")
@@ -848,6 +857,8 @@ model SaloonOwner {
   Service           Service[]
   jobPosts          JobPost[]
   JobApplication    JobApplication[]
+  Feed              Feed[]
+  Support           Support[]
 
   @@map("saloon_owners")
 }
@@ -933,17 +944,21 @@ model SubscriptionOffer {
 
 
 model Support {
-  id        String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String        @db.ObjectId
-  userName  String
-  subject   String?
-  message   String
-  status    SupportStatus @default(OPEN)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String        @db.ObjectId
+  userName      String
+  subject       String?
+  message       String
+  status        SupportStatus @default(OPEN)
+  type          SupportType
+  saloonOwnerId String?       @db.ObjectId
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   // Relationships
-  user  User    @relation(fields: [userId], references: [id])
+  user        User         @relation(fields: [userId], references: [id])
+  saloonOwner SaloonOwner? @relation(fields: [saloonOwnerId], references: [id])
+
   Reply Reply[]
 
   @@map("supports")
@@ -1010,7 +1025,7 @@ model User {
   Faq               Faq[]
   TermAndCondition  TermAndCondition[]
   PrivacyPolicy     PrivacyPolicy[]
-  ADMIN             Admin[]
+  Admin             Admin[]
   AccessFunction    AccessFunction[]
   Ads               Ads[]
   SubscriptionOffer SubscriptionOffer[]
@@ -1031,6 +1046,7 @@ model User {
   LoyaltyRedemption LoyaltyRedemption[]
   QueueSlot         QueueSlot[]
   HiredBarber       HiredBarber[]
+  adminAccessFunction AdminAccessFunction[]
 
   @@map("users")
 }

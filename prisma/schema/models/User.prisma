@@ -43,7 +43,7 @@ model User {
   Faq               Faq[]
   TermAndCondition  TermAndCondition[]
   PrivacyPolicy     PrivacyPolicy[]
-  ADMIN             Admin[]
+  Admin             Admin[]
   AccessFunction    AccessFunction[]
   Ads               Ads[]
   SubscriptionOffer SubscriptionOffer[]
@@ -64,6 +64,7 @@ model User {
   LoyaltyRedemption LoyaltyRedemption[]
   QueueSlot         QueueSlot[]
   HiredBarber       HiredBarber[]
+  adminAccessFunction AdminAccessFunction[]
 
   @@map("users")
 }
