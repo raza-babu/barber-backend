@@ -44,7 +44,7 @@ const updateSubscriptionOfferIntoDb = async (
   const result = await prisma.subscriptionOffer.update({
     where: {
       id: subscriptionOfferId,
-      createdBy: userId,
+      userId: userId,
     },
     data: {
       ...data,
@@ -66,7 +66,7 @@ const deleteSubscriptionOfferItemFromDb = async (
   const deletedItem = await prisma.subscriptionOffer.delete({
     where: {
       id: subscriptionOfferId,
-      createdBy: userId,
+      userId: userId,
     },
   });
   if (!deletedItem) {

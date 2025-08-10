@@ -47,7 +47,6 @@ const updatePrivacyPolicyIntoDb = async (userId: string, privacyPolicyId: string
     const result = await prisma.privacyPolicy.update({
       where:  {
         id: privacyPolicyId,
-        userId: userId,
     },
     data: {
       ...data,
@@ -63,7 +62,6 @@ const deletePrivacyPolicyItemFromDb = async (userId: string, privacyPolicyId: st
     const deletedItem = await prisma.privacyPolicy.delete({
       where: {
       id: privacyPolicyId,
-      userId: userId,
     },
   });
   if (!deletedItem) {

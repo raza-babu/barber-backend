@@ -4,11 +4,15 @@ import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { adminAccessFunctionController } from './adminAccessFunction.controller';
 import { adminAccessFunctionValidation } from './adminAccessFunction.validation';
+import { multerUploadMultiple } from '../../utils/multipleFile';
+import { parseBody } from '../../middlewares/parseBody';
 
 const router = express.Router();
 
 router.post(
   '/',
+  multerUploadMultiple.single('profileImage'),
+  parseBody,
   auth(UserRoleEnum.SUPER_ADMIN),
   validateRequest(adminAccessFunctionValidation.createSchema),
   adminAccessFunctionController.createAdminAccessFunction,
@@ -16,18 +20,18 @@ router.post(
 
 router.get(
   '/',
-  auth(),
+  auth(UserRoleEnum.SUPER_ADMIN),
   adminAccessFunctionController.getAdminAccessFunctionList,
 );
 
 router.get(
   '/:id',
-  auth(),
+  auth(UserRoleEnum.SUPER_ADMIN),
   adminAccessFunctionController.getAdminAccessFunctionById,
 );
 
 router.put(
-  '/:id',
+  '/',
   auth(UserRoleEnum.SUPER_ADMIN),
   validateRequest(adminAccessFunctionValidation.updateSchema),
   adminAccessFunctionController.updateAdminAccessFunction,
@@ -35,7 +39,7 @@ router.put(
 
 router.delete(
   '/:id',
-  auth(),
+  auth(UserRoleEnum.SUPER_ADMIN),
   adminAccessFunctionController.deleteAdminAccessFunction,
 );
 

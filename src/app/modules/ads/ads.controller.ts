@@ -6,6 +6,7 @@ import { uploadFileToSpace } from '../../utils/multipleFile';
 
 const createAds = catchAsync(async (req, res) => {
   const user = req.user as any;
+  
   const { files, body } = req;
   const uploads: {
     images: string[];

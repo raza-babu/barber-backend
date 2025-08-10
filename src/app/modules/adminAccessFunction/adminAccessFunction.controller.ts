@@ -2,10 +2,25 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { adminAccessFunctionService } from './adminAccessFunction.service';
+import { uploadFileToSpace } from '../../utils/multipleFile';
+import AppError from '../../errors/AppError';
 
 const createAdminAccessFunction = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await adminAccessFunctionService.createAdminAccessFunctionIntoDb(user.id, req.body);
+  const {file, body} = req;
+  
+  if (!file) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Profile image file is required.');
+  }
+
+  // Upload to DigitalOcean
+  const fileUrl = await uploadFileToSpace(file, 'admin-profile-images');
+  const accessFunctionData = {
+    ...body,
+    image: fileUrl,
+  };
+
+  const result = await adminAccessFunctionService.createAdminAccessFunctionIntoDb(user.id, accessFunctionData);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
@@ -38,7 +53,8 @@ const getAdminAccessFunctionById = catchAsync(async (req, res) => {
 
 const updateAdminAccessFunction = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await adminAccessFunctionService.updateAdminAccessFunctionIntoDb(user.id, req.params.id, req.body);
+ 
+  const result = await adminAccessFunctionService.updateAdminAccessFunctionIntoDb(user.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

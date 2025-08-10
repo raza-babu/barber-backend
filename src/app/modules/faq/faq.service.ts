@@ -40,7 +40,6 @@ const updateFaqIntoDb = async (userId: string, faqId: string, data: any) => {
   const result = await prisma.faq.update({
     where: {
       id: faqId,
-      userId: userId,
     },
     data: {
       ...data,
@@ -56,7 +55,6 @@ const deleteFaqItemFromDb = async (userId: string, faqId: string) => {
   const deletedItem = await prisma.faq.delete({
     where: {
       id: faqId,
-      userId: userId,
     },
   });
   if (!deletedItem) {

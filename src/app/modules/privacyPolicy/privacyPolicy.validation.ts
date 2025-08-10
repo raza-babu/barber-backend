@@ -2,9 +2,6 @@ import { z } from 'zod';
 
 const createPrivacyPolicySchema = z.object({
   body: z.object({
-    userId: z.string({
-      required_error: 'User ID is required!',
-    }),
     heading: z.string({
       required_error: 'Heading is required!',
     }),

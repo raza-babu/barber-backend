@@ -9,6 +9,7 @@ const superAdminData = {
   password: '',
   role: UserRoleEnum.SUPER_ADMIN,
   status: UserStatus.ACTIVE,
+  isProfileComplete: true,
 };
 
 const seedSuperAdmin = async () => {
