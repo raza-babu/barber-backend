@@ -3,6 +3,9 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import emailSender from '../../utils/emailSender';
 import { SupportStatus, SupportType } from '@prisma/client';
+import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import { buildCompleteQuery } from '../../utils/searchFilter';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 const createSupportRepliesIntoDb = async (userId: string, data: any) => {
   const user = await prisma.user.findUnique({
@@ -31,31 +34,96 @@ const createSupportRepliesIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getSupportRepliesReportsFromDb = async () => {
-  const result = await prisma.support.findMany({
-    where: {
+const getSupportRepliesReportsFromDb = async (options: ISearchAndFilterOptions) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  
+  const whereClause = buildCompleteQuery(
+    {
+      searchTerm: options.searchTerm,
+      searchFields: ['userName', 'message'],
+    },
+    {
       type: SupportType.CUSTOMER_COMPLAINT,
+      status: options.status,
     },
-    select: {
-      id: true,
-      userId: true,
-      userName: true,
-      message: true,
-      createdAt: true,
-    },
-  });
-  if (result.length === 0) {
-    return [];
-  } 
-  return result;
+    {
+      startDate: options.startDate,
+      endDate: options.endDate,
+      dateField: 'createdAt',
+    }
+  );
+
+  const [reports, total] = await Promise.all([
+    prisma.support.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        id: true,
+        userId: true,
+        userName: true,
+        message: true,
+        status: true,
+        type: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.support.count({
+      where: whereClause,
+    }),
+  ]);
+
+  return formatPaginationResponse(reports, total, page, limit);
 };
 
-const getSupportRepliesListFromDb = async () => {
-  const result = await prisma.support.findMany();
-  if (result.length === 0) {
-    return [];
-  }
-  return result;
+const getSupportRepliesListFromDb = async (options: ISearchAndFilterOptions) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  
+  const whereClause = buildCompleteQuery(
+    {
+      searchTerm: options.searchTerm,
+      searchFields: ['userName', 'message'],
+    },
+    {
+      status: options.status,
+      type: options.type,
+    },
+    {
+      startDate: options.startDate,
+      endDate: options.endDate,
+      dateField: 'createdAt',
+    }
+  );
+
+  const [supportReplies, total] = await Promise.all([
+    prisma.support.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        id: true,
+        userId: true,
+        userName: true,
+        message: true,
+        status: true,
+        type: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.support.count({
+      where: whereClause,
+    }),
+  ]);
+
+  return formatPaginationResponse(supportReplies, total, page, limit);
 };
 
 const getSupportRepliesByIdFromDb = async (supportRepliesId: string) => {

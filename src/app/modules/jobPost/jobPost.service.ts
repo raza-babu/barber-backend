@@ -2,7 +2,9 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { start } from 'repl';
+import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import { buildCompleteQuery, buildNumericRangeQuery } from '../../utils/searchFilter';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 const createJobPostIntoDb = async (userId: string, data: any) => {
   const shopDetails = await prisma.user.findUnique({
@@ -41,16 +43,106 @@ const createJobPostIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getJobPostListFromDb = async () => {
-  const result = await prisma.jobPost.findMany({
-    where: {
-      isActive: true,
-    },
-  });
-  if (result.length === 0) {
-    return [];
+const getJobPostListFromDb = async (options: ISearchAndFilterOptions) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  
+  // Build search query
+  const searchQuery = options.searchTerm ? {
+    OR: [
+      {
+        // title: {
+        //   contains: options.searchTerm,
+        //   mode: 'insensitive' as const,
+        // },
+      },
+      {
+        description: {
+          contains: options.searchTerm,
+          mode: 'insensitive' as const,
+        },
+      },
+      {
+        shopName: {
+          contains: options.searchTerm,
+          mode: 'insensitive' as const,
+        },
+      },
+      {
+        location: {
+          contains: options.searchTerm,
+          mode: 'insensitive' as const,
+        },
+      },
+    ],
+  } : {};
+
+  // Build filter query
+  const filterQuery: any = {
+    isActive: options.isActive !== undefined ? options.isActive === 'true' : true,
+  };
+
+  // Add experience filter if provided
+  if (options.experienceRequired !== undefined) {
+    filterQuery.experienceRequired = {
+      gte: Number(options.experienceRequired),
+    };
   }
-  return result;
+
+  // Build salary range filter
+  const salaryRangeQuery = buildNumericRangeQuery(
+    'salary',
+    options.salaryMin ? Number(options.salaryMin) : undefined,
+    options.salaryMax ? Number(options.salaryMax) : undefined
+  );
+
+  // Build date range query
+  const dateRangeQuery = options.startDate || options.endDate ? {
+    datePosted: {
+      ...(options.startDate && { gte: new Date(options.startDate) }),
+      ...(options.endDate && { lte: new Date(options.endDate) }),
+    },
+  } : {};
+
+  // Combine all queries
+  const whereClause = {
+    ...filterQuery,
+    ...salaryRangeQuery,
+    ...dateRangeQuery,
+    ...(Object.keys(searchQuery).length > 0 && searchQuery),
+  };
+
+  const [jobPosts, total] = await Promise.all([
+    prisma.jobPost.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        id: true,
+        // title: true,
+        description: true,
+        salary: true,
+        // location: true,
+        // experienceRequired: true,
+        isActive: true,
+        datePosted: true,
+        startDate: true,
+        endDate: true,
+        shopName: true,
+        shopLogo: true,
+        saloonOwnerId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.jobPost.count({
+      where: whereClause,
+    }),
+  ]);
+
+  return formatPaginationResponse(jobPosts, total, page, limit);
 };
 
 const getJobPostByIdFromDb = async (userId: string, jobPostId: string) => {

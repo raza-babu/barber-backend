@@ -1,16 +1,11 @@
-const pickValidFields = <T extends Record<string, unknown>, k extends keyof T>(
-  obj: T,
-  keys: k[]
-): Partial<T> => {
-  const finalObj: Partial<T> = {};
-
-  for (const key of keys) {
+export const pickValidFields = (obj: Record<string, any>, keys: string[]) => {
+  const result: Record<string, any> = {};
+  
+  keys.forEach((key) => {
     if (obj && Object.hasOwnProperty.call(obj, key)) {
-      finalObj[key] = obj[key];
+      result[key] = obj[key];
     }
-  }
-
-  return finalObj;
+  });
+  
+  return result;
 };
-
-export default pickValidFields;

@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { supportRepliesService } from './supportReplies.service';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createSupportReplies = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -16,12 +17,25 @@ const createSupportReplies = catchAsync(async (req, res) => {
 
 const getSupportRepliesList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await supportRepliesService.getSupportRepliesListFromDb();
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'type',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await supportRepliesService.getSupportRepliesListFromDb(filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'SupportReplies list retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 
@@ -38,12 +52,24 @@ const getSupportRepliesById = catchAsync(async (req, res) => {
 
 const getSupportRepliesReports = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await supportRepliesService.getSupportRepliesReportsFromDb();
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await supportRepliesService.getSupportRepliesReportsFromDb(filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'SupportReplies reports retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 

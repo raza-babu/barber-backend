@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { jobPostService } from './jobPost.service';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createJobPost = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -16,12 +17,27 @@ const createJobPost = catchAsync(async (req, res) => {
 
 const getJobPostList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await jobPostService.getJobPostListFromDb();
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'isActive',
+    'salaryMin',
+    'salaryMax',
+    'experienceRequired',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await jobPostService.getJobPostListFromDb(filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'JobPost list retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 
@@ -57,7 +73,6 @@ const toggleJobPostActive = catchAsync(async (req, res) => {
     data: result,
   });
 });
-
 
 const deleteJobPost = catchAsync(async (req, res) => {
   const user = req.user as any;
