@@ -16,6 +16,9 @@ import { feedRoutes } from '../modules/feed/feed.routes';
 import { favoriteFeedRoutes } from '../modules/favoriteFeed/favoriteFeed.routes';
 import { supportRepliesRoutes } from '../modules/supportReplies/supportReplies.routes';
 import { subscriptionOfferRoutes } from '../modules/subscriptionOffer/subscriptionOffer.routes';
+import path from 'path';
+import admin from '../utils/firebase';
+import { adminRoutes } from '../modules/admin/admin.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -86,6 +89,10 @@ const moduleRoutes = [
   {
     path: '/subscription-plans',
     route: subscriptionOfferRoutes
+  },
+  {
+    path: '/admin',
+    route: adminRoutes,
   }
 ];
 

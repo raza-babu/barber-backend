@@ -1,9 +1,8 @@
 import { z } from 'zod';
 
-const createSchema = z.object({
+const blockSchema = z.object({
   body: z.object({
-    name: z.string().min(1, 'Name is required'),
-    description: z.string().optional(),
+    status: z.boolean(),
     }),
 });
 
@@ -14,7 +13,8 @@ const updateSchema = z.object({
     }),
 });
 
+
 export const adminValidation = {
-createSchema,
+blockSchema,
 updateSchema,
 };
