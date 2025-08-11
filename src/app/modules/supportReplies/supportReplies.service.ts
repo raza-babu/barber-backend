@@ -2,7 +2,7 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import emailSender from '../../utils/emailSender';
-import { SupportStatus } from '@prisma/client';
+import { SupportStatus, SupportType } from '@prisma/client';
 
 const createSupportRepliesIntoDb = async (userId: string, data: any) => {
   const user = await prisma.user.findUnique({
@@ -28,6 +28,25 @@ const createSupportRepliesIntoDb = async (userId: string, data: any) => {
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Support Item is not created');
   }
+  return result;
+};
+
+const getSupportRepliesReportsFromDb = async () => {
+  const result = await prisma.support.findMany({
+    where: {
+      type: SupportType.CUSTOMER_COMPLAINT,
+    },
+    select: {
+      id: true,
+      userId: true,
+      userName: true,
+      message: true,
+      createdAt: true,
+    },
+  });
+  if (result.length === 0) {
+    return [];
+  } 
   return result;
 };
 
@@ -153,4 +172,5 @@ export const supportRepliesService = {
   getSupportRepliesByIdFromDb,
   updateSupportRepliesIntoDb,
   deleteSupportRepliesItemFromDb,
+  getSupportRepliesReportsFromDb,
 };

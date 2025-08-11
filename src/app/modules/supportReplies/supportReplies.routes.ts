@@ -24,6 +24,16 @@ router.get(
   ),
   supportRepliesController.getSupportRepliesList,
 );
+
+router.get(
+  '/reports',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.USER_REPORT,
+  ),
+  supportRepliesController.getSupportRepliesReports
+)
+
 router.patch(
   '/replies/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),

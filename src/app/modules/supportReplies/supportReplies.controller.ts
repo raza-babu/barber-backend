@@ -36,6 +36,17 @@ const getSupportRepliesById = catchAsync(async (req, res) => {
   });
 });
 
+const getSupportRepliesReports = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await supportRepliesService.getSupportRepliesReportsFromDb();
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'SupportReplies reports retrieved successfully',
+    data: result,
+  });
+});
+
 const updateSupportReplies = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await supportRepliesService.updateSupportRepliesIntoDb(user.id, req.params.id, req.body);
@@ -64,4 +75,5 @@ export const supportRepliesController = {
   getSupportRepliesById,
   updateSupportReplies,
   deleteSupportReplies,
+  getSupportRepliesReports,
 };
