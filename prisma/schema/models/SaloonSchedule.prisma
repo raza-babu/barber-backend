@@ -1,17 +1,17 @@
 model SaloonSchedule {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
-  saloonId    String   @db.ObjectId
-  dayOfWeek   Int // 0 (Sunday) to 6 (Saturday)
-  openingTime String // e.g., "09:00"
-  closingTime String // e.g., "17:00"
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId String   @db.ObjectId
+  saloonId      String?  @db.ObjectId
+  dayOfWeek     Int // 0 (Sunday) to 6 (Saturday)
+  openingTime   String // e.g., "09:00"
+  closingTime   String // e.g., "17:00"
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relationships
-  saloon SaloonOwner @relation(fields: [saloonId], references: [id])
-  user   User        @relation(fields: [userId], references: [id])
+  saloon SaloonOwner? @relation(fields: [saloonId], references: [id])
+  user   User        @relation(fields: [saloonOwnerId], references: [id])
 
   @@map("saloon_schedules")
 }

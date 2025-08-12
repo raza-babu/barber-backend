@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { serviceService } from './service.service';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createService = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -16,12 +17,27 @@ const createService = catchAsync(async (req, res) => {
 
 const getServiceList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await serviceService.getServiceListFromDb();
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'isActive',
+    'saloonOwnerId',
+    'priceMin',
+    'priceMax',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await serviceService.getServiceListFromDb(filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Service list retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 

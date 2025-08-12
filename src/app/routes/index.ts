@@ -19,6 +19,8 @@ import { subscriptionOfferRoutes } from '../modules/subscriptionOffer/subscripti
 import path from 'path';
 import admin from '../utils/firebase';
 import { adminRoutes } from '../modules/admin/admin.routes';
+import { customerRoutes } from '../modules/customer/customer.routes';
+import { saloonScheduleRoutes } from '../modules/saloonSchedule/saloonSchedule.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -29,6 +31,10 @@ const moduleRoutes = [
   {
     path: '/users',
     route: UserRouters,
+  },
+  {
+    path: '/customers',
+    route: customerRoutes
   },
   {
     path: '/groups',
@@ -93,6 +99,10 @@ const moduleRoutes = [
   {
     path: '/admin',
     route: adminRoutes,
+  },
+  {
+    path: '/saloon-schedules',
+    route: saloonScheduleRoutes
   }
 ];
 

@@ -32,12 +32,18 @@ export interface ISearchAndFilterOptions extends IPaginationOptions {
   startDate?: string | Date;
   endDate?: string | Date;
   dateField?: string;
-  isVerified?: boolean;
   status?: string;
-  experienceYears?: number;
   type?: string;
   isActive?: string;
   salaryMin?: string;
   salaryMax?: string;
+  experienceYears?: string;
   experienceRequired?: string;
+  isVerified?: boolean;
+  role?: string;
+  isSuperAdmin?: boolean | string;
+  saloonOwnerId?: string;
+  priceMin?: string;
+  priceMax?: string;
+  jobPostId?: string;
 }

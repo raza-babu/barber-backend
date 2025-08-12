@@ -32,7 +32,6 @@ router.get(
   jobApplicationsController.getJobApplicationsById,
 );
 
-
 router.patch(
   '/:id',
   auth(UserRoleEnum.SALOON_OWNER),

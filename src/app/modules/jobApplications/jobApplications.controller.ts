@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { jobApplicationsService } from './jobApplications.service';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createJobApplications = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -16,18 +17,31 @@ const createJobApplications = catchAsync(async (req, res) => {
 
 const getJobApplicationsList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await jobApplicationsService.getJobApplicationsListFromDb(user.id);
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'jobPostId',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await jobApplicationsService.getJobApplicationsListFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'JobApplications list retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 
 const getJobApplicationsById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await jobApplicationsService.getJobApplicationsByIdFromDb(user.id,req.params.id);
+  const result = await jobApplicationsService.getJobApplicationsByIdFromDb(user.id, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -38,12 +52,23 @@ const getJobApplicationsById = catchAsync(async (req, res) => {
 
 const getHiredBarbersList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await jobApplicationsService.getHiredBarbersListFromDb(user.id);
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await jobApplicationsService.getHiredBarbersListFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Hired Barbers list retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 

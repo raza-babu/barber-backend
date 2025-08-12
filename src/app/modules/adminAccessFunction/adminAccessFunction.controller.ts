@@ -4,6 +4,7 @@ import catchAsync from '../../utils/catchAsync';
 import { adminAccessFunctionService } from './adminAccessFunction.service';
 import { uploadFileToSpace } from '../../utils/multipleFile';
 import AppError from '../../errors/AppError';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createAdminAccessFunction = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -31,12 +32,25 @@ const createAdminAccessFunction = catchAsync(async (req, res) => {
 
 const getAdminAccessFunctionList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await adminAccessFunctionService.getAdminAccessFunctionListFromDb();
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'role',
+    'isSuperAdmin',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await adminAccessFunctionService.getAdminAccessFunctionListFromDb(filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'AdminAccessFunction list retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 
