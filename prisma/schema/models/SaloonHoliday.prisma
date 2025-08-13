@@ -13,3 +13,4 @@ model SaloonHoliday {
 
   @@map("saloon_holidays")
 }
+ 

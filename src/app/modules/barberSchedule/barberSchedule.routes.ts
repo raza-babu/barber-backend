@@ -9,7 +9,7 @@ const router = express.Router();
 router.post(
 '/',
 auth(),
-validateRequest(barberScheduleValidation.createSchema),
+validateRequest(barberScheduleValidation.createBarberSchedulesSchema),
 barberScheduleController.createBarberSchedule,
 );
 
@@ -20,7 +20,7 @@ router.get('/:id', auth(), barberScheduleController.getBarberScheduleById);
 router.put(
 '/:id',
 auth(),
-validateRequest(barberScheduleValidation.updateSchema),
+validateRequest(barberScheduleValidation.updateBarberSchedulesSchema),
 barberScheduleController.updateBarberSchedule,
 );
 

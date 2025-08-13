@@ -262,7 +262,7 @@ model BarberRealTimeStatus {
 
 model BarberSchedule {
   id          String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String  @db.ObjectId
+  saloonOwnerId      String  @db.ObjectId
   barberId    String  @db.ObjectId
   dayOfWeek   Int // 0 (Sunday) to 6 (Saturday)
   openingTime String // e.g., "09:00"
@@ -271,7 +271,7 @@ model BarberSchedule {
 
   // Relationships
   barber Barber @relation(fields: [barberId], references: [userId])
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [saloonOwnerId], references: [id])
 
   @@map("barber_schedules")
 }
@@ -822,7 +822,7 @@ model SaloonHoliday {
 
   @@map("saloon_holidays")
 }
-
+ 
 
 model SaloonOwner {
   id                 String   @id @default(auto()) @map("_id") @db.ObjectId

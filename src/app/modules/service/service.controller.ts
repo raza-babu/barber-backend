@@ -6,6 +6,7 @@ import { pickValidFields } from '../../utils/pickValidFields';
 
 const createService = catchAsync(async (req, res) => {
   const user = req.user as any;
+  // console.log(req.body);
   const result = await serviceService.createServiceIntoDb(user.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,

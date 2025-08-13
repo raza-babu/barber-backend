@@ -5,9 +5,13 @@ const validateRequest =
   (schema: AnyZodObject) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await schema.parseAsync({
+      // Enforce strict schema to disallow extra fields
+      const strictSchema = schema.strict();
+      const parsedData = await strictSchema.parseAsync({
         body: req.body,
       });
+      req.body = strictSchema.parse(parsedData.body);
+      // console.log("Parsed Data:", parsedData);
       return next();
     } catch (err) {
       next(err);

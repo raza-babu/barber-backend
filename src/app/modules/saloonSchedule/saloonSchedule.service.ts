@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { saloonHolidayService } from '../saloonHoliday/saloonHoliday.service';
 
 // Type for schedule input
 type ScheduleInput = {
@@ -69,16 +70,32 @@ const createSaloonScheduleIntoDb = async (
     return createdSchedules;
   });
 };
+
 const getSaloonScheduleListFromDb = async (userId: string) => {
-  const result = await prisma.saloonSchedule.findMany({
+  // Get all schedules for the user
+  const schedules = await prisma.saloonSchedule.findMany({
     where: {
       saloonOwnerId: userId,
     },
   });
-  if (result.length === 0) {
+
+  if (schedules.length === 0) {
     return [];
   }
-  return result;
+
+  // Get holidays for the user
+  // const holidays = await saloonHolidayService.getSaloonHolidayListFromDb(userId);
+  // const holidayDays = holidays.map((h: any) => h.dayOfWeek);
+
+  // // Mark isActive false for holidays in the response (do not change DB)
+  // const result = schedules.map(schedule => {
+  //   if (holidayDays.includes(schedule.dayOfWeek)) {
+  //     return { ...schedule, isActive: false };
+  //   }
+  //   return schedule;
+  // });
+
+  return schedules;
 };
 
 const getSaloonScheduleByIdFromDb = async (

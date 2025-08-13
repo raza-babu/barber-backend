@@ -22,7 +22,7 @@ const getBarberScheduleListFromDb = async () => {
   
     const result = await prisma.barberSchedule.findMany();
     if (result.length === 0) {
-    return { message: 'No barberSchedule found' };
+    return [];
   }
     return result;
 };
@@ -47,7 +47,7 @@ const updateBarberScheduleIntoDb = async (userId: string, barberScheduleId: stri
     const result = await prisma.barberSchedule.update({
       where:  {
         id: barberScheduleId,
-        userId: userId,
+        saloonOwnerId: userId,
     },
     data: {
       ...data,
@@ -63,7 +63,7 @@ const deleteBarberScheduleItemFromDb = async (userId: string, barberScheduleId: 
     const deletedItem = await prisma.barberSchedule.delete({
       where: {
       id: barberScheduleId,
-      userId: userId,
+      saloonOwnerId: userId,
     },
   });
   if (!deletedItem) {
