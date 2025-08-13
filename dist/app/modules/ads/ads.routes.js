@@ -1,0 +1,22 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.adsRoutes = void 0;
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const ads_controller_1 = require("./ads.controller");
+const ads_validation_1 = require("./ads.validation");
+const multipleFile_1 = require("../../utils/multipleFile");
+const parseBody_1 = require("../../middlewares/parseBody");
+const checkPermissions_1 = require("../../middlewares/checkPermissions");
+const access_1 = require("../../utils/access");
+const router = express_1.default.Router();
+router.post('/', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), (0, validateRequest_1.default)(ads_validation_1.adsValidation.createAdsSchema), ads_controller_1.adsController.createAds);
+router.get('/', (0, auth_1.default)(), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.getAdsList);
+router.get('/:id', (0, auth_1.default)(), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.getAdsById);
+router.put('/:id', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), (0, validateRequest_1.default)(ads_validation_1.adsValidation.updateAdsSchema), ads_controller_1.adsController.updateAds);
+router.delete('/:id', (0, auth_1.default)(), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.deleteAds);
+exports.adsRoutes = router;

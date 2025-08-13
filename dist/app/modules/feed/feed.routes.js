@@ -1,0 +1,21 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.feedRoutes = void 0;
+const client_1 = require("@prisma/client");
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const feed_controller_1 = require("./feed.controller");
+const feed_validation_1 = require("./feed.validation");
+const multipleFile_1 = require("../../utils/multipleFile");
+const parseBody_1 = require("../../middlewares/parseBody");
+const router = express_1.default.Router();
+router.post('/', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER, client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.SUPER_ADMIN), (0, validateRequest_1.default)(feed_validation_1.feedValidation.createFeedSchema), feed_controller_1.feedController.createFeed);
+router.get('/', (0, auth_1.default)(), feed_controller_1.feedController.getFeedList);
+router.get('/:id', (0, auth_1.default)(), feed_controller_1.feedController.getFeedById);
+router.put('/:id', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER, client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.SUPER_ADMIN), (0, validateRequest_1.default)(feed_validation_1.feedValidation.updateFeedSchema), feed_controller_1.feedController.updateFeed);
+router.delete('/:id', (0, auth_1.default)(), feed_controller_1.feedController.deleteFeed);
+exports.feedRoutes = router;

@@ -7,7 +7,6 @@
     "start": "node ./dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "generate": "ts-node src/generate-module.ts",
     "postinstall": "prisma generate",
     "test": "echo \"Error: no test specified\" && exit 1",
     "generate-module": "node src/app/scripts/generate-module.js ",
