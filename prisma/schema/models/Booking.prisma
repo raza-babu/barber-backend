@@ -10,6 +10,7 @@ model Booking {
   totalPrice    Float
   notes         String?
   barberName    String?
+  barberImage   String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 

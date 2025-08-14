@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { messaging } from 'firebase-admin';
+import sendResponse from '../../utils/sendResponse';
 
 // Type definitions
 type HolidayInput = {
@@ -17,18 +18,22 @@ type UpdateHolidayInput = Partial<HolidayInput>;
 
 const createSaloonHolidayIntoDb = async (
   userId: string,
-  //  saloonId: string, 
-   data: HolidayInput) => {
+  //  saloonId: string,
+  data: HolidayInput,
+) => {
   // Check if saloon exists and belongs to user
   const saloon = await prisma.saloonOwner.findUnique({
-    where: { 
+    where: {
       // id: saloonId,
-      userId: userId 
-    }
+      userId: userId,
+    },
   });
 
   if (!saloon) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found or not owned by user');
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Saloon not found or not owned by user',
+    );
   }
 
   // Check for duplicate holidays
@@ -36,110 +41,162 @@ const createSaloonHolidayIntoDb = async (
     where: {
       // saloonId,
       userId,
-      date: data.date
-    }
+      date: data.date,
+    },
+    select: {
+      id: true,
+      date: true,
+      holidayName: true,
+      description: true,
+      isRecurring: true,
+    },
   });
 
   if (existingHoliday) {
-    throw new AppError(
-      httpStatus.CONFLICT,
-      'Holiday already exists for this date'
-    );
+    throw new AppError(httpStatus.CONFLICT, 'Holiday already exists');
   }
 
-  return await prisma.saloonHoliday.create({ 
+  return await prisma.saloonHoliday.create({
     data: {
       ...data,
       userId,
       // saloonId
-    }
+    },
+    select: {
+      id: true,
+      userId: true,
+      date: true,
+      holidayName: true,
+      description: true,
+      isRecurring: true,
+    },
   });
 };
 
-const getSaloonHolidayListFromDb = async (saloonId: string, filters: {
-  fromDate?: Date;
-  toDate?: Date;
-  isRecurring?: boolean;
-} = {}) => {
-  const where: Prisma.SaloonHolidayWhereInput = { saloonId };
+const getSaloonHolidayListFromDb = async (
+  saloonId: string,
+  // filters: {
+  //   fromDate?: Date;
+  //   toDate?: Date;
+  //   isRecurring?: boolean;
+  // } = {},
+) => {
+  // const where: Prisma.SaloonHolidayWhereInput = { saloonId };
 
-  if (filters.fromDate || filters.toDate) {
-    where.date = {
-      gte: filters.fromDate,
-      lte: filters.toDate
-    };
-  }
+  // if (filters.fromDate || filters.toDate) {
+  //   where.date = {
+  //     gte: filters.fromDate,
+  //     lte: filters.toDate,
+  //   };
+  // }
 
-  if (filters.isRecurring !== undefined) {
-    where.isRecurring = filters.isRecurring;
-  }
+  // if (filters.isRecurring !== undefined) {
+  //   where.isRecurring = filters.isRecurring;
+  // }
 
   return await prisma.saloonHoliday.findMany({
-    where,
-    orderBy: { date: 'asc' }
+    where:{
+      userId: saloonId,
+    },
+    select: {
+      id: true,
+      userId: true,
+      date: true,
+      holidayName: true,
+      description: true,
+      isRecurring: true,
+    },
+    orderBy: { date: 'asc' },
   });
 };
 
-const getSaloonHolidayByIdFromDb = async (userId: string, holidayId: string) => {
-  const result = await prisma.saloonHoliday.findUnique({ 
+const getSaloonHolidayByIdFromDb = async (
+  userId: string,
+  holidayId: string,
+) => {
+  console.log(`Fetching holiday with ID: ${holidayId} for user: ${userId}`);
+  
+  const result = await prisma.saloonHoliday.findUnique({
     where: {
       id: holidayId,
-      userId
-    }
+      userId,
+    },
   });
 
   if (!result) {
-    return {message: 'Holiday not found or not owned by user'};
+    return { message: 'Holiday not found or not owned by user' };
   }
 
   return result;
 };
 
 const updateSaloonHolidayIntoDb = async (
-  userId: string, 
+  userId: string,
   // saloonId: string,
-  holidayId: string, 
-  data: UpdateHolidayInput
+  holidayId: string,
+  data: UpdateHolidayInput,
 ) => {
   // Verify ownership
   const holiday = await prisma.saloonHoliday.findFirst({
     where: {
       id: holidayId,
       // saloonId,
-      userId
-    }
+      userId,
+    },
   });
 
   if (!holiday) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Holiday not found or not owned by user');
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Holiday not found or not owned by user',
+    );
   }
 
   return await prisma.saloonHoliday.update({
     where: { id: holidayId },
-    data
+    data,
+    select: {
+      id: true,
+      userId: true,
+      date: true,
+      holidayName: true,
+      description: true,
+      isRecurring: true,
+    },
   });
 };
 
 const deleteSaloonHolidayItemFromDb = async (
   userId: string,
   // saloonId: string,
-  holidayId: string
+  holidayId: string,
 ) => {
   // Verify ownership before deletion
   const holiday = await prisma.saloonHoliday.findFirst({
     where: {
       id: holidayId,
       // saloonId,
-      userId
-    }
+      userId,
+    },
   });
 
   if (!holiday) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Holiday not found or not owned by user');
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Holiday not found or not owned by user',
+    );
   }
 
   return await prisma.saloonHoliday.delete({
-    where: { id: holidayId }
+    where: { id: holidayId },
+    select: {
+      id: true,
+      userId: true,
+      date: true,
+      holidayName: true,
+      description: true,
+      isRecurring: true,
+    },
   });
 };
 
@@ -150,9 +207,9 @@ const checkSaloonHolidayFromDb = async (saloonId: string, date: Date) => {
     where: {
       saloonId,
       date: {
-        equals: date
-      }
-    }
+        equals: date,
+      },
+    },
   });
 
   if (specificHoliday) return specificHoliday;
@@ -161,14 +218,15 @@ const checkSaloonHolidayFromDb = async (saloonId: string, date: Date) => {
   const recurringHolidays = await prisma.saloonHoliday.findMany({
     where: {
       saloonId,
-      isRecurring: true
-    }
+      isRecurring: true,
+    },
   });
 
   return recurringHolidays.find(h => {
     const hDate = new Date(h.date);
-    return hDate.getMonth() === date.getMonth() && 
-           hDate.getDate() === date.getDate();
+    return (
+      hDate.getMonth() === date.getMonth() && hDate.getDate() === date.getDate()
+    );
   });
 };
 
@@ -178,5 +236,5 @@ export const saloonHolidayService = {
   getSaloonHolidayByIdFromDb,
   updateSaloonHolidayIntoDb,
   deleteSaloonHolidayItemFromDb,
-  checkSaloonHolidayFromDb
+  checkSaloonHolidayFromDb,
 };

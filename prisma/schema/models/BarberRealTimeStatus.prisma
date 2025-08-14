@@ -3,7 +3,13 @@ model BarberRealTimeStatus {
   barberId      String   @db.ObjectId
   isAvailable   Boolean  @default(true)
   currentSlotId String?  @db.ObjectId
+  startDateTime DateTime // Start of the current availability period
+  endDateTime   DateTime // End of the current availability period
+  startTime     String
+  endTime       String
   lastPing      DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relationships
   barber      Barber     @relation(fields: [barberId], references: [userId])

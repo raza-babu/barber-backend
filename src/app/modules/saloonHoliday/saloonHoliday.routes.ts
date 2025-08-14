@@ -16,13 +16,13 @@ router.post(
  
 router.get(
   '/',
-  auth(UserRoleEnum.SALOON_OWNER),
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
   saloonHolidayController.getSaloonHolidayList,
 );
 
 router.get(
   '/check',
-  auth(UserRoleEnum.SALOON_OWNER),
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
   saloonHolidayController.checkSaloonHoliday,
 );
 
@@ -32,13 +32,13 @@ router.get(
   saloonHolidayController.getSaloonHolidayById,
 );
 
-router.put(
+router.patch(
   '/:id',
   auth(UserRoleEnum.SALOON_OWNER),
   validateRequest(saloonHolidayValidation.updateSaloonHolidaySchema),
   saloonHolidayController.updateSaloonHoliday,
 );
 
-router.delete('/:id', auth(), saloonHolidayController.deleteSaloonHoliday);
+router.delete('/:id', auth(UserRoleEnum.SALOON_OWNER), saloonHolidayController.deleteSaloonHoliday);
 
 export const saloonHolidayRoutes = router;

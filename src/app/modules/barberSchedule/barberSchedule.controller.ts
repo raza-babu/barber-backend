@@ -16,7 +16,7 @@ const createBarberSchedule = catchAsync(async (req, res) => {
 
 const getBarberScheduleList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberScheduleService.getBarberScheduleListFromDb();
+  const result = await barberScheduleService.getBarberScheduleListFromDb(user.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -27,7 +27,7 @@ const getBarberScheduleList = catchAsync(async (req, res) => {
 
 const getBarberScheduleById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberScheduleService.getBarberScheduleByIdFromDb(req.params.id);
+  const result = await barberScheduleService.getBarberScheduleByIdFromDb(user.id, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

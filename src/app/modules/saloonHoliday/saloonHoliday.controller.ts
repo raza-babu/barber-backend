@@ -23,11 +23,11 @@ const getSaloonHolidayList = catchAsync(async (req, res) => {
   const result = await saloonHolidayService.getSaloonHolidayListFromDb(
     user.id,
     // req.params.saloonId,
-    {
-      fromDate: req.query.fromDate ? new Date(req.query.fromDate as string) : undefined,
-      toDate: req.query.toDate ? new Date(req.query.toDate as string) : undefined,
-      isRecurring: req.query.recurring ? req.query.recurring === 'true' : undefined
-    }
+    // {
+    //   fromDate: req.query.fromDate ? new Date(req.query.fromDate as string) : undefined,
+    //   toDate: req.query.toDate ? new Date(req.query.toDate as string) : undefined,
+    //   isRecurring: req.query.recurring ? req.query.recurring === 'true' : undefined
+    // }
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -41,7 +41,7 @@ const getSaloonHolidayById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await saloonHolidayService.getSaloonHolidayByIdFromDb(
     user.id,
-    req.params.holidayId
+    req.params.id
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -55,7 +55,7 @@ const updateSaloonHoliday = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await saloonHolidayService.updateSaloonHolidayIntoDb(
     user.id,
-    req.params.holidayId,
+    req.params.id,
     req.body
   );
   sendResponse(res, {
@@ -70,7 +70,7 @@ const deleteSaloonHoliday = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await saloonHolidayService.deleteSaloonHolidayItemFromDb(
     user.id,
-    req.params.holidayId
+    req.params.id
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

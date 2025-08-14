@@ -21,6 +21,9 @@ import admin from '../utils/firebase';
 import { adminRoutes } from '../modules/admin/admin.routes';
 import { customerRoutes } from '../modules/customer/customer.routes';
 import { saloonScheduleRoutes } from '../modules/saloonSchedule/saloonSchedule.routes';
+import { saloonHolidayRoutes } from '../modules/saloonHoliday/saloonHoliday.routes';
+import { barberScheduleRoutes } from '../modules/barberSchedule/barberSchedule.routes';
+import { barberHolidayRoutes } from '../modules/barberHoliday/barberHoliday.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -103,7 +106,20 @@ const moduleRoutes = [
   {
     path: '/saloon-schedules',
     route: saloonScheduleRoutes
-  }
+  },
+  {
+    path: '/saloon-holidays',
+    route: saloonHolidayRoutes
+  },
+  {
+    path: '/barber-schedules',
+    route: barberScheduleRoutes
+  },
+  {
+    path: '/barber-holidays',
+    route: barberHolidayRoutes
+  },
+  
 ];
 
 moduleRoutes.forEach(route => router.use(route.path, route.route));

@@ -6,6 +6,8 @@ model SaloonHoliday {
   holidayName String // e.g., "New Year's Day"
   description String?
   isRecurring Boolean  @default(false) // If holiday repeats annually
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relationships
   saloon SaloonOwner? @relation(fields: [saloonId], references: [id])

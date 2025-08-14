@@ -1,84 +1,81 @@
+// saloonScheduleValidation.ts
 import { z } from 'zod';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+import exp from 'constants';
 
-// Enhanced time format validation
-const timeFormatRegex = /^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/; // 00:00 to 23:59
+dayjs.extend(utc);
+dayjs.extend(customParseFormat);
 
-export const singleDayScheduleSchema = z.object({
-  saloonId: z.string().optional(),
-  userId: z.string().optional(),
-  dayOfWeek: z.number()
-    .int()
-    .min(0)
-    .max(6),
-  openingTime: z.string()
-    .regex(timeFormatRegex, 'Invalid time format (HH:MM, 24-hour)'),
-  closingTime: z.string()
-    .regex(timeFormatRegex, 'Invalid time format (HH:MM, 24-hour)'),
+const timeRange12hRegex =
+  /^((0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM))\s*-\s*((0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM))$/i;
+
+function convertToUTCWithDisplay(timeRange: string) {
+  const [opening, closing] = timeRange.split('-').map(t => t.trim());
+  const today = dayjs().format('YYYY-MM-DD');
+
+  const openingUTC = dayjs(`${today} ${opening}`, 'YYYY-MM-DD hh:mm A').utc().toDate();
+  const closingUTC = dayjs(`${today} ${closing}`, 'YYYY-MM-DD hh:mm A').utc().toDate();
+
+  // Keep original 12h display format
+  const openingTimeDisplay = dayjs(`${today} ${opening}`, 'YYYY-MM-DD hh:mm A').format('hh:mm A');
+  const closingTimeDisplay = dayjs(`${today} ${closing}`, 'YYYY-MM-DD hh:mm A').format('hh:mm A');
+
+  return {
+    openingUTC,
+    closingUTC,
+    openingTime: openingTimeDisplay,
+    closingTime: closingTimeDisplay,
+  };
+}
+
+const daysMap: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+const singleDayBaseSchema = z.object({
+  dayName: z
+    .string()
+    .min(1, 'Day name is required')
+    .refine(val => daysMap[val.toLowerCase()] !== undefined, 'Invalid day name'),
+  time: z.string().regex(timeRange12hRegex, 'Time must be in format "hh:mm AM - hh:mm PM"'),
   isActive: z.boolean(),
-}).superRefine((data, ctx) => {
-  // When salon is active for the day
-  if (data.isActive) {
-    // Cannot be 00:00-00:00 when active
-    if (data.openingTime === '00:00' && data.closingTime === '00:00') {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Cannot have 00:00-00:00 when active',
-        path: ['isActive']
-      });
-      return;
-    }
-    
-    // Opening must be before closing
-    if (data.openingTime >= data.closingTime) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Opening time must be before closing time',
-        path: ['openingTime']
-      });
-    }
-  }
-  
-  // When salon is inactive
-  if (!data.isActive) {
-    // If inactive, should have 00:00-00:00
-    if (data.openingTime !== '00:00' || data.closingTime !== '00:00') {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Inactive days must have 00:00-00:00 times',
-        path: ['openingTime']
-      });
-    }
-  }
 });
 
-export const createSaloonScheduleSchema = z.object({
-  body: z.array(singleDayScheduleSchema)
-    .length(7)
+const singleDaySchema = singleDayBaseSchema.transform(data => {
+  const { openingUTC, closingUTC, openingTime, closingTime } =
+    convertToUTCWithDisplay(data.time);
+
+  return {
+    dayName: data.dayName,
+    dayOfWeek: daysMap[data.dayName.toLowerCase()],
+    openingDateTime: openingUTC,
+    closingDateTime: closingUTC,
+    openingTime,
+    closingTime,
+    isActive: data.isActive,
+  };
+});
+
+const createSaloonScheduleSchema = z.object({
+  body: z
+    .array(singleDaySchema)
+    .length(7, 'Exactly 7 days required')
     .refine(days => {
-      const dayNumbers = days.map(d => d.dayOfWeek);
-      return new Set(dayNumbers).size === 7;
-    }, 'Must have exactly one entry for each day (0-6)')
+      const names = days.map(d => d.dayName.toLowerCase());
+      return new Set(names).size === 7;
+    }, 'Must have all days of the week'),
 });
 
 const updateSaloonScheduleSchema = z.object({
-  body: z.object({
-    dayOfWeek: z
-      .number({
-        invalid_type_error: 'Day of week must be a number between 0 and 6!',
-      })
-      .int()
-      .min(0, 'Day of week cannot be less than 0 (Sunday)')
-      .max(6, 'Day of week cannot be greater than 6 (Saturday)')
-      .optional(),
-    openingTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Opening time must be in HH:mm format').optional(),
-    closingTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Closing time must be in HH:mm format').optional(),
-    isActive: z.boolean().optional(),
-  }),
-  // params: z.object({
-  //   id: z.string({
-  //     required_error: 'Schedule ID is required!',
-  //   }),
-  // }),
+  body: singleDayBaseSchema.partial(),
 });
 
 export const saloonScheduleValidation = {
