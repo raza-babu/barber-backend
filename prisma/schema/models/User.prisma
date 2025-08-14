@@ -65,6 +65,7 @@ model User {
   QueueSlot         QueueSlot[]
   HiredBarber       HiredBarber[]
   adminAccessFunction AdminAccessFunction[]
+  QueueCapacity   QueueCapacity[]
 
   @@map("users")
 }

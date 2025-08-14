@@ -13,10 +13,10 @@ model QueueSlot {
   updatedAt      DateTime    @updatedAt
 
   // Relationships
-  queue         Queue       @relation(fields: [queueId], references: [id])
-  booking      Booking?     @relation(name: "BookingQueueSlot", fields: [bookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customer     User         @relation(fields: [customerId], references: [id])
-  service      Service      @relation(fields: [serviceId], references: [id])
+  queue        Queue                  @relation(fields: [queueId], references: [id])
+  booking      Booking?               @relation(name: "BookingQueueSlot", fields: [bookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer     User                   @relation(fields: [customerId], references: [id])
+  service      Service                @relation(fields: [serviceId], references: [id])
   barberStatus BarberRealTimeStatus[]
 
   @@map("queue_slots")

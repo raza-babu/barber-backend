@@ -64,7 +64,7 @@ const updateBarberHolidayIntoDb = async (
     where: {
       id: barberHolidayId,
       saloonOwnerId: userId,
-    },
+    }, 
     data: {
       ...data,
     },

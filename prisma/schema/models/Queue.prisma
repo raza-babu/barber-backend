@@ -3,7 +3,7 @@ model Queue {
   barberId        String   @db.ObjectId
   date            DateTime // Queue date (e.g., "2023-11-20T00:00:00Z")
   currentPosition Int      @default(0) // Tracks which customer is currently being served
-  maxCapacity     Int      @default(8) // Maximum queue slots
+  // maxCapacity     Int      // Maximum queue slots
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

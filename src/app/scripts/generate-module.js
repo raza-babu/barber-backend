@@ -45,7 +45,7 @@ const create${capitalizedModule} = catchAsync(async (req, res) => {
 
 const get${capitalizedModule}List = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await ${moduleName}Service.get${capitalizedModule}ListFromDb();
+  const result = await ${moduleName}Service.get${capitalizedModule}ListFromDb(user.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -56,7 +56,7 @@ const get${capitalizedModule}List = catchAsync(async (req, res) => {
 
 const get${capitalizedModule}ById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await ${moduleName}Service.get${capitalizedModule}ByIdFromDb(req.params.id);
+  const result = await ${moduleName}Service.get${capitalizedModule}ByIdFromDb(user.id, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -117,7 +117,7 @@ const create${capitalizedModule}IntoDb = async (userId: string, data: any) => {
     return result;
 };
 
-const get${capitalizedModule}ListFromDb = async () => {
+const get${capitalizedModule}ListFromDb = async (userId: string) => {
   
     const result = await prisma.${moduleName}.findMany();
     if (result.length === 0) {
@@ -126,7 +126,7 @@ const get${capitalizedModule}ListFromDb = async () => {
     return result;
 };
 
-const get${capitalizedModule}ByIdFromDb = async (${moduleName}Id: string) => {
+const get${capitalizedModule}ByIdFromDb = async (userId: string, ${moduleName}Id: string) => {
   
     const result = await prisma.${moduleName}.findUnique({ 
     where: {

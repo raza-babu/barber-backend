@@ -224,6 +224,7 @@ model Barber {
   Queue                Queue[]
   HiredBarber          HiredBarber[]
   BarberRealTimeStatus BarberRealTimeStatus[]
+  QueueCapacity         QueueCapacity[]
 
   @@map("barbers")
 }
@@ -708,7 +709,7 @@ model Queue {
   barberId        String   @db.ObjectId
   date            DateTime // Queue date (e.g., "2023-11-20T00:00:00Z")
   currentPosition Int      @default(0) // Tracks which customer is currently being served
-  maxCapacity     Int      @default(8) // Maximum queue slots
+  // maxCapacity     Int      // Maximum queue slots
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -718,6 +719,23 @@ model Queue {
   queueSlots QueueSlot[]
 
   @@map("queues")
+}
+
+
+model QueueCapacity {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId          String    @db.ObjectId
+  barberId        String    @db.ObjectId
+  // date            DateTime? // Date for which the capacity is set
+  maxCapacity     Int // Maximum number of customers that can be served
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relationships
+  barber Barber      @relation(fields: [barberId], references: [userId])
+  user   User         @relation(fields: [saloonOwnerId], references: [id])
+
+  @@map("queue_capacities")
 }
 
 
@@ -736,10 +754,10 @@ model QueueSlot {
   updatedAt      DateTime    @updatedAt
 
   // Relationships
-  queue         Queue       @relation(fields: [queueId], references: [id])
-  booking      Booking?     @relation(name: "BookingQueueSlot", fields: [bookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customer     User         @relation(fields: [customerId], references: [id])
-  service      Service      @relation(fields: [serviceId], references: [id])
+  queue        Queue                  @relation(fields: [queueId], references: [id])
+  booking      Booking?               @relation(name: "BookingQueueSlot", fields: [bookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer     User                   @relation(fields: [customerId], references: [id])
+  service      Service                @relation(fields: [serviceId], references: [id])
   barberStatus BarberRealTimeStatus[]
 
   @@map("queue_slots")
@@ -1067,6 +1085,7 @@ model User {
   QueueSlot         QueueSlot[]
   HiredBarber       HiredBarber[]
   adminAccessFunction AdminAccessFunction[]
+  QueueCapacity   QueueCapacity[]
 
   @@map("users")
 }
