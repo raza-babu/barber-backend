@@ -225,6 +225,7 @@ model Barber {
   HiredBarber          HiredBarber[]
   BarberRealTimeStatus BarberRealTimeStatus[]
   QueueCapacity         QueueCapacity[]
+  QueueSlot            QueueSlot[]
 
   @@map("barbers")
 }
@@ -291,17 +292,42 @@ model BarberSchedule {
 }
 
 
+model BookedServices {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId  String?  @db.ObjectId
+  serviceId  String   @db.ObjectId
+  customerId String   @db.ObjectId
+  quantity   Int      @default(1) // Number of times the service is booked
+  price      Float // Price for the booked service
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relationships
+  booking  Booking? @relation(fields: [bookingId], references: [id])
+  service  Service  @relation(fields: [serviceId], references: [id])
+  customer User     @relation(fields: [customerId], references: [id])
+
+  @@map("booked_services")
+}
+
+
 model Booking {
   id            String        @id @default(auto()) @map("_id") @db.ObjectId
   userId        String        @db.ObjectId
   barberId      String        @db.ObjectId
-  serviceId     String        @db.ObjectId
+  //  serviceId     String        @db.ObjectId
   saloonOwnerId String        @db.ObjectId
   queueSlotId   String?       @db.ObjectId
   appointmentAt DateTime
   status        BookingStatus @default(PENDING)
   totalPrice    Float
+  date          DateTime
+  startDateTime DateTime?
+  endDateTime   DateTime?
+  startTime     String?
+  endTime       String?
   notes         String?
+  isInQueue     Boolean       @default(false)
   barberName    String?
   barberImage   String?
   createdAt     DateTime      @default(now())
@@ -310,11 +336,12 @@ model Booking {
   // Relationships
   user        User        @relation(fields: [userId], references: [id])
   barber      Barber      @relation(fields: [barberId], references: [userId])
-  service     Service     @relation(fields: [serviceId], references: [id])
+  // service     Service     @relation(fields: [serviceId], references: [id])
   saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
   queueSlot   QueueSlot?  @relation(name: "BookingQueueSlot")
 
   LoyaltyRedemption LoyaltyRedemption[]
+  BookedServices    BookedServices[]
 
   @@map("bookings")
 }
@@ -705,17 +732,19 @@ model QRCodeScan {
 
 
 model Queue {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  barberId        String   @db.ObjectId
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  barberId        String    @db.ObjectId
+  saloonOwnerId   String    @db.ObjectId
   date            DateTime // Queue date (e.g., "2023-11-20T00:00:00Z")
-  currentPosition Int      @default(0) // Tracks which customer is currently being served
-  // maxCapacity     Int      // Maximum queue slots
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  currentPosition Int       @default(0) // Tracks which customer is currently being served
+  freeAt          DateTime? // When the queue is free for the next customer
+  // isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relationships
   barber     Barber      @relation(fields: [barberId], references: [userId])
+  user       User        @relation(fields: [saloonOwnerId], references: [id])
   queueSlots QueueSlot[]
 
   @@map("queues")
@@ -723,41 +752,40 @@ model Queue {
 
 
 model QueueCapacity {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  saloonOwnerId          String    @db.ObjectId
-  barberId        String    @db.ObjectId
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId String   @db.ObjectId
+  barberId      String   @db.ObjectId
   // date            DateTime? // Date for which the capacity is set
-  maxCapacity     Int // Maximum number of customers that can be served
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  maxCapacity   Int // Maximum number of customers that can be served
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relationships
-  barber Barber      @relation(fields: [barberId], references: [userId])
-  user   User         @relation(fields: [saloonOwnerId], references: [id])
+  barber Barber @relation(fields: [barberId], references: [userId])
+  user   User   @relation(fields: [saloonOwnerId], references: [id])
 
   @@map("queue_capacities")
 }
 
 
 model QueueSlot {
-  id             String      @id @default(auto()) @map("_id") @db.ObjectId
-  queueId        String      @db.ObjectId
-  bookingId      String?     @unique @db.ObjectId
-  customerId     String      @db.ObjectId
-  serviceId      String      @db.ObjectId
-  position       Int
-  status         QueueStatus @default(WAITING)
-  estimatedStart DateTime?
-  actualStart    DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  queueId     String      @db.ObjectId
+  bookingId   String?     @unique @db.ObjectId
+  customerId  String      @db.ObjectId
+  barberId    String      @db.ObjectId
+  position    Int
+  status      QueueStatus @default(WAITING)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   // Relationships
   queue        Queue                  @relation(fields: [queueId], references: [id])
   booking      Booking?               @relation(name: "BookingQueueSlot", fields: [bookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customer     User                   @relation(fields: [customerId], references: [id])
-  service      Service                @relation(fields: [serviceId], references: [id])
+  barber       Barber                 @relation(fields: [barberId], references: [userId])
   barberStatus BarberRealTimeStatus[]
 
   @@map("queue_slots")
@@ -857,7 +885,7 @@ model SaloonHoliday {
 
   @@map("saloon_holidays")
 }
- 
+  
 
 model SaloonOwner {
   id                 String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -871,6 +899,7 @@ model SaloonOwner {
   shopImages         String[]
   shopVideo          String[]
   qrCode             String?
+  isQueueEnabled     Boolean  @default(false) // If queue system is enabled
   isVerified         Boolean  @default(false)
   followerCount      Int      @default(0)
   followingCount     Int      @default(0)
@@ -951,11 +980,11 @@ model Service {
   updatedAt     DateTime    @updatedAt
 
   // Relationships
-  user          User            @relation(fields: [saloonOwnerId], references: [id])
-  saloon        SaloonOwner     @relation(fields: [saloonId], references: [id])
-  Booking       Booking[]
-  CustomerVisit CustomerVisit[]
-  QueueSlot     QueueSlot[]
+  user           User             @relation(fields: [saloonOwnerId], references: [id])
+  saloon         SaloonOwner      @relation(fields: [saloonId], references: [id])
+  // Booking        Booking[]
+  CustomerVisit  CustomerVisit[]
+  BookedServices BookedServices[]
 
   @@map("services")
 }
@@ -1043,49 +1072,51 @@ model User {
   updatedAt         DateTime      @updatedAt
 
   // Relationships
-  roomsSent         Room[]              @relation("SenderRelation")
-  roomsReceived     Room[]              @relation("ReceiverRelation")
-  roomParticipants  RoomUser[]
-  chatsSent         Chat[]              @relation("SenderRelation")
-  chatsReceived     Chat[]              @relation("ReceiverRelation")
-  following         Follow[]            @relation("FollowingRelation") // Users this user is following
-  followers         Follow[]            @relation("FollowerRelation") // Users following this user
-  notifications     Notification[]
-  createdRooms      Room[]              @relation("CreatorRelation")
-  SaloonOwner       SaloonOwner[]
-  Booking           Booking[]
-  Review            Review[]
-  Feedback          Feed[]
-  FavoriteFeed      FavoriteFeed[]
-  JobPost           JobPost[]
-  Barber            Barber?
-  Service           Service[]
-  Faq               Faq[]
-  TermAndCondition  TermAndCondition[]
-  PrivacyPolicy     PrivacyPolicy[]
-  Admin             Admin[]
-  AccessFunction    AccessFunction[]
-  Ads               Ads[]
-  SubscriptionOffer SubscriptionOffer[]
-  UserSubscription  UserSubscription[]
-  Support           Support[]
-  Reply             Reply[]
-  SaloonReport      SaloonReport[]
-  SaloonSchedule    SaloonSchedule[]
-  BarberSchedule    BarberSchedule[]
-  SaloonHoliday     SaloonHoliday[]
-  BarberDayOff      BarberDayOff[]
-  QRCode            QRCode[]
-  QRCodeScan        QRCodeScan[]
-  LoyaltyProgram    LoyaltyProgram[]
-  CustomerLoyalty   CustomerLoyalty?
-  CustomerVisit     CustomerVisit[]
-  LoyaltyPointLog   LoyaltyPointLog[]
-  LoyaltyRedemption LoyaltyRedemption[]
-  QueueSlot         QueueSlot[]
-  HiredBarber       HiredBarber[]
+  roomsSent           Room[]                @relation("SenderRelation")
+  roomsReceived       Room[]                @relation("ReceiverRelation")
+  roomParticipants    RoomUser[]
+  chatsSent           Chat[]                @relation("SenderRelation")
+  chatsReceived       Chat[]                @relation("ReceiverRelation")
+  following           Follow[]              @relation("FollowingRelation") // Users this user is following
+  followers           Follow[]              @relation("FollowerRelation") // Users following this user
+  notifications       Notification[]
+  createdRooms        Room[]                @relation("CreatorRelation")
+  SaloonOwner         SaloonOwner[]
+  Booking             Booking[]
+  Review              Review[]
+  Feedback            Feed[]
+  FavoriteFeed        FavoriteFeed[]
+  JobPost             JobPost[]
+  Barber              Barber?
+  Service             Service[]
+  Faq                 Faq[]
+  TermAndCondition    TermAndCondition[]
+  PrivacyPolicy       PrivacyPolicy[]
+  Admin               Admin[]
+  AccessFunction      AccessFunction[]
+  Ads                 Ads[]
+  SubscriptionOffer   SubscriptionOffer[]
+  UserSubscription    UserSubscription[]
+  Support             Support[]
+  Reply               Reply[]
+  SaloonReport        SaloonReport[]
+  SaloonSchedule      SaloonSchedule[]
+  BarberSchedule      BarberSchedule[]
+  SaloonHoliday       SaloonHoliday[]
+  BarberDayOff        BarberDayOff[]
+  QRCode              QRCode[]
+  QRCodeScan          QRCodeScan[]
+  LoyaltyProgram      LoyaltyProgram[]
+  CustomerLoyalty     CustomerLoyalty?
+  CustomerVisit       CustomerVisit[]
+  LoyaltyPointLog     LoyaltyPointLog[]
+  LoyaltyRedemption   LoyaltyRedemption[]
+  QueueSlot           QueueSlot[]
+  HiredBarber         HiredBarber[]
   adminAccessFunction AdminAccessFunction[]
-  QueueCapacity   QueueCapacity[]
+  QueueCapacity       QueueCapacity[]
+  BookedServices      BookedServices[]
+  Queue              Queue[]
 
   @@map("users")
 }

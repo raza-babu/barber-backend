@@ -5,17 +5,17 @@ const validateRequest =
   (schema: AnyZodObject) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Enforce strict schema to disallow extra fields
-      // const strictSchema = schema.strict();
-      // const parsedData = await strictSchema.parseAsync({
-      //   body: req.body,
-      // });
       const parsedData = await schema.parseAsync({
         body: req.body,
+        query: req.query,
+        params: req.params,
       });
-      // req.body = strictSchema.parse(parsedData.body);
-      // console.log("Parsed Data:", parsedData);
-      req.body = parsedData.body;
+
+      // Override only what was validated
+      // if (parsedData.body) req.body = parsedData.body;
+      // if (parsedData.query) req.query = parsedData.query;
+      // if (parsedData.params) req.params = parsedData.params;
+
       return next();
     } catch (err) {
       next(err);

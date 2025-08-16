@@ -1,22 +1,21 @@
 model QueueSlot {
-  id             String      @id @default(auto()) @map("_id") @db.ObjectId
-  queueId        String      @db.ObjectId
-  bookingId      String?     @unique @db.ObjectId
-  customerId     String      @db.ObjectId
-  serviceId      String      @db.ObjectId
-  position       Int
-  status         QueueStatus @default(WAITING)
-  estimatedStart DateTime?
-  actualStart    DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  queueId     String      @db.ObjectId
+  bookingId   String?     @unique @db.ObjectId
+  customerId  String      @db.ObjectId
+  barberId    String      @db.ObjectId
+  position    Int
+  status      QueueStatus @default(WAITING)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   // Relationships
   queue        Queue                  @relation(fields: [queueId], references: [id])
   booking      Booking?               @relation(name: "BookingQueueSlot", fields: [bookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customer     User                   @relation(fields: [customerId], references: [id])
-  service      Service                @relation(fields: [serviceId], references: [id])
+  barber       Barber                 @relation(fields: [barberId], references: [userId])
   barberStatus BarberRealTimeStatus[]
 
   @@map("queue_slots")

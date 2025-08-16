@@ -23,49 +23,51 @@ model User {
   updatedAt         DateTime      @updatedAt
 
   // Relationships
-  roomsSent         Room[]              @relation("SenderRelation")
-  roomsReceived     Room[]              @relation("ReceiverRelation")
-  roomParticipants  RoomUser[]
-  chatsSent         Chat[]              @relation("SenderRelation")
-  chatsReceived     Chat[]              @relation("ReceiverRelation")
-  following         Follow[]            @relation("FollowingRelation") // Users this user is following
-  followers         Follow[]            @relation("FollowerRelation") // Users following this user
-  notifications     Notification[]
-  createdRooms      Room[]              @relation("CreatorRelation")
-  SaloonOwner       SaloonOwner[]
-  Booking           Booking[]
-  Review            Review[]
-  Feedback          Feed[]
-  FavoriteFeed      FavoriteFeed[]
-  JobPost           JobPost[]
-  Barber            Barber?
-  Service           Service[]
-  Faq               Faq[]
-  TermAndCondition  TermAndCondition[]
-  PrivacyPolicy     PrivacyPolicy[]
-  Admin             Admin[]
-  AccessFunction    AccessFunction[]
-  Ads               Ads[]
-  SubscriptionOffer SubscriptionOffer[]
-  UserSubscription  UserSubscription[]
-  Support           Support[]
-  Reply             Reply[]
-  SaloonReport      SaloonReport[]
-  SaloonSchedule    SaloonSchedule[]
-  BarberSchedule    BarberSchedule[]
-  SaloonHoliday     SaloonHoliday[]
-  BarberDayOff      BarberDayOff[]
-  QRCode            QRCode[]
-  QRCodeScan        QRCodeScan[]
-  LoyaltyProgram    LoyaltyProgram[]
-  CustomerLoyalty   CustomerLoyalty?
-  CustomerVisit     CustomerVisit[]
-  LoyaltyPointLog   LoyaltyPointLog[]
-  LoyaltyRedemption LoyaltyRedemption[]
-  QueueSlot         QueueSlot[]
-  HiredBarber       HiredBarber[]
+  roomsSent           Room[]                @relation("SenderRelation")
+  roomsReceived       Room[]                @relation("ReceiverRelation")
+  roomParticipants    RoomUser[]
+  chatsSent           Chat[]                @relation("SenderRelation")
+  chatsReceived       Chat[]                @relation("ReceiverRelation")
+  following           Follow[]              @relation("FollowingRelation") // Users this user is following
+  followers           Follow[]              @relation("FollowerRelation") // Users following this user
+  notifications       Notification[]
+  createdRooms        Room[]                @relation("CreatorRelation")
+  SaloonOwner         SaloonOwner[]
+  Booking             Booking[]
+  Review              Review[]
+  Feedback            Feed[]
+  FavoriteFeed        FavoriteFeed[]
+  JobPost             JobPost[]
+  Barber              Barber?
+  Service             Service[]
+  Faq                 Faq[]
+  TermAndCondition    TermAndCondition[]
+  PrivacyPolicy       PrivacyPolicy[]
+  Admin               Admin[]
+  AccessFunction      AccessFunction[]
+  Ads                 Ads[]
+  SubscriptionOffer   SubscriptionOffer[]
+  UserSubscription    UserSubscription[]
+  Support             Support[]
+  Reply               Reply[]
+  SaloonReport        SaloonReport[]
+  SaloonSchedule      SaloonSchedule[]
+  BarberSchedule      BarberSchedule[]
+  SaloonHoliday       SaloonHoliday[]
+  BarberDayOff        BarberDayOff[]
+  QRCode              QRCode[]
+  QRCodeScan          QRCodeScan[]
+  LoyaltyProgram      LoyaltyProgram[]
+  CustomerLoyalty     CustomerLoyalty?
+  CustomerVisit       CustomerVisit[]
+  LoyaltyPointLog     LoyaltyPointLog[]
+  LoyaltyRedemption   LoyaltyRedemption[]
+  QueueSlot           QueueSlot[]
+  HiredBarber         HiredBarber[]
   adminAccessFunction AdminAccessFunction[]
-  QueueCapacity   QueueCapacity[]
+  QueueCapacity       QueueCapacity[]
+  BookedServices      BookedServices[]
+  Queue              Queue[]
 
   @@map("users")
 }

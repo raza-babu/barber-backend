@@ -25,6 +25,7 @@ import { saloonHolidayRoutes } from '../modules/saloonHoliday/saloonHoliday.rout
 import { barberScheduleRoutes } from '../modules/barberSchedule/barberSchedule.routes';
 import { barberHolidayRoutes } from '../modules/barberHoliday/barberHoliday.routes';
 import { queueCapacityRoutes } from '../modules/queueCapacity/queueCapacity.routes';
+import { bookingRoutes } from '../modules/booking/booking.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -123,7 +124,12 @@ const moduleRoutes = [
   {
     path: '/queue-capacities',
     route: queueCapacityRoutes
-  }
+  },
+   {
+    path: '/bookings',
+    route: bookingRoutes
+  },
+
   
 ];
 

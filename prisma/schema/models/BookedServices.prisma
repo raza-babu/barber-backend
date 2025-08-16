@@ -1,0 +1,17 @@
+model BookedServices {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId  String?  @db.ObjectId
+  serviceId  String   @db.ObjectId
+  customerId String   @db.ObjectId
+  quantity   Int      @default(1) // Number of times the service is booked
+  price      Float // Price for the booked service
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relationships
+  booking  Booking? @relation(fields: [bookingId], references: [id])
+  service  Service  @relation(fields: [serviceId], references: [id])
+  customer User     @relation(fields: [customerId], references: [id])
+
+  @@map("booked_services")
+}

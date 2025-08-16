@@ -359,6 +359,20 @@ const updateJobApplicationsIntoDb = async (
         'Failed to create hired barber record',
       );
     }
+    const updateBarber = await prisma.barber.update({
+      where: {
+        userId: newHiredBarber.barberId,
+      },
+      data: {
+        saloonOwnerId: result.saloonOwnerId,
+      },
+    });
+    if (!updateBarber) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Failed to update barber status',
+      );
+    }
   }
 
   return result;

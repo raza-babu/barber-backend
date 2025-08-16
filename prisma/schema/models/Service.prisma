@@ -11,11 +11,11 @@ model Service {
   updatedAt     DateTime    @updatedAt
 
   // Relationships
-  user          User            @relation(fields: [saloonOwnerId], references: [id])
-  saloon        SaloonOwner     @relation(fields: [saloonId], references: [id])
-  Booking       Booking[]
-  CustomerVisit CustomerVisit[]
-  QueueSlot     QueueSlot[]
+  user           User             @relation(fields: [saloonOwnerId], references: [id])
+  saloon         SaloonOwner      @relation(fields: [saloonId], references: [id])
+  // Booking        Booking[]
+  CustomerVisit  CustomerVisit[]
+  BookedServices BookedServices[]
 
   @@map("services")
 }

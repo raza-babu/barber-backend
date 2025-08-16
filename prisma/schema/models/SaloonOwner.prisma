@@ -10,6 +10,7 @@ model SaloonOwner {
   shopImages         String[]
   shopVideo          String[]
   qrCode             String?
+  isQueueEnabled     Boolean  @default(false) // If queue system is enabled
   isVerified         Boolean  @default(false)
   followerCount      Int      @default(0)
   followingCount     Int      @default(0)
