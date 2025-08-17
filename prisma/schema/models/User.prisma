@@ -68,6 +68,7 @@ model User {
   QueueCapacity       QueueCapacity[]
   BookedServices      BookedServices[]
   Queue              Queue[]
+  BarberLunch         BarberLunch[]
 
   @@map("users")
 }

@@ -27,8 +27,9 @@ model Barber {
   Queue                Queue[]
   HiredBarber          HiredBarber[]
   BarberRealTimeStatus BarberRealTimeStatus[]
-  QueueCapacity         QueueCapacity[]
+  QueueCapacity        QueueCapacity[]
   QueueSlot            QueueSlot[]
+  BarberLunch          BarberLunch[]
 
   @@map("barbers")
 }

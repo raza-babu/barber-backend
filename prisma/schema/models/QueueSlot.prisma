@@ -1,7 +1,7 @@
 model QueueSlot {
   id          String      @id @default(auto()) @map("_id") @db.ObjectId
   queueId     String      @db.ObjectId
-  bookingId   String?     @unique @db.ObjectId
+  bookingId   String?     @db.ObjectId
   customerId  String      @db.ObjectId
   barberId    String      @db.ObjectId
   position    Int
@@ -13,7 +13,7 @@ model QueueSlot {
 
   // Relationships
   queue        Queue                  @relation(fields: [queueId], references: [id])
-  booking      Booking?               @relation(name: "BookingQueueSlot", fields: [bookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  booking      Booking?               @relation(fields: [bookingId], references: [id])
   customer     User                   @relation(fields: [customerId], references: [id])
   barber       Barber                 @relation(fields: [barberId], references: [userId])
   barberStatus BarberRealTimeStatus[]

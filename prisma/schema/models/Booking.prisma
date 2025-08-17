@@ -25,7 +25,7 @@ model Booking {
   barber      Barber      @relation(fields: [barberId], references: [userId])
   // service     Service     @relation(fields: [serviceId], references: [id])
   saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
-  queueSlot   QueueSlot?  @relation(name: "BookingQueueSlot")
+  queueSlot   QueueSlot[]
 
   LoyaltyRedemption LoyaltyRedemption[]
   BookedServices    BookedServices[]

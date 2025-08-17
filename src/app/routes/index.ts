@@ -16,8 +16,6 @@ import { feedRoutes } from '../modules/feed/feed.routes';
 import { favoriteFeedRoutes } from '../modules/favoriteFeed/favoriteFeed.routes';
 import { supportRepliesRoutes } from '../modules/supportReplies/supportReplies.routes';
 import { subscriptionOfferRoutes } from '../modules/subscriptionOffer/subscriptionOffer.routes';
-import path from 'path';
-import admin from '../utils/firebase';
 import { adminRoutes } from '../modules/admin/admin.routes';
 import { customerRoutes } from '../modules/customer/customer.routes';
 import { saloonScheduleRoutes } from '../modules/saloonSchedule/saloonSchedule.routes';
@@ -26,6 +24,7 @@ import { barberScheduleRoutes } from '../modules/barberSchedule/barberSchedule.r
 import { barberHolidayRoutes } from '../modules/barberHoliday/barberHoliday.routes';
 import { queueCapacityRoutes } from '../modules/queueCapacity/queueCapacity.routes';
 import { bookingRoutes } from '../modules/booking/booking.routes';
+import { barberLunchRoutes } from '../modules/barberLunch/barberLunch.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -129,8 +128,11 @@ const moduleRoutes = [
     path: '/bookings',
     route: bookingRoutes
   },
+  {
+    path: '/lunch-times',
+    route: barberLunchRoutes
+  }
 
-  
 ];
 
 moduleRoutes.forEach(route => router.use(route.path, route.route));

@@ -1,3 +1,4 @@
+import { Chat } from './../../../../node_modules/.prisma/client/index.d';
 import express from 'express';
 import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
@@ -14,7 +15,17 @@ router.post(
   bookingController.createBooking,
 );
 
-router.get('/', auth(), bookingController.getBookingList);
+router.get(
+  '/customers',
+  auth(UserRoleEnum.CUSTOMER),
+  bookingController.getBookingList,
+);
+
+router.get(
+  '/salons',
+  auth(UserRoleEnum.SALOON_OWNER),
+  bookingController.getBookingListForSalonOwner,
+);
 
 router.get(
   '/barbers',
@@ -23,13 +34,30 @@ router.get(
   bookingController.getAvailableBarbers,
 );
 
-router.get('/:id', auth(), bookingController.getBookingById);
+router.get(
+  '/customers/:id',
+  auth(UserRoleEnum.CUSTOMER),
+  bookingController.getBookingById,
+);
+
+router.get(
+  '/salons/:id',
+  auth(UserRoleEnum.SALOON_OWNER),
+  bookingController.getBookingByIdForSalonOwner,
+);
 
 router.put(
-  '/:id',
+  '/reschedule',
   auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER),
   validateRequest(bookingValidation.updateBookingSchema),
   bookingController.updateBooking,
+);
+
+router.put(
+  '/schedule-status',
+  auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(bookingValidation.updateBookingSchema),
+  bookingController.updateBookingStatus,
 );
 
 router.delete(

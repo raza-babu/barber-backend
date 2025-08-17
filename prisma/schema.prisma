@@ -12,7 +12,7 @@ enum AvailableTO {
 enum BookingStatus {
   PENDING
   CONFIRMED
-  CANCELLED
+  CANCELED
   COMPLETED
   RESCHEDULED
   NO_SHOW
@@ -224,8 +224,9 @@ model Barber {
   Queue                Queue[]
   HiredBarber          HiredBarber[]
   BarberRealTimeStatus BarberRealTimeStatus[]
-  QueueCapacity         QueueCapacity[]
+  QueueCapacity        QueueCapacity[]
   QueueSlot            QueueSlot[]
+  BarberLunch          BarberLunch[]
 
   @@map("barbers")
 }
@@ -246,6 +247,24 @@ model BarberDayOff {
   user   User   @relation(fields: [saloonOwnerId], references: [id])
 
   @@map("barber_days_off")
+}
+
+
+model BarberLunch {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  barberId   String   @db.ObjectId
+  saloonOwnerId String @db.ObjectId
+  lunchStart DateTime // Start time of the lunch break
+  lunchEnd   DateTime // End time of the lunch break
+  startTime  String // e.g., "12:00"
+  endTime    String // e.g., "13:00"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relationships
+  barber Barber @relation(fields: [barberId], references: [userId])
+  user   User   @relation(fields: [saloonOwnerId], references: [id])
+  @@map("barber_lunches")
 }
 
 
@@ -338,7 +357,7 @@ model Booking {
   barber      Barber      @relation(fields: [barberId], references: [userId])
   // service     Service     @relation(fields: [serviceId], references: [id])
   saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
-  queueSlot   QueueSlot?  @relation(name: "BookingQueueSlot")
+  queueSlot   QueueSlot[]
 
   LoyaltyRedemption LoyaltyRedemption[]
   BookedServices    BookedServices[]
@@ -738,7 +757,7 @@ model Queue {
   date            DateTime // Queue date (e.g., "2023-11-20T00:00:00Z")
   currentPosition Int       @default(0) // Tracks which customer is currently being served
   freeAt          DateTime? // When the queue is free for the next customer
-  // isActive        Boolean   @default(true)
+  isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -771,7 +790,7 @@ model QueueCapacity {
 model QueueSlot {
   id          String      @id @default(auto()) @map("_id") @db.ObjectId
   queueId     String      @db.ObjectId
-  bookingId   String?     @unique @db.ObjectId
+  bookingId   String?     @db.ObjectId
   customerId  String      @db.ObjectId
   barberId    String      @db.ObjectId
   position    Int
@@ -783,7 +802,7 @@ model QueueSlot {
 
   // Relationships
   queue        Queue                  @relation(fields: [queueId], references: [id])
-  booking      Booking?               @relation(name: "BookingQueueSlot", fields: [bookingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  booking      Booking?               @relation(fields: [bookingId], references: [id])
   customer     User                   @relation(fields: [customerId], references: [id])
   barber       Barber                 @relation(fields: [barberId], references: [userId])
   barberStatus BarberRealTimeStatus[]
@@ -1117,6 +1136,7 @@ model User {
   QueueCapacity       QueueCapacity[]
   BookedServices      BookedServices[]
   Queue              Queue[]
+  BarberLunch         BarberLunch[]
 
   @@map("users")
 }

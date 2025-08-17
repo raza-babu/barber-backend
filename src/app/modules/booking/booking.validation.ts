@@ -30,7 +30,7 @@ const updateBookingSchema = z.object({
     barberImage: z.string().optional(),
   }),
   params: z.object({
-    id: z.string().min(1, 'Booking ID is required'),
+    id: z.string().min(1, 'Booking ID is required').optional(), // ID of the booking to update
   }),
 });
 
