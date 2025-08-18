@@ -34,7 +34,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'utc' },
+    { zone: 'local' },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
@@ -232,12 +232,12 @@ const createBookingIntoDb = async (userId: string, data: any) => {
     const openingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.openingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'utc' },
+      { zone: 'local' },
     ).toUTC();
     const closingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.closingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'utc' },
+      { zone: 'local' },
     ).toUTC();
 
     if (
@@ -842,7 +842,7 @@ const updateBookingIntoDb = async (userId: string, data: any) => {
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'utc' },
+    { zone: 'local' },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
