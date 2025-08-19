@@ -63,9 +63,41 @@ const createBookingIntoDb = async (userId: string, data: any) => {
     (sum, s) => sum + Number(s.price),
     0,
   );
+  
 
   // 4. Transaction for all DB operations
   const result = await prisma.$transaction(async tx => {
+    // Check if the booking time overlaps with the barber's lunch/break time (time only, ignore date)
+    const barberBreak = await tx.lunch.findFirst({
+      where: {
+      saloonOwnerId: saloonOwnerId,
+      },
+    });
+
+    if (barberBreak) {
+      // Extract only the time part from the booking start and end
+      const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', { zone: 'local' });
+      const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
+
+      // Parse lunch break start and end times (time only, ignore date)
+      if (!barberBreak.startTime || !barberBreak.endTime) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Barber break start or end time is missing');
+      }
+      const breakStartTime = DateTime.fromFormat(barberBreak.startTime, 'hh:mm a', { zone: 'local' });
+      const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', { zone: 'local' });
+
+      // Check for overlap (time only)
+      if (
+      (bookingStartTime >= breakStartTime && bookingStartTime < breakEndTime) ||
+      (bookingEndTime > breakStartTime && bookingEndTime <= breakEndTime) ||
+      (bookingStartTime <= breakStartTime && bookingEndTime >= breakEndTime)
+      ) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Barber is unavailable during break/lunch time',
+      );
+      }
+    }
     // 4a. If queue is enabled, create queue and queueSlot
     let queue = null;
     let queueSlot = null;

@@ -67,8 +67,9 @@ model User {
   adminAccessFunction AdminAccessFunction[]
   QueueCapacity       QueueCapacity[]
   BookedServices      BookedServices[]
-  Queue              Queue[]
+  Queue               Queue[]
   BarberLunch         BarberLunch[]
+  Lunch               Lunch[]
 
   @@map("users")
 }

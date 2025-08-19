@@ -30,6 +30,7 @@ model Barber {
   QueueCapacity        QueueCapacity[]
   QueueSlot            QueueSlot[]
   BarberLunch          BarberLunch[]
+  // Lunch                Lunch[]
 
   @@map("barbers")
 }

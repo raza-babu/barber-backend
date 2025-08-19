@@ -1,0 +1,18 @@
+model Lunch {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId String    @db.ObjectId
+  // barberId      String    @db.ObjectId
+  startedAt     DateTime?
+  completedAt   DateTime?
+  startTime     String?
+  endTime       String?
+  status        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relationships
+  saloonOwner  User                   @relation(fields: [saloonOwnerId], references: [id])
+  // barber       Barber                 @relation(fields: [barberId], references: [userId])
+
+  @@map("lunch_slots")
+}

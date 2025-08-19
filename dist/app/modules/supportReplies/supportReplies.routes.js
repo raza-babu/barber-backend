@@ -1,0 +1,22 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.supportRepliesRoutes = void 0;
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const supportReplies_controller_1 = require("./supportReplies.controller");
+const supportReplies_validation_1 = require("./supportReplies.validation");
+const client_1 = require("@prisma/client");
+const checkPermissions_1 = require("../../middlewares/checkPermissions");
+const access_1 = require("../../utils/access");
+const router = express_1.default.Router();
+router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(supportReplies_validation_1.supportRepliesValidation.createSchema), supportReplies_controller_1.supportRepliesController.createSupportReplies);
+router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.SUPPORT), supportReplies_controller_1.supportRepliesController.getSupportRepliesList);
+router.get('/reports', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.USER_REPORT), supportReplies_controller_1.supportRepliesController.getSupportRepliesReports);
+router.patch('/replies/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.SUPPORT), (0, validateRequest_1.default)(supportReplies_validation_1.supportRepliesValidation.updateSchema), supportReplies_controller_1.supportRepliesController.updateSupportReplies);
+router.patch('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.SUPPORT), supportReplies_controller_1.supportRepliesController.getSupportRepliesById);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.SUPPORT), supportReplies_controller_1.supportRepliesController.deleteSupportReplies);
+exports.supportRepliesRoutes = router;

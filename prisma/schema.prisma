@@ -227,6 +227,7 @@ model Barber {
   QueueCapacity        QueueCapacity[]
   QueueSlot            QueueSlot[]
   BarberLunch          BarberLunch[]
+  // Lunch                Lunch[]
 
   @@map("barbers")
 }
@@ -251,19 +252,20 @@ model BarberDayOff {
 
 
 model BarberLunch {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  barberId   String   @db.ObjectId
-  saloonOwnerId String @db.ObjectId
-  lunchStart DateTime // Start time of the lunch break
-  lunchEnd   DateTime // End time of the lunch break
-  startTime  String // e.g., "12:00"
-  endTime    String // e.g., "13:00"
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  barberId      String   @db.ObjectId
+  saloonOwnerId String   @db.ObjectId
+  lunchStart    DateTime // Start time of the lunch break
+  lunchEnd      DateTime // End time of the lunch break
+  startTime     String // e.g., "12:00"
+  endTime       String // e.g., "13:00"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relationships
   barber Barber @relation(fields: [barberId], references: [userId])
   user   User   @relation(fields: [saloonOwnerId], references: [id])
+
   @@map("barber_lunches")
 }
 
@@ -660,6 +662,26 @@ model LoyaltyScheme {
   LoyaltyPointLog LoyaltyPointLog[]
 
   @@map("loyalty_schemes")
+}
+
+
+model Lunch {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId String    @db.ObjectId
+  // barberId      String    @db.ObjectId
+  startedAt     DateTime?
+  completedAt   DateTime?
+  startTime     String?
+  endTime       String?
+  status        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relationships
+  saloonOwner  User                   @relation(fields: [saloonOwnerId], references: [id])
+  // barber       Barber                 @relation(fields: [barberId], references: [userId])
+
+  @@map("lunch_slots")
 }
 
 
@@ -1135,8 +1157,9 @@ model User {
   adminAccessFunction AdminAccessFunction[]
   QueueCapacity       QueueCapacity[]
   BookedServices      BookedServices[]
-  Queue              Queue[]
+  Queue               Queue[]
   BarberLunch         BarberLunch[]
+  Lunch               Lunch[]
 
   @@map("users")
 }
