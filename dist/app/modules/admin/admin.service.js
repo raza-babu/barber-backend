@@ -252,7 +252,7 @@ const updateSaloonOwnerByIdIntoDb = (userId, saloonOwnerId, data) => __awaiter(v
         },
         data: {
             isVerified: status === true ? true : false,
-        }
+        },
     });
     if (!saloonOwner) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon owner not found or not updated');
@@ -284,23 +284,24 @@ const getAdminDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, fu
         },
         where: {
             role: {
-                in: [client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER, client_1.UserRoleEnum.CUSTOMER],
+                in: [
+                    client_1.UserRoleEnum.SALOON_OWNER,
+                    client_1.UserRoleEnum.BARBER,
+                    client_1.UserRoleEnum.CUSTOMER,
+                ],
             },
             status: client_1.UserStatus.ACTIVE,
             createdAt: {
                 gte: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Last month
             },
         },
-        orderBy: [
-            { createdAt: 'asc' },
-            { role: 'asc' },
-        ],
+        orderBy: [{ createdAt: 'asc' }, { role: 'asc' }],
     });
     return {
         saloonCount,
         barberCount,
         customerCount,
-        userGrowth: userGrowth.map((item) => ({
+        userGrowth: userGrowth.map(item => ({
             date: item.createdAt.toISOString().split('T')[0], // Format date to YYYY-MM-DD
             role: item.role,
             count: item._count.id,

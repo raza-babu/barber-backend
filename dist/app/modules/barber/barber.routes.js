@@ -1,0 +1,21 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.barberRoutes = void 0;
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const barber_controller_1 = require("./barber.controller");
+const barber_validation_1 = require("./barber.validation");
+const client_1 = require("@prisma/client");
+const router = express_1.default.Router();
+router.post('/', (0, auth_1.default)(), (0, validateRequest_1.default)(barber_validation_1.barberValidation.createSchema), barber_controller_1.barberController.createBarber);
+router.get('/', (0, auth_1.default)(), barber_controller_1.barberController.getBarberList);
+router.get('/dashboard', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), barber_controller_1.barberController.getBarberDashboard);
+router.get('/bookings', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), barber_controller_1.barberController.getCustomerBookings);
+router.get('/:id', (0, auth_1.default)(), barber_controller_1.barberController.getBarberById);
+router.put('/:id', (0, auth_1.default)(), (0, validateRequest_1.default)(barber_validation_1.barberValidation.updateSchema), barber_controller_1.barberController.updateBarber);
+router.delete('/:id', (0, auth_1.default)(), barber_controller_1.barberController.deleteBarber);
+exports.barberRoutes = router;

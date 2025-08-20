@@ -133,6 +133,8 @@ const getAdminDashboard = catchAsync(async (req, res) => {
   });
 });
 
+
+
 export const adminController = {
   getSaloonList,
   blockSaloonById,

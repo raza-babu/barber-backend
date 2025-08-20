@@ -31,6 +31,7 @@ const queueCapacity_routes_1 = require("../modules/queueCapacity/queueCapacity.r
 const booking_routes_1 = require("../modules/booking/booking.routes");
 const barberLunch_routes_1 = require("../modules/barberLunch/barberLunch.routes");
 const lunch_routes_1 = require("../modules/lunch/lunch.routes");
+const barber_routes_1 = require("../modules/barber/barber.routes");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -108,6 +109,10 @@ const moduleRoutes = [
     {
         path: '/admin',
         route: admin_routes_1.adminRoutes,
+    },
+    {
+        path: '/barbers',
+        route: barber_routes_1.barberRoutes,
     },
     {
         path: '/saloon-schedules',

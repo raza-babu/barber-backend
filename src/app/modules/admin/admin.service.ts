@@ -1,14 +1,20 @@
 import prisma from '../../utils/prisma';
-import { UserRoleEnum, UserStatus } from '@prisma/client';
+import { BookingStatus, UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
-const getSaloonFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
+const getSaloonFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   const whereClause = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
@@ -22,7 +28,7 @@ const getSaloonFromDb = async (userId: string, options: ISearchAndFilterOptions)
       startDate: options.startDate,
       endDate: options.endDate,
       dateField: 'createdAt',
-    }
+    },
   );
 
   // Handle SaloonOwner specific filters
@@ -100,7 +106,7 @@ const blockSaloonByIdIntoDb = async (saloonOwnerId: string, data: any) => {
 
 const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   const whereClause = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
@@ -114,7 +120,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
       startDate: options.startDate,
       endDate: options.endDate,
       dateField: 'createdAt',
-    }
+    },
   );
 
   // Handle Barber specific filters
@@ -192,14 +198,20 @@ const blockBarberByIdIntoDb = async (
     },
   });
   if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Barber not found or not updated');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Barber not found or not updated',
+    );
   }
   return result;
 };
 
-const getCustomersListFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
+const getCustomersListFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   const whereClause = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
@@ -213,7 +225,7 @@ const getCustomersListFromDb = async (userId: string, options: ISearchAndFilterO
       startDate: options.startDate,
       endDate: options.endDate,
       dateField: 'createdAt',
-    }
+    },
   );
 
   const [customers, total] = await Promise.all([
@@ -242,7 +254,11 @@ const getCustomersListFromDb = async (userId: string, options: ISearchAndFilterO
   return formatPaginationResponse(customers, total, page, limit);
 };
 
-const blockCustomerByIdIntoDb = async (userId: string, customerId: string, data: any) => {
+const blockCustomerByIdIntoDb = async (
+  userId: string,
+  customerId: string,
+  data: any,
+) => {
   const result = await prisma.user.update({
     where: {
       id: customerId,
@@ -262,26 +278,36 @@ const blockCustomerByIdIntoDb = async (userId: string, customerId: string, data:
     },
   });
   if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Customer not found or not updated');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Customer not found or not updated',
+    );
   }
   return result;
 };
 
-const updateSaloonOwnerByIdIntoDb = async (userId: string, saloonOwnerId: string, data: any) => {
-  const {status} = data;
+const updateSaloonOwnerByIdIntoDb = async (
+  userId: string,
+  saloonOwnerId: string,
+  data: any,
+) => {
+  const { status } = data;
   const saloonOwner = await prisma.saloonOwner.update({
     where: {
       userId: saloonOwnerId,
     },
-    data:{
+    data: {
       isVerified: status === true ? true : false,
-    }
+    },
   });
   if (!saloonOwner) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon owner not found or not updated');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Saloon owner not found or not updated',
+    );
   }
-  return saloonOwner; 
-}
+  return saloonOwner;
+};
 
 const getAdminDashboardFromDb = async (userId: string) => {
   const saloonCount = await prisma.saloonOwner.count({
@@ -311,30 +337,33 @@ const getAdminDashboardFromDb = async (userId: string) => {
     },
     where: {
       role: {
-        in: [UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER, UserRoleEnum.CUSTOMER],
+        in: [
+          UserRoleEnum.SALOON_OWNER,
+          UserRoleEnum.BARBER,
+          UserRoleEnum.CUSTOMER,
+        ],
       },
       status: UserStatus.ACTIVE,
       createdAt: {
         gte: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Last month
       },
     },
-    orderBy: [
-      { createdAt: 'asc' },
-      { role: 'asc' },
-    ],
+    orderBy: [{ createdAt: 'asc' }, { role: 'asc' }],
   });
 
   return {
     saloonCount,
     barberCount,
     customerCount,
-    userGrowth: userGrowth.map((item) => ({
+    userGrowth: userGrowth.map(item => ({
       date: item.createdAt.toISOString().split('T')[0], // Format date to YYYY-MM-DD
       role: item.role,
       count: item._count.id,
     })),
   };
 };
+
+
 
 export const adminService = {
   getSaloonFromDb,

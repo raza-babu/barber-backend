@@ -14,7 +14,7 @@ router.post(
   '/',
   multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]),
   parseBody,
-  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER, UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN),
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
   validateRequest(feedValidation.createFeedSchema),
   feedController.createFeed,
 );
@@ -27,7 +27,7 @@ router.put(
   '/:id',
   multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]),
   parseBody,
-  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER, UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN),
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
   validateRequest(feedValidation.updateFeedSchema),
   feedController.updateFeed,
 );
