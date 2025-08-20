@@ -3,11 +3,13 @@ import { BookingStatus, UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 
-
-const manageBookingsIntoDb = async (userId: string, data: {
-  bookingId: string;
-  status: BookingStatus;
-}) => {
+const manageBookingsIntoDb = async (
+  userId: string,
+  data: {
+    bookingId: string;
+    status: BookingStatus;
+  },
+) => {
   return await prisma.$transaction(async tx => {
     const booking = await tx.booking.update({
       where: {
@@ -20,13 +22,15 @@ const manageBookingsIntoDb = async (userId: string, data: {
     });
 
     if (!booking) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found or not updated');
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Booking not found or not updated',
+      );
     }
 
     return booking;
   });
-}
-
+};
 
 const getBarberDashboardFromDb = async (userId: string) => {
   const customerCount = await prisma.booking.count({
@@ -41,10 +45,10 @@ const getBarberDashboardFromDb = async (userId: string) => {
     },
     where: {
       saloonOwnerId: userId,
-      status: BookingStatus.COMPLETED
+      status: BookingStatus.COMPLETED,
     },
   });
-  
+
   const barberCount = await prisma.barber.count({
     where: {
       saloonOwnerId: userId,
@@ -92,7 +96,6 @@ const getBarberDashboardFromDb = async (userId: string) => {
   };
 };
 
-
 const getCustomerBookingsFromDb = async (userId: string) => {
   const result = await prisma.booking.findMany({
     where: {
@@ -109,16 +112,16 @@ const getCustomerBookingsFromDb = async (userId: string) => {
       },
       barber: {
         select: {
-        user: { 
-          select: {
-            id: true,
-            fullName: true,
-            image: true, 
-          }
-        }
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              image: true,
+            },
+          },
+        },
       },
-    },
-      
+
       BookedServices: {
         select: {
           service: {
@@ -126,10 +129,10 @@ const getCustomerBookingsFromDb = async (userId: string) => {
               id: true,
               serviceName: true,
               price: true,
+            },
+          },
         },
       },
-    }
-  }
     },
     orderBy: {
       createdAt: 'desc',
@@ -141,68 +144,66 @@ const getCustomerBookingsFromDb = async (userId: string) => {
   return result;
 };
 
-
-const getBarberListFromDb = async (userId: string) => {
-  
-    const result = await prisma.barber.findMany();
-    if (result.length === 0) {
-    return { message: 'No barber found' };
+const getSaloonListFromDb = async (userId: string) => {
+  const result = await prisma.saloonOwner.findMany();
+  if (result.length === 0) {
+    return { message: 'No saloon found' };
   }
-    return result;
+  return result;
 };
 
-const getBarberByIdFromDb = async (userId: string, barberId: string) => {
-  
-    const result = await prisma.barber.findUnique({ 
+const getSaloonByIdFromDb = async (userId: string, saloonId: string) => {
+  const result = await prisma.saloonOwner.findUnique({
     where: {
-      id: barberId,
-    }
-   });
-    if (!result) {
-    throw new AppError(httpStatus.NOT_FOUND,'barber not found');
+      id: saloonId,
+    },
+  });
+  if (!result) {
+    throw new AppError(httpStatus.NOT_FOUND, 'saloon not found');
   }
-    return result;
-  };
+  return result;
+};
 
-
-
-const updateBarberIntoDb = async (userId: string, barberId: string, data: any) => {
-  
-    const result = await prisma.barber.update({
-      where:  {
-        id: barberId,
-        userId: userId,
+const updateSaloonIntoDb = async (
+  userId: string,
+  saloonId: string,
+  data: any,
+) => {
+  const result = await prisma.saloonOwner.update({
+    where: {
+      id: saloonId,
+      userId: userId,
     },
     data: {
       ...data,
     },
   });
   if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'barberId, not updated');
+    throw new AppError(httpStatus.BAD_REQUEST, 'saloonId, not updated');
   }
-    return result;
-  };
+  return result;
+};
 
-const deleteBarberItemFromDb = async (userId: string, barberId: string) => {
-    const deletedItem = await prisma.barber.delete({
-      where: {
-      id: barberId,
+const deleteSaloonItemFromDb = async (userId: string, saloonId: string) => {
+  const deletedItem = await prisma.saloonOwner.delete({
+    where: {
+      id: saloonId,
       userId: userId,
     },
   });
   if (!deletedItem) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'barberId, not deleted');
+    throw new AppError(httpStatus.BAD_REQUEST, 'saloonId, not deleted');
   }
 
-    return deletedItem;
-  };
+  return deletedItem;
+};
 
-export const barberService = {
-manageBookingsIntoDb,
-getBarberDashboardFromDb,
-getCustomerBookingsFromDb,
-getBarberListFromDb,
-getBarberByIdFromDb,
-updateBarberIntoDb,
-deleteBarberItemFromDb,
+export const saloonService = {
+  manageBookingsIntoDb,
+  getBarberDashboardFromDb,
+  getCustomerBookingsFromDb,
+  getSaloonListFromDb,
+  getSaloonByIdFromDb,
+  updateSaloonIntoDb,
+  deleteSaloonItemFromDb,
 };

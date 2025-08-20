@@ -34,6 +34,15 @@ router.get(
   supportRepliesController.getSupportRepliesReports
 )
 
+router.get(
+  '/reply-sent/:id',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.SUPPORT,
+  ),
+  supportRepliesController.getSpecificRepliesById,
+)
+
 router.patch(
   '/replies/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),

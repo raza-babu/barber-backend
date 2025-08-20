@@ -2,8 +2,11 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import emailSender from '../../utils/emailSender';
-import { SupportStatus, SupportType } from '@prisma/client';
-import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import { ReplyStatus, ReplyType, SupportStatus, SupportType } from '@prisma/client';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
@@ -34,9 +37,11 @@ const createSupportRepliesIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getSupportRepliesReportsFromDb = async (options: ISearchAndFilterOptions) => {
+const getSupportRepliesReportsFromDb = async (
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   const whereClause = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
@@ -50,7 +55,7 @@ const getSupportRepliesReportsFromDb = async (options: ISearchAndFilterOptions) 
       startDate: options.startDate,
       endDate: options.endDate,
       dateField: 'createdAt',
-    }
+    },
   );
 
   const [reports, total] = await Promise.all([
@@ -68,8 +73,13 @@ const getSupportRepliesReportsFromDb = async (options: ISearchAndFilterOptions) 
         message: true,
         status: true,
         type: true,
-        createdAt: true,
-        updatedAt: true,
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            address: true,
+          },
+        },
       },
     }),
     prisma.support.count({
@@ -77,12 +87,25 @@ const getSupportRepliesReportsFromDb = async (options: ISearchAndFilterOptions) 
     }),
   ]);
 
-  return formatPaginationResponse(reports, total, page, limit);
+  // Flatten the user object into each report
+  const flattenedReports = reports.map(report => ({
+    reportId: report.id,
+    userId: report.userId,
+    userName: report.userName,
+    message: report.message,
+    status: report.status,
+    type: report.type,
+    userPhoneNumber: report.user.phoneNumber,
+    userAddress: report.user.address,
+  }));
+  return formatPaginationResponse(flattenedReports, total, page, limit);
 };
 
-const getSupportRepliesListFromDb = async (options: ISearchAndFilterOptions) => {
+const getSupportRepliesListFromDb = async (
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   const whereClause = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
@@ -96,7 +119,7 @@ const getSupportRepliesListFromDb = async (options: ISearchAndFilterOptions) => 
       startDate: options.startDate,
       endDate: options.endDate,
       dateField: 'createdAt',
-    }
+    },
   );
 
   const [supportReplies, total] = await Promise.all([
@@ -114,8 +137,12 @@ const getSupportRepliesListFromDb = async (options: ISearchAndFilterOptions) => 
         message: true,
         status: true,
         type: true,
-        createdAt: true,
-        updatedAt: true,
+        user: {
+          select: {
+            id: true,
+            phoneNumber: true,
+          },
+        },
       },
     }),
     prisma.support.count({
@@ -211,7 +238,51 @@ const updateSupportRepliesIntoDb = async (
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Support Item is not updated');
   }
+
+  const reportUpdate = await prisma.reply.create({
+    data: {
+      userId: userId,
+      supportId: supportRepliesId,
+      message: data.message,
+      type: data.type = SupportType.CUSTOMER_COMPLAINT ? ReplyType.REPORT : ReplyType.SUPPORT,
+      status: ReplyStatus.CLOSED,
+    },
+  });
+  if (!reportUpdate) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Reply not created');
+  }
   return result;
+};
+
+const getSpecificRepliesByIdFromDb = async (
+  userId: string,
+  supportRepliesId: string,
+) => {
+  const result = await prisma.reply.findFirst({
+    where: {
+      supportId: supportRepliesId,
+    },  
+    select: {
+      id: true,
+      userId: true,
+      supportId: true,
+      message: true,
+      status: true,
+      type: true,
+    },
+  });
+  if (!result) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Support item not found');
+  }
+
+  return {
+    id: result.id,
+    supportId : result.supportId,
+    userId: result.userId,
+    message: result.message,
+    status: result.status,
+    type: result.type,
+  };
 };
 
 const deleteSupportRepliesItemFromDb = async (
@@ -221,7 +292,6 @@ const deleteSupportRepliesItemFromDb = async (
   const deletedItem = await prisma.support.delete({
     where: {
       id: supportRepliesId,
-      userId: userId,
     },
   });
   if (!deletedItem) {
@@ -240,5 +310,6 @@ export const supportRepliesService = {
   getSupportRepliesByIdFromDb,
   updateSupportRepliesIntoDb,
   deleteSupportRepliesItemFromDb,
+  getSpecificRepliesByIdFromDb,
   getSupportRepliesReportsFromDb,
 };

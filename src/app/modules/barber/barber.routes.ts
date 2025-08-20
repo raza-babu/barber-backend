@@ -7,20 +7,20 @@ import { UserRoleEnum } from '@prisma/client';
 
 const router = express.Router();
 
-router.post(
-  '/',
-  auth(),
-  validateRequest(barberValidation.createSchema),
-  barberController.createBarber,
-);
 
 router.get('/', auth(), barberController.getBarberList);
 
+router.post(
+  '/manage-bookings',
+  auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(barberValidation.createSchema),
+  barberController.manageBookings,
+);
 router.get(
   '/dashboard',
   auth(UserRoleEnum.SALOON_OWNER),
   barberController.getBarberDashboard,
-)
+);
 
 router.get(
   '/bookings',
@@ -29,8 +29,6 @@ router.get(
 );
 
 router.get('/:id', auth(), barberController.getBarberById);
-
-
 
 router.put(
   '/:id',

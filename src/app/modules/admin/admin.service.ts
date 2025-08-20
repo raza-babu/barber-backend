@@ -114,7 +114,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
     },
     {
       role: UserRoleEnum.BARBER,
-      status: options.status || UserStatus.ACTIVE,
+      status: options.status,
     },
     {
       startDate: options.startDate,
@@ -154,6 +154,13 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
             experienceYears: true,
             skills: true,
             bio: true,
+            saloonOwner: {
+              select: {
+                id: true,
+                shopName: true,
+                shopAddress: true,
+              },
+            },
           },
         },
       },
@@ -163,7 +170,23 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
     }),
   ]);
 
-  return formatPaginationResponse(barbers, total, page, limit);
+  // Flatten the response so that Barber fields are at the top level
+  const flattenedBarbers = barbers.map(barber => {
+    const { Barber, ...userFields } = barber;
+    return {
+      ...userFields,
+      userId: Barber?.userId,
+      portfolio: Barber?.portfolio,
+      experienceYears: Barber?.experienceYears,
+      skills: Barber?.skills,
+      bio: Barber?.bio,
+      shopId: Barber?.saloonOwner?.id ?? null,
+      shopName: Barber?.saloonOwner?.shopName ?? null,
+      shopAddress: Barber?.saloonOwner?.shopAddress ?? null,
+    };
+  });
+
+  return formatPaginationResponse(flattenedBarbers, total, page, limit);
 };
 
 const blockBarberByIdIntoDb = async (
@@ -219,7 +242,7 @@ const getCustomersListFromDb = async (
     },
     {
       role: UserRoleEnum.CUSTOMER,
-      status: options.status || UserStatus.ACTIVE,
+      status: options.status,
     },
     {
       startDate: options.startDate,
@@ -241,6 +264,8 @@ const getCustomersListFromDb = async (
         fullName: true,
         email: true,
         phoneNumber: true,
+        gender: true,
+        address: true,
         image: true,
         status: true,
         createdAt: true,
@@ -362,8 +387,6 @@ const getAdminDashboardFromDb = async (userId: string) => {
     })),
   };
 };
-
-
 
 export const adminService = {
   getSaloonFromDb,
