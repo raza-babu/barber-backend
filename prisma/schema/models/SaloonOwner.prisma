@@ -22,7 +22,7 @@ model SaloonOwner {
   // Relationships
   user              User                @relation(fields: [userId], references: [id])
   Booking           Booking[]
-  Barber            Barber?
+  Barber            Barber[]
   NonRegisteredUser NonRegisteredUser[]
   SaloonReport      SaloonReport[]
   SaloonSchedule    SaloonSchedule[]

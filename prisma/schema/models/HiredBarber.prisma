@@ -1,7 +1,7 @@
 model HiredBarber {
   id         String    @id @default(auto()) @map("_id") @db.ObjectId
   userId     String    @db.ObjectId
-  barberId   String    @db.ObjectId
+  barberId   String    @db.ObjectId @unique
   hourlyRate Float?
   startDate  DateTime?
   createdAt  DateTime  @default(now())

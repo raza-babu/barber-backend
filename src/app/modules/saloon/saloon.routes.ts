@@ -14,7 +14,7 @@ const router = express.Router();
 // saloonController.createSaloon,
 // );
 
-router.post(
+router.patch(
   '/manage-bookings',
   auth(UserRoleEnum.SALOON_OWNER),
   validateRequest(saloonValidation.createSchema),
@@ -32,13 +32,16 @@ router.get(
   saloonController.getCustomerBookings,
 );
 
-router.get('/:id', auth(), saloonController.getSaloonById);
+router.get(
+  '/barbers',
+  auth(UserRoleEnum.SALOON_OWNER),
+  saloonController.getAllBarbers,
+);
 
-router.put(
-'/:id',
-auth(),
-validateRequest(saloonValidation.updateSchema),
-saloonController.updateSaloon,
+router.patch(
+  '/terminate-barber',
+  auth(UserRoleEnum.SALOON_OWNER),
+  saloonController.terminateBarber,
 );
 
 router.delete('/:id', auth(), saloonController.deleteSaloon);

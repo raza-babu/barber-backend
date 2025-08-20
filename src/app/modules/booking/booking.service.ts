@@ -41,6 +41,15 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   }
   const utcDateTime = localDateTime.toUTC().toJSDate();
 
+  // check the date is grater then 3 weeks from now
+  const threeWeeksFromNow = DateTime.now().plus({ weeks: 3 });
+  if (localDateTime > threeWeeksFromNow) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Booking cannot be made more than 3 weeks in advance',
+    );
+  }
+
   // 3. Calculate total price using service model
   const serviceRecords = await prisma.service.findMany({
     where: { id: { in: services } },
@@ -67,6 +76,37 @@ const createBookingIntoDb = async (userId: string, data: any) => {
 
   // 4. Transaction for all DB operations
   const result = await prisma.$transaction(async tx => {
+    // 4a. Check if barber exists and is available
+    const barber = await tx.barber.findUnique({
+      where: { userId: barberId },
+      select: {
+        id: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            image: true,
+          },
+        },
+      },
+    });
+    if (!barber) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
+    }
+    // 4b. Check if barber is on holiday or not
+    const barberHoliday = await tx.barberDayOff.findFirst({
+      where: {
+        barberId: barber.id,
+        date: localDateTime.toJSDate(),
+        saloonOwnerId: saloonOwnerId,
+      },
+    });
+    if (barberHoliday) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Barber is on holiday');
+    }
+
+
+
     // Check if the booking time overlaps with the barber's lunch/break time (time only, ignore date)
     const barberBreak = await tx.lunch.findFirst({
       where: {
@@ -113,6 +153,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           date: { lt: new Date() },
         },
       });
+      
 
       // Try to find an existing queue for this barber and date (only one per day allowed)
       queue = await tx.queue.findFirst({
@@ -122,6 +163,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           date: new Date(date),
         },
       });
+
 
       if (!queue) {
         // If not found, create a new queue for the given date (today or any future date)
@@ -133,6 +175,9 @@ const createBookingIntoDb = async (userId: string, data: any) => {
             currentPosition: 1,
           },
         });
+        if (!queue) {
+          throw new AppError(httpStatus.BAD_REQUEST, 'Error creating queue');
+        }
       } else {
         // If found, increment currentPosition
         queue = await tx.queue.update({
@@ -141,6 +186,9 @@ const createBookingIntoDb = async (userId: string, data: any) => {
             currentPosition: queue.currentPosition + 1,
           },
         });
+        if (!queue) {
+          throw new AppError(httpStatus.BAD_REQUEST, 'Error updating queue');
+        }
       }
 
       // Find all existing queueSlots for this queue, ordered by startedAt
@@ -171,6 +219,9 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           where: { id: existingSlots[i].id },
           data: { position: existingSlots[i].position + 1 },
         });
+        if (!queueSlot) {
+          throw new AppError(httpStatus.BAD_REQUEST, 'Error updating queue slot position');
+        }
       }
 
       // Create the new queueSlot at the correct position
@@ -183,6 +234,9 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           startedAt: utcDateTime,
         },
       });
+      if (!queueSlot) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Error creating queue slot');
+      }
     }
 
     // 4b. Create booking
@@ -221,15 +275,20 @@ const createBookingIntoDb = async (userId: string, data: any) => {
       ),
     );
 
-    queueSlot = await tx.queueSlot.update({
-      where: { id: queueSlot?.id },
-      data: {
-        bookingId: booking.id,
-        completedAt: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
-          .toJSDate(),
-      },
-    });
+    if (queueSlot && queueSlot.id) {
+      queueSlot = await tx.queueSlot.update({
+        where: { id: queueSlot.id },
+        data: {
+          bookingId: booking.id,
+          completedAt: DateTime.fromJSDate(utcDateTime)
+            .plus({ minutes: totalDuration })
+            .toJSDate(),
+        },
+      });
+      if (!queueSlot) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Error updating queue slot');
+      }
+    }
 
     // 4d. Add barberRealTimeStatus
     // Calculate endDateTime by adding totalServiceTime (in minutes) to utcDateTime

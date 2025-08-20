@@ -2,6 +2,8 @@ import prisma from '../../utils/prisma';
 import { BookingStatus, UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { start } from 'repl';
+import { DateTime } from 'luxon';
 
 const manageBookingsIntoDb = async (
   userId: string,
@@ -15,6 +17,7 @@ const manageBookingsIntoDb = async (
       where: {
         id: data.bookingId,
         saloonOwnerId: userId,
+        status: BookingStatus.PENDING,
       },
       data: {
         status: data.status,
@@ -141,7 +144,25 @@ const getCustomerBookingsFromDb = async (userId: string) => {
   if (result.length === 0) {
     return [];
   }
-  return result;
+  return result.map(booking => ({
+    bookingId: booking.id,
+    customerId: booking.user.id,
+    customerName: booking.user.fullName,
+    customerImage: booking.user.image,
+    barberId: booking.barber.user.id,
+    barberName: booking.barber.user.fullName,
+    barberImage: booking.barber.user.image,
+    services: booking.BookedServices.map(service => ({
+      serviceId: service.service.id,
+      serviceName: service.service.serviceName,
+      price: service.service.price,
+    })),
+    totalPrice: booking.totalPrice,
+    bookingDate: booking.createdAt,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    status: booking.status,
+  }));
 };
 
 const getSaloonListFromDb = async (userId: string) => {
@@ -152,36 +173,128 @@ const getSaloonListFromDb = async (userId: string) => {
   return result;
 };
 
-const getSaloonByIdFromDb = async (userId: string, saloonId: string) => {
-  const result = await prisma.saloonOwner.findUnique({
+const getAllBarbersFromDb = async (userId: string, saloonId: string) => {
+  const result = await prisma.hiredBarber.findMany({
     where: {
-      id: saloonId,
+      userId: userId,
+    },
+    select: {
+      barberId: true,
+      hourlyRate: true,
+      barber: {
+        select: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              image: true,
+              phoneNumber: true,
+              address: true,
+            },
+          },
+        },
+      },
     },
   });
   if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'saloon not found');
   }
-  return result;
+  return result.map(barber => ({
+    barberId: barber.barberId,
+    barberImage: barber.barber.user.image,
+    barberName: barber.barber.user.fullName,
+    barberPhone: barber.barber.user.phoneNumber,
+    barberAddress: barber.barber.user.address,
+    hourlyRate: barber.hourlyRate,
+  }));
 };
 
-const updateSaloonIntoDb = async (
+const terminateBarberIntoDb = async (
   userId: string,
-  saloonId: string,
-  data: any,
+  data: {
+    barberId: string;
+    reason?: string;
+    date: DateTime;
+  },
 ) => {
-  const result = await prisma.saloonOwner.update({
-    where: {
-      id: saloonId,
-      userId: userId,
-    },
-    data: {
-      ...data,
-    },
-  });
-  if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'saloonId, not updated');
+  const { barberId, reason, date } = data;
+  if (!barberId || !date || !userId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Missing required fields');
   }
-  return result;
+  const terminationDate = DateTime.fromISO(date as unknown as string).toUTC();
+
+  return await prisma.$transaction(async tx => {
+    // Check if the barber exists
+    const barber = await tx.barber.findUnique({
+      where: {
+        userId: barberId,
+        saloonOwnerId: userId,
+      },
+    });
+
+    if (!barber) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
+    }
+
+    // Check for future bookings for this barber
+    const conflictingBooking = await tx.booking.findFirst({
+      where: {
+        barberId: data.barberId,
+        startDateTime: {
+          gte: terminationDate.toJSDate(),
+        },
+        status: {
+          in: [BookingStatus.PENDING, BookingStatus.CONFIRMED],
+        },
+      },
+      orderBy: {
+        startTime: 'asc',
+      },
+    });
+
+    if (conflictingBooking) {
+      let startTimeString = 'unknown time';
+      if (conflictingBooking.startTime) {
+        const date = new Date(conflictingBooking.startTime);
+        startTimeString = isNaN(date.getTime()) ? 'unknown time' : date.toISOString();
+      }
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Cannot terminate barber before ${startTimeString} due to existing bookings.`,
+      );
+    }
+
+    // Create a termination record
+    const terminationRecord = await tx.terminateBarber.create({
+      data: {
+        barberId: data.barberId,
+        reason: data.reason,
+        saloonId: userId,
+        date: data.date.toJSDate(),
+      },
+    });
+
+    // Delete the barber
+    await tx.barber.delete({
+      where: {
+        id: data.barberId,
+      },
+    });
+
+    const deleteFromHiredBarber = await tx.hiredBarber.delete({
+      where: {
+        barberId: terminationRecord.barberId,
+      },
+    });
+    if (!deleteFromHiredBarber) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Barber not found or not deleted',
+      );
+    }
+
+    return terminationRecord;
+  });
 };
 
 const deleteSaloonItemFromDb = async (userId: string, saloonId: string) => {
@@ -203,7 +316,7 @@ export const saloonService = {
   getBarberDashboardFromDb,
   getCustomerBookingsFromDb,
   getSaloonListFromDb,
-  getSaloonByIdFromDb,
-  updateSaloonIntoDb,
+  getAllBarbersFromDb,
+  terminateBarberIntoDb,
   deleteSaloonItemFromDb,
 };

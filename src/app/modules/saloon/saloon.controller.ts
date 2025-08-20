@@ -36,24 +36,24 @@ const getCustomerBookings = catchAsync(async (req, res) => {
   });
 });
 
-const getSaloonById = catchAsync(async (req, res) => {
+const getAllBarbers = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await saloonService.getSaloonByIdFromDb(user.id, req.params.id);
+  const result = await saloonService.getAllBarbersFromDb(user.id, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Saloon details retrieved successfully',
+    message: 'Barber list retrieved successfully',
     data: result,
   });
 });
 
-const updateSaloon = catchAsync(async (req, res) => {
+const terminateBarber = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await saloonService.updateSaloonIntoDb(user.id, req.params.id, req.body);
+  const result = await saloonService.terminateBarberIntoDb(user.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Saloon updated successfully',
+    message: 'Barber terminated successfully',
     data: result,
   });
 });
@@ -73,7 +73,7 @@ export const saloonController = {
   manageBookings,
   getBarberDashboard,
   getCustomerBookings,
-  getSaloonById,
-  updateSaloon,
+  getAllBarbers,
+  terminateBarber,
   deleteSaloon,
 };

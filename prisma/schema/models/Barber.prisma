@@ -1,7 +1,7 @@
 model Barber {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   userId          String   @unique @db.ObjectId
-  saloonOwnerId   String?  @unique @db.ObjectId
+  saloonOwnerId   String?  @db.ObjectId
   currentWorkDes  String?
   bio             String?
   portfolio       String[]
@@ -31,6 +31,7 @@ model Barber {
   QueueSlot            QueueSlot[]
   BarberLunch          BarberLunch[]
   // Lunch                Lunch[]
+  TerminateBarber      TerminateBarber[]
 
   @@map("barbers")
 }

@@ -26,7 +26,6 @@ import { queueCapacityRoutes } from '../modules/queueCapacity/queueCapacity.rout
 import { bookingRoutes } from '../modules/booking/booking.routes';
 import { barberLunchRoutes } from '../modules/barberLunch/barberLunch.routes';
 import { lunchRoutes } from '../modules/lunch/lunch.routes';
-import { barberRoutes } from '../modules/barber/barber.routes';
 import { saloonRoutes } from '../modules/saloon/saloon.routes';
 const router = express.Router();
 

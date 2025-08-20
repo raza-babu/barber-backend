@@ -198,7 +198,7 @@ model Ads {
 model Barber {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   userId          String   @unique @db.ObjectId
-  saloonOwnerId   String?  @unique @db.ObjectId
+  saloonOwnerId   String?  @db.ObjectId
   currentWorkDes  String?
   bio             String?
   portfolio       String[]
@@ -228,6 +228,7 @@ model Barber {
   QueueSlot            QueueSlot[]
   BarberLunch          BarberLunch[]
   // Lunch                Lunch[]
+  TerminateBarber      TerminateBarber[]
 
   @@map("barbers")
 }
@@ -508,7 +509,7 @@ model Follow {
 model HiredBarber {
   id         String    @id @default(auto()) @map("_id") @db.ObjectId
   userId     String    @db.ObjectId
-  barberId   String    @db.ObjectId
+  barberId   String    @db.ObjectId @unique
   hourlyRate Float?
   startDate  DateTime?
   createdAt  DateTime  @default(now())
@@ -952,7 +953,7 @@ model SaloonOwner {
   // Relationships
   user              User                @relation(fields: [userId], references: [id])
   Booking           Booking[]
-  Barber            Barber?
+  Barber            Barber[]
   NonRegisteredUser NonRegisteredUser[]
   SaloonReport      SaloonReport[]
   SaloonSchedule    SaloonSchedule[]
@@ -1088,6 +1089,23 @@ model TermAndCondition {
 }
 
 
+model TerminateBarber {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  barberId  String   @db.ObjectId
+  saloonId  String   @db.ObjectId
+  reason    String? // Reason for termination
+  date      DateTime  // Date of termination
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  barber Barber @relation(fields: [barberId], references: [userId])
+  saloon User   @relation(fields: [saloonId], references: [id])
+
+  @@map("terminate_barbers")
+}
+
+
 model User {
   id                String        @id @default(auto()) @map("_id") @db.ObjectId
   fullName          String
@@ -1160,6 +1178,7 @@ model User {
   Queue               Queue[]
   BarberLunch         BarberLunch[]
   Lunch               Lunch[]
+  TerminateBarber     TerminateBarber[]
 
   @@map("users")
 }

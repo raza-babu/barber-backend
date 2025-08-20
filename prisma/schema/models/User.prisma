@@ -70,6 +70,7 @@ model User {
   Queue               Queue[]
   BarberLunch         BarberLunch[]
   Lunch               Lunch[]
+  TerminateBarber     TerminateBarber[]
 
   @@map("users")
 }

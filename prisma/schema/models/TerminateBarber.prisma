@@ -1,0 +1,15 @@
+model TerminateBarber {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  barberId  String   @db.ObjectId
+  saloonId  String   @db.ObjectId
+  reason    String? // Reason for termination
+  date      DateTime  // Date of termination
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  barber Barber @relation(fields: [barberId], references: [userId])
+  saloon User   @relation(fields: [saloonId], references: [id])
+
+  @@map("terminate_barbers")
+}
