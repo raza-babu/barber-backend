@@ -17,8 +17,18 @@ const prisma_1 = __importDefault(require("../../utils/prisma"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const createAdsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+    // Convert to UTC by adjusting for local timezone offset
+    const startDateUtc = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000);
+    const endDateUtc = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000);
+    data.startDate = startDateUtc.toISOString();
+    data.endDate = endDateUtc.toISOString();
+    if (startDate >= endDate) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Start date must be before end date');
+    }
     const result = yield prisma_1.default.ads.create({
-        data: Object.assign(Object.assign({}, data), { userId: userId }),
+        data: Object.assign(Object.assign({}, data), { userId: userId, startDate: data.startDate, endDate: data.endDate }),
     });
     if (!result) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'ads not created');
@@ -44,12 +54,22 @@ const getAdsByIdFromDb = (adsId) => __awaiter(void 0, void 0, void 0, function* 
     return result;
 });
 const updateAdsIntoDb = (userId, adsId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+    // Convert to UTC by adjusting for local timezone offset
+    const startDateUtc = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000);
+    const endDateUtc = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000);
+    data.startDate = startDateUtc.toISOString();
+    data.endDate = endDateUtc.toISOString();
+    if (startDate >= endDate) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Start date must be before end date');
+    }
     const result = yield prisma_1.default.ads.update({
         where: {
             id: adsId,
             userId: userId,
         },
-        data: Object.assign({}, data),
+        data: Object.assign(Object.assign({}, data), { startDate: data.startDate, endDate: data.endDate }),
     });
     if (!result) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'adsId, not updated');

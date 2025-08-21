@@ -40,6 +40,16 @@ const getSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
         meta: result.meta,
     });
 }));
+const getSaloonById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield admin_service_1.adminService.getSaloonByIdFromDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Saloon details retrieved successfully',
+        data: result,
+    });
+}));
 const blockSaloonById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield admin_service_1.adminService.blockSaloonByIdIntoDb(req.params.id, req.body);
@@ -70,6 +80,16 @@ const getBarbersList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
         message: 'Barbers list retrieved successfully',
         data: result.data,
         meta: result.meta,
+    });
+}));
+const getBarberById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield admin_service_1.adminService.getBarberByIdFromDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Barber details retrieved successfully',
+        data: result,
     });
 }));
 const blockBarberById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -135,8 +155,10 @@ const getAdminDashboard = (0, catchAsync_1.default)((req, res) => __awaiter(void
 }));
 exports.adminController = {
     getSaloonList,
+    getSaloonById,
     blockSaloonById,
     getBarbersList,
+    getBarberById,
     blockBarberById,
     getCustomersList,
     blockCustomerById,

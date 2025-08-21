@@ -32,6 +32,7 @@ const booking_routes_1 = require("../modules/booking/booking.routes");
 const barberLunch_routes_1 = require("../modules/barberLunch/barberLunch.routes");
 const lunch_routes_1 = require("../modules/lunch/lunch.routes");
 const saloon_routes_1 = require("../modules/saloon/saloon.routes");
+const review_routes_1 = require("../modules/review/review.routes");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -145,6 +146,14 @@ const moduleRoutes = [
     {
         path: '/lunch-times',
         route: lunch_routes_1.lunchRoutes
+    },
+    {
+        path: '/reviews',
+        route: review_routes_1.reviewRoutes
+    },
+    {
+        path: '/ads',
+        route: ads_routes_1.adsRoutes
     },
 ];
 moduleRoutes.forEach(route => router.use(route.path, route.route));

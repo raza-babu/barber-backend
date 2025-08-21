@@ -20,6 +20,14 @@ const http_status_1 = __importDefault(require("http-status"));
 const luxon_1 = require("luxon");
 const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const { barberId, saloonOwnerId, appointmentAt, date, services, notes, isInQueue, } = data;
+    const saloonStatus = yield prisma_1.default.saloonOwner.findUnique({
+        where: { userId: saloonOwnerId,
+            isVerified: true,
+        },
+    });
+    if (!saloonStatus) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon not found or not verified');
+    }
     // 1. Fetch saloonOwner to check queue status
     const saloonOwner = yield prisma_1.default.saloonOwner.findUnique({
         where: { userId: saloonOwnerId },
