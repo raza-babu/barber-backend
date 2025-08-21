@@ -10,5 +10,5 @@ model FavoriteFeed {
   feed Feed @relation(fields: [feedId], references: [id])
 
   @@unique([userId, feedId])
-  @@map("favorite_feedbacks")
+  @@map("favorite_feeds")
 }
