@@ -1,13 +1,29 @@
+import { start } from 'repl';
 import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 
 const createAdsIntoDb = async (userId: string, data: any) => {
+
+  const startDate = new Date(data.startDate);
+  const endDate = new Date(data.endDate);
+
+  // Convert to UTC by adjusting for local timezone offset
+  const startDateUtc = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000);
+  const endDateUtc = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000);
+
+  data.startDate = startDateUtc.toISOString();
+  data.endDate = endDateUtc.toISOString();
+  if (startDate >= endDate) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Start date must be before end date');
+  }
   const result = await prisma.ads.create({
     data: {
       ...data,
       userId: userId,
+      startDate: data.startDate,
+      endDate: data.endDate,
     },
   });
   if (!result) {
@@ -37,6 +53,16 @@ const getAdsByIdFromDb = async (adsId: string) => {
 };
 
 const updateAdsIntoDb = async (userId: string, adsId: string, data: any) => {
+  const startDate = new Date(data.startDate);
+  const endDate = new Date(data.endDate); 
+  // Convert to UTC by adjusting for local timezone offset
+  const startDateUtc = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000);
+  const endDateUtc = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000);
+  data.startDate = startDateUtc.toISOString();
+  data.endDate = endDateUtc.toISOString();
+  if (startDate >= endDate) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Start date must be before end date');
+  }
   const result = await prisma.ads.update({
     where: {
       id: adsId,
@@ -44,6 +70,8 @@ const updateAdsIntoDb = async (userId: string, adsId: string, data: any) => {
     },
     data: {
       ...data,
+      startDate: data.startDate,
+      endDate: data.endDate,
     },
   });
   if (!result) {

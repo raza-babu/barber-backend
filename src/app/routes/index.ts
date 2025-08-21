@@ -147,6 +147,10 @@ const moduleRoutes = [
     path: '/reviews',
     route: reviewRoutes
   },
+{
+    path: '/ads',
+    route: adsRoutes
+  },
 
 
 ];

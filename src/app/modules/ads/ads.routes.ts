@@ -8,13 +8,14 @@ import { parse } from 'path';
 import { parseBody } from '../../middlewares/parseBody';
 import { checkPermissions } from '../../middlewares/checkPermissions';
 import { UserAccessFunctionName } from '../../utils/access';
+import { UserRoleEnum } from '@prisma/client';
 const router = express.Router();
 
 router.post(
   '/',
   multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]),
   parseBody,
-  auth(),
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   checkPermissions(
     UserAccessFunctionName.ADS_PROMOTIONS,
     UserAccessFunctionName.ALL,
@@ -25,7 +26,7 @@ router.post(
 
 router.get(
   '/',
-  auth(),
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN, UserRoleEnum.CUSTOMER),
   checkPermissions(
     UserAccessFunctionName.ADS_PROMOTIONS,
     UserAccessFunctionName.ALL,
@@ -35,7 +36,7 @@ router.get(
 
 router.get(
   '/:id',
-  auth(),
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN, UserRoleEnum.CUSTOMER),
   checkPermissions(
     UserAccessFunctionName.ADS_PROMOTIONS,
     UserAccessFunctionName.ALL,
@@ -47,7 +48,7 @@ router.put(
   '/:id',
   multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]),
   parseBody,
-  auth(),
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   checkPermissions(
     UserAccessFunctionName.ADS_PROMOTIONS,
     UserAccessFunctionName.ALL,
@@ -58,7 +59,7 @@ router.put(
 
 router.delete(
   '/:id',
-  auth(),
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   checkPermissions(
     UserAccessFunctionName.ADS_PROMOTIONS,
     UserAccessFunctionName.ALL,
