@@ -56,23 +56,29 @@ const updateAdsIntoDb = async (userId: string, adsId: string, data: any) => {
   const startDate = new Date(data.startDate);
   const endDate = new Date(data.endDate); 
   // Convert to UTC by adjusting for local timezone offset
-  const startDateUtc = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000);
-  const endDateUtc = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000);
-  data.startDate = startDateUtc.toISOString();
-  data.endDate = endDateUtc.toISOString();
-  if (startDate >= endDate) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Start date must be before end date');
+  if (data.startDate && data.endDate) {
+    const startDateUtc = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000);
+    const endDateUtc = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000);
+    data.startDate = startDateUtc.toISOString();
+    data.endDate = endDateUtc.toISOString();
+    if (startDate >= endDate) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Start date must be before end date');
+    }
   }
+  // Only include fields that are present in the data object
+  const updateData: any = {};
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.image !== undefined) updateData.image = data.image;
+  if (data.startDate !== undefined) updateData.startDate = data.startDate;
+  if (data.endDate !== undefined) updateData.endDate = data.endDate;
+  if (data.duration !== undefined) updateData.duration = data.duration;
+
   const result = await prisma.ads.update({
     where: {
       id: adsId,
       userId: userId,
     },
-    data: {
-      ...data,
-      startDate: data.startDate,
-      endDate: data.endDate,
-    },
+    data: updateData,
   });
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'adsId, not updated');

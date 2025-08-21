@@ -44,7 +44,7 @@ router.get(
   adsController.getAdsById,
 );
 
-router.put(
+router.patch(
   '/:id',
   multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]),
   parseBody,
