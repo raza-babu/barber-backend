@@ -55,8 +55,6 @@ model User {
   BarberSchedule      BarberSchedule[]
   SaloonHoliday       SaloonHoliday[]
   BarberDayOff        BarberDayOff[]
-  QRCode              QRCode[]
-  QRCodeScan          QRCodeScan[]
   LoyaltyProgram      LoyaltyProgram[]
   CustomerLoyalty     CustomerLoyalty?
   CustomerVisit       CustomerVisit[]

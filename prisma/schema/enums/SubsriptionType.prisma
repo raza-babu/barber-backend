@@ -1,0 +1,6 @@
+enum SubscriptionType{
+  WEEKLY
+  MONTHLY
+  YEARLY
+  LIFETIME
+}

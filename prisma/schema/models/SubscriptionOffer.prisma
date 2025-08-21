@@ -1,14 +1,14 @@
 model SubscriptionOffer {
-  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
   title       String
   description String?
   price       Float
-  currency    String?    @default("usd")
-  duration    Int
-  status      UserStatus @default(ACTIVE)
-  userId   String     @db.ObjectId
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  currency    String?          @default("usd")
+  duration    SubscriptionType
+  status      UserStatus       @default(ACTIVE)
+  userId      String           @db.ObjectId
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   // Relationships
   creator          User               @relation(fields: [userId], references: [id])

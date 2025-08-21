@@ -91,6 +91,13 @@ enum RoomType {
 }
 
 
+enum SubscriptionType{
+  WEEKLY
+  MONTHLY
+  YEARLY
+  LIFETIME
+}
+
 enum SupportStatus {
   OPEN
   IN_PROGRESS
@@ -737,7 +744,6 @@ model PrivacyPolicy {
 
 model QRCode {
   id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String     @db.ObjectId
   saloonOwnerId String     @db.ObjectId
   code          String     @unique
   type          QRCodeType @default(SALOON_REGISTRATION)
@@ -748,29 +754,9 @@ model QRCode {
 
   // Relationships
 
-  saloonOwner SaloonOwner  @relation(fields: [saloonOwnerId], references: [id])
-  user        User?        @relation(fields: [userId], references: [id])
-  QRCodeScan  QRCodeScan[]
+  saloonOwner SaloonOwner  @relation(fields: [saloonOwnerId], references: [userId])
 
   @@map("qr_codes")
-}
-
-
-model QRCodeScan {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  scannedAt  DateTime @default(now())
-  qrCodeId   String   @db.ObjectId
-  scannedBy  String   @db.ObjectId
-  deviceInfo String?
-  location   Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  // Relationships
-  qrCode  QRCode @relation(fields: [qrCodeId], references: [id])
-  scanner User   @relation(fields: [scannedBy], references: [id])
-
-  @@map("qr_code_scans")
 }
 
 
@@ -945,14 +931,14 @@ model SaloonOwner {
   shopImages         String[]
   shopVideo          String[]
   qrCode             String?
-  isQueueEnabled Boolean  @default(false) // If queue system is enabled
-  isVerified     Boolean  @default(false)
-  followerCount  Int      @default(0)
-  followingCount Int      @default(0)
-  ratingCount    Int      @default(0)
-  avgRating      Float?   @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isQueueEnabled     Boolean  @default(false) // If queue system is enabled
+  isVerified         Boolean  @default(false)
+  followerCount      Int      @default(0)
+  followingCount     Int      @default(0)
+  ratingCount        Int      @default(0)
+  avgRating          Float?   @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Relationships
   user              User                @relation(fields: [userId], references: [id])
@@ -1038,16 +1024,16 @@ model Service {
 
 
 model SubscriptionOffer {
-  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
   title       String
   description String?
   price       Float
-  currency    String?    @default("usd")
-  duration    Int
-  status      UserStatus @default(ACTIVE)
-  userId   String     @db.ObjectId
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  currency    String?          @default("usd")
+  duration    SubscriptionType
+  status      UserStatus       @default(ACTIVE)
+  userId      String           @db.ObjectId
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   // Relationships
   creator          User               @relation(fields: [userId], references: [id])
@@ -1168,8 +1154,6 @@ model User {
   BarberSchedule      BarberSchedule[]
   SaloonHoliday       SaloonHoliday[]
   BarberDayOff        BarberDayOff[]
-  QRCode              QRCode[]
-  QRCodeScan          QRCodeScan[]
   LoyaltyProgram      LoyaltyProgram[]
   CustomerLoyalty     CustomerLoyalty?
   CustomerVisit       CustomerVisit[]
