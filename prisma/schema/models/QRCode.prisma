@@ -1,4 +1,4 @@
-model QRCode {
+model QrCode {
   id            String     @id @default(auto()) @map("_id") @db.ObjectId
   saloonOwnerId String     @db.ObjectId
   code          String     @unique
@@ -9,7 +9,6 @@ model QRCode {
   updatedAt     DateTime   @updatedAt
 
   // Relationships
-
   saloonOwner SaloonOwner  @relation(fields: [saloonOwnerId], references: [userId])
 
   @@map("qr_codes")

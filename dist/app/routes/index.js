@@ -33,6 +33,7 @@ const barberLunch_routes_1 = require("../modules/barberLunch/barberLunch.routes"
 const lunch_routes_1 = require("../modules/lunch/lunch.routes");
 const saloon_routes_1 = require("../modules/saloon/saloon.routes");
 const review_routes_1 = require("../modules/review/review.routes");
+const qrCode_routes_1 = require("../modules/qrCode/qrCode.routes");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -45,7 +46,7 @@ const moduleRoutes = [
     },
     {
         path: '/customers',
-        route: customer_routes_1.customerRoutes
+        route: customer_routes_1.customerRoutes,
     },
     {
         path: '/groups',
@@ -57,7 +58,7 @@ const moduleRoutes = [
     },
     {
         path: '/services',
-        route: service_routes_1.ServiceRoutes
+        route: service_routes_1.ServiceRoutes,
     },
     {
         path: '/job-posts',
@@ -65,7 +66,7 @@ const moduleRoutes = [
     },
     {
         path: '/job-applications',
-        route: jobApplications_routes_1.jobApplicationsRoutes
+        route: jobApplications_routes_1.jobApplicationsRoutes,
     },
     {
         path: '/access-functions',
@@ -73,7 +74,7 @@ const moduleRoutes = [
     },
     {
         path: '/accesses-provide',
-        route: adminAccessFunction_routes_1.adminAccessFunctionRoutes
+        route: adminAccessFunction_routes_1.adminAccessFunctionRoutes,
     },
     {
         path: '/ads',
@@ -89,7 +90,7 @@ const moduleRoutes = [
     },
     {
         path: '/privacy-policy',
-        route: privacyPolicy_routes_1.privacyPolicyRoutes
+        route: privacyPolicy_routes_1.privacyPolicyRoutes,
     },
     {
         path: '/feeds',
@@ -105,7 +106,7 @@ const moduleRoutes = [
     },
     {
         path: '/subscription-plans',
-        route: subscriptionOffer_routes_1.subscriptionOfferRoutes
+        route: subscriptionOffer_routes_1.subscriptionOfferRoutes,
     },
     {
         path: '/admin',
@@ -117,43 +118,47 @@ const moduleRoutes = [
     },
     {
         path: '/saloon-schedules',
-        route: saloonSchedule_routes_1.saloonScheduleRoutes
+        route: saloonSchedule_routes_1.saloonScheduleRoutes,
     },
     {
         path: '/saloon-holidays',
-        route: saloonHoliday_routes_1.saloonHolidayRoutes
+        route: saloonHoliday_routes_1.saloonHolidayRoutes,
     },
     {
         path: '/barber-schedules',
-        route: barberSchedule_routes_1.barberScheduleRoutes
+        route: barberSchedule_routes_1.barberScheduleRoutes,
     },
     {
         path: '/barber-holidays',
-        route: barberHoliday_routes_1.barberHolidayRoutes
+        route: barberHoliday_routes_1.barberHolidayRoutes,
     },
     {
         path: '/queue-capacities',
-        route: queueCapacity_routes_1.queueCapacityRoutes
+        route: queueCapacity_routes_1.queueCapacityRoutes,
     },
     {
         path: '/bookings',
-        route: booking_routes_1.bookingRoutes
+        route: booking_routes_1.bookingRoutes,
     },
     {
         path: '/break-times',
-        route: barberLunch_routes_1.barberLunchRoutes
+        route: barberLunch_routes_1.barberLunchRoutes,
     },
     {
         path: '/lunch-times',
-        route: lunch_routes_1.lunchRoutes
+        route: lunch_routes_1.lunchRoutes,
     },
     {
         path: '/reviews',
-        route: review_routes_1.reviewRoutes
+        route: review_routes_1.reviewRoutes,
     },
     {
         path: '/ads',
-        route: ads_routes_1.adsRoutes
+        route: ads_routes_1.adsRoutes,
+    },
+    {
+        path: '/qr-codes',
+        route: qrCode_routes_1.qrCodeRoutes,
     },
 ];
 moduleRoutes.forEach(route => router.use(route.path, route.route));

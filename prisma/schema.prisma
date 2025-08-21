@@ -742,7 +742,7 @@ model PrivacyPolicy {
 }
 
 
-model QRCode {
+model QrCode {
   id            String     @id @default(auto()) @map("_id") @db.ObjectId
   saloonOwnerId String     @db.ObjectId
   code          String     @unique
@@ -753,7 +753,6 @@ model QRCode {
   updatedAt     DateTime   @updatedAt
 
   // Relationships
-
   saloonOwner SaloonOwner  @relation(fields: [saloonOwnerId], references: [userId])
 
   @@map("qr_codes")
@@ -948,7 +947,7 @@ model SaloonOwner {
   SaloonReport      SaloonReport[]
   SaloonSchedule    SaloonSchedule[]
   SaloonHoliday     SaloonHoliday[]
-  QRCode            QRCode[]
+  QrCode            QrCode[]
   CustomerVisit     CustomerVisit[]
   Service           Service[]
   jobPosts          JobPost[]

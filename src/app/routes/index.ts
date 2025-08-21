@@ -28,6 +28,7 @@ import { barberLunchRoutes } from '../modules/barberLunch/barberLunch.routes';
 import { lunchRoutes } from '../modules/lunch/lunch.routes';
 import { saloonRoutes } from '../modules/saloon/saloon.routes';
 import { reviewRoutes } from '../modules/review/review.routes';
+import { qrCodeRoutes } from '../modules/qrCode/qrCode.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -41,7 +42,7 @@ const moduleRoutes = [
   },
   {
     path: '/customers',
-    route: customerRoutes
+    route: customerRoutes,
   },
   {
     path: '/groups',
@@ -53,7 +54,7 @@ const moduleRoutes = [
   },
   {
     path: '/services',
-    route: ServiceRoutes
+    route: ServiceRoutes,
   },
   {
     path: '/job-posts',
@@ -61,7 +62,7 @@ const moduleRoutes = [
   },
   {
     path: '/job-applications',
-    route: jobApplicationsRoutes
+    route: jobApplicationsRoutes,
   },
   {
     path: '/access-functions',
@@ -69,7 +70,7 @@ const moduleRoutes = [
   },
   {
     path: '/accesses-provide',
-    route: adminAccessFunctionRoutes
+    route: adminAccessFunctionRoutes,
   },
   {
     path: '/ads',
@@ -85,7 +86,7 @@ const moduleRoutes = [
   },
   {
     path: '/privacy-policy',
-    route: privacyPolicyRoutes
+    route: privacyPolicyRoutes,
   },
   {
     path: '/feeds',
@@ -101,7 +102,7 @@ const moduleRoutes = [
   },
   {
     path: '/subscription-plans',
-    route: subscriptionOfferRoutes
+    route: subscriptionOfferRoutes,
   },
   {
     path: '/admin',
@@ -113,46 +114,48 @@ const moduleRoutes = [
   },
   {
     path: '/saloon-schedules',
-    route: saloonScheduleRoutes
+    route: saloonScheduleRoutes,
   },
   {
     path: '/saloon-holidays',
-    route: saloonHolidayRoutes
+    route: saloonHolidayRoutes,
   },
   {
     path: '/barber-schedules',
-    route: barberScheduleRoutes
+    route: barberScheduleRoutes,
   },
   {
     path: '/barber-holidays',
-    route: barberHolidayRoutes
+    route: barberHolidayRoutes,
   },
   {
     path: '/queue-capacities',
-    route: queueCapacityRoutes
+    route: queueCapacityRoutes,
   },
-   {
+  {
     path: '/bookings',
-    route: bookingRoutes
+    route: bookingRoutes,
   },
   {
     path: '/break-times',
-    route: barberLunchRoutes
+    route: barberLunchRoutes,
   },
   {
     path: '/lunch-times',
-    route: lunchRoutes
+    route: lunchRoutes,
   },
   {
     path: '/reviews',
-    route: reviewRoutes
+    route: reviewRoutes,
   },
-{
+  {
     path: '/ads',
-    route: adsRoutes
+    route: adsRoutes,
   },
-
-
+  {
+    path: '/qr-codes',
+    route: qrCodeRoutes,
+  },
 ];
 
 moduleRoutes.forEach(route => router.use(route.path, route.route));

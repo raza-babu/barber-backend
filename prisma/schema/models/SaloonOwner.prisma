@@ -27,7 +27,7 @@ model SaloonOwner {
   SaloonReport      SaloonReport[]
   SaloonSchedule    SaloonSchedule[]
   SaloonHoliday     SaloonHoliday[]
-  QRCode            QRCode[]
+  QrCode            QrCode[]
   CustomerVisit     CustomerVisit[]
   Service           Service[]
   jobPosts          JobPost[]
