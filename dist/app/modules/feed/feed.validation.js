@@ -11,11 +11,11 @@ const createFeedSchema = zod_1.z.object({
         caption: zod_1.z.string({
             required_error: 'Caption is required!',
         }),
-        images: zod_1.z
-            .array(zod_1.z.string(), {
-            invalid_type_error: 'Images must be an array of strings!',
-        })
-            .min(1, 'At least one image is required!'),
+        // images: z
+        //   .array(z.string(), {
+        //     invalid_type_error: 'Images must be an array of strings!',
+        //   })
+        //   .min(1, 'At least one image is required!'),
         //   favoriteCount: z
         //     .number()
         //     .int()
@@ -27,11 +27,11 @@ const createFeedSchema = zod_1.z.object({
 const updateFeedSchema = zod_1.z.object({
     body: zod_1.z.object({
         caption: zod_1.z.string().optional(),
-        images: zod_1.z
-            .array(zod_1.z.string(), {
-            invalid_type_error: 'Images must be an array of strings!',
-        })
-            .optional(),
+        // images: z
+        //   .array(z.string(), {
+        //     invalid_type_error: 'Images must be an array of strings!',
+        //   })
+        //   .optional(),
         // favoriteCount: z
         //   .number()
         //   .int()

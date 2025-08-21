@@ -26,7 +26,7 @@ const createFeedIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, fun
         });
     }
     const result = yield prisma_1.default.feed.create({
-        data: Object.assign(Object.assign({}, data), { userId: userId, saloonOwnerId: saloonOwner ? saloonOwner.id : null }),
+        data: Object.assign(Object.assign({}, data), { userId: userId }),
     });
     if (!result) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'feed not created');
@@ -45,22 +45,28 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
     //   }
     // }
     const result = yield prisma_1.default.feed.findMany({
-        include: {
+        select: {
+            id: true,
+            favoriteCount: true,
+            caption: true,
+            images: true,
             user: {
                 select: {
                     id: true,
                     fullName: true,
                     image: true,
-                },
-            },
-            shop: {
-                select: {
-                    id: true,
-                    userId: true,
-                    shopName: true,
-                    shopLogo: true,
-                    avgRating: true,
-                    ratingCount: true,
+                    SaloonOwner: {
+                        select: {
+                            userId: true,
+                            shopName: true,
+                            shopAddress: true,
+                            shopImages: true,
+                            shopVideo: true,
+                            shopLogo: true,
+                            avgRating: true,
+                            ratingCount: true,
+                        },
+                    },
                 },
             },
         },
@@ -71,29 +77,55 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
     if (result.length === 0) {
         return [];
     }
-    return result;
+    return result.map(feed => ({
+        id: feed.id,
+        userId: feed.user.id,
+        userName: feed.user.fullName,
+        userImage: feed.user.image,
+        caption: feed.caption,
+        images: feed.images,
+        favoriteCount: feed.favoriteCount,
+        saloonOwner: feed.user.SaloonOwner && feed.user.SaloonOwner.length > 0
+            ? {
+                userId: feed.user.SaloonOwner[0].userId,
+                shopName: feed.user.SaloonOwner[0].shopName,
+                shopAddress: feed.user.SaloonOwner[0].shopAddress,
+                shopImages: feed.user.SaloonOwner[0].shopImages,
+                shopVideo: feed.user.SaloonOwner[0].shopVideo,
+                shopLogo: feed.user.SaloonOwner[0].shopLogo,
+                avgRating: feed.user.SaloonOwner[0].avgRating,
+                ratingCount: feed.user.SaloonOwner[0].ratingCount,
+            }
+            : null,
+    }));
 });
 const getFeedByIdFromDb = (feedId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.feed.findUnique({
         where: {
             id: feedId,
         },
-        include: {
+        select: {
+            id: true,
+            favoriteCount: true,
+            caption: true,
+            images: true,
             user: {
                 select: {
                     id: true,
                     fullName: true,
                     image: true,
-                },
-            },
-            shop: {
-                select: {
-                    id: true,
-                    userId: true,
-                    shopName: true,
-                    shopLogo: true,
-                    avgRating: true,
-                    ratingCount: true,
+                    SaloonOwner: {
+                        select: {
+                            userId: true,
+                            shopName: true,
+                            shopAddress: true,
+                            shopImages: true,
+                            shopVideo: true,
+                            shopLogo: true,
+                            avgRating: true,
+                            ratingCount: true,
+                        },
+                    },
                 },
             },
         },
@@ -101,7 +133,27 @@ const getFeedByIdFromDb = (feedId) => __awaiter(void 0, void 0, void 0, function
     if (!result) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'feed not found');
     }
-    return result;
+    return {
+        id: result.id,
+        userId: result.user.id,
+        userName: result.user.fullName,
+        userImage: result.user.image,
+        caption: result.caption,
+        images: result.images,
+        favoriteCount: result.favoriteCount,
+        saloonOwner: result.user.SaloonOwner && result.user.SaloonOwner.length > 0
+            ? {
+                userId: result.user.SaloonOwner[0].userId,
+                shopName: result.user.SaloonOwner[0].shopName,
+                shopAddress: result.user.SaloonOwner[0].shopAddress,
+                shopImages: result.user.SaloonOwner[0].shopImages,
+                shopVideo: result.user.SaloonOwner[0].shopVideo,
+                shopLogo: result.user.SaloonOwner[0].shopLogo,
+                avgRating: result.user.SaloonOwner[0].avgRating,
+                ratingCount: result.user.SaloonOwner[0].ratingCount,
+            }
+            : null,
+    };
 });
 const updateFeedIntoDb = (userId, feedId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.feed.update({

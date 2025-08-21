@@ -16,6 +16,6 @@ const router = express_1.default.Router();
 router.post('/', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), (0, validateRequest_1.default)(feed_validation_1.feedValidation.createFeedSchema), feed_controller_1.feedController.createFeed);
 router.get('/', (0, auth_1.default)(), feed_controller_1.feedController.getFeedList);
 router.get('/:id', (0, auth_1.default)(), feed_controller_1.feedController.getFeedById);
-router.put('/:id', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), (0, validateRequest_1.default)(feed_validation_1.feedValidation.updateFeedSchema), feed_controller_1.feedController.updateFeed);
-router.delete('/:id', (0, auth_1.default)(), feed_controller_1.feedController.deleteFeed);
+router.patch('/:id', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), (0, validateRequest_1.default)(feed_validation_1.feedValidation.updateFeedSchema), feed_controller_1.feedController.updateFeed);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), feed_controller_1.feedController.deleteFeed);
 exports.feedRoutes = router;

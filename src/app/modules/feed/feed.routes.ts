@@ -23,7 +23,7 @@ router.get('/', auth(), feedController.getFeedList);
 
 router.get('/:id', auth(), feedController.getFeedById);
 
-router.put(
+router.patch(
   '/:id',
   multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]),
   parseBody,
@@ -32,6 +32,10 @@ router.put(
   feedController.updateFeed,
 );
 
-router.delete('/:id', auth(), feedController.deleteFeed);
+router.delete(
+  '/:id',
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
+  feedController.deleteFeed,
+);
 
 export const feedRoutes = router;
