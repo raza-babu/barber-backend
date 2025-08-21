@@ -72,7 +72,25 @@ const getSaloonFromDb = async (
     }),
   ]);
 
-  return formatPaginationResponse(saloons, total, page, limit);
+  // Flatten the response so that SaloonOwner fields are at the top level
+  const flattenedSaloons = saloons.map(saloon => {
+    const { SaloonOwner, ...userFields } = saloon;
+    const owner = Array.isArray(SaloonOwner) ? SaloonOwner[0] : SaloonOwner;
+    return {
+      ...userFields,
+      userId: owner?.userId,
+      isVerified: owner?.isVerified,
+      shopPhoneNumber: userFields.phoneNumber,
+      shopAddress: owner?.shopAddress,
+      shopName: owner?.shopName,
+      registrationNumber: owner?.registrationNumber,
+      shopLogo: owner?.shopLogo,
+      shopImages: owner?.shopImages,
+      shopVideo: owner?.shopVideo,
+    };
+  });
+
+  return formatPaginationResponse(flattenedSaloons, total, page, limit);
 };
 
 const blockSaloonByIdIntoDb = async (saloonOwnerId: string, data: any) => {
@@ -141,12 +159,11 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
         [sortBy]: sortOrder,
       },
       select: {
-        id: true,
+        // id: true,
         fullName: true,
         email: true,
         phoneNumber: true,
         status: true,
-        createdAt: true,
         Barber: {
           select: {
             userId: true,

@@ -103,7 +103,7 @@ const getCustomerBookingsFromDb = async (userId: string) => {
   const result = await prisma.booking.findMany({
     where: {
       saloonOwnerId: userId,
-      status: BookingStatus.COMPLETED,
+      // status: BookingStatus.COMPLETED,
     },
     include: {
       user: {
@@ -152,16 +152,16 @@ const getCustomerBookingsFromDb = async (userId: string) => {
     barberId: booking.barber.user.id,
     barberName: booking.barber.user.fullName,
     barberImage: booking.barber.user.image,
+    totalPrice: booking.totalPrice,
+    bookingDate: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    status: booking.status,
     services: booking.BookedServices.map(service => ({
       serviceId: service.service.id,
       serviceName: service.service.serviceName,
       price: service.service.price,
     })),
-    totalPrice: booking.totalPrice,
-    bookingDate: booking.createdAt,
-    startTime: booking.startTime,
-    endTime: booking.endTime,
-    status: booking.status,
   }));
 };
 
@@ -256,7 +256,7 @@ const terminateBarberIntoDb = async (
       let startTimeString = 'unknown time';
       if (conflictingBooking.startTime) {
         const date = new Date(conflictingBooking.startTime);
-        startTimeString = isNaN(date.getTime()) ? 'unknown time' : date.toISOString();
+        startTimeString = isNaN(date.getTime()) ? conflictingBooking.date.toDateString() : date.toISOString();
       }
       throw new AppError(
         httpStatus.BAD_REQUEST,

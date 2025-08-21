@@ -364,6 +364,7 @@ model Booking {
 
   LoyaltyRedemption LoyaltyRedemption[]
   BookedServices    BookedServices[]
+  Review            Review[]
 
   @@map("bookings")
 }
@@ -859,14 +860,17 @@ model Review {
   userId        String   @db.ObjectId
   barberId      String   @db.ObjectId
   saloonOwnerId String   @db.ObjectId
+  bookingId     String  @db.ObjectId
   rating        Int
   comment       String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   // Relationships
-  user   User   @relation(fields: [userId], references: [id])
-  barber Barber @relation(fields: [barberId], references: [userId])
+  user        User        @relation(fields: [userId], references: [id])
+  barber      Barber      @relation(fields: [barberId], references: [userId])
+  booking     Booking    @relation(fields: [bookingId], references: [id])
+  saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
 
   @@map("reviews")
 }
@@ -965,6 +969,7 @@ model SaloonOwner {
   JobApplication    JobApplication[]
   Feed              Feed[]
   Support           Support[]
+  Review            Review[]
 
   @@map("saloon_owners")
 }

@@ -35,6 +35,11 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid date or time format');
     }
     const utcDateTime = localDateTime.toUTC().toJSDate();
+    // check the date is grater then 3 weeks from now
+    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 3 });
+    if (localDateTime > threeWeeksFromNow) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking cannot be made more than 3 weeks in advance');
+    }
     // 3. Calculate total price using service model
     const serviceRecords = yield prisma_1.default.service.findMany({
         where: { id: { in: services } },
@@ -51,6 +56,34 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
     const totalPrice = serviceRecords.reduce((sum, s) => sum + Number(s.price), 0);
     // 4. Transaction for all DB operations
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        // 4a. Check if barber exists and is available
+        const barber = yield tx.barber.findUnique({
+            where: { userId: barberId },
+            select: {
+                id: true,
+                user: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        image: true,
+                    },
+                },
+            },
+        });
+        if (!barber) {
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Barber not found');
+        }
+        // 4b. Check if barber is on holiday or not
+        const barberHoliday = yield tx.barberDayOff.findFirst({
+            where: {
+                barberId: barber.id,
+                date: localDateTime.toJSDate(),
+                saloonOwnerId: saloonOwnerId,
+            },
+        });
+        if (barberHoliday) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Barber is on holiday');
+        }
         // Check if the booking time overlaps with the barber's lunch/break time (time only, ignore date)
         const barberBreak = yield tx.lunch.findFirst({
             where: {
@@ -107,6 +140,9 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                         currentPosition: 1,
                     },
                 });
+                if (!queue) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Error creating queue');
+                }
             }
             else {
                 // If found, increment currentPosition
@@ -116,6 +152,9 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                         currentPosition: queue.currentPosition + 1,
                     },
                 });
+                if (!queue) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Error updating queue');
+                }
             }
             // Find all existing queueSlots for this queue, ordered by startedAt
             const existingSlots = yield tx.queueSlot.findMany({
@@ -142,6 +181,9 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                     where: { id: existingSlots[i].id },
                     data: { position: existingSlots[i].position + 1 },
                 });
+                if (!queueSlot) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Error updating queue slot position');
+                }
             }
             // Create the new queueSlot at the correct position
             queueSlot = yield tx.queueSlot.create({
@@ -153,6 +195,9 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                     startedAt: utcDateTime,
                 },
             });
+            if (!queueSlot) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Error creating queue slot');
+            }
         }
         // 4b. Create booking
         const booking = yield tx.booking.create({
@@ -184,15 +229,20 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                 price: service.price,
             },
         })));
-        queueSlot = yield tx.queueSlot.update({
-            where: { id: queueSlot === null || queueSlot === void 0 ? void 0 : queueSlot.id },
-            data: {
-                bookingId: booking.id,
-                completedAt: luxon_1.DateTime.fromJSDate(utcDateTime)
-                    .plus({ minutes: totalDuration })
-                    .toJSDate(),
-            },
-        });
+        if (queueSlot && queueSlot.id) {
+            queueSlot = yield tx.queueSlot.update({
+                where: { id: queueSlot.id },
+                data: {
+                    bookingId: booking.id,
+                    completedAt: luxon_1.DateTime.fromJSDate(utcDateTime)
+                        .plus({ minutes: totalDuration })
+                        .toJSDate(),
+                },
+            });
+            if (!queueSlot) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Error updating queue slot');
+            }
+        }
         // 4d. Add barberRealTimeStatus
         // Calculate endDateTime by adding totalServiceTime (in minutes) to utcDateTime
         const totalServiceTime = serviceRecords.reduce((sum, s) => sum + (s.duration || 0), 0); // assuming each service has a 'duration' in minutes

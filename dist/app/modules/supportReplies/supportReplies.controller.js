@@ -91,6 +91,16 @@ const updateSupportReplies = (0, catchAsync_1.default)((req, res) => __awaiter(v
         data: result,
     });
 }));
+const getSpecificRepliesById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield supportReplies_service_1.supportRepliesService.getSpecificRepliesByIdFromDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'SupportReplies details retrieved successfully',
+        data: result,
+    });
+}));
 const deleteSupportReplies = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield supportReplies_service_1.supportRepliesService.deleteSupportRepliesItemFromDb(user.id, req.params.id);
@@ -107,5 +117,6 @@ exports.supportRepliesController = {
     getSupportRepliesById,
     updateSupportReplies,
     deleteSupportReplies,
+    getSpecificRepliesById,
     getSupportRepliesReports,
 };

@@ -34,6 +34,7 @@ model SaloonOwner {
   JobApplication    JobApplication[]
   Feed              Feed[]
   Support           Support[]
+  Review            Review[]
 
   @@map("saloon_owners")
 }

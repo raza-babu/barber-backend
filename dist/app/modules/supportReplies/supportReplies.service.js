@@ -69,15 +69,31 @@ const getSupportRepliesReportsFromDb = (options) => __awaiter(void 0, void 0, vo
                 message: true,
                 status: true,
                 type: true,
-                createdAt: true,
-                updatedAt: true,
+                user: {
+                    select: {
+                        id: true,
+                        phoneNumber: true,
+                        address: true,
+                    },
+                },
             },
         }),
         prisma_1.default.support.count({
             where: whereClause,
         }),
     ]);
-    return (0, pagination_1.formatPaginationResponse)(reports, total, page, limit);
+    // Flatten the user object into each report
+    const flattenedReports = reports.map(report => ({
+        reportId: report.id,
+        userId: report.userId,
+        userName: report.userName,
+        message: report.message,
+        status: report.status,
+        type: report.type,
+        userPhoneNumber: report.user.phoneNumber,
+        userAddress: report.user.address,
+    }));
+    return (0, pagination_1.formatPaginationResponse)(flattenedReports, total, page, limit);
 });
 const getSupportRepliesListFromDb = (options) => __awaiter(void 0, void 0, void 0, function* () {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
@@ -107,8 +123,12 @@ const getSupportRepliesListFromDb = (options) => __awaiter(void 0, void 0, void 
                 message: true,
                 status: true,
                 type: true,
-                createdAt: true,
-                updatedAt: true,
+                user: {
+                    select: {
+                        id: true,
+                        phoneNumber: true,
+                    },
+                },
             },
         }),
         prisma_1.default.support.count({
@@ -191,13 +211,50 @@ const updateSupportRepliesIntoDb = (userId, supportRepliesId, data) => __awaiter
     if (!result) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Support Item is not updated');
     }
+    const reportUpdate = yield prisma_1.default.reply.create({
+        data: {
+            userId: userId,
+            supportId: supportRepliesId,
+            message: data.message,
+            type: data.type = client_1.SupportType.CUSTOMER_COMPLAINT ? client_1.ReplyType.REPORT : client_1.ReplyType.SUPPORT,
+            status: client_1.ReplyStatus.CLOSED,
+        },
+    });
+    if (!reportUpdate) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Reply not created');
+    }
     return result;
+});
+const getSpecificRepliesByIdFromDb = (userId, supportRepliesId) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield prisma_1.default.reply.findFirst({
+        where: {
+            supportId: supportRepliesId,
+        },
+        select: {
+            id: true,
+            userId: true,
+            supportId: true,
+            message: true,
+            status: true,
+            type: true,
+        },
+    });
+    if (!result) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Support item not found');
+    }
+    return {
+        id: result.id,
+        supportId: result.supportId,
+        userId: result.userId,
+        message: result.message,
+        status: result.status,
+        type: result.type,
+    };
 });
 const deleteSupportRepliesItemFromDb = (userId, supportRepliesId) => __awaiter(void 0, void 0, void 0, function* () {
     const deletedItem = yield prisma_1.default.support.delete({
         where: {
             id: supportRepliesId,
-            userId: userId,
         },
     });
     if (!deletedItem) {
@@ -211,5 +268,6 @@ exports.supportRepliesService = {
     getSupportRepliesByIdFromDb,
     updateSupportRepliesIntoDb,
     deleteSupportRepliesItemFromDb,
+    getSpecificRepliesByIdFromDb,
     getSupportRepliesReportsFromDb,
 };
