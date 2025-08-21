@@ -29,6 +29,17 @@ const getSaloonList = catchAsync(async (req, res) => {
   });
 });
 
+const getSaloonById = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await adminService.getSaloonByIdFromDb(user.id, req.params.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Saloon details retrieved successfully',
+    data: result,
+  });
+});
+
 const blockSaloonById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await adminService.blockSaloonByIdIntoDb(req.params.id, req.body);
@@ -62,6 +73,17 @@ const getBarbersList = catchAsync(async (req, res) => {
     message: 'Barbers list retrieved successfully',
     data: result.data,
     meta: result.meta,
+  });
+});
+
+const getBarberById = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await adminService.getBarberByIdFromDb(user.id, req.params.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Barber details retrieved successfully',
+    data: result,
   });
 });
 
@@ -137,8 +159,10 @@ const getAdminDashboard = catchAsync(async (req, res) => {
 
 export const adminController = {
   getSaloonList,
+  getSaloonById,
   blockSaloonById,
   getBarbersList,
+  getBarberById,
   blockBarberById,
   getCustomersList,
   blockCustomerById,

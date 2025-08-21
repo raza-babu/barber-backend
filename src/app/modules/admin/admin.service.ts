@@ -97,6 +97,59 @@ const getSaloonFromDb = async (
   return formatPaginationResponse(flattenedSaloons, total, page, limit);
 };
 
+const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
+  const result = await prisma.user.findUnique({
+    where: {
+      id: saloonOwnerId,
+      role: UserRoleEnum.SALOON_OWNER,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phoneNumber: true,
+      status: true,
+      SaloonOwner: {
+        select: {
+          userId: true,
+          isVerified: true,
+          shopAddress: true,
+          shopName: true,
+          registrationNumber: true,
+          shopLogo: true,
+          shopImages: true,
+          shopVideo: true,
+          ratingCount: true,
+          avgRating: true,
+        },
+      },
+    },
+  });
+  if (!result) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
+  }
+  // Handle SaloonOwner as array or object
+  const saloonOwner = Array.isArray(result.SaloonOwner) ? result.SaloonOwner[0] : result.SaloonOwner;
+
+  return {
+    saloonOwnerIdd: result.id,
+    fullName: result.fullName,
+    email: result.email,
+    phoneNumber: result.phoneNumber,
+    status: result.status,
+    isVerified: saloonOwner?.isVerified || false,
+    shopAddress: saloonOwner?.shopAddress || '',
+    shopName: saloonOwner?.shopName || '',
+    registrationNumber:
+      saloonOwner?.registrationNumber || '',
+    shopLogo: saloonOwner?.shopLogo || null,
+    shopImages: saloonOwner?.shopImages || [],
+    shopVideo: saloonOwner?.shopVideo || null,
+    ratingCount: saloonOwner?.ratingCount || 0,
+    avgRating: saloonOwner?.avgRating || 0,
+  };
+};
+
 const blockSaloonByIdIntoDb = async (saloonOwnerId: string, data: any) => {
   const { status } = data;
   const result = await prisma.saloonOwner.update({
@@ -210,6 +263,66 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
   });
 
   return formatPaginationResponse(flattenedBarbers, total, page, limit);
+};
+
+const getBarberByIdFromDb = async (userId: string, barberId: string) => {
+  const result = await prisma.user.findUnique({
+    where: {
+      id: barberId,
+      role: UserRoleEnum.BARBER,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phoneNumber: true,
+      status: true,
+      createdAt: true,
+      Barber: {
+        select: {
+          userId: true,
+          portfolio: true,
+          experienceYears: true,
+          skills: true,
+          bio: true,
+          ratingCount: true,
+          avgRating: true,
+          saloonOwner: {
+            select: {
+              id: true,
+              shopName: true,
+              shopAddress: true,
+              shopLogo: true,
+              shopImages: true,
+              shopVideo: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!result) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
+  }
+  return {
+    barberIdd: result.id,
+    fullName: result.fullName,
+    email: result.email,
+    phoneNumber: result.phoneNumber,
+    status: result.status,
+    portfolio: result.Barber?.portfolio || [],
+    experienceYears: result.Barber?.experienceYears || 0,
+    skills: result.Barber?.skills || [],
+    bio: result.Barber?.bio || '',
+    shopId: result.Barber?.saloonOwner?.id || null,
+    shopName: result.Barber?.saloonOwner?.shopName || null,
+    shopAddress: result.Barber?.saloonOwner?.shopAddress || null,
+    shopLogo: result.Barber?.saloonOwner?.shopLogo || null,
+    shopImages: result.Barber?.saloonOwner?.shopImages || [],
+    shopVideo: result.Barber?.saloonOwner?.shopVideo || null,
+    ratingCount: result.Barber?.ratingCount || 0,
+    avgRating: result.Barber?.avgRating || 0,
+  };
 };
 
 const blockBarberByIdIntoDb = async (
@@ -413,8 +526,10 @@ const getAdminDashboardFromDb = async (userId: string) => {
 
 export const adminService = {
   getSaloonFromDb,
+  getSaloonByIdFromDb,
   blockSaloonByIdIntoDb,
   getBarbersListFromDb,
+  getBarberByIdFromDb,
   blockBarberByIdIntoDb,
   getCustomersListFromDb,
   blockCustomerByIdIntoDb,

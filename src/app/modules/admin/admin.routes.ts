@@ -28,6 +28,15 @@ router.get(
   adminController.getSaloonList,
 );
 
+router.get(
+  '/saloon/:id',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.SALOON_OWNER,
+  ),
+  adminController.getSaloonById,
+);
+
 router.patch(
   '/block-saloon/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
@@ -46,6 +55,16 @@ router.get(
   ),
   adminController.getBarbersList,
 );
+
+router.get(
+  '/barber/:id',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.BARBER_MANAGEMENT,
+  ),
+  adminController.getBarberById,
+);
+
 router.patch(
   '/block-barber/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),

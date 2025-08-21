@@ -937,7 +937,7 @@ model SaloonOwner {
   id                 String   @id @default(auto()) @map("_id") @db.ObjectId
   userId             String   @unique @db.ObjectId
   shopName           String
-  registrationNumber String
+  registrationNumber String   @unique
   shopAddress        String
   latitude           Float?
   longitude          Float?
@@ -945,14 +945,14 @@ model SaloonOwner {
   shopImages         String[]
   shopVideo          String[]
   qrCode             String?
-  isQueueEnabled     Boolean  @default(false) // If queue system is enabled
-  isVerified         Boolean  @default(false)
-  followerCount      Int      @default(0)
-  followingCount     Int      @default(0)
-  ratingCount        Int      @default(0)
-  avgRating          Float?   @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  isQueueEnabled Boolean  @default(false) // If queue system is enabled
+  isVerified     Boolean  @default(false)
+  followerCount  Int      @default(0)
+  followingCount Int      @default(0)
+  ratingCount    Int      @default(0)
+  avgRating      Float?   @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relationships
   user              User                @relation(fields: [userId], references: [id])

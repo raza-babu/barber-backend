@@ -1,6 +1,5 @@
 model QRCode {
   id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String     @db.ObjectId
   saloonOwnerId String     @db.ObjectId
   code          String     @unique
   type          QRCodeType @default(SALOON_REGISTRATION)
@@ -11,8 +10,7 @@ model QRCode {
 
   // Relationships
 
-  saloonOwner SaloonOwner  @relation(fields: [saloonOwnerId], references: [id])
-  user        User?        @relation(fields: [userId], references: [id])
+  saloonOwner SaloonOwner  @relation(fields: [saloonOwnerId], references: [userId])
   QRCodeScan  QRCodeScan[]
 
   @@map("qr_codes")
