@@ -27,6 +27,7 @@ import { bookingRoutes } from '../modules/booking/booking.routes';
 import { barberLunchRoutes } from '../modules/barberLunch/barberLunch.routes';
 import { lunchRoutes } from '../modules/lunch/lunch.routes';
 import { saloonRoutes } from '../modules/saloon/saloon.routes';
+import { reviewRoutes } from '../modules/review/review.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -141,6 +142,10 @@ const moduleRoutes = [
   {
     path: '/lunch-times',
     route: lunchRoutes
+  },
+  {
+    path: '/reviews',
+    route: reviewRoutes
   },
 
 

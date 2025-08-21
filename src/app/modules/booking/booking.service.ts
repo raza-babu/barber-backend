@@ -20,6 +20,15 @@ const createBookingIntoDb = async (userId: string, data: any) => {
     isInQueue,
   } = data;
 
+  const saloonStatus = await prisma.saloonOwner.findUnique({  
+    where: { userId: saloonOwnerId,
+      isVerified: true,
+     },
+  });
+  if (!saloonStatus) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found or not verified');
+  }
+
   // 1. Fetch saloonOwner to check queue status
   const saloonOwner = await prisma.saloonOwner.findUnique({
     where: { userId: saloonOwnerId },

@@ -16,9 +16,9 @@ router.post(
 
 router.get('/saloon/:id', auth(), reviewController.getReviewListForSaloon);
 
-router.get('/barber/:id', auth(), reviewController.getReviewListForBarber);
+router.get('/barber', auth(), reviewController.getReviewListForBarber);
 
-router.put(
+router.patch(
   '/:id',
   auth(UserRoleEnum.CUSTOMER),
   validateRequest(reviewValidation.updateReviewSchema),

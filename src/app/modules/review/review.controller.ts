@@ -27,7 +27,7 @@ const getReviewListForSaloon = catchAsync(async (req, res) => {
 
 const getReviewListForBarber = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await reviewService.getReviewListForBarberFromDb(user.id, req.params.id);
+  const result = await reviewService.getReviewListForBarberFromDb(user.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,  
@@ -49,7 +49,7 @@ const getReviewById = catchAsync(async (req, res) => {
 
 const updateReview = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await reviewService.updateReviewIntoDb(user.id, req.params.id, req.body);
+  const result = await reviewService.updateReviewIntoDb(user.id,req.params.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

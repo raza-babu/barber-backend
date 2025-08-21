@@ -63,6 +63,8 @@ const getSaloonFromDb = async (
             shopLogo: true,
             shopImages: true,
             shopVideo: true,
+            ratingCount: true,
+            avgRating: true,
           },
         },
       },
@@ -87,6 +89,8 @@ const getSaloonFromDb = async (
       shopLogo: owner?.shopLogo,
       shopImages: owner?.shopImages,
       shopVideo: owner?.shopVideo,
+      ratingCount: owner?.ratingCount || 0,
+      avgRating: owner?.avgRating || 0,
     };
   });
 
@@ -171,6 +175,8 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
             experienceYears: true,
             skills: true,
             bio: true,
+            ratingCount: true,
+            avgRating: true,
             saloonOwner: {
               select: {
                 id: true,
