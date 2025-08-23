@@ -2,10 +2,11 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { favoriteFeedService } from './favoriteFeed.service';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createFavoriteFeed = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await favoriteFeedService.createFavoriteFeedIntoDb(user.id, req.params.id);
+  const result = await favoriteFeedService.createFavoriteFeedIntoDb(user.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
@@ -16,7 +17,20 @@ const createFavoriteFeed = catchAsync(async (req, res) => {
 
 const getFavoriteFeedList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await favoriteFeedService.getFavoriteFeedListFromDb();
+  const filters = pickValidFields(req.query, [
+      'page',
+      'limit',
+      'sortBy',
+      'sortOrder',
+      'searchTerm',
+      'isActive',
+      'salaryMin',
+      'salaryMax',
+      'experienceRequired',
+      'startDate',
+      'endDate',
+    ]);
+  const result = await favoriteFeedService.getFavoriteFeedListFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -27,7 +41,7 @@ const getFavoriteFeedList = catchAsync(async (req, res) => {
 
 const getFavoriteFeedById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await favoriteFeedService.getFavoriteFeedByIdFromDb(req.params.id);
+  const result = await favoriteFeedService.getFavoriteFeedByIdFromDb(user.id, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

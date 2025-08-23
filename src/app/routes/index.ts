@@ -29,6 +29,7 @@ import { lunchRoutes } from '../modules/lunch/lunch.routes';
 import { saloonRoutes } from '../modules/saloon/saloon.routes';
 import { reviewRoutes } from '../modules/review/review.routes';
 import { qrCodeRoutes } from '../modules/qrCode/qrCode.routes';
+import { followRoutes } from '../modules/follow/follow.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -155,6 +156,10 @@ const moduleRoutes = [
   {
     path: '/qr-codes',
     route: qrCodeRoutes,
+  },
+  {
+    path: '/follows',
+    route: followRoutes,
   },
 ];
 

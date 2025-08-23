@@ -4,15 +4,14 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { JwtPayload, Secret } from 'jsonwebtoken';
 import config from '../../config';
 import prisma from './prisma';
-import { UserRoleEnum } from '@prisma/client';
+import { UserRoleEnum, UserStatus } from '@prisma/client';
 
 const onlineUsers = new Set<string>();
 const userSockets = new Map<string, Socket>();
 
 export function setupSocketIO(server: HTTPServer) {
   const io = new SocketIOServer(server);
-  
-  
+
   const messagesNameSpace = io.of('/messages');
 
   messagesNameSpace.on('connection', async (socket: Socket) => {
@@ -25,6 +24,15 @@ export function setupSocketIO(server: HTTPServer) {
     }
     const user = verifyToken(token, config.jwt.access_secret as Secret);
     const { id, role } = user as JwtPayload & { role: string };
+    const existingUser = await prisma.user.findUnique({
+      where: { id: id, status: UserStatus.ACTIVE },
+    });
+
+    if (!existingUser) {
+      console.log('User not found or inactive');
+      socket.disconnect();
+      return;
+    }
 
     // Add user to online users set
     onlineUsers.add(id);
@@ -305,5 +313,5 @@ export function setupSocketIO(server: HTTPServer) {
     });
   });
 
-  return io
+  return io;
 }

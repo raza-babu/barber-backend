@@ -2,8 +2,19 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
+import { buildCompleteQuery } from '../../utils/searchFilter';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
-const createFavoriteFeedIntoDb = async (userId: string, data: any) => {
+const createFavoriteFeedIntoDb = async (
+  userId: string,
+  data: {
+    feedId: string;
+  },
+) => {
   const result = await prisma.favoriteFeed.create({
     data: {
       ...data,
@@ -16,22 +27,122 @@ const createFavoriteFeedIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getFavoriteFeedListFromDb = async () => {
-  const result = await prisma.favoriteFeed.findMany();
-  if (result.length === 0) {
-    return [];
-  }
-  return result;
+const getFavoriteFeedListFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions = {},
+) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Build search query
+  const searchQuery = options.searchTerm
+    ? {
+        feed: {
+          is: {
+            caption: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+        },
+      }
+    : {};
+
+  // Combine all queries
+  const whereClause = {
+    userId: userId,
+    ...(Object.keys(searchQuery).length > 0 && searchQuery),
+  };
+
+  const [result, total] = await Promise.all([
+    prisma.favoriteFeed.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        id: true,
+        feedId: true,
+        feed: {
+          select: {
+            id: true,
+            caption: true,
+            images: true,
+            user: {
+              select: {
+                fullName: true,
+                image: true,
+                SaloonOwner: {
+                  select: {
+                    userId: true,
+                    registrationNumber: true,
+                    shopName: true,
+                    shopAddress: true,
+                    shopImages: true,
+                    shopVideo: true,
+                    shopLogo: true,
+                    avgRating: true,
+                    ratingCount: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.favoriteFeed.count({
+      where: whereClause,
+    }),
+  ]);
+
+  // Flatten the feed object in each result
+  const flattenedResult = result.map(item => {
+    const { feed, ...rest } = item;
+    const { user, ...feedRest } = feed;
+    return {
+      ...rest,
+      ...feedRest,
+      userId: user.fullName,
+      profileImage: user.image,
+      saloonOwner:
+        user.SaloonOwner && user.SaloonOwner.length > 0
+          ? {
+              userId: user.SaloonOwner[0].userId,
+              shopName: user.SaloonOwner[0].shopName,
+              registration: user.SaloonOwner[0].registrationNumber,
+              shopAddress: user.SaloonOwner[0].shopAddress,
+              shopImages: user.SaloonOwner[0].shopImages,
+              shopVideo: user.SaloonOwner[0].shopVideo,
+              shopLogo: user.SaloonOwner[0].shopLogo,
+              avgRating: user.SaloonOwner[0].avgRating,
+              ratingCount: user.SaloonOwner[0].ratingCount,
+            }
+          : null,
+    };
+  });
+
+  return formatPaginationResponse(flattenedResult, total, page, limit);
 };
 
-const getFavoriteFeedByIdFromDb = async (favoriteFeedId: string) => {
+const getFavoriteFeedByIdFromDb = async (
+  userId: string,
+  favoriteFeedId: string,
+) => {
   const result = await prisma.favoriteFeed.findUnique({
     where: {
       id: favoriteFeedId,
+      userId: userId,
+    },
+    select: {
+      id: true,
+      feedId: true,
+      feed: true,
     },
   });
   if (!result) {
-    return { message: 'FavoriteFeed item not found'};
+    return { message: 'FavoriteFeed item not found' };
   }
   return result;
 };

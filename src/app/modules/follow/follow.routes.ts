@@ -1,42 +1,48 @@
+import { User, UserRoleEnum } from '@prisma/client';
 import express from 'express';
 import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
-import { favoriteFeedController } from './favoriteFeed.controller';
-import { favoriteFeedValidation } from './favoriteFeed.validation';
-import { UserRoleEnum } from '@prisma/client';
+import { followController } from './follow.controller';
+import { followValidation } from './follow.validation';
 
 const router = express.Router();
 
 router.post(
   '/',
   auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
-  validateRequest(favoriteFeedValidation.createSchema),
-  favoriteFeedController.createFavoriteFeed,
+  validateRequest(followValidation.createSchema),
+  followController.createFollow,
 );
 
 router.get(
-  '/',
+  '/following',
   auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
-  favoriteFeedController.getFavoriteFeedList,
+  followController.getFollowingList,
+);
+
+router.get(
+  '/followers',
+  auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
+  followController.getFollowerList,
 );
 
 router.get(
   '/:id',
   auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
-  favoriteFeedController.getFavoriteFeedById,
+  followController.getFollowById,
 );
 
-router.patch(
+router.put(
   '/:id',
   auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
-  //   validateRequest(favoriteFeedValidation.updateSchema),
-  favoriteFeedController.updateFavoriteFeed,
+  validateRequest(followValidation.updateSchema),
+  followController.updateFollow,
 );
 
 router.delete(
   '/:id',
   auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
-  favoriteFeedController.deleteFavoriteFeed,
+  followController.deleteFollowing,
 );
 
-export const favoriteFeedRoutes = router;
+export const followRoutes = router;

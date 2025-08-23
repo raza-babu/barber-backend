@@ -33,7 +33,6 @@ const registerUserIntoDB = async (payload: any) => {
     intendedRole: payload.intendedRole
       ? payload.intendedRole
       : UserRoleEnum.CUSTOMER,
-      
   };
 
   const result = await prisma.$transaction(async (transactionClient: any) => {
@@ -173,7 +172,6 @@ const registerSaloonOwnerIntoDB = async (payload: any) => {
     if (!existingUser) {
       throw new AppError(httpStatus.CONFLICT, 'User not exists!');
     }
-  
 
     const existingSaloonOwner = await prisma.saloonOwner.findUnique({
       where: { userId: existingUser.id },
@@ -186,9 +184,7 @@ const registerSaloonOwnerIntoDB = async (payload: any) => {
       );
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      
-
+    const result = await prisma.$transaction(async tx => {
       // Exclude 'email' from payload before creating saloon owner
       const { email, ...saloonOwnerData } = payload;
       const createdSaloonOwner = await tx.saloonOwner.create({
@@ -224,7 +220,6 @@ const registerSaloonOwnerIntoDB = async (payload: any) => {
 };
 
 const updateSaloonOwnerIntoDB = async (userId: string, payload: any) => {
-
   if (userId) {
     const existingUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -245,9 +240,7 @@ const updateSaloonOwnerIntoDB = async (userId: string, payload: any) => {
       );
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-  
-
+    const result = await prisma.$transaction(async tx => {
       const updatedSaloonOwner = await tx.saloonOwner.update({
         where: { userId: existingUser.id },
         data: payload,
@@ -264,20 +257,19 @@ const updateSaloonOwnerIntoDB = async (userId: string, payload: any) => {
   }
 
   throw new AppError(httpStatus.BAD_REQUEST, 'Email is required!');
-}
+};
 
 const updateBarberIntoDB = async (userId: string, payload: any) => {
   let existingUser: User | null;
   if (userId) {
     existingUser = await prisma.user.findUnique({
       where: {
-        id: userId
+        id: userId,
       },
     });
     if (!existingUser) {
       throw new AppError(httpStatus.CONFLICT, 'User not exists!');
     }
-    
 
     const existingBarber = await prisma.barber.findUnique({
       where: {
@@ -308,7 +300,7 @@ const updateBarberIntoDB = async (userId: string, payload: any) => {
     // if (!updateUserRole) {
     //   throw new AppError(httpStatus.BAD_REQUEST, 'User role not updated!');
     // }
-    
+
     const user = await transactionClient.barber.update({
       where: { userId: existingUser!.id },
       data: payload,
@@ -330,7 +322,7 @@ const updateBarberIntoDB = async (userId: string, payload: any) => {
           role: true,
           isProfileComplete: true,
         },
-      }, 
+      },
     },
   });
 
@@ -347,6 +339,12 @@ const getMyProfileFromDB = async (id: string) => {
       fullName: true,
       email: true,
       role: true,
+      dateOfBirth: true,
+      phoneNumber: true,
+      address: true,
+      followerCount: true,
+      followingCount: true,
+      image: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -622,7 +620,6 @@ const verifyOtpInDB = async (bodyData: {
 
   return { message: 'OTP verified successfully!' };
 };
-
 
 // verify otp
 const verifyOtpForgotPasswordInDB = async (bodyData: {

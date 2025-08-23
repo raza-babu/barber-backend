@@ -23,6 +23,16 @@ const createAdminAccessFunctionIntoDb = async (
   userId: string,
   data: CreateAdminData,
 ) => {
+
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email: data.email,
+    },
+  }); 
+  if (existingUser) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Email already exists');
+  }
+
   return await prisma.$transaction(async tx => {
     // 1. Create User
     const newUser = await tx.user.create({
