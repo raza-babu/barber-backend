@@ -18,6 +18,7 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const ads_service_1 = require("./ads.service");
 const multipleFile_1 = require("../../utils/multipleFile");
+const AppError_1 = __importDefault(require("../../errors/AppError"));
 const createAds = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const user = req.user;
@@ -25,6 +26,10 @@ const createAds = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void
     const uploads = {
         images: [],
     };
+    // Ensure files are defined
+    if (!files || Object.keys(files).length === 0) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'No files uploaded');
+    }
     const fileGroups = files;
     // Upload images
     if ((_a = fileGroups.images) === null || _a === void 0 ? void 0 : _a.length) {

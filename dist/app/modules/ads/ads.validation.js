@@ -15,9 +15,9 @@ const createAdsSchema = zod_1.z.object({
         description: zod_1.z.string({
             required_error: 'Description is required!',
         }),
-        duration: zod_1.z.string({
-            required_error: 'Duration is required!',
-        }),
+        // duration: z.string({
+        //   required_error: 'Duration is required!',
+        // }),
     }),
 });
 const updateAdsSchema = zod_1.z.object({
@@ -25,7 +25,7 @@ const updateAdsSchema = zod_1.z.object({
         startDate: zod_1.z.string().optional(),
         endDate: zod_1.z.string().optional(),
         description: zod_1.z.string().optional(),
-        duration: zod_1.z.string().optional(),
+        // duration: z.string().optional(),
     }),
 });
 exports.adsValidation = {

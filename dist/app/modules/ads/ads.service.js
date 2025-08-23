@@ -27,6 +27,9 @@ const createAdsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, func
     if (startDate >= endDate) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Start date must be before end date');
     }
+    const durationMs = endDateUtc.getTime() - startDateUtc.getTime();
+    const durationDays = durationMs / (1000 * 60 * 60 * 24);
+    data.duration = `${durationDays.toString()} days`;
     const result = yield prisma_1.default.ads.create({
         data: Object.assign(Object.assign({}, data), { userId: userId, startDate: data.startDate, endDate: data.endDate }),
     });

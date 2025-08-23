@@ -34,6 +34,7 @@ const lunch_routes_1 = require("../modules/lunch/lunch.routes");
 const saloon_routes_1 = require("../modules/saloon/saloon.routes");
 const review_routes_1 = require("../modules/review/review.routes");
 const qrCode_routes_1 = require("../modules/qrCode/qrCode.routes");
+const follow_routes_1 = require("../modules/follow/follow.routes");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -159,6 +160,10 @@ const moduleRoutes = [
     {
         path: '/qr-codes',
         route: qrCode_routes_1.qrCodeRoutes,
+    },
+    {
+        path: '/follows',
+        route: follow_routes_1.followRoutes,
     },
 ];
 moduleRoutes.forEach(route => router.use(route.path, route.route));

@@ -33,6 +33,14 @@ function setupSocketIO(server) {
         }
         const user = (0, verifyToken_1.verifyToken)(token, config_1.default.jwt.access_secret);
         const { id, role } = user;
+        const existingUser = yield prisma_1.default.user.findUnique({
+            where: { id: id, status: client_1.UserStatus.ACTIVE },
+        });
+        if (!existingUser) {
+            console.log('User not found or inactive');
+            socket.disconnect();
+            return;
+        }
         // Add user to online users set
         onlineUsers.add(id);
         userSockets.set(id, socket);

@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.followRoutes = void 0;
+const client_1 = require("@prisma/client");
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const follow_controller_1 = require("./follow.controller");
+const follow_validation_1 = require("./follow.validation");
+const router = express_1.default.Router();
+router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), (0, validateRequest_1.default)(follow_validation_1.followValidation.createSchema), follow_controller_1.followController.createFollow);
+router.get('/following', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), follow_controller_1.followController.getFollowingList);
+router.get('/followers', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), follow_controller_1.followController.getFollowerList);
+router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), follow_controller_1.followController.getFollowById);
+router.put('/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), (0, validateRequest_1.default)(follow_validation_1.followValidation.updateSchema), follow_controller_1.followController.updateFollow);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), follow_controller_1.followController.deleteFollowing);
+exports.followRoutes = router;

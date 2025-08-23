@@ -4,14 +4,15 @@ exports.favoriteFeedValidation = void 0;
 const zod_1 = require("zod");
 const createSchema = zod_1.z.object({
     body: zod_1.z.object({
-        name: zod_1.z.string().min(1, 'Name is required'),
-        description: zod_1.z.string().optional(),
+        feedId: zod_1.z.string({
+            required_error: 'Feed ID is required!',
+        }),
     }),
 });
 const updateSchema = zod_1.z.object({
     body: zod_1.z.object({
-        name: zod_1.z.string().optional(),
-        description: zod_1.z.string().optional(),
+    // name: z.string().optional(),
+    // description: z.string().optional(),
     }),
 });
 exports.favoriteFeedValidation = {

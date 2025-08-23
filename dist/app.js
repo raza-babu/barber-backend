@@ -8,7 +8,10 @@ const express_1 = __importDefault(require("express"));
 const http_status_1 = __importDefault(require("http-status"));
 const globalErrorHandler_1 = __importDefault(require("./app/middlewares/globalErrorHandler"));
 const routes_1 = __importDefault(require("./app/routes"));
+const logger_1 = require("./app/middlewares/logger");
 const app = (0, express_1.default)();
+app.use(logger_1.logger);
+app.use(logger_1.loggerConsole);
 app.use((0, cors_1.default)({
     origin: [
         "http://localhost:3001",

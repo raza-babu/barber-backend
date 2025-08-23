@@ -4,9 +4,9 @@ exports.termAndConditionValidation = void 0;
 const zod_1 = require("zod");
 const createTermAndConditionSchema = zod_1.z.object({
     body: zod_1.z.object({
-        heading: zod_1.z.string({
-            required_error: 'Heading is required!',
-        }),
+        // heading: z.string({
+        //   required_error: 'Heading is required!',
+        // }),
         content: zod_1.z.string({
             required_error: 'Content is required!',
         }),
@@ -14,7 +14,7 @@ const createTermAndConditionSchema = zod_1.z.object({
 });
 const updateTermAndConditionSchema = zod_1.z.object({
     body: zod_1.z.object({
-        heading: zod_1.z.string().optional(),
+        // heading: z.string().optional(),
         content: zod_1.z.string().optional(),
     }),
 });

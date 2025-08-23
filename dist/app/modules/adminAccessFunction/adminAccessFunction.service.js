@@ -44,6 +44,14 @@ const bcrypt = __importStar(require("bcrypt"));
 const pagination_1 = require("../../utils/pagination");
 const searchFilter_1 = require("../../utils/searchFilter");
 const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const existingUser = yield prisma_1.default.user.findUnique({
+        where: {
+            email: data.email,
+        },
+    });
+    if (existingUser) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Email already exists');
+    }
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         // 1. Create User
         const newUser = yield tx.user.create({

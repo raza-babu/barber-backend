@@ -17,9 +17,10 @@ const http_status_1 = __importDefault(require("http-status"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const favoriteFeed_service_1 = require("./favoriteFeed.service");
+const pickValidFields_1 = require("../../utils/pickValidFields");
 const createFavoriteFeed = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield favoriteFeed_service_1.favoriteFeedService.createFavoriteFeedIntoDb(user.id, req.params.id);
+    const result = yield favoriteFeed_service_1.favoriteFeedService.createFavoriteFeedIntoDb(user.id, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
         success: true,
@@ -29,7 +30,20 @@ const createFavoriteFeed = (0, catchAsync_1.default)((req, res) => __awaiter(voi
 }));
 const getFavoriteFeedList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield favoriteFeed_service_1.favoriteFeedService.getFavoriteFeedListFromDb();
+    const filters = (0, pickValidFields_1.pickValidFields)(req.query, [
+        'page',
+        'limit',
+        'sortBy',
+        'sortOrder',
+        'searchTerm',
+        'isActive',
+        'salaryMin',
+        'salaryMax',
+        'experienceRequired',
+        'startDate',
+        'endDate',
+    ]);
+    const result = yield favoriteFeed_service_1.favoriteFeedService.getFavoriteFeedListFromDb(user.id, filters);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -39,7 +53,7 @@ const getFavoriteFeedList = (0, catchAsync_1.default)((req, res) => __awaiter(vo
 }));
 const getFavoriteFeedById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield favoriteFeed_service_1.favoriteFeedService.getFavoriteFeedByIdFromDb(req.params.id);
+    const result = yield favoriteFeed_service_1.favoriteFeedService.getFavoriteFeedByIdFromDb(user.id, req.params.id);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

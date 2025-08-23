@@ -58,6 +58,7 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
                     SaloonOwner: {
                         select: {
                             userId: true,
+                            registrationNumber: true,
                             shopName: true,
                             shopAddress: true,
                             shopImages: true,
@@ -89,6 +90,7 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
             ? {
                 userId: feed.user.SaloonOwner[0].userId,
                 shopName: feed.user.SaloonOwner[0].shopName,
+                registration: feed.user.SaloonOwner[0].registrationNumber,
                 shopAddress: feed.user.SaloonOwner[0].shopAddress,
                 shopImages: feed.user.SaloonOwner[0].shopImages,
                 shopVideo: feed.user.SaloonOwner[0].shopVideo,

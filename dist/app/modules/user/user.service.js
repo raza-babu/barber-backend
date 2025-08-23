@@ -247,7 +247,7 @@ const updateBarberIntoDB = (userId, payload) => __awaiter(void 0, void 0, void 0
     if (userId) {
         existingUser = yield prisma_1.default.user.findUnique({
             where: {
-                id: userId
+                id: userId,
             },
         });
         if (!existingUser) {
@@ -317,6 +317,12 @@ const getMyProfileFromDB = (id) => __awaiter(void 0, void 0, void 0, function* (
             fullName: true,
             email: true,
             role: true,
+            dateOfBirth: true,
+            phoneNumber: true,
+            address: true,
+            followerCount: true,
+            followingCount: true,
+            image: true,
             createdAt: true,
             updatedAt: true,
         },
