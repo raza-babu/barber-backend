@@ -8,27 +8,26 @@ const express_1 = __importDefault(require("express"));
 const http_status_1 = __importDefault(require("http-status"));
 const globalErrorHandler_1 = __importDefault(require("./app/middlewares/globalErrorHandler"));
 const routes_1 = __importDefault(require("./app/routes"));
-const logger_1 = require("./app/middlewares/logger");
 const app = (0, express_1.default)();
-app.use(logger_1.logger);
-app.use(logger_1.loggerConsole);
+// app.use(logger);
+// app.use(loggerConsole);
+app.use((0, cors_1.default)({
+    origin: [
+        "http://localhost:3001",
+        "http://localhost:3000",
+        "http://10.10.20.60:3005",
+        "http://10.10.20.60:3006",
+    ],
+    credentials: true,
+}));
 // app.use(
-//   cors({
-//     origin: [
-//       "http://localhost:3001",
-//       "http://localhost:3000",
-//       "http://10.10.20.60:3005",
-//       "http://10.10.20.60:3006",
-//     ],
-//     credentials: true,
-//   })
+//   cors(
+//   //   {
+//   //   origin: "*", // Allow all origins for development
+//   //   credentials: true, // Allow credentials
+//   // }
+// )
 // );
-app.use((0, cors_1.default)(
-//   {
-//   origin: "*", // Allow all origins for development
-//   credentials: true, // Allow credentials
-// }
-));
 //parser
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
