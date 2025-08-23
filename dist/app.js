@@ -16,7 +16,7 @@ app.use((0, cors_1.default)({
     origin: [
         "http://localhost:3001",
         "http://localhost:3000",
-        "http://10.10.20.60:3006"
+        "http://10.10.20.60:3005"
     ],
     credentials: true,
 }));
