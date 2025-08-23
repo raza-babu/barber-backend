@@ -190,7 +190,7 @@ model Ads {
   endDate     DateTime
   description String
   images      String[]
-  duration    String
+  duration    String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -728,7 +728,7 @@ model Notification {
 model PrivacyPolicy {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @db.ObjectId
-  heading   String
+  heading   String?
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1064,7 +1064,7 @@ model Support {
 model TermAndCondition {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @db.ObjectId
-  heading   String
+  heading   String?
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -4,7 +4,9 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 
 
-const createPrivacyPolicyIntoDb = async (userId: string, data: any) => {
+const createPrivacyPolicyIntoDb = async (userId: string, data: {
+  content: string;
+}) => {
   
     const result = await prisma.privacyPolicy.create({ 
     data: {

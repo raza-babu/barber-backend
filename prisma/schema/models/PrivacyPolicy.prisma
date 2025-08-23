@@ -1,7 +1,7 @@
 model PrivacyPolicy {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @db.ObjectId
-  heading   String
+  heading   String?
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

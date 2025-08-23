@@ -3,6 +3,7 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { adsService } from './ads.service';
 import { uploadFileToSpace } from '../../utils/multipleFile';
+import AppError from '../../errors/AppError';
 
 const createAds = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -13,6 +14,10 @@ const createAds = catchAsync(async (req, res) => {
   } = {
     images: [],
   };
+  // Ensure files are defined
+  if (!files || Object.keys(files).length === 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'No files uploaded');
+  }
   const fileGroups = files as {
     images?: Express.Multer.File[];
   };

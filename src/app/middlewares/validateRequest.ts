@@ -12,7 +12,7 @@ const validateRequest =
       });
 
       // Override only what was validated
-      // if (parsedData.body) req.body = parsedData.body;
+      if (parsedData.body) req.body = parsedData.body;
       // if (parsedData.query) req.query = parsedData.query;
       // if (parsedData.params) req.params = parsedData.params;
 
