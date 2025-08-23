@@ -1,3 +1,4 @@
+import { Reply } from './../../../../node_modules/.prisma/client/index.d';
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
@@ -113,7 +114,7 @@ const getSupportRepliesListFromDb = async (
     },
     {
       status: options.status,
-      type: options.type,
+      type: SupportType.CUSTOMER_QUESTION,
     },
     {
       startDate: options.startDate,
@@ -141,6 +142,7 @@ const getSupportRepliesListFromDb = async (
           select: {
             id: true,
             phoneNumber: true,
+            address: true,
           },
         },
       },
@@ -150,7 +152,19 @@ const getSupportRepliesListFromDb = async (
     }),
   ]);
 
-  return formatPaginationResponse(supportReplies, total, page, limit);
+  const flattenFormattedReplies = supportReplies.map(reply => ({
+    supportId: reply.id,
+    userId: reply.userId,
+    userName: reply.userName,
+    message: reply.message,
+    status: reply.status,
+    type: reply.type,
+    userPhoneNumber: reply.user.phoneNumber,  
+    userAddress: reply.user.address,
+  }));
+
+
+  return formatPaginationResponse(flattenFormattedReplies, total, page, limit);
 };
 
 const getSupportRepliesByIdFromDb = async (supportRepliesId: string) => {
@@ -171,87 +185,90 @@ const getSupportRepliesByIdFromDb = async (supportRepliesId: string) => {
 const updateSupportRepliesIntoDb = async (
   userId: string,
   supportRepliesId: string,
-  data: any,
+  data: {
+    userId: string;
+    message: string;
+  },
 ) => {
-  const userData = await prisma.user.findUnique({
-    where: {
-      id: data.userId!,
-    },
-    include: {
-      Support: {
-        where: {
-          id: supportRepliesId,
-          userId: data.userId!,
-        },
-        select: {
-          message: true,
+  return await prisma.$transaction(async (tx) => {
+    const userData = await tx.user.findUnique({
+      where: {
+        id: data.userId,
+      },
+      include: {
+        Support: {
+          where: {
+            id: supportRepliesId,
+            userId: data.userId,
+          },
+          select: {
+            type: true,
+            message: true,
+          },
         },
       },
-    },
-  });
-  if (!userData) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-  }
-  await emailSender(
-    'Barbers Time - Support',
-    userData.email!,
-
-    `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-    <table width="100%" style="border-collapse: collapse;">
-    <tr>
-      <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
-        <h2 style="margin: 0; font-size: 24px;">${userData.Support[0]?.message ?? ''}</h2>
-      </td>
-    </tr>
-    <tr>
-
-      <td style="padding: 20px;">
-        <p style="font-size: 16px; margin: 0;">Hello <strong>${
-          userData.fullName
-        }</strong>,</p>
-        <p style="font-size: 16px;">Hope your doing well.</p>
-        <div style="text-align: center; margin: 20px 0;">
-          <p style="font-size: 18px;" >${data.message!}</p>
-        </div>
-        <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email. No further action is needed.</p>
-        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
-      </td>
-    </tr>
-    <tr>
-      <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
-        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Time Team. All rights reserved.</p>
-      </td>
-    </tr>
-    </table>
-  </div>
-
+    });
+    if (!userData) {
+      throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+    }
+    await emailSender(
+      'Barbers Time - Support',
+      userData.email!,
+      `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+      <table width="100%" style="border-collapse: collapse;">
+      <tr>
+        <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
+          <h2 style="margin: 0; font-size: 24px;">${userData.Support[0]?.message ?? ''}</h2>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 20px;">
+          <p style="font-size: 16px; margin: 0;">Hello <strong>${
+            userData.fullName
+          }</strong>,</p>
+          <p style="font-size: 16px;">Hope your doing well.</p>
+          <div style="text-align: center; margin: 20px 0;">
+            <p style="font-size: 18px;" >${data.message!}</p>
+          </div>
+          <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email. No further action is needed.</p>
+          <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
+          <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Time Team. All rights reserved.</p>
+        </td>
+      </tr>
+      </table>
+    </div>
       `,
-  );
-  const result = await prisma.support.update({
-    where: {
-      id: supportRepliesId,
-    },
-    data: {
-      status: SupportStatus.CLOSED,
-    },
-  });
-  if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Support Item is not updated');
-  }
+    );
+    const result = await tx.support.update({
+      where: {
+        id: supportRepliesId,
+      },
+      data: {
+        status: SupportStatus.CLOSED,
+      },
+    });
+    if (!result) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Support Item is not updated');
+    }
 
-  const reportUpdate = await prisma.reply.create({
-    data: {
-      userId: userId,
-      supportId: supportRepliesId,
-      message: data.message,
-      type: data.type = SupportType.CUSTOMER_COMPLAINT ? ReplyType.REPORT : ReplyType.SUPPORT,
-      status: ReplyStatus.CLOSED,
-    },
+    const reportUpdate = await tx.reply.create({
+      data: {
+        userId: userId,
+        supportId: supportRepliesId,
+        message: data.message,
+        type: userData.Support[0].type === SupportType.CUSTOMER_COMPLAINT ? ReplyType.REPORT : ReplyType.SUPPORT,
+        status: ReplyStatus.CLOSED,
+      },
+    });
+    if (!reportUpdate) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Reply not created');
+    }
+    return result;
   });
-  if (!reportUpdate) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Reply not created');
-  }
-  return result;
 };
 
 const getSpecificRepliesByIdFromDb = async (
@@ -285,6 +302,39 @@ const getSpecificRepliesByIdFromDb = async (
   };
 };
 
+
+const getSpecificSupportReplyByIdFromDb = async (
+  userId: string,
+  supportRepliesId: string,
+) => {
+  const result = await prisma.reply.findFirst({
+    where: {
+      supportId: supportRepliesId,
+      // userId: userId,
+    },  
+    select: {
+      id: true,
+      userId: true,
+      message: true,
+      status: true,
+      type: true,
+    },
+  });
+  if (!result) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Support item not found');
+  }
+
+  return {
+    id: result.id,
+    userId: result.userId,
+    message: result.message,
+    status: result.status,
+    type: result.type,
+  };
+};
+
+
+
 const deleteSupportRepliesItemFromDb = async (
   userId: string,
   supportRepliesId: string,
@@ -312,4 +362,5 @@ export const supportRepliesService = {
   deleteSupportRepliesItemFromDb,
   getSpecificRepliesByIdFromDb,
   getSupportRepliesReportsFromDb,
+  getSpecificSupportReplyByIdFromDb,
 };

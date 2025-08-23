@@ -31,8 +31,8 @@ router.get(
   checkPermissions(
     UserAccessFunctionName.ALL || UserAccessFunctionName.USER_REPORT,
   ),
-  supportRepliesController.getSupportRepliesReports
-)
+  supportRepliesController.getSupportRepliesReports,
+);
 
 router.get(
   '/reply-sent/:id',
@@ -41,7 +41,16 @@ router.get(
     UserAccessFunctionName.ALL || UserAccessFunctionName.SUPPORT,
   ),
   supportRepliesController.getSpecificRepliesById,
-)
+);
+
+router.get(
+  '/support-sent/:id',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.SUPPORT,
+  ),
+  supportRepliesController.getSpecificSupportReplyById,
+);
 
 router.patch(
   '/replies/:id',

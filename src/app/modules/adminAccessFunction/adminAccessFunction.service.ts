@@ -5,7 +5,10 @@ import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import * as bcrypt from 'bcrypt';
-import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
@@ -23,12 +26,11 @@ const createAdminAccessFunctionIntoDb = async (
   userId: string,
   data: CreateAdminData,
 ) => {
-
   const existingUser = await prisma.user.findUnique({
     where: {
       email: data.email,
     },
-  }); 
+  });
   if (existingUser) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Email already exists');
   }
@@ -69,7 +71,7 @@ const createAdminAccessFunctionIntoDb = async (
       const result = await tx.adminAccessFunction.createMany({
         data: data.function.map(func => ({
           userId: userId,
-          adminId: newAdmin.id,
+          adminId: newAdmin.userId,
           accessFunctionId: func,
         })),
       });
@@ -94,9 +96,11 @@ const createAdminAccessFunctionIntoDb = async (
   });
 };
 
-const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions) => {
+const getAdminAccessFunctionListFromDb = async (
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   // Build where clause for admin filtering
   const adminWhereClauseFromQuery = buildCompleteQuery(
     {
@@ -105,14 +109,18 @@ const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions
     },
     {
       'user.role': options.role,
-      isSuperAdmin: options.isSuperAdmin === true ? true : 
-                    options.isSuperAdmin === false ? false : undefined,
+      isSuperAdmin:
+        options.isSuperAdmin === true
+          ? true
+          : options.isSuperAdmin === false
+            ? false
+            : undefined,
     },
     {
       startDate: options.startDate,
       endDate: options.endDate,
       dateField: 'user.createdAt',
-    }
+    },
   );
 
   // Handle nested user search separately due to Prisma limitations
@@ -155,7 +163,7 @@ const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions
   // Build admin where clause
   let adminWhereClause: any = {};
   if (options.isSuperAdmin !== undefined) {
-    adminWhereClause.isSuperAdmin = options.isSuperAdmin === 'true';
+    adminWhereClause.isSuperAdmin = options.isSuperAdmin === 'true' ;
   }
 
   // Add user filter to admin where clause
@@ -170,7 +178,8 @@ const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions
       take: limit,
       orderBy: {
         user: {
-          [sortBy === 'fullName' || sortBy === 'email' ? sortBy : 'createdAt']: sortOrder,
+          [sortBy === 'fullName' || sortBy === 'email' ? sortBy : 'createdAt']:
+            sortOrder,
         },
       },
       include: {
@@ -207,11 +216,12 @@ const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions
     information: admin.user,
     role: admin.user.role,
     isSuperAdmin: admin.isSuperAdmin,
-    accesses: admin.AdminAccessFunction?.map(item => ({
-      accessFunctionId: item.accessFunction?.id,
-      function: item.accessFunction?.function,
-      adminAccessFunctionId: item.id,
-    })) || [],
+    accesses:
+      admin.AdminAccessFunction?.map(item => ({
+        accessFunctionId: item.accessFunction?.id,
+        function: item.accessFunction?.function,
+        adminAccessFunctionId: item.id,
+      })) || [],
   }));
 
   return formatPaginationResponse(transformedData, total, page, limit);
@@ -277,12 +287,6 @@ const updateAdminAccessFunctionIntoDb = async (
     });
 
     // 2. Add new accesses
-    if (!Array.isArray(data.function)) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'accessFunctionIds must be a non-empty array',
-      );
-    }
 
     const created = await tx.adminAccessFunction.createMany({
       data: data.function.map(func => ({
@@ -341,7 +345,7 @@ const deleteAdminAccessFunctionItemFromDb = async (
 export const adminAccessFunctionService = {
   createAdminAccessFunctionIntoDb,
   getAdminAccessFunctionListFromDb,
-  getAdminAccessFunctionByIdFromDb,
+  getAdminAccessFunctionByIdFromDb ,
   updateAdminAccessFunctionIntoDb,
   deleteAdminAccessFunctionItemFromDb,
 };

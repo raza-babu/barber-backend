@@ -5,6 +5,11 @@ import httpStatus from 'http-status';
 
 
 const createTermAndConditionIntoDb = async (userId: string, data: any) => {
+
+  const existingTermAndCondition = await prisma.termAndCondition.findFirst(); 
+  if (existingTermAndCondition) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Term & Condition already exists');
+  }
   
     const result = await prisma.termAndCondition.create({ 
     data: {
@@ -47,7 +52,7 @@ const updateTermAndConditionIntoDb = async (userId: string, termAndConditionId: 
     const result = await prisma.termAndCondition.update({
       where:  {
         id: termAndConditionId,
-        userId: userId,
+        // userId: userId,
     },
     data: {
       ...data,
@@ -63,7 +68,7 @@ const deleteTermAndConditionItemFromDb = async (userId: string, termAndCondition
     const deletedItem = await prisma.termAndCondition.delete({
       where: {
       id: termAndConditionId,
-      userId: userId,
+      // userId: userId,
     },
   });
   if (!deletedItem) {

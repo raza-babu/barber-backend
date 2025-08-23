@@ -102,7 +102,7 @@ const getSupportRepliesListFromDb = (options) => __awaiter(void 0, void 0, void 
         searchFields: ['userName', 'message'],
     }, {
         status: options.status,
-        type: options.type,
+        type: client_1.SupportType.CUSTOMER_QUESTION,
     }, {
         startDate: options.startDate,
         endDate: options.endDate,
@@ -127,6 +127,7 @@ const getSupportRepliesListFromDb = (options) => __awaiter(void 0, void 0, void 
                     select: {
                         id: true,
                         phoneNumber: true,
+                        address: true,
                     },
                 },
             },
@@ -135,7 +136,17 @@ const getSupportRepliesListFromDb = (options) => __awaiter(void 0, void 0, void 
             where: whereClause,
         }),
     ]);
-    return (0, pagination_1.formatPaginationResponse)(supportReplies, total, page, limit);
+    const flattenFormattedReplies = supportReplies.map(reply => ({
+        supportId: reply.id,
+        userId: reply.userId,
+        userName: reply.userName,
+        message: reply.message,
+        status: reply.status,
+        type: reply.type,
+        userPhoneNumber: reply.user.phoneNumber,
+        userAddress: reply.user.address,
+    }));
+    return (0, pagination_1.formatPaginationResponse)(flattenFormattedReplies, total, page, limit);
 });
 const getSupportRepliesByIdFromDb = (supportRepliesId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.support.update({
@@ -152,78 +163,79 @@ const getSupportRepliesByIdFromDb = (supportRepliesId) => __awaiter(void 0, void
     return result;
 });
 const updateSupportRepliesIntoDb = (userId, supportRepliesId, data) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    const userData = yield prisma_1.default.user.findUnique({
-        where: {
-            id: data.userId,
-        },
-        include: {
-            Support: {
-                where: {
-                    id: supportRepliesId,
-                    userId: data.userId,
-                },
-                select: {
-                    message: true,
+    return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a, _b;
+        const userData = yield tx.user.findUnique({
+            where: {
+                id: data.userId,
+            },
+            include: {
+                Support: {
+                    where: {
+                        id: supportRepliesId,
+                        userId: data.userId,
+                    },
+                    select: {
+                        type: true,
+                        message: true,
+                    },
                 },
             },
-        },
-    });
-    if (!userData) {
-        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found');
-    }
-    yield (0, emailSender_1.default)('Barbers Time - Support', userData.email, `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-    <table width="100%" style="border-collapse: collapse;">
-    <tr>
-      <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
-        <h2 style="margin: 0; font-size: 24px;">${(_b = (_a = userData.Support[0]) === null || _a === void 0 ? void 0 : _a.message) !== null && _b !== void 0 ? _b : ''}</h2>
-      </td>
-    </tr>
-    <tr>
-
-      <td style="padding: 20px;">
-        <p style="font-size: 16px; margin: 0;">Hello <strong>${userData.fullName}</strong>,</p>
-        <p style="font-size: 16px;">Hope your doing well.</p>
-        <div style="text-align: center; margin: 20px 0;">
-          <p style="font-size: 18px;" >${data.message}</p>
-        </div>
-        <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email. No further action is needed.</p>
-        <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
-      </td>
-    </tr>
-    <tr>
-      <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
-        <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Time Team. All rights reserved.</p>
-      </td>
-    </tr>
-    </table>
-  </div>
-
+        });
+        if (!userData) {
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found');
+        }
+        yield (0, emailSender_1.default)('Barbers Time - Support', userData.email, `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+      <table width="100%" style="border-collapse: collapse;">
+      <tr>
+        <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
+          <h2 style="margin: 0; font-size: 24px;">${(_b = (_a = userData.Support[0]) === null || _a === void 0 ? void 0 : _a.message) !== null && _b !== void 0 ? _b : ''}</h2>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 20px;">
+          <p style="font-size: 16px; margin: 0;">Hello <strong>${userData.fullName}</strong>,</p>
+          <p style="font-size: 16px;">Hope your doing well.</p>
+          <div style="text-align: center; margin: 20px 0;">
+            <p style="font-size: 18px;" >${data.message}</p>
+          </div>
+          <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email. No further action is needed.</p>
+          <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
+          <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Time Team. All rights reserved.</p>
+        </td>
+      </tr>
+      </table>
+    </div>
       `);
-    const result = yield prisma_1.default.support.update({
-        where: {
-            id: supportRepliesId,
-        },
-        data: {
-            status: client_1.SupportStatus.CLOSED,
-        },
-    });
-    if (!result) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Support Item is not updated');
-    }
-    const reportUpdate = yield prisma_1.default.reply.create({
-        data: {
-            userId: userId,
-            supportId: supportRepliesId,
-            message: data.message,
-            type: data.type = client_1.SupportType.CUSTOMER_COMPLAINT ? client_1.ReplyType.REPORT : client_1.ReplyType.SUPPORT,
-            status: client_1.ReplyStatus.CLOSED,
-        },
-    });
-    if (!reportUpdate) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Reply not created');
-    }
-    return result;
+        const result = yield tx.support.update({
+            where: {
+                id: supportRepliesId,
+            },
+            data: {
+                status: client_1.SupportStatus.CLOSED,
+            },
+        });
+        if (!result) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Support Item is not updated');
+        }
+        const reportUpdate = yield tx.reply.create({
+            data: {
+                userId: userId,
+                supportId: supportRepliesId,
+                message: data.message,
+                type: userData.Support[0].type === client_1.SupportType.CUSTOMER_COMPLAINT ? client_1.ReplyType.REPORT : client_1.ReplyType.SUPPORT,
+                status: client_1.ReplyStatus.CLOSED,
+            },
+        });
+        if (!reportUpdate) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Reply not created');
+        }
+        return result;
+    }));
 });
 const getSpecificRepliesByIdFromDb = (userId, supportRepliesId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.reply.findFirst({
@@ -251,6 +263,31 @@ const getSpecificRepliesByIdFromDb = (userId, supportRepliesId) => __awaiter(voi
         type: result.type,
     };
 });
+const getSpecificSupportReplyByIdFromDb = (userId, supportRepliesId) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield prisma_1.default.reply.findFirst({
+        where: {
+            supportId: supportRepliesId,
+            // userId: userId,
+        },
+        select: {
+            id: true,
+            userId: true,
+            message: true,
+            status: true,
+            type: true,
+        },
+    });
+    if (!result) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Support item not found');
+    }
+    return {
+        id: result.id,
+        userId: result.userId,
+        message: result.message,
+        status: result.status,
+        type: result.type,
+    };
+});
 const deleteSupportRepliesItemFromDb = (userId, supportRepliesId) => __awaiter(void 0, void 0, void 0, function* () {
     const deletedItem = yield prisma_1.default.support.delete({
         where: {
@@ -270,4 +307,5 @@ exports.supportRepliesService = {
     deleteSupportRepliesItemFromDb,
     getSpecificRepliesByIdFromDb,
     getSupportRepliesReportsFromDb,
+    getSpecificSupportReplyByIdFromDb,
 };

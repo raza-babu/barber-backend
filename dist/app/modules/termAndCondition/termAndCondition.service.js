@@ -17,6 +17,10 @@ const prisma_1 = __importDefault(require("../../utils/prisma"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const createTermAndConditionIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const existingTermAndCondition = yield prisma_1.default.termAndCondition.findFirst();
+    if (existingTermAndCondition) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Term & Condition already exists');
+    }
     const result = yield prisma_1.default.termAndCondition.create({
         data: Object.assign(Object.assign({}, data), { userId: userId }),
     });
@@ -47,7 +51,7 @@ const updateTermAndConditionIntoDb = (userId, termAndConditionId, data) => __awa
     const result = yield prisma_1.default.termAndCondition.update({
         where: {
             id: termAndConditionId,
-            userId: userId,
+            // userId: userId,
         },
         data: Object.assign({}, data),
     });
@@ -60,7 +64,7 @@ const deleteTermAndConditionItemFromDb = (userId, termAndConditionId) => __await
     const deletedItem = yield prisma_1.default.termAndCondition.delete({
         where: {
             id: termAndConditionId,
-            userId: userId,
+            // userId: userId,
         },
     });
     if (!deletedItem) {

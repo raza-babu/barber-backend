@@ -84,7 +84,7 @@ const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
             const result = yield tx.adminAccessFunction.createMany({
                 data: data.function.map(func => ({
                     userId: userId,
-                    adminId: newAdmin.id,
+                    adminId: newAdmin.userId,
                     accessFunctionId: func,
                 })),
             });
@@ -112,8 +112,11 @@ const getAdminAccessFunctionListFromDb = (options) => __awaiter(void 0, void 0, 
         searchFields: ['user.fullName', 'user.email'],
     }, {
         'user.role': options.role,
-        isSuperAdmin: options.isSuperAdmin === true ? true :
-            options.isSuperAdmin === false ? false : undefined,
+        isSuperAdmin: options.isSuperAdmin === true
+            ? true
+            : options.isSuperAdmin === false
+                ? false
+                : undefined,
     }, {
         startDate: options.startDate,
         endDate: options.endDate,
@@ -277,9 +280,6 @@ const updateAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
             },
         });
         // 2. Add new accesses
-        if (!Array.isArray(data.function)) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'accessFunctionIds must be a non-empty array');
-        }
         const created = yield tx.adminAccessFunction.createMany({
             data: data.function.map(func => ({
                 userId: userId,
