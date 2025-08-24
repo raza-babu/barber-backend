@@ -39,9 +39,9 @@ const getSupportRepliesList = catchAsync(async (req, res) => {
   });
 });
 
-const getSupportRepliesById = catchAsync(async (req, res) => {
+const updateSupportById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await supportRepliesService.getSupportRepliesByIdFromDb(req.params.id);
+  const result = await supportRepliesService.updateSupportByIdFromDb(user.id, req.params.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -120,7 +120,7 @@ const deleteSupportReplies = catchAsync(async (req, res) => {
 export const supportRepliesController = {
   createSupportReplies,
   getSupportRepliesList,
-  getSupportRepliesById,
+  updateSupportById,
   updateSupportReplies,
   deleteSupportReplies,
   getSpecificRepliesById,

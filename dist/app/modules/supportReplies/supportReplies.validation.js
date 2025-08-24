@@ -4,6 +4,7 @@ exports.supportRepliesValidation = void 0;
 const zod_1 = require("zod");
 const createSchema = zod_1.z.object({
     body: zod_1.z.object({
+        userId: zod_1.z.string().optional(),
         subject: zod_1.z.string().optional(),
         type: zod_1.z.enum(['CUSTOMER_QUESTION', 'CUSTOMER_COMPLAINT'], {
             required_error: 'Type is required!',
@@ -14,6 +15,7 @@ const createSchema = zod_1.z.object({
 });
 const updateSchema = zod_1.z.object({
     body: zod_1.z.object({
+        userId: zod_1.z.string().optional(),
         subject: zod_1.z.string().optional(),
         type: zod_1.z.enum(['CUSTOMER_QUESTION', 'CUSTOMER_COMPLAINT'], {
             required_error: 'Type is required!',

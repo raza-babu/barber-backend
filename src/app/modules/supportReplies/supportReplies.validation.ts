@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const createSchema = z.object({
   body: z.object({
+     userId: z.string().optional(),
     subject: z.string().optional(),
     type: z.enum(['CUSTOMER_QUESTION', 'CUSTOMER_COMPLAINT'], {
       required_error: 'Type is required!',
@@ -13,6 +14,7 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   body: z.object({
+    userId: z.string().optional(),
     subject: z.string().optional(),
     type: z.enum(['CUSTOMER_QUESTION', 'CUSTOMER_COMPLAINT'], {
       required_error: 'Type is required!',

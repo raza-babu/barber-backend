@@ -42,7 +42,6 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const bcrypt = __importStar(require("bcrypt"));
 const pagination_1 = require("../../utils/pagination");
-const searchFilter_1 = require("../../utils/searchFilter");
 const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const existingUser = yield prisma_1.default.user.findUnique({
         where: {
@@ -104,70 +103,47 @@ const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
         }
     }));
 });
-const getAdminAccessFunctionListFromDb = (options) => __awaiter(void 0, void 0, void 0, function* () {
+const getAdminAccessFunctionListFromDb = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (options = {}) {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
-    // Build where clause for admin filtering
-    const adminWhereClauseFromQuery = (0, searchFilter_1.buildCompleteQuery)({
-        searchTerm: options.searchTerm,
-        searchFields: ['user.fullName', 'user.email'],
-    }, {
-        'user.role': options.role,
-        isSuperAdmin: options.isSuperAdmin === true
-            ? true
-            : options.isSuperAdmin === false
-                ? false
-                : undefined,
-    }, {
-        startDate: options.startDate,
-        endDate: options.endDate,
-        dateField: 'user.createdAt',
-    });
-    // Handle nested user search separately due to Prisma limitations
-    let userWhereClause = {};
+    // Build user search and filter
+    let userWhere = {};
     if (options.searchTerm) {
-        userWhereClause = {
-            OR: [
-                {
-                    fullName: {
-                        contains: options.searchTerm,
-                        mode: 'insensitive',
-                    },
+        userWhere.OR = [
+            {
+                fullName: {
+                    contains: options.searchTerm,
+                    mode: 'insensitive',
                 },
-                {
-                    email: {
-                        contains: options.searchTerm,
-                        mode: 'insensitive',
-                    },
+            },
+            {
+                email: {
+                    contains: options.searchTerm,
+                    mode: 'insensitive',
                 },
-            ],
-        };
+            },
+        ];
     }
-    // Add role filter
     if (options.role) {
-        userWhereClause.role = options.role;
+        userWhere.role = options.role;
     }
-    // Add date range filter for user
     if (options.startDate || options.endDate) {
-        userWhereClause.createdAt = {};
-        if (options.startDate) {
-            userWhereClause.createdAt.gte = new Date(options.startDate);
-        }
-        if (options.endDate) {
-            userWhereClause.createdAt.lte = new Date(options.endDate);
-        }
+        userWhere.createdAt = {};
+        if (options.startDate)
+            userWhere.createdAt.gte = new Date(options.startDate);
+        if (options.endDate)
+            userWhere.createdAt.lte = new Date(options.endDate);
     }
-    // Build admin where clause
-    let adminWhereClause = {};
+    // Build admin filter
+    let adminWhere = {};
     if (options.isSuperAdmin !== undefined) {
-        adminWhereClause.isSuperAdmin = options.isSuperAdmin === 'true';
+        adminWhere.isSuperAdmin = options.isSuperAdmin === 'true';
     }
-    // Add user filter to admin where clause
-    if (Object.keys(userWhereClause).length > 0) {
-        adminWhereClause.user = userWhereClause;
+    if (Object.keys(userWhere).length > 0) {
+        adminWhere.user = userWhere;
     }
     const [admins, total] = yield Promise.all([
         prisma_1.default.admin.findMany({
-            where: adminWhereClause,
+            where: adminWhere,
             skip,
             take: limit,
             orderBy: {
@@ -199,28 +175,30 @@ const getAdminAccessFunctionListFromDb = (options) => __awaiter(void 0, void 0, 
             },
         }),
         prisma_1.default.admin.count({
-            where: adminWhereClause,
+            where: adminWhere,
         }),
     ]);
-    // Transform the data
-    const transformedData = admins.map(admin => {
-        var _a;
-        return ({
-            adminId: admin.userId,
-            information: admin.user,
-            role: admin.user.role,
-            isSuperAdmin: admin.isSuperAdmin,
-            accesses: ((_a = admin.AdminAccessFunction) === null || _a === void 0 ? void 0 : _a.map(item => {
-                var _a, _b;
-                return ({
-                    accessFunctionId: (_a = item.accessFunction) === null || _a === void 0 ? void 0 : _a.id,
-                    function: (_b = item.accessFunction) === null || _b === void 0 ? void 0 : _b.function,
-                    adminAccessFunctionId: item.id,
-                });
-            })) || [],
+    const data = admins.map(admin => {
+        var _a, _b, _c, _d;
+        const accesses = (admin.AdminAccessFunction || []).map(item => {
+            var _a, _b;
+            return ({
+                accessFunctionId: (_a = item.accessFunction) === null || _a === void 0 ? void 0 : _a.id,
+                function: (_b = item.accessFunction) === null || _b === void 0 ? void 0 : _b.function,
+                // adminAccessFunctionId: item.id,
+            });
         });
+        return {
+            adminId: admin.userId,
+            adminName: (_a = admin.user) === null || _a === void 0 ? void 0 : _a.fullName,
+            adminEmail: (_b = admin.user) === null || _b === void 0 ? void 0 : _b.email,
+            adminImage: (_c = admin.user) === null || _c === void 0 ? void 0 : _c.image,
+            role: (_d = admin.user) === null || _d === void 0 ? void 0 : _d.role,
+            isSuperAdmin: admin.isSuperAdmin,
+            accesses,
+        };
     });
-    return (0, pagination_1.formatPaginationResponse)(transformedData, total, page, limit);
+    return (0, pagination_1.formatPaginationResponse)(data, total, page, limit);
 });
 const getAdminAccessFunctionByIdFromDb = (adminId) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;

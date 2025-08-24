@@ -68,7 +68,7 @@ router.patch(
   checkPermissions(
     UserAccessFunctionName.ALL || UserAccessFunctionName.SUPPORT,
   ),
-  supportRepliesController.getSupportRepliesById,
+  supportRepliesController.updateSupportById,
 );
 
 router.delete(

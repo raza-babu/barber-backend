@@ -50,9 +50,9 @@ const getSupportRepliesList = (0, catchAsync_1.default)((req, res) => __awaiter(
         meta: result.meta,
     });
 }));
-const getSupportRepliesById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const updateSupportById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield supportReplies_service_1.supportRepliesService.getSupportRepliesByIdFromDb(req.params.id);
+    const result = yield supportReplies_service_1.supportRepliesService.updateSupportByIdFromDb(user.id, req.params.id, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -124,7 +124,7 @@ const deleteSupportReplies = (0, catchAsync_1.default)((req, res) => __awaiter(v
 exports.supportRepliesController = {
     createSupportReplies,
     getSupportRepliesList,
-    getSupportRepliesById,
+    updateSupportById,
     updateSupportReplies,
     deleteSupportReplies,
     getSpecificRepliesById,

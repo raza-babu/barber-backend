@@ -3,13 +3,19 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import emailSender from '../../utils/emailSender';
-import { ReplyStatus, ReplyType, SupportStatus, SupportType } from '@prisma/client';
+import {
+  ReplyStatus,
+  ReplyType,
+  SupportStatus,
+  SupportType,
+} from '@prisma/client';
 import {
   calculatePagination,
   formatPaginationResponse,
 } from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { date } from 'zod';
 
 const createSupportRepliesIntoDb = async (userId: string, data: any) => {
   const user = await prisma.user.findUnique({
@@ -159,30 +165,14 @@ const getSupportRepliesListFromDb = async (
     message: reply.message,
     status: reply.status,
     type: reply.type,
-    userPhoneNumber: reply.user.phoneNumber,  
+    userPhoneNumber: reply.user.phoneNumber,
     userAddress: reply.user.address,
   }));
-
 
   return formatPaginationResponse(flattenFormattedReplies, total, page, limit);
 };
 
-const getSupportRepliesByIdFromDb = async (supportRepliesId: string) => {
-  const result = await prisma.support.update({
-    where: {
-      id: supportRepliesId,
-    },
-    data: {
-      status: SupportStatus.IN_PROGRESS,
-    },
-  });
-  if (!result) {
-    return { message: 'Support item is not found' };
-  }
-  return result;
-};
-
-const updateSupportRepliesIntoDb = async (
+const updateSupportByIdFromDb = async (
   userId: string,
   supportRepliesId: string,
   data: {
@@ -190,7 +180,19 @@ const updateSupportRepliesIntoDb = async (
     message: string;
   },
 ) => {
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async tx => {
+    const result = await tx.support.update({
+      where: {
+        id: supportRepliesId,
+      },
+      data: {
+        status: SupportStatus.CLOSED,
+      },
+    });
+    if (!result) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Support item is not found');
+    }
+
     const userData = await tx.user.findUnique({
       where: {
         id: data.userId,
@@ -211,6 +213,7 @@ const updateSupportRepliesIntoDb = async (
     if (!userData) {
       throw new AppError(httpStatus.NOT_FOUND, 'User not found');
     }
+
     await emailSender(
       'Barbers Time - Support',
       userData.email!,
@@ -218,7 +221,7 @@ const updateSupportRepliesIntoDb = async (
       <table width="100%" style="border-collapse: collapse;">
       <tr>
         <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
-          <h2 style="margin: 0; font-size: 24px;">${userData.Support[0]?.message ?? ''}</h2>
+          <h2 style="margin: 0; font-size: 24px;">Support from Barber Time</h2>
         </td>
       </tr>
       <tr>
@@ -226,7 +229,105 @@ const updateSupportRepliesIntoDb = async (
           <p style="font-size: 16px; margin: 0;">Hello <strong>${
             userData.fullName
           }</strong>,</p>
-          <p style="font-size: 16px;">Hope your doing well.</p>
+          <p style="font-size: 16px;">Your message: ${result.message}</p>
+          <div style="text-align: center; margin: 20px 0;">
+            <p style="font-size: 18px;" >${data.message}</p>
+          </div>
+          <p style="font-size: 14px; color: #555;">If you did not request this support, please ignore this email. No further action is needed.</p>
+          <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>Barbers Time</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
+          <p style="margin: 0;">&copy; ${new Date().getFullYear()} Barbers Team. All rights reserved.</p>
+        </td>
+      </tr>
+      </table>
+    </div>
+      `,
+    );
+
+    const existingReply = await tx.reply.findFirst({
+      where: {
+        supportId: supportRepliesId,
+        type: ReplyType.SUPPORT,
+      },
+    });
+    if (existingReply) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Reply already exists');
+    }
+
+    const updateReplies = await tx.reply.create({
+      data: {
+        userId: userId,
+        supportId: supportRepliesId,
+        status: ReplyStatus.CLOSED,
+        type: ReplyType.SUPPORT,
+        message: data.message,
+      },
+    });
+    if (!updateReplies) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Reply not created');
+    }
+
+    return updateReplies;
+  });
+};
+
+
+
+const updateSupportRepliesIntoDb = async (
+  userId: string,
+  supportRepliesId: string,
+  data: {
+    userId: string;
+    message: string;
+  },
+) => {
+
+  const userData = await prisma.user.findUnique({
+      where: {
+        id: data.userId
+      },
+    });
+    if (!userData) {
+      throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+    }
+
+  return await prisma.$transaction(async tx => {
+    
+    const supportData = await tx.support.findUnique({
+      where: {
+        id: supportRepliesId,
+        userId: data.userId,
+      },
+      select: {
+        id: true,
+        message: true,
+        userId: true,
+        userName: true,
+        type: true,
+      },
+    });
+    if (!supportData) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Support item not found');
+    }
+    await emailSender(
+      'Barbers Time - Support',
+      userData.email!,
+      `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+      <table width="100%" style="border-collapse: collapse;">
+      <tr>
+        <td style="background-color: #E98F5A; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
+          <h2 style="margin: 0; font-size: 24px;">Support From Barber Time</h2>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 20px;">
+          <p style="font-size: 16px; margin: 0;">Hello <strong>${
+            userData.fullName
+          }</strong>,</p>
+          <p style="font-size: 16px;">${supportData.message }.</p>
           <div style="text-align: center; margin: 20px 0;">
             <p style="font-size: 18px;" >${data.message!}</p>
           </div>
@@ -258,16 +359,16 @@ const updateSupportRepliesIntoDb = async (
     const reportUpdate = await tx.reply.create({
       data: {
         userId: userId,
-        supportId: supportRepliesId,
+        reportId: supportRepliesId,
         message: data.message,
-        type: userData.Support[0].type === SupportType.CUSTOMER_COMPLAINT ? ReplyType.REPORT : ReplyType.SUPPORT,
+        type: ReplyType.REPORT,
         status: ReplyStatus.CLOSED,
       },
     });
     if (!reportUpdate) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Reply not created');
     }
-    return result;
+    return reportUpdate;
   });
 };
 
@@ -277,8 +378,8 @@ const getSpecificRepliesByIdFromDb = async (
 ) => {
   const result = await prisma.reply.findFirst({
     where: {
-      supportId: supportRepliesId,
-    },  
+      reportId: supportRepliesId,
+    },
     select: {
       id: true,
       userId: true,
@@ -294,14 +395,13 @@ const getSpecificRepliesByIdFromDb = async (
 
   return {
     id: result.id,
-    supportId : result.supportId,
+    supportId: result.supportId,
     userId: result.userId,
     message: result.message,
     status: result.status,
     type: result.type,
   };
 };
-
 
 const getSpecificSupportReplyByIdFromDb = async (
   userId: string,
@@ -311,7 +411,7 @@ const getSpecificSupportReplyByIdFromDb = async (
     where: {
       supportId: supportRepliesId,
       // userId: userId,
-    },  
+    },
     select: {
       id: true,
       userId: true,
@@ -332,8 +432,6 @@ const getSpecificSupportReplyByIdFromDb = async (
     type: result.type,
   };
 };
-
-
 
 const deleteSupportRepliesItemFromDb = async (
   userId: string,
@@ -357,7 +455,7 @@ const deleteSupportRepliesItemFromDb = async (
 export const supportRepliesService = {
   createSupportRepliesIntoDb,
   getSupportRepliesListFromDb,
-  getSupportRepliesByIdFromDb,
+  updateSupportByIdFromDb,
   updateSupportRepliesIntoDb,
   deleteSupportRepliesItemFromDb,
   getSpecificRepliesByIdFromDb,

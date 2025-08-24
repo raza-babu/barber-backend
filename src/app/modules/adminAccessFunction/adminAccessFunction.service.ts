@@ -96,90 +96,53 @@ const createAdminAccessFunctionIntoDb = async (
   });
 };
 
-const getAdminAccessFunctionListFromDb = async (
-  options: ISearchAndFilterOptions,
-) => {
+const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions = {}) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
-  // Build where clause for admin filtering
-  const adminWhereClauseFromQuery = buildCompleteQuery(
-    {
-      searchTerm: options.searchTerm,
-      searchFields: ['user.fullName', 'user.email'],
-    },
-    {
-      'user.role': options.role,
-      isSuperAdmin:
-        options.isSuperAdmin === true
-          ? true
-          : options.isSuperAdmin === false
-            ? false
-            : undefined,
-    },
-    {
-      startDate: options.startDate,
-      endDate: options.endDate,
-      dateField: 'user.createdAt',
-    },
-  );
-
-  // Handle nested user search separately due to Prisma limitations
-  let userWhereClause: any = {};
+  // Build user search and filter
+  let userWhere: any = {};
   if (options.searchTerm) {
-    userWhereClause = {
-      OR: [
-        {
-          fullName: {
-            contains: options.searchTerm,
-            mode: 'insensitive' as const,
-          },
+    userWhere.OR = [
+      {
+        fullName: {
+          contains: options.searchTerm,
+          mode: 'insensitive' as const,
         },
-        {
-          email: {
-            contains: options.searchTerm,
-            mode: 'insensitive' as const,
-          },
+      },
+      {
+        email: {
+          contains: options.searchTerm,
+          mode: 'insensitive' as const,
         },
-      ],
-    };
+      },
+    ];
   }
-
-  // Add role filter
   if (options.role) {
-    userWhereClause.role = options.role;
+    userWhere.role = options.role;
   }
-
-  // Add date range filter for user
   if (options.startDate || options.endDate) {
-    userWhereClause.createdAt = {};
-    if (options.startDate) {
-      userWhereClause.createdAt.gte = new Date(options.startDate);
-    }
-    if (options.endDate) {
-      userWhereClause.createdAt.lte = new Date(options.endDate);
-    }
+    userWhere.createdAt = {};
+    if (options.startDate) userWhere.createdAt.gte = new Date(options.startDate);
+    if (options.endDate) userWhere.createdAt.lte = new Date(options.endDate);
   }
 
-  // Build admin where clause
-  let adminWhereClause: any = {};
+  // Build admin filter
+  let adminWhere: any = {};
   if (options.isSuperAdmin !== undefined) {
-    adminWhereClause.isSuperAdmin = options.isSuperAdmin === 'true' ;
+    adminWhere.isSuperAdmin = options.isSuperAdmin === 'true';
   }
-
-  // Add user filter to admin where clause
-  if (Object.keys(userWhereClause).length > 0) {
-    adminWhereClause.user = userWhereClause;
+  if (Object.keys(userWhere).length > 0) {
+    adminWhere.user = userWhere;
   }
 
   const [admins, total] = await Promise.all([
     prisma.admin.findMany({
-      where: adminWhereClause,
+      where: adminWhere,
       skip,
       take: limit,
       orderBy: {
         user: {
-          [sortBy === 'fullName' || sortBy === 'email' ? sortBy : 'createdAt']:
-            sortOrder,
+          [sortBy === 'fullName' || sortBy === 'email' ? sortBy : 'createdAt']: sortOrder,
         },
       },
       include: {
@@ -206,26 +169,32 @@ const getAdminAccessFunctionListFromDb = async (
       },
     }),
     prisma.admin.count({
-      where: adminWhereClause,
+      where: adminWhere,
     }),
   ]);
 
-  // Transform the data
-  const transformedData = admins.map(admin => ({
-    adminId: admin.userId,
-    information: admin.user,
-    role: admin.user.role,
-    isSuperAdmin: admin.isSuperAdmin,
-    accesses:
-      admin.AdminAccessFunction?.map(item => ({
-        accessFunctionId: item.accessFunction?.id,
-        function: item.accessFunction?.function,
-        adminAccessFunctionId: item.id,
-      })) || [],
-  }));
+  const data = admins.map(admin => {
+    const accesses = (admin.AdminAccessFunction || []).map(item => ({
+      accessFunctionId: item.accessFunction?.id,
+      function: item.accessFunction?.function,
+      // adminAccessFunctionId: item.id,
+    }));
 
-  return formatPaginationResponse(transformedData, total, page, limit);
+    return {
+      adminId: admin.userId,
+      adminName: admin.user?.fullName,
+      adminEmail: admin.user?.email,
+      adminImage: admin.user?.image,
+      
+      role: admin.user?.role,
+      isSuperAdmin: admin.isSuperAdmin,
+      accesses,
+    };
+  });
+
+  return formatPaginationResponse(data, total, page, limit);
 };
+
 
 const getAdminAccessFunctionByIdFromDb = async (adminId: string) => {
   const result = await prisma.admin.findUnique({
@@ -345,7 +314,7 @@ const deleteAdminAccessFunctionItemFromDb = async (
 export const adminAccessFunctionService = {
   createAdminAccessFunctionIntoDb,
   getAdminAccessFunctionListFromDb,
-  getAdminAccessFunctionByIdFromDb ,
+  getAdminAccessFunctionByIdFromDb,
   updateAdminAccessFunctionIntoDb,
   deleteAdminAccessFunctionItemFromDb,
 };
