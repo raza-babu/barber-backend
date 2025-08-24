@@ -17,6 +17,7 @@ model User {
   otpExpiry         DateTime?
   fcmToken          String?
   fcmTokenEx        String?
+  stripeCustomerId  String?
   followerCount     Int           @default(0)
   followingCount    Int           @default(0)
   createdAt         DateTime      @default(now())

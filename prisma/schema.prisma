@@ -372,6 +372,7 @@ model Booking {
   LoyaltyRedemption LoyaltyRedemption[]
   BookedServices    BookedServices[]
   Review            Review[]
+  Payment           Payment[]
 
   @@map("bookings")
 }
@@ -725,6 +726,23 @@ model Notification {
 }
 
 
+model Payment {
+  id                       String        @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId                String
+  paymentAmount            Float
+  bookingId                String        @db.ObjectId
+  paymentDate              DateTime      @default(now())
+  stripeCustomerIdProvider String
+  stripeAccountIdReceiver  String
+  status                   PaymentStatus @default(PENDING)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
 model PrivacyPolicy {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @db.ObjectId
@@ -1020,16 +1038,18 @@ model Service {
 
 
 model SubscriptionOffer {
-  id          String           @id @default(auto()) @map("_id") @db.ObjectId
-  title       String
-  description String?
-  price       Float
-  currency    String?          @default("usd")
-  duration    SubscriptionType
-  status      UserStatus       @default(ACTIVE)
-  userId      String           @db.ObjectId
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String           @db.ObjectId
+  title           String
+  description     String?
+  price           Float
+  currency        String?          @default("usd")
+  duration        SubscriptionType
+  status          UserStatus       @default(ACTIVE)
+  stripeProductId String?
+  stripePriceId   String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   // Relationships
   creator          User               @relation(fields: [userId], references: [id])
@@ -1112,6 +1132,7 @@ model User {
   otpExpiry         DateTime?
   fcmToken          String?
   fcmTokenEx        String?
+  stripeCustomerId  String?
   followerCount     Int           @default(0)
   followingCount    Int           @default(0)
   createdAt         DateTime      @default(now())

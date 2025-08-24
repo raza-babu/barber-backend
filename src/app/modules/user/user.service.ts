@@ -8,6 +8,13 @@ import AppError from '../../errors/AppError';
 import emailSender from '../../utils/emailSender';
 import { generateToken, refreshToken } from '../../utils/generateToken';
 import prisma from '../../utils/prisma';
+import Stripe from 'stripe';
+
+// Initialize Stripe with your secret API key
+const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
+  apiVersion: '2025-07-30.basil',
+});
+
 
 interface UserWithOptionalPassword extends Omit<User, 'password'> {
   password?: string;
@@ -617,6 +624,23 @@ const verifyOtpInDB = async (bodyData: {
     where: { email: bodyData.email },
     data: updateData,
   });
+
+   // Create a new Stripe customer
+    const customer = await stripe.customers.create({
+      name: userData.fullName,
+      email: userData.email,
+      address: {
+        city: userData.address ?? 'City', // You can modify this as needed
+        country: 'America', // You can modify this as needed
+      },
+      metadata: {
+        userId: userData.id,
+        role: userData.role,
+      },
+    });
+    if (!customer || !customer.id) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Stripe customer not created!');
+    }
 
   return { message: 'OTP verified successfully!' };
 };

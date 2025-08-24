@@ -1,0 +1,16 @@
+model Payment {
+  id                       String        @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId                String
+  paymentAmount            Float
+  bookingId                String        @db.ObjectId
+  paymentDate              DateTime      @default(now())
+  stripeCustomerIdProvider String
+  stripeAccountIdReceiver  String
+  status                   PaymentStatus @default(PENDING)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}

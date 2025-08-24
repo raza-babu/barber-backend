@@ -25,10 +25,10 @@ const updateSubscriptionOfferSchema = z.object({
     description: z.string().optional(),
     price: z.number().optional(),
     currency: z.string().optional(),
-    duration: z.nativeEnum(SubscriptionType, {
-      required_error: 'Duration is required!',
-      invalid_type_error: 'Duration must be a valid enum value!', 
-    }).optional(),
+    // duration: z.nativeEnum(SubscriptionType, {
+    //   required_error: 'Duration is required!',
+    //   invalid_type_error: 'Duration must be a valid enum value!', 
+    // }).optional(),
   }),
 });
 export const subscriptionOfferValidation = {
