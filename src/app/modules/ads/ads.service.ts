@@ -81,7 +81,7 @@ const updateAdsIntoDb = async (userId: string, adsId: string, data: any) => {
   const result = await prisma.ads.update({
     where: {
       id: adsId,
-      userId: userId,
+      // userId: userId,
     },
     data: updateData,
   });

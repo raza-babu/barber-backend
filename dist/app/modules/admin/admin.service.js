@@ -514,6 +514,48 @@ const getAdminDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, fu
         })),
     };
 });
+const getSubscribersListFromDb = (userId, options) => __awaiter(void 0, void 0, void 0, function* () {
+    const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
+    const whereClause = (0, searchFilter_1.buildCompleteQuery)({
+        searchTerm: options.searchTerm,
+        searchFields: ['fullName', 'email', 'phoneNumber'],
+    }, {
+        role: client_1.UserRoleEnum.SALOON_OWNER,
+        status: client_1.UserStatus.ACTIVE,
+    }, {
+        startDate: options.startDate,
+        endDate: options.endDate,
+        dateField: 'createdAt',
+    });
+    const [subscribers, total] = yield Promise.all([
+        prisma_1.default.user.findMany({
+            where: Object.assign(Object.assign({}, whereClause), { UserSubscription: {
+                    some: {
+                        paymentStatus: client_1.PaymentStatus.COMPLETED, // active subscription
+                        endDate: { gte: new Date() }, // optional: not expired
+                    },
+                } }),
+            skip,
+            take: limit,
+            orderBy: { [sortBy]: sortOrder },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phoneNumber: true,
+            },
+        }),
+        prisma_1.default.user.count({
+            where: Object.assign(Object.assign({}, whereClause), { UserSubscription: {
+                    some: {
+                        paymentStatus: client_1.PaymentStatus.COMPLETED,
+                        endDate: { gte: new Date() },
+                    },
+                } }),
+        }),
+    ]);
+    return (0, pagination_1.formatPaginationResponse)(subscribers, total, page, limit);
+});
 exports.adminService = {
     getSaloonFromDb,
     getSaloonByIdFromDb,
@@ -525,4 +567,5 @@ exports.adminService = {
     blockCustomerByIdIntoDb,
     updateSaloonOwnerByIdIntoDb,
     getAdminDashboardFromDb,
+    getSubscribersListFromDb,
 };

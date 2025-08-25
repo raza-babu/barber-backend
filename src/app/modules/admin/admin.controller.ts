@@ -155,6 +155,27 @@ const getAdminDashboard = catchAsync(async (req, res) => {
   });
 });
 
+const getSubscribersList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy', 
+    'sortOrder',
+    'searchTerm',
+    'startDate',
+    'endDate',
+  ]); 
+  const result = await adminService.getSubscribersListFromDb(user.id, filters);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Subscribers list retrieved successfully',
+    data: result.data,  
+    meta: result.meta,
+  }); 
+});
+
 
 
 export const adminController = {
@@ -168,4 +189,5 @@ export const adminController = {
   blockCustomerById,
   updateSaloonOwnerById,
   getAdminDashboard,
+  getSubscribersList,
 };

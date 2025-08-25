@@ -153,6 +153,26 @@ const getAdminDashboard = (0, catchAsync_1.default)((req, res) => __awaiter(void
         data: result,
     });
 }));
+const getSubscribersList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const filters = (0, pickValidFields_1.pickValidFields)(req.query, [
+        'page',
+        'limit',
+        'sortBy',
+        'sortOrder',
+        'searchTerm',
+        'startDate',
+        'endDate',
+    ]);
+    const result = yield admin_service_1.adminService.getSubscribersListFromDb(user.id, filters);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Subscribers list retrieved successfully',
+        data: result.data,
+        meta: result.meta,
+    });
+}));
 exports.adminController = {
     getSaloonList,
     getSaloonById,
@@ -164,4 +184,5 @@ exports.adminController = {
     blockCustomerById,
     updateSaloonOwnerById,
     getAdminDashboard,
+    getSubscribersList,
 };

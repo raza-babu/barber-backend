@@ -105,5 +105,14 @@ router.patch(
 );
 
 
+router.get(
+  '/subscribers',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.PREMIUM_SUBSCRIBERS,
+  ),
+  adminController.getSubscribersList,
+);
+
 
 export const adminRoutes = router;

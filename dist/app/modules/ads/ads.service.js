@@ -84,7 +84,7 @@ const updateAdsIntoDb = (userId, adsId, data) => __awaiter(void 0, void 0, void 
     const result = yield prisma_1.default.ads.update({
         where: {
             id: adsId,
-            userId: userId,
+            // userId: userId,
         },
         data: updateData,
     });

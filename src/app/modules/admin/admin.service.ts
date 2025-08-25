@@ -1,5 +1,5 @@
 import prisma from '../../utils/prisma';
-import { BookingStatus, UserRoleEnum, UserStatus } from '@prisma/client';
+import { BookingStatus, PaymentStatus, UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import {
@@ -581,6 +581,63 @@ const getAdminDashboardFromDb = async (userId: string) => {
   };
 };
 
+const getSubscribersListFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  const whereClause = buildCompleteQuery(
+    {
+      searchTerm: options.searchTerm,
+      searchFields: ['fullName', 'email', 'phoneNumber'],
+    },
+    {
+      role: UserRoleEnum.SALOON_OWNER,
+      status: UserStatus.ACTIVE,
+    },
+    {
+      startDate: options.startDate,
+      endDate: options.endDate,
+      dateField: 'createdAt',
+    },
+  );
+  const [subscribers, total] = await Promise.all([
+  prisma.user.findMany({
+    where: {
+      ...whereClause,
+      UserSubscription: {
+        some: {
+          paymentStatus: PaymentStatus.COMPLETED, // active subscription
+          endDate: { gte: new Date() },          // optional: not expired
+        },
+      },
+    },
+    skip,
+    take: limit,
+    orderBy: { [sortBy]: sortOrder },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phoneNumber: true,
+    },
+  }),
+  prisma.user.count({
+    where: {
+      ...whereClause,
+      UserSubscription: {
+        some: {
+          paymentStatus: PaymentStatus.COMPLETED,
+          endDate: { gte: new Date() },
+        },
+      },
+    },
+  }),
+]);
+
+  return formatPaginationResponse(subscribers, total, page, limit);
+};
+
 export const adminService = {
   getSaloonFromDb,
   getSaloonByIdFromDb,
@@ -592,4 +649,5 @@ export const adminService = {
   blockCustomerByIdIntoDb,
   updateSaloonOwnerByIdIntoDb,
   getAdminDashboardFromDb,
+  getSubscribersListFromDb,
 };
