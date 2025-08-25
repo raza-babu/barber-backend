@@ -298,82 +298,82 @@ const updateAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
         return updatedAccesses;
     }));
 });
-const deleteAdminAccessFunctionItemFromDb = (userId, adminId) => __awaiter(void 0, void 0, void 0, function* () {
+const deleteAdminAccessFunctionItemFromDb = (callerUserId, // The admin who is performing the delete
+targetUserId) => __awaiter(void 0, void 0, void 0, function* () {
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        const systemOwnerFind = yield tx.admin.findUnique({
-            where: {
-                userId: userId,
+        /**
+         * STEP 1: Find the caller (the one requesting deletion)
+         */
+        const caller = yield tx.admin.findUnique({
+            where: { userId: callerUserId },
+            select: {
+                id: true,
+                userId: true,
                 isSuperAdmin: true,
                 systemOwner: true,
             },
         });
-        if (systemOwnerFind) {
-            const findSuperAdmin = yield tx.admin.findUnique({
-                where: { userId: adminId, isSuperAdmin: true },
-            });
-            if (findSuperAdmin) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot delete access functions for super admin');
-            }
-            const deleteAdmin = yield tx.admin.delete({
-                where: { userId: adminId, systemOwner: false, isSuperAdmin: false },
-            });
-            if (!deleteAdmin) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Admin not deleted');
-            }
-            const deleteUser = yield tx.user.delete({
-                where: { id: deleteAdmin.userId },
-            });
-            if (!deleteUser) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'User not deleted');
-            }
-            return deleteAdmin;
+        if (!caller) {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Caller is not a valid admin');
         }
-        if (!systemOwnerFind) {
-            const admin = yield tx.admin.findUnique({
-                where: { userId: adminId },
-                select: { isSuperAdmin: true, systemOwner: true },
-            });
-            if (!admin) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Admin not found');
-            }
-            if (admin.isSuperAdmin) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot delete access functions for super admin');
-            }
-            if (admin.systemOwner) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot delete system owner admin');
-            }
-            // Find the admin access function first
-            const existing = yield tx.adminAccessFunction.findMany({
-                where: {
-                    adminId: adminId,
-                },
-            });
-            if (existing.length === 0) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'adminAccessFunctionId not found');
-            }
-            // Delete the admin access functions in DB
-            const deletedItem = yield tx.adminAccessFunction.deleteMany({
-                where: {
-                    adminId: adminId,
-                },
-            });
-            if (deletedItem.count === 0) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'adminAccessFunctionId not deleted');
-            }
-            const deleteAdmin = yield tx.admin.delete({
-                where: { userId: adminId, systemOwner: false, isSuperAdmin: false },
-            });
-            if (!deleteAdmin) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Admin not deleted');
-            }
-            const deleteUser = yield tx.user.delete({
-                where: { id: deleteAdmin.userId },
-            });
-            if (!deleteUser) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'User not deleted');
-            }
-            return deleteAdmin;
+        /**
+         * STEP 2: Find the target (the one to be deleted)
+         */
+        const target = yield tx.admin.findUnique({
+            where: { userId: targetUserId },
+            select: {
+                id: true,
+                userId: true,
+                isSuperAdmin: true,
+                systemOwner: true,
+            },
+        });
+        if (!target) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Target admin not found');
         }
+        /**
+         * STEP 3: Apply business rules for deletion
+         */
+        if (caller.userId === target.userId) {
+            // Prevent self-deletion (system owner or super admin cannot delete themselves)
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You cannot delete yourself');
+        }
+        if (caller.systemOwner && caller.isSuperAdmin) {
+            //  System Owner Super Admin
+            // Can delete both normal admins and super admins (except himself, already checked above)
+        }
+        else if (caller.isSuperAdmin) {
+            //  Normal Super Admin
+            // Can delete only regular admins
+            if (target.isSuperAdmin || target.systemOwner) {
+                throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Super admins cannot delete other super admins or the system owner');
+            }
+        }
+        else {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Admins cannot delete anyone');
+        }
+        /**
+         * STEP 4: Delete all related access functions (cleanup first)
+         */
+        yield tx.adminAccessFunction.deleteMany({
+            where: { adminId: target.userId },
+        });
+        /**
+         * STEP 5: Delete target admin entry
+         */
+        const deletedAdmin = yield tx.admin.delete({
+            where: { userId: target.userId },
+        });
+        /**
+         * STEP 6: Delete target user record as well
+         */
+        yield tx.user.delete({
+            where: { id: target.userId },
+        });
+        /**
+         * STEP 7: Return deleted admin record
+         */
+        return deletedAdmin;
     }));
 });
 exports.adminAccessFunctionService = {

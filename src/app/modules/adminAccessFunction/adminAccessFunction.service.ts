@@ -310,103 +310,96 @@ const updateAdminAccessFunctionIntoDb = async (
 };
 
 const deleteAdminAccessFunctionItemFromDb = async (
-  userId: string,
-  adminId: string,
+  callerUserId: string, // The admin who is performing the delete
+  targetUserId: string, // The admin who will be deleted
 ) => {
   return await prisma.$transaction(async tx => {
-    const systemOwnerFind = await tx.admin.findUnique({
-      where: {
-        userId: userId,
+    /**
+     * STEP 1: Find the caller (the one requesting deletion)
+     */
+    const caller = await tx.admin.findUnique({
+      where: { userId: callerUserId },
+      select: {
+        id: true,
+        userId: true,
         isSuperAdmin: true,
         systemOwner: true,
       },
     });
-    if (systemOwnerFind) {
-      const findSuperAdmin = await tx.admin.findUnique({
-        where: { userId: adminId, isSuperAdmin: true },
-      });
-      if (findSuperAdmin) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Cannot delete access functions for super admin',
-        );
-      }
-      const deleteAdmin = await tx.admin.delete({
-        where: { userId: adminId, systemOwner: false, isSuperAdmin: false },
-      });
-      if (!deleteAdmin) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Admin not deleted');
-      }
-      const deleteUser = await tx.user.delete({
-        where: { id: deleteAdmin.userId },
-      });
-      if (!deleteUser) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'User not deleted');
-      }
-      return deleteAdmin;
-    }
-    if (!systemOwnerFind) {
-      const admin = await tx.admin.findUnique({
-        where: { userId: adminId },
-        select: { isSuperAdmin: true, systemOwner: true },
-      });
-      if (!admin) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Admin not found');
-      }
-      if (admin.isSuperAdmin) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Cannot delete access functions for super admin',
-        );
-      }
-      if (admin.systemOwner) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Cannot delete system owner admin',
-        );
-      }
 
-      // Find the admin access function first
-      const existing = await tx.adminAccessFunction.findMany({
-        where: {
-          adminId: adminId,
-        },
-      });
-      if (existing.length === 0) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'adminAccessFunctionId not found',
-        );
-      }
-
-      // Delete the admin access functions in DB
-      const deletedItem = await tx.adminAccessFunction.deleteMany({
-        where: {
-          adminId: adminId,
-        },
-      });
-      if (deletedItem.count === 0) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'adminAccessFunctionId not deleted',
-        );
-      }
-      const deleteAdmin = await tx.admin.delete({
-        where: { userId: adminId, systemOwner: false, isSuperAdmin: false },
-      });
-      if (!deleteAdmin) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Admin not deleted');
-      }
-      const deleteUser = await tx.user.delete({
-        where: { id: deleteAdmin.userId },
-      });
-      if (!deleteUser) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'User not deleted');
-      }
-      return deleteAdmin;
+    if (!caller) {
+      throw new AppError(httpStatus.FORBIDDEN, 'Caller is not a valid admin');
     }
+
+    /**
+     * STEP 2: Find the target (the one to be deleted)
+     */
+    const target = await tx.admin.findUnique({
+      where: { userId: targetUserId },
+      select: {
+        id: true,
+        userId: true,
+        isSuperAdmin: true,
+        systemOwner: true,
+      },
+    });
+
+    if (!target) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Target admin not found');
+    }
+
+    /**
+     * STEP 3: Apply business rules for deletion
+     */
+    if (caller.userId === target.userId) {
+      // Prevent self-deletion (system owner or super admin cannot delete themselves)
+      throw new AppError(httpStatus.FORBIDDEN, 'You cannot delete yourself');
+    }
+
+    if (caller.systemOwner && caller.isSuperAdmin) {
+      //  System Owner Super Admin
+      // Can delete both normal admins and super admins (except himself, already checked above)
+    } else if (caller.isSuperAdmin) {
+      //  Normal Super Admin
+      // Can delete only regular admins
+      if (target.isSuperAdmin || target.systemOwner) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          'Super admins cannot delete other super admins or the system owner',
+        );
+      }
+    } else {
+      throw new AppError(httpStatus.FORBIDDEN, 'Admins cannot delete anyone');
+    }
+
+    /**
+     * STEP 4: Delete all related access functions (cleanup first)
+     */
+    await tx.adminAccessFunction.deleteMany({
+      where: { adminId: target.userId },
+    });
+
+    /**
+     * STEP 5: Delete target admin entry
+     */
+    const deletedAdmin = await tx.admin.delete({
+      where: { userId: target.userId },
+    });
+
+    /**
+     * STEP 6: Delete target user record as well
+     */
+    await tx.user.delete({
+      where: { id: target.userId },
+    });
+
+    /**
+     * STEP 7: Return deleted admin record
+     */
+    return deletedAdmin;
   });
 };
+
 
 export const adminAccessFunctionService = {
   createAdminAccessFunctionIntoDb,
