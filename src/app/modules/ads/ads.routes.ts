@@ -17,7 +17,7 @@ router.post(
   parseBody,
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   checkPermissions(
-    UserAccessFunctionName.ADS_PROMOTIONS,
+    UserAccessFunctionName.ADS_PROMOTIONS ||
     UserAccessFunctionName.ALL,
   ),
   validateRequest(adsValidation.createAdsSchema),
@@ -28,7 +28,7 @@ router.get(
   '/',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN, UserRoleEnum.CUSTOMER),
   checkPermissions(
-    UserAccessFunctionName.ADS_PROMOTIONS,
+    UserAccessFunctionName.ADS_PROMOTIONS ||
     UserAccessFunctionName.ALL,
   ),
   adsController.getAdsList,
@@ -38,7 +38,7 @@ router.get(
   '/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN, UserRoleEnum.CUSTOMER),
   checkPermissions(
-    UserAccessFunctionName.ADS_PROMOTIONS,
+    UserAccessFunctionName.ADS_PROMOTIONS ||
     UserAccessFunctionName.ALL,
   ),
   adsController.getAdsById,
@@ -50,7 +50,7 @@ router.patch(
   parseBody,
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   checkPermissions(
-    UserAccessFunctionName.ADS_PROMOTIONS,
+    UserAccessFunctionName.ADS_PROMOTIONS ||
     UserAccessFunctionName.ALL,
   ),
   validateRequest(adsValidation.updateAdsSchema),
@@ -61,7 +61,7 @@ router.delete(
   '/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   checkPermissions(
-    UserAccessFunctionName.ADS_PROMOTIONS,
+    UserAccessFunctionName.ADS_PROMOTIONS ||
     UserAccessFunctionName.ALL,
   ),
   adsController.deleteAds,

@@ -15,9 +15,14 @@ const checkPermissions_1 = require("../../middlewares/checkPermissions");
 const access_1 = require("../../utils/access");
 const client_1 = require("@prisma/client");
 const router = express_1.default.Router();
-router.post('/', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), (0, validateRequest_1.default)(ads_validation_1.adsValidation.createAdsSchema), ads_controller_1.adsController.createAds);
-router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.CUSTOMER), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.getAdsList);
-router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.CUSTOMER), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.getAdsById);
-router.patch('/:id', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), (0, validateRequest_1.default)(ads_validation_1.adsValidation.updateAdsSchema), ads_controller_1.adsController.updateAds);
-router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS, access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.deleteAds);
+router.post('/', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS ||
+    access_1.UserAccessFunctionName.ALL), (0, validateRequest_1.default)(ads_validation_1.adsValidation.createAdsSchema), ads_controller_1.adsController.createAds);
+router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.CUSTOMER), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS ||
+    access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.getAdsList);
+router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.CUSTOMER), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS ||
+    access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.getAdsById);
+router.patch('/:id', multipleFile_1.multerUploadMultiple.fields([{ name: 'images', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS ||
+    access_1.UserAccessFunctionName.ALL), (0, validateRequest_1.default)(ads_validation_1.adsValidation.updateAdsSchema), ads_controller_1.adsController.updateAds);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ADS_PROMOTIONS ||
+    access_1.UserAccessFunctionName.ALL), ads_controller_1.adsController.deleteAds);
 exports.adsRoutes = router;
