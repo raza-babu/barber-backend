@@ -1,16 +1,18 @@
 model Payment {
   id                       String        @id @default(auto()) @map("_id") @db.ObjectId
-  paymentId                String
+  userId                   String        @db.ObjectId
+  stripePaymentIntentId    String
   paymentAmount            Float
-  bookingId                String        @db.ObjectId
+  bookingId                String?       @db.ObjectId
   paymentDate              DateTime      @default(now())
   stripeCustomerIdProvider String
-  stripeAccountIdReceiver  String
+  stripeAccountIdReceiver  String?
   status                   PaymentStatus @default(PENDING)
   createdAt                DateTime      @default(now())
   updatedAt                DateTime      @updatedAt
 
-  booking Booking @relation(fields: [bookingId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 
   @@map("payments")
 }

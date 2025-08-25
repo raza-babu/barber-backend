@@ -728,20 +728,23 @@ model Notification {
 
 model Payment {
   id                       String        @id @default(auto()) @map("_id") @db.ObjectId
-  paymentId                String
+  userId                   String        @db.ObjectId
+  stripePaymentIntentId    String
   paymentAmount            Float
-  bookingId                String        @db.ObjectId
+  bookingId                String?       @db.ObjectId
   paymentDate              DateTime      @default(now())
   stripeCustomerIdProvider String
-  stripeAccountIdReceiver  String
+  stripeAccountIdReceiver  String?
   status                   PaymentStatus @default(PENDING)
   createdAt                DateTime      @default(now())
   updatedAt                DateTime      @updatedAt
 
-  booking Booking @relation(fields: [bookingId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 
   @@map("payments")
 }
+
 
 model PrivacyPolicy {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -1133,6 +1136,8 @@ model User {
   fcmToken          String?
   fcmTokenEx        String?
   stripeCustomerId  String?
+  isSubscribed      Boolean       @default(false)
+  subscriptionEnd   DateTime?
   followerCount     Int           @default(0)
   followingCount    Int           @default(0)
   createdAt         DateTime      @default(now())
@@ -1185,20 +1190,22 @@ model User {
   BarberLunch         BarberLunch[]
   Lunch               Lunch[]
   TerminateBarber     TerminateBarber[]
+  Payment             Payment[]
 
   @@map("users")
 }
 
 
 model UserSubscription {
-  id                  String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId              String        @db.ObjectId
-  subscriptionOfferId String        @db.ObjectId
-  startDate           DateTime      @default(now())
-  endDate             DateTime
-  paymentStatus       PaymentStatus @default(PENDING)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId               String        @db.ObjectId
+  subscriptionOfferId  String        @db.ObjectId
+  startDate            DateTime      @default(now())
+  endDate              DateTime
+  stripeSubscriptionId String?
+  paymentStatus        PaymentStatus @default(PENDING)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   // Relationships
   user              User              @relation(fields: [userId], references: [id])

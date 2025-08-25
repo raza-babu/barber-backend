@@ -1,12 +1,13 @@
 model UserSubscription {
-  id                  String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId              String        @db.ObjectId
-  subscriptionOfferId String        @db.ObjectId
-  startDate           DateTime      @default(now())
-  endDate             DateTime
-  paymentStatus       PaymentStatus @default(PENDING)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId               String        @db.ObjectId
+  subscriptionOfferId  String        @db.ObjectId
+  startDate            DateTime      @default(now())
+  endDate              DateTime
+  stripeSubscriptionId String?
+  paymentStatus        PaymentStatus @default(PENDING)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   // Relationships
   user              User              @relation(fields: [userId], references: [id])

@@ -26,10 +26,10 @@ const updateSubscriptionOfferSchema = zod_1.z.object({
         description: zod_1.z.string().optional(),
         price: zod_1.z.number().optional(),
         currency: zod_1.z.string().optional(),
-        duration: zod_1.z.nativeEnum(client_1.SubscriptionType, {
-            required_error: 'Duration is required!',
-            invalid_type_error: 'Duration must be a valid enum value!',
-        }).optional(),
+        // duration: z.nativeEnum(SubscriptionType, {
+        //   required_error: 'Duration is required!',
+        //   invalid_type_error: 'Duration must be a valid enum value!', 
+        // }).optional(),
     }),
 });
 exports.subscriptionOfferValidation = {

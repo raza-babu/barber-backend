@@ -18,6 +18,8 @@ model User {
   fcmToken          String?
   fcmTokenEx        String?
   stripeCustomerId  String?
+  isSubscribed      Boolean       @default(false)
+  subscriptionEnd   DateTime?
   followerCount     Int           @default(0)
   followingCount    Int           @default(0)
   createdAt         DateTime      @default(now())
@@ -70,6 +72,7 @@ model User {
   BarberLunch         BarberLunch[]
   Lunch               Lunch[]
   TerminateBarber     TerminateBarber[]
+  Payment             Payment[]
 
   @@map("users")
 }

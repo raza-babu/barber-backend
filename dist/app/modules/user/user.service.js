@@ -55,6 +55,11 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const emailSender_1 = __importDefault(require("../../utils/emailSender"));
 const generateToken_1 = require("../../utils/generateToken");
 const prisma_1 = __importDefault(require("../../utils/prisma"));
+const stripe_1 = __importDefault(require("stripe"));
+// Initialize Stripe with your secret API key
+const stripe = new stripe_1.default(config_1.default.stripe.stripe_secret_key, {
+    apiVersion: '2025-07-30.basil',
+});
 const registerUserIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     if (payload.email) {
         const existingUser = yield prisma_1.default.user.findUnique({
@@ -499,6 +504,7 @@ const resendOtpIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function*
 });
 // verify otp
 const verifyOtpInDB = (bodyData) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const userData = yield prisma_1.default.user.findUnique({
         where: { email: bodyData.email },
     });
@@ -539,6 +545,22 @@ const verifyOtpInDB = (bodyData) => __awaiter(void 0, void 0, void 0, function* 
         where: { email: bodyData.email },
         data: updateData,
     });
+    // Create a new Stripe customer
+    const customer = yield stripe.customers.create({
+        name: userData.fullName,
+        email: userData.email,
+        address: {
+            city: (_a = userData.address) !== null && _a !== void 0 ? _a : 'City', // You can modify this as needed
+            country: 'America', // You can modify this as needed
+        },
+        metadata: {
+            userId: userData.id,
+            role: userData.role,
+        },
+    });
+    if (!customer || !customer.id) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Stripe customer not created!');
+    }
     return { message: 'OTP verified successfully!' };
 });
 // verify otp

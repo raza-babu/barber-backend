@@ -55,10 +55,11 @@ const createAdminAccessFunctionIntoDb = async (
     }
 
     // 2. Create Admin
+    const isSuperAdmin = data.role === UserRoleEnum.SUPER_ADMIN;
     const newAdmin = await tx.admin.create({
       data: {
         userId: newUser.id,
-        isSuperAdmin: data.role === UserRoleEnum.SUPER_ADMIN ? true : false,
+        isSuperAdmin,
       },
     });
 
@@ -66,9 +67,10 @@ const createAdminAccessFunctionIntoDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Admin not created');
     }
 
-    // 3. Create Admin Access Functions
-    if (data.function && data.function.length > 0) {
-      const result = await tx.adminAccessFunction.createMany({
+    // 3. Create Admin Access Functions only if not super admin
+    let accessFunctionsResult = null;
+    if (!isSuperAdmin && data.function && data.function.length > 0) {
+      accessFunctionsResult = await tx.adminAccessFunction.createMany({
         data: data.function.map(func => ({
           userId: userId,
           adminId: newAdmin.userId,
@@ -76,23 +78,24 @@ const createAdminAccessFunctionIntoDb = async (
         })),
       });
 
-      if (!result) {
+      if (!accessFunctionsResult) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
           'Failed to create access functions',
         );
       }
-      return {
-        user: {
-          fullName: newUser.fullName,
-          email: newUser.email,
-          image: newUser.image,
-          role: newUser.role,
-        },
-        admin: newAdmin,
-        accessFunctions: result,
-      };
     }
+
+    return {
+      user: {
+        fullName: newUser.fullName,
+        email: newUser.email,
+        image: newUser.image,
+        role: newUser.role,
+      },
+      admin: newAdmin,
+      accessFunctions: accessFunctionsResult,
+    };
   });
 };
 
@@ -246,6 +249,17 @@ const updateAdminAccessFunctionIntoDb = async (
   userId: string,
   data: { adminId: string; function: string[] },
 ) => {
+  // Check if the admin is a super admin
+  const admin = await prisma.admin.findUnique({
+    where: { userId: data.adminId },
+    select: { isSuperAdmin: true },
+  });
+
+  if (admin?.isSuperAdmin) {
+    // No operation needed for super admin
+    return [];
+  }
+
   return await prisma.$transaction(async tx => {
     // 1. Delete existing accesses for this admin
     await tx.adminAccessFunction.deleteMany({
@@ -256,7 +270,6 @@ const updateAdminAccessFunctionIntoDb = async (
     });
 
     // 2. Add new accesses
-
     const created = await tx.adminAccessFunction.createMany({
       data: data.function.map(func => ({
         userId: userId,

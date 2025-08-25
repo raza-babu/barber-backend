@@ -69,38 +69,40 @@ const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'User not created');
         }
         // 2. Create Admin
+        const isSuperAdmin = data.role === client_1.UserRoleEnum.SUPER_ADMIN;
         const newAdmin = yield tx.admin.create({
             data: {
                 userId: newUser.id,
-                isSuperAdmin: data.role === client_1.UserRoleEnum.SUPER_ADMIN ? true : false,
+                isSuperAdmin,
             },
         });
         if (!newAdmin) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Admin not created');
         }
-        // 3. Create Admin Access Functions
-        if (data.function && data.function.length > 0) {
-            const result = yield tx.adminAccessFunction.createMany({
+        // 3. Create Admin Access Functions only if not super admin
+        let accessFunctionsResult = null;
+        if (!isSuperAdmin && data.function && data.function.length > 0) {
+            accessFunctionsResult = yield tx.adminAccessFunction.createMany({
                 data: data.function.map(func => ({
                     userId: userId,
                     adminId: newAdmin.userId,
                     accessFunctionId: func,
                 })),
             });
-            if (!result) {
+            if (!accessFunctionsResult) {
                 throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Failed to create access functions');
             }
-            return {
-                user: {
-                    fullName: newUser.fullName,
-                    email: newUser.email,
-                    image: newUser.image,
-                    role: newUser.role,
-                },
-                admin: newAdmin,
-                accessFunctions: result,
-            };
         }
+        return {
+            user: {
+                fullName: newUser.fullName,
+                email: newUser.email,
+                image: newUser.image,
+                role: newUser.role,
+            },
+            admin: newAdmin,
+            accessFunctions: accessFunctionsResult,
+        };
     }));
 });
 const getAdminAccessFunctionListFromDb = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (options = {}) {
@@ -249,6 +251,15 @@ const getAdminAccessFunctionByIdFromDb = (adminId) => __awaiter(void 0, void 0, 
     };
 });
 const updateAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    // Check if the admin is a super admin
+    const admin = yield prisma_1.default.admin.findUnique({
+        where: { userId: data.adminId },
+        select: { isSuperAdmin: true },
+    });
+    if (admin === null || admin === void 0 ? void 0 : admin.isSuperAdmin) {
+        // No operation needed for super admin
+        return [];
+    }
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         // 1. Delete existing accesses for this admin
         yield tx.adminAccessFunction.deleteMany({
