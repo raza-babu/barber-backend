@@ -139,6 +139,14 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
                     },
                 },
             },
+            SaloonSchedule: {
+                select: {
+                    dayOfWeek: true,
+                    dayName: true,
+                    openingTime: true,
+                    closingTime: true,
+                },
+            },
             Service: {
                 select: {
                     id: true,
@@ -172,6 +180,7 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
         shopVideo: (saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.shopVideo) || null,
         ratingCount: (saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.ratingCount) || 0,
         avgRating: (saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.avgRating) || 0,
+        schedule: result.SaloonSchedule || [],
         barbers: ((_a = saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.Barber) === null || _a === void 0 ? void 0 : _a.map(barber => {
             var _a, _b, _c, _d;
             return ({

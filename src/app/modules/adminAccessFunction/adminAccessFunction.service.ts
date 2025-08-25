@@ -99,7 +99,9 @@ const createAdminAccessFunctionIntoDb = async (
   });
 };
 
-const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions = {}) => {
+const getAdminAccessFunctionListFromDb = async (
+  options: ISearchAndFilterOptions = {},
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
   // Build user search and filter
@@ -125,7 +127,8 @@ const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions
   }
   if (options.startDate || options.endDate) {
     userWhere.createdAt = {};
-    if (options.startDate) userWhere.createdAt.gte = new Date(options.startDate);
+    if (options.startDate)
+      userWhere.createdAt.gte = new Date(options.startDate);
     if (options.endDate) userWhere.createdAt.lte = new Date(options.endDate);
   }
 
@@ -145,7 +148,8 @@ const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions
       take: limit,
       orderBy: {
         user: {
-          [sortBy === 'fullName' || sortBy === 'email' ? sortBy : 'createdAt']: sortOrder,
+          [sortBy === 'fullName' || sortBy === 'email' ? sortBy : 'createdAt']:
+            sortOrder,
         },
       },
       include: {
@@ -188,7 +192,7 @@ const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions
       adminName: admin.user?.fullName,
       adminEmail: admin.user?.email,
       adminImage: admin.user?.image,
-      
+
       role: admin.user?.role,
       isSuperAdmin: admin.isSuperAdmin,
       accesses,
@@ -197,7 +201,6 @@ const getAdminAccessFunctionListFromDb = async (options: ISearchAndFilterOptions
 
   return formatPaginationResponse(data, total, page, limit);
 };
-
 
 const getAdminAccessFunctionByIdFromDb = async (adminId: string) => {
   const result = await prisma.admin.findUnique({
@@ -311,25 +314,98 @@ const deleteAdminAccessFunctionItemFromDb = async (
   adminId: string,
 ) => {
   return await prisma.$transaction(async tx => {
-    // Find the admin access function first
-    const existing = await tx.adminAccessFunction.findMany({
+    const systemOwnerFind = await tx.admin.findUnique({
       where: {
-        adminId: adminId,
+        userId: userId,
+        isSuperAdmin: true,
+        systemOwner: true,
       },
-    });  if (existing.length === 0) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'adminAccessFunctionId not found');
-      } 
+    });
+    if (systemOwnerFind) {
+      const findSuperAdmin = await tx.admin.findUnique({
+        where: { userId: adminId, isSuperAdmin: true },
+      });
+      if (findSuperAdmin) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Cannot delete access functions for super admin',
+        );
+      }
+      const deleteAdmin = await tx.admin.delete({
+        where: { userId: adminId, systemOwner: false, isSuperAdmin: false },
+      });
+      if (!deleteAdmin) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Admin not deleted');
+      }
+      const deleteUser = await tx.user.delete({
+        where: { id: deleteAdmin.userId },
+      });
+      if (!deleteUser) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'User not deleted');
+      }
+      return deleteAdmin;
+    }
+    if (!systemOwnerFind) {
+      const admin = await tx.admin.findUnique({
+        where: { userId: adminId },
+        select: { isSuperAdmin: true, systemOwner: true },
+      });
+      if (!admin) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Admin not found');
+      }
+      if (admin.isSuperAdmin) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Cannot delete access functions for super admin',
+        );
+      }
+      if (admin.systemOwner) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Cannot delete system owner admin',
+        );
+      }
+
+      // Find the admin access function first
+      const existing = await tx.adminAccessFunction.findMany({
+        where: {
+          adminId: adminId,
+        },
+      });
+      if (existing.length === 0) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'adminAccessFunctionId not found',
+        );
+      }
+
       // Delete the admin access functions in DB
       const deletedItem = await tx.adminAccessFunction.deleteMany({
         where: {
           adminId: adminId,
-          userId: userId,
         },
       });
       if (deletedItem.count === 0) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'adminAccessFunctionId not deleted');
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'adminAccessFunctionId not deleted',
+        );
       }
-    });
+      const deleteAdmin = await tx.admin.delete({
+        where: { userId: adminId, systemOwner: false, isSuperAdmin: false },
+      });
+      if (!deleteAdmin) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Admin not deleted');
+      }
+      const deleteUser = await tx.user.delete({
+        where: { id: deleteAdmin.userId },
+      });
+      if (!deleteUser) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'User not deleted');
+      }
+      return deleteAdmin;
+    }
+  });
 };
 
 export const adminAccessFunctionService = {

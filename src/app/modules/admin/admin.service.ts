@@ -140,8 +140,15 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
                 },
               },
             },
-
           },
+        },
+      },
+      SaloonSchedule: {
+        select: {
+          dayOfWeek: true,
+          dayName: true,
+          openingTime: true,
+          closingTime: true,
         },
       },
       Service: {
@@ -178,6 +185,7 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     shopVideo: saloonOwner?.shopVideo || null,
     ratingCount: saloonOwner?.ratingCount || 0,
     avgRating: saloonOwner?.avgRating || 0,
+    schedule: result.SaloonSchedule || [],
     barbers:
       saloonOwner?.Barber?.map(barber => ({
         barberId: barber.userId,
