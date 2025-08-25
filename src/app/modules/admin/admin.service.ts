@@ -133,6 +133,7 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
               user: {
                 select: {
                   id: true,
+                  image: true,
                   fullName: true,
                   email: true,
                   phoneNumber: true,
@@ -149,6 +150,7 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
           dayName: true,
           openingTime: true,
           closingTime: true,
+          isActive: true,
         },
       },
       Service: {

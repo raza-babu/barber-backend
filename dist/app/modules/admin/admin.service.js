@@ -129,6 +129,7 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
                             user: {
                                 select: {
                                     id: true,
+                                    image: true,
                                     fullName: true,
                                     email: true,
                                     phoneNumber: true,
@@ -145,6 +146,7 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
                     dayName: true,
                     openingTime: true,
                     closingTime: true,
+                    isActive: true,
                 },
             },
             Service: {
