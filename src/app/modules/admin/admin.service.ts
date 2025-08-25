@@ -121,6 +121,36 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
           shopVideo: true,
           ratingCount: true,
           avgRating: true,
+          Barber: {
+            select: {
+              userId: true,
+              portfolio: true,
+              experienceYears: true,
+              skills: true,
+              bio: true,
+              ratingCount: true,
+              avgRating: true,
+              user: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                  phoneNumber: true,
+                  status: true,
+                },
+              },
+            },
+
+          },
+        },
+      },
+      Service: {
+        select: {
+          id: true,
+          serviceName: true,
+          availableTo: true,
+          price: true,
+          duration: true,
         },
       },
     },
@@ -129,7 +159,9 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
   }
   // Handle SaloonOwner as array or object
-  const saloonOwner = Array.isArray(result.SaloonOwner) ? result.SaloonOwner[0] : result.SaloonOwner;
+  const saloonOwner = Array.isArray(result.SaloonOwner)
+    ? result.SaloonOwner[0]
+    : result.SaloonOwner;
 
   return {
     saloonOwnerIdd: result.id,
@@ -140,13 +172,27 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     isVerified: saloonOwner?.isVerified || false,
     shopAddress: saloonOwner?.shopAddress || '',
     shopName: saloonOwner?.shopName || '',
-    registrationNumber:
-      saloonOwner?.registrationNumber || '',
+    registrationNumber: saloonOwner?.registrationNumber || '',
     shopLogo: saloonOwner?.shopLogo || null,
     shopImages: saloonOwner?.shopImages || [],
     shopVideo: saloonOwner?.shopVideo || null,
     ratingCount: saloonOwner?.ratingCount || 0,
     avgRating: saloonOwner?.avgRating || 0,
+    barbers:
+      saloonOwner?.Barber?.map(barber => ({
+        barberId: barber.userId,
+        fullName: barber.user?.fullName || '',
+        email: barber.user?.email || '',
+        phoneNumber: barber.user?.phoneNumber || '',
+        status: barber.user?.status || 'INACTIVE',
+        portfolio: barber.portfolio || [],
+        experienceYears: barber.experienceYears || 0,
+        skills: barber.skills || [],
+        bio: barber.bio || '',
+        ratingCount: barber.ratingCount || 0,
+        avgRating: barber.avgRating || 0,
+      })) || [],
+    services: result.Service || [],
   };
 };
 

@@ -93,6 +93,7 @@ const getSaloonFromDb = (userId, options) => __awaiter(void 0, void 0, void 0, f
     return (0, pagination_1.formatPaginationResponse)(flattenedSaloons, total, page, limit);
 });
 const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const result = yield prisma_1.default.user.findUnique({
         where: {
             id: saloonOwnerId,
@@ -116,6 +117,35 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
                     shopVideo: true,
                     ratingCount: true,
                     avgRating: true,
+                    Barber: {
+                        select: {
+                            userId: true,
+                            portfolio: true,
+                            experienceYears: true,
+                            skills: true,
+                            bio: true,
+                            ratingCount: true,
+                            avgRating: true,
+                            user: {
+                                select: {
+                                    id: true,
+                                    fullName: true,
+                                    email: true,
+                                    phoneNumber: true,
+                                    status: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            Service: {
+                select: {
+                    id: true,
+                    serviceName: true,
+                    availableTo: true,
+                    price: true,
+                    duration: true,
                 },
             },
         },
@@ -124,7 +154,9 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon not found');
     }
     // Handle SaloonOwner as array or object
-    const saloonOwner = Array.isArray(result.SaloonOwner) ? result.SaloonOwner[0] : result.SaloonOwner;
+    const saloonOwner = Array.isArray(result.SaloonOwner)
+        ? result.SaloonOwner[0]
+        : result.SaloonOwner;
     return {
         saloonOwnerIdd: result.id,
         fullName: result.fullName,
@@ -140,6 +172,23 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
         shopVideo: (saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.shopVideo) || null,
         ratingCount: (saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.ratingCount) || 0,
         avgRating: (saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.avgRating) || 0,
+        barbers: ((_a = saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.Barber) === null || _a === void 0 ? void 0 : _a.map(barber => {
+            var _a, _b, _c, _d;
+            return ({
+                barberId: barber.userId,
+                fullName: ((_a = barber.user) === null || _a === void 0 ? void 0 : _a.fullName) || '',
+                email: ((_b = barber.user) === null || _b === void 0 ? void 0 : _b.email) || '',
+                phoneNumber: ((_c = barber.user) === null || _c === void 0 ? void 0 : _c.phoneNumber) || '',
+                status: ((_d = barber.user) === null || _d === void 0 ? void 0 : _d.status) || 'INACTIVE',
+                portfolio: barber.portfolio || [],
+                experienceYears: barber.experienceYears || 0,
+                skills: barber.skills || [],
+                bio: barber.bio || '',
+                ratingCount: barber.ratingCount || 0,
+                avgRating: barber.avgRating || 0,
+            });
+        })) || [],
+        services: result.Service || [],
     };
 });
 const blockSaloonByIdIntoDb = (saloonOwnerId, data) => __awaiter(void 0, void 0, void 0, function* () {
@@ -235,7 +284,7 @@ const getBarbersListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
     return (0, pagination_1.formatPaginationResponse)(flattenedBarbers, total, page, limit);
 });
 const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
+    var _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
     const result = yield prisma_1.default.user.findUnique({
         where: {
             id: barberId,
@@ -280,18 +329,18 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
         email: result.email,
         phoneNumber: result.phoneNumber,
         status: result.status,
-        portfolio: ((_a = result.Barber) === null || _a === void 0 ? void 0 : _a.portfolio) || [],
-        experienceYears: ((_b = result.Barber) === null || _b === void 0 ? void 0 : _b.experienceYears) || 0,
-        skills: ((_c = result.Barber) === null || _c === void 0 ? void 0 : _c.skills) || [],
-        bio: ((_d = result.Barber) === null || _d === void 0 ? void 0 : _d.bio) || '',
-        shopId: ((_f = (_e = result.Barber) === null || _e === void 0 ? void 0 : _e.saloonOwner) === null || _f === void 0 ? void 0 : _f.id) || null,
-        shopName: ((_h = (_g = result.Barber) === null || _g === void 0 ? void 0 : _g.saloonOwner) === null || _h === void 0 ? void 0 : _h.shopName) || null,
-        shopAddress: ((_k = (_j = result.Barber) === null || _j === void 0 ? void 0 : _j.saloonOwner) === null || _k === void 0 ? void 0 : _k.shopAddress) || null,
-        shopLogo: ((_m = (_l = result.Barber) === null || _l === void 0 ? void 0 : _l.saloonOwner) === null || _m === void 0 ? void 0 : _m.shopLogo) || null,
-        shopImages: ((_p = (_o = result.Barber) === null || _o === void 0 ? void 0 : _o.saloonOwner) === null || _p === void 0 ? void 0 : _p.shopImages) || [],
-        shopVideo: ((_r = (_q = result.Barber) === null || _q === void 0 ? void 0 : _q.saloonOwner) === null || _r === void 0 ? void 0 : _r.shopVideo) || null,
-        ratingCount: ((_s = result.Barber) === null || _s === void 0 ? void 0 : _s.ratingCount) || 0,
-        avgRating: ((_t = result.Barber) === null || _t === void 0 ? void 0 : _t.avgRating) || 0,
+        portfolio: ((_b = result.Barber) === null || _b === void 0 ? void 0 : _b.portfolio) || [],
+        experienceYears: ((_c = result.Barber) === null || _c === void 0 ? void 0 : _c.experienceYears) || 0,
+        skills: ((_d = result.Barber) === null || _d === void 0 ? void 0 : _d.skills) || [],
+        bio: ((_e = result.Barber) === null || _e === void 0 ? void 0 : _e.bio) || '',
+        shopId: ((_g = (_f = result.Barber) === null || _f === void 0 ? void 0 : _f.saloonOwner) === null || _g === void 0 ? void 0 : _g.id) || null,
+        shopName: ((_j = (_h = result.Barber) === null || _h === void 0 ? void 0 : _h.saloonOwner) === null || _j === void 0 ? void 0 : _j.shopName) || null,
+        shopAddress: ((_l = (_k = result.Barber) === null || _k === void 0 ? void 0 : _k.saloonOwner) === null || _l === void 0 ? void 0 : _l.shopAddress) || null,
+        shopLogo: ((_o = (_m = result.Barber) === null || _m === void 0 ? void 0 : _m.saloonOwner) === null || _o === void 0 ? void 0 : _o.shopLogo) || null,
+        shopImages: ((_q = (_p = result.Barber) === null || _p === void 0 ? void 0 : _p.saloonOwner) === null || _q === void 0 ? void 0 : _q.shopImages) || [],
+        shopVideo: ((_s = (_r = result.Barber) === null || _r === void 0 ? void 0 : _r.saloonOwner) === null || _s === void 0 ? void 0 : _s.shopVideo) || null,
+        ratingCount: ((_t = result.Barber) === null || _t === void 0 ? void 0 : _t.ratingCount) || 0,
+        avgRating: ((_u = result.Barber) === null || _u === void 0 ? void 0 : _u.avgRating) || 0,
     };
 });
 const blockBarberByIdIntoDb = (userId, barberId, data) => __awaiter(void 0, void 0, void 0, function* () {

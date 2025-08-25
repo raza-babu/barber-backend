@@ -265,9 +265,11 @@ const updateAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
         yield tx.adminAccessFunction.deleteMany({
             where: {
                 adminId: data.adminId,
-                userId: userId,
             },
         });
+        if (!data.function || data.function.length === 0) {
+            return [];
+        }
         // 2. Add new accesses
         const created = yield tx.adminAccessFunction.createMany({
             data: data.function.map(func => ({
@@ -296,17 +298,28 @@ const updateAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
         return updatedAccesses;
     }));
 });
-const deleteAdminAccessFunctionItemFromDb = (userId, adminAccessFunctionId) => __awaiter(void 0, void 0, void 0, function* () {
-    const deletedItem = yield prisma_1.default.adminAccessFunction.delete({
-        where: {
-            id: adminAccessFunctionId,
-            userId: userId,
-        },
-    });
-    if (!deletedItem) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'adminAccessFunctionId, not deleted');
-    }
-    return deletedItem;
+const deleteAdminAccessFunctionItemFromDb = (userId, adminId) => __awaiter(void 0, void 0, void 0, function* () {
+    return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        // Find the admin access function first
+        const existing = yield tx.adminAccessFunction.findMany({
+            where: {
+                adminId: adminId,
+            },
+        });
+        if (existing.length === 0) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'adminAccessFunctionId not found');
+        }
+        // Delete the admin access functions in DB
+        const deletedItem = yield tx.adminAccessFunction.deleteMany({
+            where: {
+                adminId: adminId,
+                userId: userId,
+            },
+        });
+        if (deletedItem.count === 0) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'adminAccessFunctionId not deleted');
+        }
+    }));
 });
 exports.adminAccessFunctionService = {
     createAdminAccessFunctionIntoDb,

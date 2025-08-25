@@ -29,9 +29,9 @@ const updateSchema = zod_1.z.object({
     body: zod_1.z.object({
         adminId: zod_1.z.string().optional(),
         role: zod_1.z.nativeEnum(client_1.UserRoleEnum).optional(),
+        isSuperAdmin: zod_1.z.boolean().optional(),
+        function: zod_1.z.array(zod_1.z.string()).optional(),
     }),
-    isSuperAdmin: zod_1.z.boolean().optional(),
-    function: zod_1.z.array(zod_1.z.string()).optional(),
 });
 exports.adminAccessFunctionValidation = {
     createSchema,

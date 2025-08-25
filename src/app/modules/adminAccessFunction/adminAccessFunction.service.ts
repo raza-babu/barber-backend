@@ -265,10 +265,12 @@ const updateAdminAccessFunctionIntoDb = async (
     await tx.adminAccessFunction.deleteMany({
       where: {
         adminId: data.adminId,
-        userId: userId,
       },
     });
 
+    if (!data.function || data.function.length === 0) {
+      return [];
+    }
     // 2. Add new accesses
     const created = await tx.adminAccessFunction.createMany({
       data: data.function.map(func => ({
@@ -306,22 +308,28 @@ const updateAdminAccessFunctionIntoDb = async (
 
 const deleteAdminAccessFunctionItemFromDb = async (
   userId: string,
-  adminAccessFunctionId: string,
+  adminId: string,
 ) => {
-  const deletedItem = await prisma.adminAccessFunction.delete({
-    where: {
-      id: adminAccessFunctionId,
-      userId: userId,
-    },
-  });
-  if (!deletedItem) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'adminAccessFunctionId, not deleted',
-    );
-  }
-
-  return deletedItem;
+  return await prisma.$transaction(async tx => {
+    // Find the admin access function first
+    const existing = await tx.adminAccessFunction.findMany({
+      where: {
+        adminId: adminId,
+      },
+    });  if (existing.length === 0) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'adminAccessFunctionId not found');
+      } 
+      // Delete the admin access functions in DB
+      const deletedItem = await tx.adminAccessFunction.deleteMany({
+        where: {
+          adminId: adminId,
+          userId: userId,
+        },
+      });
+      if (deletedItem.count === 0) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'adminAccessFunctionId not deleted');
+      }
+    });
 };
 
 export const adminAccessFunctionService = {
