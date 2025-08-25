@@ -12,12 +12,30 @@ const adminAccessFunction_controller_1 = require("./adminAccessFunction.controll
 const adminAccessFunction_validation_1 = require("./adminAccessFunction.validation");
 const multipleFile_1 = require("../../utils/multipleFile");
 const parseBody_1 = require("../../middlewares/parseBody");
-const checkPermissions_1 = require("../../middlewares/checkPermissions");
-const access_1 = require("../../utils/access");
 const router = express_1.default.Router();
-router.post('/', multipleFile_1.multerUploadMultiple.single('profileImage'), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.ADMIN_MANAGEMENT), (0, validateRequest_1.default)(adminAccessFunction_validation_1.adminAccessFunctionValidation.createSchema), adminAccessFunction_controller_1.adminAccessFunctionController.createAdminAccessFunction);
-router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.ADMIN_MANAGEMENT), adminAccessFunction_controller_1.adminAccessFunctionController.getAdminAccessFunctionList);
-router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.ADMIN_MANAGEMENT), adminAccessFunction_controller_1.adminAccessFunctionController.getAdminAccessFunctionById);
-router.put('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.ADMIN_MANAGEMENT), (0, validateRequest_1.default)(adminAccessFunction_validation_1.adminAccessFunctionValidation.updateSchema), adminAccessFunction_controller_1.adminAccessFunctionController.updateAdminAccessFunction);
-router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.ADMIN_MANAGEMENT), adminAccessFunction_controller_1.adminAccessFunctionController.deleteAdminAccessFunction);
+router.post('/', multipleFile_1.multerUploadMultiple.single('profileImage'), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN), 
+// checkPermissions(
+//   UserAccessFunctionName.ALL || UserAccessFunctionName.ADMIN_MANAGEMENT,
+// ),
+(0, validateRequest_1.default)(adminAccessFunction_validation_1.adminAccessFunctionValidation.createSchema), adminAccessFunction_controller_1.adminAccessFunctionController.createAdminAccessFunction);
+router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN), 
+// checkPermissions(
+//   UserAccessFunctionName.ALL || UserAccessFunctionName.ADMIN_MANAGEMENT,
+// ),
+adminAccessFunction_controller_1.adminAccessFunctionController.getAdminAccessFunctionList);
+router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN), 
+// checkPermissions(
+//   UserAccessFunctionName.ALL || UserAccessFunctionName.ADMIN_MANAGEMENT,
+// ),
+adminAccessFunction_controller_1.adminAccessFunctionController.getAdminAccessFunctionById);
+router.put('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN), 
+// checkPermissions(
+//   UserAccessFunctionName.ALL || UserAccessFunctionName.ADMIN_MANAGEMENT,
+// ),
+(0, validateRequest_1.default)(adminAccessFunction_validation_1.adminAccessFunctionValidation.updateSchema), adminAccessFunction_controller_1.adminAccessFunctionController.updateAdminAccessFunction);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN), 
+// checkPermissions(
+//   UserAccessFunctionName.ALL || UserAccessFunctionName.ADMIN_MANAGEMENT,
+// ),
+adminAccessFunction_controller_1.adminAccessFunctionController.deleteAdminAccessFunction);
 exports.adminAccessFunctionRoutes = router;
