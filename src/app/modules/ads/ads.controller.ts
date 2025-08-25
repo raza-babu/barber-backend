@@ -86,6 +86,8 @@ const updateAds = catchAsync(async (req, res) => {
     ...body,
     images: uploads.images,
   };
+
+  console.log('adsData', adsData);
   const result = await adsService.updateAdsIntoDb(user.id, req.params.id, adsData);
   sendResponse(res, {
     statusCode: httpStatus.OK,

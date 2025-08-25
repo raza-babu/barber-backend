@@ -586,6 +586,8 @@ const getSubscribersListFromDb = async (
   options: ISearchAndFilterOptions,
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Build common where clause for search, filtering by date
   const whereClause = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
@@ -601,42 +603,93 @@ const getSubscribersListFromDb = async (
       dateField: 'createdAt',
     },
   );
-  const [subscribers, total] = await Promise.all([
-  prisma.user.findMany({
-    where: {
-      ...whereClause,
-      UserSubscription: {
-        some: {
-          paymentStatus: PaymentStatus.COMPLETED, // active subscription
-          endDate: { gte: new Date() },          // optional: not expired
-        },
-      },
-    },
-    skip,
-    take: limit,
-    orderBy: { [sortBy]: sortOrder },
-    select: {
-      id: true,
-      fullName: true,
-      email: true,
-      phoneNumber: true,
-    },
-  }),
-  prisma.user.count({
-    where: {
-      ...whereClause,
-      UserSubscription: {
-        some: {
-          paymentStatus: PaymentStatus.COMPLETED,
-          endDate: { gte: new Date() },
-        },
-      },
-    },
-  }),
-]);
 
-  return formatPaginationResponse(subscribers, total, page, limit);
+  const [subscribers, total] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        ...whereClause,
+        UserSubscription: {
+          some: {
+            paymentStatus: PaymentStatus.COMPLETED, // Active subscription
+            endDate: { gte: new Date() },          // Not expired
+          },
+        },
+      },
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        UserSubscription: {
+          where: {
+            paymentStatus: PaymentStatus.COMPLETED,
+            endDate: { gte: new Date() },
+          },
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            stripeSubscriptionId: true,
+            paymentStatus: true,
+            subscriptionOffer: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                price: true,
+                currency: true,
+                duration: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        ...whereClause,
+        UserSubscription: {
+          some: {
+            paymentStatus: PaymentStatus.COMPLETED,
+            endDate: { gte: new Date() },
+          },
+        },
+      },
+    }),
+  ]);
+
+  // Flatten the response so that subscription fields are at the top level
+  const flattenedSubscribers = subscribers.map(subscriber => {
+    const subscription = subscriber.UserSubscription?.[0];
+    return {
+      id: subscriber.id,
+      fullName: subscriber.fullName,
+      email: subscriber.email,
+      phoneNumber: subscriber.phoneNumber,
+      subscriptionId: subscription?.id || null,
+      startDate: subscription?.startDate || null,
+      endDate: subscription?.endDate || null,
+      stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
+      paymentStatus: subscription?.paymentStatus || null,
+      offer: subscription?.subscriptionOffer
+        ? {
+            id: subscription.subscriptionOffer.id,
+            title: subscription.subscriptionOffer.title,
+            description: subscription.subscriptionOffer.description,
+            price: subscription.subscriptionOffer.price,
+            currency: subscription.subscriptionOffer.currency,
+            duration: subscription.subscriptionOffer.duration,
+          }
+        : null,
+    };
+  });
+
+  return formatPaginationResponse(flattenedSubscribers, total, page, limit);
 };
+
 
 export const adminService = {
   getSaloonFromDb,

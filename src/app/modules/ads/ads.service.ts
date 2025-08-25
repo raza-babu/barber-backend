@@ -58,6 +58,15 @@ const getAdsByIdFromDb = async (adsId: string) => {
 };
 
 const updateAdsIntoDb = async (userId: string, adsId: string, data: any) => {
+
+  const existingAd = await prisma.ads.findUnique({
+    where: {
+      id: adsId,
+    },
+  });
+  if (!existingAd) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Ads not found');    
+  }
   const startDate = new Date(data.startDate);
   const endDate = new Date(data.endDate); 
   // Convert to UTC by adjusting for local timezone offset
@@ -73,7 +82,7 @@ const updateAdsIntoDb = async (userId: string, adsId: string, data: any) => {
   // Only include fields that are present in the data object
   const updateData: any = {};
   if (data.description !== undefined) updateData.description = data.description;
-  if (data.image !== undefined) updateData.image = data.image;
+  if (data.images !== undefined) updateData.images = data.images;
   if (data.startDate !== undefined) updateData.startDate = data.startDate;
   if (data.endDate !== undefined) updateData.endDate = data.endDate;
   if (data.duration !== undefined) updateData.duration = data.duration;

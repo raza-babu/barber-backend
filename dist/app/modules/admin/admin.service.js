@@ -516,6 +516,7 @@ const getAdminDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, fu
 });
 const getSubscribersListFromDb = (userId, options) => __awaiter(void 0, void 0, void 0, function* () {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
+    // Build common where clause for search, filtering by date
     const whereClause = (0, searchFilter_1.buildCompleteQuery)({
         searchTerm: options.searchTerm,
         searchFields: ['fullName', 'email', 'phoneNumber'],
@@ -531,8 +532,8 @@ const getSubscribersListFromDb = (userId, options) => __awaiter(void 0, void 0, 
         prisma_1.default.user.findMany({
             where: Object.assign(Object.assign({}, whereClause), { UserSubscription: {
                     some: {
-                        paymentStatus: client_1.PaymentStatus.COMPLETED, // active subscription
-                        endDate: { gte: new Date() }, // optional: not expired
+                        paymentStatus: client_1.PaymentStatus.COMPLETED, // Active subscription
+                        endDate: { gte: new Date() }, // Not expired
                     },
                 } }),
             skip,
@@ -543,6 +544,29 @@ const getSubscribersListFromDb = (userId, options) => __awaiter(void 0, void 0, 
                 fullName: true,
                 email: true,
                 phoneNumber: true,
+                UserSubscription: {
+                    where: {
+                        paymentStatus: client_1.PaymentStatus.COMPLETED,
+                        endDate: { gte: new Date() },
+                    },
+                    select: {
+                        id: true,
+                        startDate: true,
+                        endDate: true,
+                        stripeSubscriptionId: true,
+                        paymentStatus: true,
+                        subscriptionOffer: {
+                            select: {
+                                id: true,
+                                title: true,
+                                description: true,
+                                price: true,
+                                currency: true,
+                                duration: true,
+                            },
+                        },
+                    },
+                },
             },
         }),
         prisma_1.default.user.count({
@@ -554,7 +578,33 @@ const getSubscribersListFromDb = (userId, options) => __awaiter(void 0, void 0, 
                 } }),
         }),
     ]);
-    return (0, pagination_1.formatPaginationResponse)(subscribers, total, page, limit);
+    // Flatten the response so that subscription fields are at the top level
+    const flattenedSubscribers = subscribers.map(subscriber => {
+        var _a;
+        const subscription = (_a = subscriber.UserSubscription) === null || _a === void 0 ? void 0 : _a[0];
+        return {
+            id: subscriber.id,
+            fullName: subscriber.fullName,
+            email: subscriber.email,
+            phoneNumber: subscriber.phoneNumber,
+            subscriptionId: (subscription === null || subscription === void 0 ? void 0 : subscription.id) || null,
+            startDate: (subscription === null || subscription === void 0 ? void 0 : subscription.startDate) || null,
+            endDate: (subscription === null || subscription === void 0 ? void 0 : subscription.endDate) || null,
+            stripeSubscriptionId: (subscription === null || subscription === void 0 ? void 0 : subscription.stripeSubscriptionId) || null,
+            paymentStatus: (subscription === null || subscription === void 0 ? void 0 : subscription.paymentStatus) || null,
+            offer: (subscription === null || subscription === void 0 ? void 0 : subscription.subscriptionOffer)
+                ? {
+                    id: subscription.subscriptionOffer.id,
+                    title: subscription.subscriptionOffer.title,
+                    description: subscription.subscriptionOffer.description,
+                    price: subscription.subscriptionOffer.price,
+                    currency: subscription.subscriptionOffer.currency,
+                    duration: subscription.subscriptionOffer.duration,
+                }
+                : null,
+        };
+    });
+    return (0, pagination_1.formatPaginationResponse)(flattenedSubscribers, total, page, limit);
 });
 exports.adminService = {
     getSaloonFromDb,

@@ -57,6 +57,14 @@ const getAdsByIdFromDb = (adsId) => __awaiter(void 0, void 0, void 0, function* 
     return result;
 });
 const updateAdsIntoDb = (userId, adsId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const existingAd = yield prisma_1.default.ads.findUnique({
+        where: {
+            id: adsId,
+        },
+    });
+    if (!existingAd) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Ads not found');
+    }
     const startDate = new Date(data.startDate);
     const endDate = new Date(data.endDate);
     // Convert to UTC by adjusting for local timezone offset
@@ -73,8 +81,8 @@ const updateAdsIntoDb = (userId, adsId, data) => __awaiter(void 0, void 0, void 
     const updateData = {};
     if (data.description !== undefined)
         updateData.description = data.description;
-    if (data.image !== undefined)
-        updateData.image = data.image;
+    if (data.images !== undefined)
+        updateData.images = data.images;
     if (data.startDate !== undefined)
         updateData.startDate = data.startDate;
     if (data.endDate !== undefined)

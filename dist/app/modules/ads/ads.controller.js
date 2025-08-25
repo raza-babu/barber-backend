@@ -79,6 +79,7 @@ const updateAds = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void
         uploads.images.push(...imageUploads);
     }
     const adsData = Object.assign(Object.assign({}, body), { images: uploads.images });
+    console.log('adsData', adsData);
     const result = yield ads_service_1.adsService.updateAdsIntoDb(user.id, req.params.id, adsData);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
