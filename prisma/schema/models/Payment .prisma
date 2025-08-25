@@ -1,7 +1,7 @@
 model Payment {
   id                       String        @id @default(auto()) @map("_id") @db.ObjectId
   userId                   String        @db.ObjectId
-  stripePaymentIntentId    String
+  stripeSubscriptionId    String
   paymentAmount            Float
   bookingId                String?       @db.ObjectId
   paymentDate              DateTime      @default(now())

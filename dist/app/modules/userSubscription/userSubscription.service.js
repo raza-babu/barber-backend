@@ -24,123 +24,136 @@ const stripe = new stripe_1.default(config_1.default.stripe.stripe_secret_key, {
     apiVersion: '2025-07-30.basil',
 });
 const createUserSubscriptionIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
-    return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a, _b;
-        // 1. Verify user
-        const userCheck = yield tx.user.findUnique({
-            where: {
-                id: userId,
-                role: client_1.UserRoleEnum.SALOON_OWNER,
-                status: client_1.UserStatus.ACTIVE,
+    // 1. Get user (outside transaction)
+    var _a;
+    const existingSubscription = yield prisma_1.default.userSubscription.findFirst({
+        where: {
+            userId: userId,
+            endDate: {
+                gt: new Date(),
             },
-            select: {
-                id: true,
-                fullName: true,
-                email: true,
-                role: true,
-                address: true,
-                status: true,
-                stripeCustomerId: true,
+        },
+    });
+    if (existingSubscription) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'An active subscription already exists for this user');
+    }
+    const userCheck = yield prisma_1.default.user.findUnique({
+        where: {
+            id: userId,
+            role: client_1.UserRoleEnum.SALOON_OWNER,
+            status: client_1.UserStatus.ACTIVE,
+        },
+        select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+            address: true,
+            status: true,
+            stripeCustomerId: true,
+        },
+    });
+    if (!userCheck)
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'User not found or inactive');
+    // 2. Ensure Stripe customer exists (outside transaction)
+    let stripeCustomerId = userCheck.stripeCustomerId;
+    if (!stripeCustomerId) {
+        const customer = yield stripe.customers.create({
+            email: userCheck.email,
+            name: userCheck.fullName,
+            address: {
+                city: (_a = userCheck.address) !== null && _a !== void 0 ? _a : 'City',
+                country: 'US',
             },
+            metadata: { userId: userCheck.id, role: userCheck.role },
         });
-        if (!userCheck) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'User not found or inactive');
-        }
-        // 2. Ensure Stripe Customer exists
-        if (!userCheck.stripeCustomerId) {
-            const customer = yield stripe.customers.create({
-                email: userCheck.email,
-                name: userCheck.fullName,
-                address: {
-                    city: (_a = userCheck.address) !== null && _a !== void 0 ? _a : 'City',
-                    country: 'America',
-                },
-                metadata: { userId: userCheck.id, role: userCheck.role },
-            });
-            yield tx.user.update({
-                where: { id: userId },
-                data: { stripeCustomerId: customer.id },
-            });
-            userCheck.stripeCustomerId = customer.id;
-        }
-        // 3. Attach the payment method to the customer
-        try {
-            yield stripe.paymentMethods.attach(data.paymentMethodId, {
-                customer: userCheck.stripeCustomerId,
-            });
-        }
-        catch (err) {
-            if (err.code !== 'resource_already_attached')
-                throw err;
-        }
-        // 4. Set it as the default payment method
-        yield stripe.customers.update(userCheck.stripeCustomerId, {
-            invoice_settings: {
-                default_payment_method: data.paymentMethodId,
-            },
+        // Update DB (outside transaction)
+        yield prisma_1.default.user.update({
+            where: { id: userId },
+            data: { stripeCustomerId: customer.id },
         });
-        // 5. Get subscription offer
-        const subscriptionOffer = yield tx.subscriptionOffer.findUnique({
-            where: { id: data.subscriptionOfferId },
-            include: {
-                creator: {
-                    select: {
-                        stripeCustomerId: true
-                    }
-                }
-            }
+        stripeCustomerId = customer.id;
+    }
+    // 3. Attach payment method (outside transaction)
+    try {
+        yield stripe.paymentMethods.attach(data.paymentMethodId, {
+            customer: stripeCustomerId,
         });
-        if (!(subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.stripePriceId)) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription offer or price not found');
-        }
-        // 6. Create the subscription in Stripe
-        const subscription = yield stripe.subscriptions.create({
-            customer: userCheck.stripeCustomerId,
-            items: [{ price: subscriptionOffer.stripePriceId }],
-            default_payment_method: data.paymentMethodId,
-            expand: ['latest_invoice.payment_intent'],
-        });
-        if (!subscription) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription not created');
-        }
-        // IMPORTANT: Subscription may start as `incomplete` until invoice is paid
-        const latestInvoice = subscription.latest_invoice;
-        const paymentIntent = latestInvoice === null || latestInvoice === void 0 ? void 0 : latestInvoice.payment_intent;
-        if (subscription.status === 'incomplete' && (paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.status) !== 'succeeded') {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription payment failed');
-        }
-        // 7. Save subscription to DB
-        const result = yield tx.userSubscription.create({
+    }
+    catch (err) {
+        if (err.code !== 'resource_already_attached')
+            throw err;
+    }
+    // 4. Set default payment method (outside transaction)
+    yield stripe.customers.update(stripeCustomerId, {
+        invoice_settings: { default_payment_method: data.paymentMethodId },
+    });
+    // 5. Fetch subscription offer (outside transaction)
+    const subscriptionOffer = yield prisma_1.default.subscriptionOffer.findUnique({
+        where: { id: data.subscriptionOfferId },
+        include: { creator: { select: { stripeCustomerId: true } } },
+    });
+    if (!(subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.stripePriceId)) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription offer or price not found');
+    }
+    // 6. Create subscription in Stripe (outside transaction)
+    const subscription = (yield stripe.subscriptions.create({
+        customer: stripeCustomerId,
+        items: [{ price: subscriptionOffer.stripePriceId }],
+        default_payment_method: data.paymentMethodId,
+        expand: ['latest_invoice.payment_intent'],
+    }));
+    // Extract details
+    const latestInvoice = subscription.latest_invoice;
+    const paymentIntent = latestInvoice === null || latestInvoice === void 0 ? void 0 : latestInvoice.payment_intent;
+    if (subscription.status === 'incomplete' &&
+        (paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.status) !== 'succeeded') {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription payment failed');
+    }
+    const subscriptionWithPeriod = subscription;
+    // 7. ONLY database operations go inside the transaction
+    const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        // Convert Stripe Unix timestamps to JavaScript Date objects
+        const startDate = subscriptionWithPeriod.current_period_start
+            ? new Date(subscriptionWithPeriod.current_period_start * 1000)
+            : new Date();
+        const endDate = subscriptionWithPeriod.current_period_end
+            ? new Date(subscriptionWithPeriod.current_period_end * 1000)
+            : new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const createdSubscription = yield tx.userSubscription.create({
             data: {
-                userId: userId,
-                subscriptionOfferId: data.subscriptionOfferId,
-                startDate: new Date(),
-                endDate: new Date(subscription.current_period_end * 1000),
+                userId: userCheck.id,
+                subscriptionOfferId: subscriptionOffer.id,
+                startDate: startDate,
+                endDate: endDate,
                 stripeSubscriptionId: subscription.id,
                 paymentStatus: client_1.PaymentStatus.COMPLETED,
             },
         });
-        // 8. Record payment
         yield tx.payment.create({
             data: {
-                userId: userId,
-                stripePaymentIntentId: (_b = paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.id) !== null && _b !== void 0 ? _b : null,
+                stripeSubscriptionId: subscription.id,
                 paymentAmount: subscriptionOffer.price,
-                stripeCustomerIdProvider: userCheck.stripeCustomerId,
-                // stripeAccountIdReceiver: subscriptionOffer.creator.stripeCustomerId!,
+                stripeCustomerIdProvider: stripeCustomerId,
                 status: client_1.PaymentStatus.COMPLETED,
+                user: {
+                    connect: { id: userId },
+                },
             },
         });
-        // 9. Update user status
         yield tx.user.update({
             where: { id: userId },
             data: {
                 isSubscribed: true,
-                subscriptionEnd: result.endDate,
+                subscriptionEnd: endDate,
             },
         });
-        return Object.assign(Object.assign({}, result), { subscriptionId: subscription.id, paymentIntentId: paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.id });
-    }));
+        return Object.assign(Object.assign({}, createdSubscription), { subscriptionId: subscription.id, paymentIntentId: paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.id });
+    }), {
+        // Optional: Increase timeout if needed (default is 5000ms)
+        timeout: 10000, // 10 seconds
+    });
+    return result;
 });
 const getUserSubscriptionListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.userSubscription.findMany({
@@ -168,92 +181,123 @@ const getUserSubscriptionByIdFromDb = (userId, userSubscriptionId) => __awaiter(
     return Object.assign(Object.assign({}, result), { subscriptionOffer: result.subscriptionOffer });
 });
 const updateUserSubscriptionIntoDb = (userId, userSubscriptionId, data) => __awaiter(void 0, void 0, void 0, function* () {
-    return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        var _c;
-        // Step 1: find user subscription
-        const existing = yield tx.userSubscription.findFirst({
-            where: {
-                id: userSubscriptionId,
-                userId,
+    // Step 1: find user subscription (outside transaction)
+    const existing = yield prisma_1.default.userSubscription.findFirst({
+        where: {
+            id: userSubscriptionId,
+            userId,
+            // Remove the endDate filter to find both active and expired
+        },
+    });
+    if (!existing) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Subscription not found');
+    }
+    // Optional: Add business logic if you only want to allow renewing near expiration
+    if (existing.endDate > new Date()) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription is still active, cannot renew yet');
+    }
+    // Step 2: find user (outside transaction)
+    const user = yield prisma_1.default.user.findUnique({
+        where: {
+            id: userId,
+        },
+    });
+    if (!user) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found');
+    }
+    if (!user.stripeCustomerId) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Stripe customer not found');
+    }
+    // Step 3: find subscription offer (outside transaction)
+    const subscriptionOffer = yield prisma_1.default.subscriptionOffer.findUnique({
+        where: { id: data.subscriptionOfferId },
+        include: {
+            creator: {
+                select: {
+                    stripeCustomerId: true,
+                },
             },
-        });
-        if (!existing) {
-            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User subscription not found');
-        }
-        // Step 2: find user
-        const user = yield tx.user.findUnique({
-            where: {
-                id: userId,
-            },
-        });
-        if (!user) {
-            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found');
-        }
-        if (!user.stripeCustomerId) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Stripe customer not found');
-        }
-        // Step 3: find subscription offer
-        const subscriptionOffer = yield tx.subscriptionOffer.findUnique({
-            where: { id: data.subscriptionOfferId },
-            include: {
-                creator: {
-                    select: {
-                        stripeCustomerId: true
-                    }
-                }
-            }
-        });
-        if (!(subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.stripePriceId)) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription offer or price not found');
-        }
-        // Step 4: renew subscription in Stripe
-        const subscription = yield stripe.subscriptions.create({
+        },
+    });
+    if (!(subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.stripePriceId)) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription offer or price not found');
+    }
+    // Step 4: Handle payment method (outside transaction)
+    try {
+        yield stripe.paymentMethods.attach(data.paymentMethodId, {
             customer: user.stripeCustomerId,
-            items: [{ price: subscriptionOffer.stripePriceId }],
-            default_payment_method: data.paymentMethodId,
-            expand: ['latest_invoice.payment_intent'],
         });
-        if (!subscription) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription not created');
-        }
-        // IMPORTANT: Subscription may start as `incomplete` until invoice is paid
-        const latestInvoice = subscription.latest_invoice;
-        const paymentIntent = latestInvoice === null || latestInvoice === void 0 ? void 0 : latestInvoice.payment_intent;
-        if (subscription.status === 'incomplete' && (paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.status) !== 'succeeded') {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription payment failed');
-        }
-        // Step 5: update user subscription in DB
-        const result = yield tx.userSubscription.update({
+    }
+    catch (err) {
+        if (err.code !== 'resource_already_attached')
+            throw err;
+    }
+    // Set default payment method
+    yield stripe.customers.update(user.stripeCustomerId, {
+        invoice_settings: { default_payment_method: data.paymentMethodId },
+    });
+    // Step 5: renew subscription in Stripe (outside transaction)
+    const subscription = yield stripe.subscriptions.create({
+        customer: user.stripeCustomerId,
+        items: [{ price: subscriptionOffer.stripePriceId }],
+        default_payment_method: data.paymentMethodId,
+        expand: ['latest_invoice.payment_intent'],
+    });
+    if (!subscription) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription not created');
+    }
+    // IMPORTANT: Subscription may start as `incomplete` until invoice is paid
+    const latestInvoice = subscription.latest_invoice;
+    const paymentIntent = latestInvoice === null || latestInvoice === void 0 ? void 0 : latestInvoice.payment_intent;
+    if (subscription.status === 'incomplete' &&
+        (paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.status) !== 'succeeded') {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Subscription payment failed');
+    }
+    // Type assertion for subscription dates
+    const subscriptionWithPeriod = subscription;
+    // Step 6: ONLY database operations inside transaction
+    const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        // Convert Stripe Unix timestamps to JavaScript Date objects
+        const startDate = subscriptionWithPeriod.current_period_start
+            ? new Date(subscriptionWithPeriod.current_period_start * 1000)
+            : new Date();
+        const endDate = subscriptionWithPeriod.current_period_end
+            ? new Date(subscriptionWithPeriod.current_period_end * 1000)
+            : new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        // Update user subscription in DB
+        const updatedSubscription = yield tx.userSubscription.update({
             where: { id: userSubscriptionId },
             data: {
                 subscriptionOfferId: data.subscriptionOfferId,
-                startDate: new Date(),
-                endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)),
+                startDate: startDate,
+                endDate: endDate,
                 stripeSubscriptionId: subscription.id,
                 paymentStatus: client_1.PaymentStatus.COMPLETED,
             },
         });
-        // Step 6: record payment
+        // Record payment
         yield tx.payment.create({
             data: {
                 userId: userId,
-                stripePaymentIntentId: (_c = paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.id) !== null && _c !== void 0 ? _c : null,
+                stripeSubscriptionId: subscription.id,
                 paymentAmount: subscriptionOffer.price,
                 stripeCustomerIdProvider: user.stripeCustomerId,
-                // stripeAccountIdReceiver: subscriptionOffer.creator.stripeCustomerId!,
                 status: client_1.PaymentStatus.COMPLETED,
             },
         });
-        // Step 7: update user status
+        // Update user status
         yield tx.user.update({
             where: { id: userId },
             data: {
                 isSubscribed: true,
-                subscriptionEnd: result.endDate,
+                subscriptionEnd: endDate,
             },
         });
-        return Object.assign(Object.assign({}, result), { subscriptionId: subscription.id, paymentIntentId: paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.id });
-    }));
+        return Object.assign(Object.assign({}, updatedSubscription), { subscriptionId: subscription.id, paymentIntentId: paymentIntent === null || paymentIntent === void 0 ? void 0 : paymentIntent.id });
+    }), {
+        timeout: 10000, // Optional: Increase timeout if needed
+    });
+    return result;
 });
 const deleteUserSubscriptionItemFromDb = (userId, userSubscriptionId) => __awaiter(void 0, void 0, void 0, function* () {
     const deletedItem = yield prisma_1.default.userSubscription.delete({

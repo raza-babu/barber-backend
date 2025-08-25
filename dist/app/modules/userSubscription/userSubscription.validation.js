@@ -4,14 +4,22 @@ exports.userSubscriptionValidation = void 0;
 const zod_1 = require("zod");
 const createSchema = zod_1.z.object({
     body: zod_1.z.object({
-        name: zod_1.z.string().min(1, 'Name is required'),
-        description: zod_1.z.string().optional(),
+        paymentMethodId: zod_1.z.string({
+            required_error: 'Payment Method Id is required!',
+        }),
+        subscriptionOfferId: zod_1.z.string({
+            required_error: 'Subscription Offer Id is required!',
+        }),
     }),
 });
 const updateSchema = zod_1.z.object({
     body: zod_1.z.object({
-        name: zod_1.z.string().optional(),
-        description: zod_1.z.string().optional(),
+        paymentMethodId: zod_1.z.string({
+            required_error: 'Payment Method Id is required!',
+        }),
+        subscriptionOfferId: zod_1.z.string({
+            required_error: 'Subscription Offer Id is required!',
+        }),
     }),
 });
 exports.userSubscriptionValidation = {

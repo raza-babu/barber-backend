@@ -2,19 +2,27 @@ import { z } from 'zod';
 
 const createSchema = z.object({
   body: z.object({
-    name: z.string().min(1, 'Name is required'),
-    description: z.string().optional(),
+    paymentMethodId: z.string({
+      required_error: 'Payment Method Id is required!',
     }),
+    subscriptionOfferId: z.string({
+      required_error: 'Subscription Offer Id is required!',
+    }),
+  }),
 });
 
 const updateSchema = z.object({
   body: z.object({
-    name: z.string().optional(),
-    description: z.string().optional(),
+    paymentMethodId: z.string({
+      required_error: 'Payment Method Id is required!',
     }),
+    subscriptionOfferId: z.string({
+      required_error: 'Subscription Offer Id is required!',
+    }),
+  }),
 });
 
 export const userSubscriptionValidation = {
-createSchema,
-updateSchema,
+  createSchema,
+  updateSchema,
 };

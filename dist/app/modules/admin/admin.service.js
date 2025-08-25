@@ -184,13 +184,14 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
         avgRating: (saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.avgRating) || 0,
         schedule: result.SaloonSchedule || [],
         barbers: ((_a = saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.Barber) === null || _a === void 0 ? void 0 : _a.map(barber => {
-            var _a, _b, _c, _d;
+            var _a, _b, _c, _d, _e;
             return ({
                 barberId: barber.userId,
-                fullName: ((_a = barber.user) === null || _a === void 0 ? void 0 : _a.fullName) || '',
-                email: ((_b = barber.user) === null || _b === void 0 ? void 0 : _b.email) || '',
-                phoneNumber: ((_c = barber.user) === null || _c === void 0 ? void 0 : _c.phoneNumber) || '',
-                status: ((_d = barber.user) === null || _d === void 0 ? void 0 : _d.status) || 'INACTIVE',
+                Image: ((_a = barber.user) === null || _a === void 0 ? void 0 : _a.image) || null,
+                fullName: ((_b = barber.user) === null || _b === void 0 ? void 0 : _b.fullName) || '',
+                email: ((_c = barber.user) === null || _c === void 0 ? void 0 : _c.email) || '',
+                phoneNumber: ((_d = barber.user) === null || _d === void 0 ? void 0 : _d.phoneNumber) || '',
+                status: ((_e = barber.user) === null || _e === void 0 ? void 0 : _e.status) || 'INACTIVE',
                 portfolio: barber.portfolio || [],
                 experienceYears: barber.experienceYears || 0,
                 skills: barber.skills || [],

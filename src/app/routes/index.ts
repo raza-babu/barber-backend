@@ -30,6 +30,7 @@ import { saloonRoutes } from '../modules/saloon/saloon.routes';
 import { reviewRoutes } from '../modules/review/review.routes';
 import { qrCodeRoutes } from '../modules/qrCode/qrCode.routes';
 import { followRoutes } from '../modules/follow/follow.routes';
+import { userSubscriptionRoutes } from '../modules/userSubscription/userSubscription.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -163,7 +164,7 @@ const moduleRoutes = [
   },
   {
     path: '/subscription-order',
-    route: followRoutes,
+    route: userSubscriptionRoutes,
   },
 ];
 

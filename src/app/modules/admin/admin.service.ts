@@ -191,6 +191,7 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     barbers:
       saloonOwner?.Barber?.map(barber => ({
         barberId: barber.userId,
+        Image: barber.user?.image || null,
         fullName: barber.user?.fullName || '',
         email: barber.user?.email || '',
         phoneNumber: barber.user?.phoneNumber || '',
