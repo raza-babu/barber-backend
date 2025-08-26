@@ -29,7 +29,7 @@ model SaloonOwner {
   SaloonHoliday     SaloonHoliday[]
   QrCode            QrCode[]
   CustomerVisit     CustomerVisit[]
-  Service           Service[]
+  // Service           Service[]
   jobPosts          JobPost[]
   JobApplication    JobApplication[]
   Support           Support[]

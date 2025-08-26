@@ -5,9 +5,9 @@ const zod_1 = require("zod");
 const AvailableTOEnum = zod_1.z.enum(['EVERYONE', 'MALE', 'FEMALE']);
 const createServiceSchema = zod_1.z.object({
     body: zod_1.z.object({
-        saloonId: zod_1.z.string({
-            required_error: 'Saloon owner ID is required!',
-        }),
+        // saloonId: z.string({
+        //   required_error: 'Saloon owner ID is required!',
+        // }),
         serviceName: zod_1.z.string({
             required_error: 'Service name is required!',
         }),

@@ -4,9 +4,9 @@ const AvailableTOEnum = z.enum(['EVERYONE', 'MALE', 'FEMALE']);
 
 const createServiceSchema = z.object({
   body: z.object({
-    saloonId: z.string({
-      required_error: 'Saloon owner ID is required!',
-    }),
+    // saloonId: z.string({
+    //   required_error: 'Saloon owner ID is required!',
+    // }),
     serviceName: z.string({
       required_error: 'Service name is required!',
     }),
