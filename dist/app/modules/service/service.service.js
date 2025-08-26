@@ -110,6 +110,7 @@ const getServiceListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
         return {
             id: service.id,
             name: service.serviceName,
+            availableTo: service.availableTo,
             // description: service.description,
             price: service.price,
             duration: service.duration,

@@ -90,8 +90,10 @@ const manageBookingsIntoDb = async (
 
     // ---------- Refund Logic Placeholders ----------
     if (
-      (currentStatus === BookingStatus.CONFIRMED && targetStatus === BookingStatus.CANCELLED) ||
-      (currentStatus === BookingStatus.PENDING && targetStatus === BookingStatus.CANCELLED)
+      (currentStatus === BookingStatus.CONFIRMED &&
+        targetStatus === BookingStatus.CANCELLED) ||
+      (currentStatus === BookingStatus.PENDING &&
+        targetStatus === BookingStatus.CANCELLED)
     ) {
       // Refund logic can be implemented here if needed
     }
@@ -117,7 +119,6 @@ const manageBookingsIntoDb = async (
     return updatedBooking;
   });
 };
-
 
 const getBarberDashboardFromDb = async (userId: string) => {
   const customerCount = await prisma.booking.count({
@@ -148,7 +149,10 @@ const getBarberDashboardFromDb = async (userId: string) => {
     },
   });
   // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
-  const startDate = DateTime.now().minus({ months: 11 }).startOf('month').toJSDate();
+  const startDate = DateTime.now()
+    .minus({ months: 11 })
+    .startOf('month')
+    .toJSDate();
   const customerGrowthRaw = await prisma.booking.findMany({
     where: {
       saloonOwnerId: userId,
@@ -178,8 +182,6 @@ const getBarberDashboardFromDb = async (userId: string) => {
     }
   });
 
-  
-
   return {
     totalCustomers: customerCount,
     totalEarnings: totalEarnings._sum.totalPrice || 0,
@@ -204,6 +206,8 @@ const getCustomerBookingsFromDb = async (userId: string) => {
           id: true,
           fullName: true,
           image: true,
+          email: true,
+          phoneNumber: true,
         },
       },
       barber: {
@@ -213,6 +217,8 @@ const getCustomerBookingsFromDb = async (userId: string) => {
               id: true,
               fullName: true,
               image: true,
+              email: true,
+              phoneNumber: true,
             },
           },
         },
@@ -225,6 +231,7 @@ const getCustomerBookingsFromDb = async (userId: string) => {
               id: true,
               serviceName: true,
               price: true,
+              availableTo: true,
             },
           },
         },
@@ -242,9 +249,13 @@ const getCustomerBookingsFromDb = async (userId: string) => {
     customerId: booking.user.id,
     customerName: booking.user.fullName,
     customerImage: booking.user.image,
+    customEmail: booking.user.email,
+    customerPhone: booking.user.phoneNumber,
     barberId: booking.barber.user.id,
     barberName: booking.barber.user.fullName,
     barberImage: booking.barber.user.image,
+    barberEmail: booking.barber.user.email,
+    barberPhone: booking.barber.user.phoneNumber,
     totalPrice: booking.totalPrice,
     bookingDate: booking.date,
     startTime: booking.startTime,
@@ -254,6 +265,7 @@ const getCustomerBookingsFromDb = async (userId: string) => {
       serviceId: service.service.id,
       serviceName: service.service.serviceName,
       price: service.service.price,
+      availableTo: service.service.availableTo,
     })),
   }));
 };

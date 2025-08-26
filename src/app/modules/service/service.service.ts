@@ -130,6 +130,7 @@ const getServiceListFromDb = async (options: ISearchAndFilterOptions) => {
     return {
       id: service.id,
       name: service.serviceName,
+      availableTo: service.availableTo,
       // description: service.description,
       price: service.price,
       duration: service.duration,

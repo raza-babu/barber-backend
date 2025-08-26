@@ -66,8 +66,10 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot change status of a missed booking');
         }
         // ---------- Refund Logic Placeholders ----------
-        if ((currentStatus === client_1.BookingStatus.CONFIRMED && targetStatus === client_1.BookingStatus.CANCELLED) ||
-            (currentStatus === client_1.BookingStatus.PENDING && targetStatus === client_1.BookingStatus.CANCELLED)) {
+        if ((currentStatus === client_1.BookingStatus.CONFIRMED &&
+            targetStatus === client_1.BookingStatus.CANCELLED) ||
+            (currentStatus === client_1.BookingStatus.PENDING &&
+                targetStatus === client_1.BookingStatus.CANCELLED)) {
             // Refund logic can be implemented here if needed
         }
         // ---------- Update Booking ----------
@@ -114,7 +116,10 @@ const getBarberDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, f
         },
     });
     // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
-    const startDate = luxon_1.DateTime.now().minus({ months: 11 }).startOf('month').toJSDate();
+    const startDate = luxon_1.DateTime.now()
+        .minus({ months: 11 })
+        .startOf('month')
+        .toJSDate();
     const customerGrowthRaw = yield prisma_1.default.booking.findMany({
         where: {
             saloonOwnerId: userId,
@@ -164,6 +169,8 @@ const getCustomerBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, 
                     id: true,
                     fullName: true,
                     image: true,
+                    email: true,
+                    phoneNumber: true,
                 },
             },
             barber: {
@@ -173,6 +180,8 @@ const getCustomerBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, 
                             id: true,
                             fullName: true,
                             image: true,
+                            email: true,
+                            phoneNumber: true,
                         },
                     },
                 },
@@ -184,6 +193,7 @@ const getCustomerBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, 
                             id: true,
                             serviceName: true,
                             price: true,
+                            availableTo: true,
                         },
                     },
                 },
@@ -201,9 +211,13 @@ const getCustomerBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, 
         customerId: booking.user.id,
         customerName: booking.user.fullName,
         customerImage: booking.user.image,
+        customEmail: booking.user.email,
+        customerPhone: booking.user.phoneNumber,
         barberId: booking.barber.user.id,
         barberName: booking.barber.user.fullName,
         barberImage: booking.barber.user.image,
+        barberEmail: booking.barber.user.email,
+        barberPhone: booking.barber.user.phoneNumber,
         totalPrice: booking.totalPrice,
         bookingDate: booking.date,
         startTime: booking.startTime,
@@ -213,6 +227,7 @@ const getCustomerBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, 
             serviceId: service.service.id,
             serviceName: service.service.serviceName,
             price: service.service.price,
+            availableTo: service.service.availableTo,
         })),
     }));
 });
