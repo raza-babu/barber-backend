@@ -525,7 +525,7 @@ const verifyOtpInDB = (bodyData) => __awaiter(void 0, void 0, void 0, function* 
     };
     // If user is not active, determine what else to update
     if (userData.status !== client_1.UserStatus.ACTIVE) {
-        updateData.status = client_1.UserStatus.ACTIVE;
+        // updateData.status = UserStatus.ACTIVE;
         if (userData.intendedRole === client_1.UserRoleEnum.SALOON_OWNER) {
             updateData.intendedRole = client_1.UserRoleEnum.SALOON_OWNER;
             updateData.role = client_1.UserRoleEnum.SALOON_OWNER;
@@ -535,10 +535,12 @@ const verifyOtpInDB = (bodyData) => __awaiter(void 0, void 0, void 0, function* 
             // updateData.intendedRole = UserRoleEnum.BARBER;
             updateData.role = client_1.UserRoleEnum.BARBER;
             updateData.isProfileComplete = true;
+            updateData.status = client_1.UserStatus.ACTIVE;
         }
         else {
             // any other role or null
             updateData.isProfileComplete = true;
+            updateData.status = client_1.UserStatus.ACTIVE;
         }
     }
     yield prisma_1.default.user.update({

@@ -123,7 +123,7 @@ enum UserRoleEnum {
 
 enum UserStatus {
   ACTIVE
-  INACTIVE
+  PENDING
   BLOCKED
 }
 
@@ -1124,7 +1124,7 @@ model User {
   email             String        @unique
   password          String?
   role              UserRoleEnum  @default(CUSTOMER)
-  status            UserStatus    @default(INACTIVE)
+  status            UserStatus    @default(PENDING)
   intendedRole      UserRoleEnum?
   isProfileComplete Boolean       @default(false)
   address           String?

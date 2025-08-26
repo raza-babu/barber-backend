@@ -233,6 +233,22 @@ const blockSaloonByIdIntoDb = async (saloonOwnerId: string, data: any) => {
       'Saloon not found or not updated',
     );
   }
+  const updateUser = await prisma.user.update({
+    where: {
+      id: saloonOwnerId,
+    },
+    data: {
+      status: status === true ? UserStatus.ACTIVE : UserStatus.BLOCKED,
+    },
+  });
+  if (!updateUser) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'User status not updated for the saloon owner',
+    );
+  }
+
+
   return result;
 };
 
@@ -548,6 +564,30 @@ const getAdminDashboardFromDb = async (userId: string) => {
     },
   });
 
+  const totalEarnings = await prisma.payment.aggregate({
+    _sum: {
+      paymentAmount: true,
+    },
+    where: {
+      status: 'COMPLETED',
+    },
+  }); 
+
+  const earningGrowth = await prisma.payment.groupBy({
+    by: ['createdAt'],
+    _sum: {
+      paymentAmount: true,
+    },
+    where: {
+      status: 'COMPLETED',
+      createdAt: {
+        gte: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Last month
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+
   const userGrowth = await prisma.user.groupBy({
     by: ['createdAt', 'role'],
     _count: {
@@ -569,14 +609,69 @@ const getAdminDashboardFromDb = async (userId: string) => {
     orderBy: [{ createdAt: 'asc' }, { role: 'asc' }],
   });
 
+  // Prepare last 12 months labels
+  interface MonthEarning {
+    label: string;
+    year: number;
+    month: number;
+    total: number;
+  }
+  const months: MonthEarning[] = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      label: d.toLocaleString('default', { month: 'short', year: 'numeric' }), // e.g. "Jan 2024"
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      total: 0,
+    });
+  }
+
+  // Map earningGrowth to month index
+  earningGrowth.forEach(item => {
+    const date = new Date(item.createdAt);
+    const idx = months.findIndex(
+      m => m.year === date.getFullYear() && m.month === date.getMonth()
+    );
+    if (idx !== -1) {
+      months[idx].total += item._sum.paymentAmount || 0;
+    }
+  });
+
+  // Prepare user growth per month with month name
+  const userGrowthByMonth: { month: string; role: string; count: number }[] = [];
+  months.forEach(month => {
+    ['SALOON_OWNER', 'BARBER', 'CUSTOMER'].forEach(role => {
+      const count = userGrowth
+        .filter(
+          item =>
+            item.role === role &&
+            item.createdAt.getFullYear() === month.year &&
+            item.createdAt.getMonth() === month.month
+        )
+        .reduce((sum, item) => sum + item._count.id, 0);
+      userGrowthByMonth.push({
+        month: month.label,
+        role,
+        count,
+      });
+    });
+  });
+
   return {
     saloonCount,
     barberCount,
     customerCount,
-    userGrowth: userGrowth.map(item => ({
-      date: item.createdAt.toISOString().split('T')[0], // Format date to YYYY-MM-DD
+    totalEarnings: totalEarnings._sum.paymentAmount || 0,
+    earningGrowth: months.map(m => ({
+      month: m.label,
+      total: m.total,
+    })),
+    userGrowth: userGrowthByMonth.map(item => ({
+      date: item.month, // Use the month label as the date
       role: item.role,
-      count: item._count.id,
+      count: item.count,
     })),
   };
 };

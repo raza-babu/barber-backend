@@ -15,7 +15,6 @@ const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
   apiVersion: '2025-07-30.basil',
 });
 
-
 interface UserWithOptionalPassword extends Omit<User, 'password'> {
   password?: string;
 }
@@ -604,7 +603,7 @@ const verifyOtpInDB = async (bodyData: {
 
   // If user is not active, determine what else to update
   if (userData.status !== UserStatus.ACTIVE) {
-    updateData.status = UserStatus.ACTIVE;
+    // updateData.status = UserStatus.ACTIVE;
 
     if (userData.intendedRole === UserRoleEnum.SALOON_OWNER) {
       updateData.intendedRole = UserRoleEnum.SALOON_OWNER;
@@ -614,9 +613,11 @@ const verifyOtpInDB = async (bodyData: {
       // updateData.intendedRole = UserRoleEnum.BARBER;
       updateData.role = UserRoleEnum.BARBER;
       updateData.isProfileComplete = true;
+      updateData.status = UserStatus.ACTIVE;
     } else {
       // any other role or null
       updateData.isProfileComplete = true;
+      updateData.status = UserStatus.ACTIVE;
     }
   }
 
@@ -625,22 +626,22 @@ const verifyOtpInDB = async (bodyData: {
     data: updateData,
   });
 
-   // Create a new Stripe customer
-    const customer = await stripe.customers.create({
-      name: userData.fullName,
-      email: userData.email,
-      address: {
-        city: userData.address ?? 'City', // You can modify this as needed
-        country: 'America', // You can modify this as needed
-      },
-      metadata: {
-        userId: userData.id,
-        role: userData.role,
-      },
-    });
-    if (!customer || !customer.id) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Stripe customer not created!');
-    }
+  // Create a new Stripe customer
+  const customer = await stripe.customers.create({
+    name: userData.fullName,
+    email: userData.email,
+    address: {
+      city: userData.address ?? 'City', // You can modify this as needed
+      country: 'America', // You can modify this as needed
+    },
+    metadata: {
+      userId: userData.id,
+      role: userData.role,
+    },
+  });
+  if (!customer || !customer.id) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Stripe customer not created!');
+  }
 
   return { message: 'OTP verified successfully!' };
 };

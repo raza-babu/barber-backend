@@ -226,6 +226,17 @@ const blockSaloonByIdIntoDb = (saloonOwnerId, data) => __awaiter(void 0, void 0,
     if (!result) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon not found or not updated');
     }
+    const updateUser = yield prisma_1.default.user.update({
+        where: {
+            id: saloonOwnerId,
+        },
+        data: {
+            status: status === true ? client_1.UserStatus.ACTIVE : client_1.UserStatus.BLOCKED,
+        },
+    });
+    if (!updateUser) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'User status not updated for the saloon owner');
+    }
     return result;
 });
 const getBarbersListFromDb = (options) => __awaiter(void 0, void 0, void 0, function* () {
@@ -483,6 +494,27 @@ const getAdminDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, fu
             status: client_1.UserStatus.ACTIVE,
         },
     });
+    const totalEarnings = yield prisma_1.default.payment.aggregate({
+        _sum: {
+            paymentAmount: true,
+        },
+        where: {
+            status: 'COMPLETED',
+        },
+    });
+    const earningGrowth = yield prisma_1.default.payment.groupBy({
+        by: ['createdAt'],
+        _sum: {
+            paymentAmount: true,
+        },
+        where: {
+            status: 'COMPLETED',
+            createdAt: {
+                gte: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Last month
+            },
+        },
+        orderBy: { createdAt: 'asc' },
+    });
     const userGrowth = yield prisma_1.default.user.groupBy({
         by: ['createdAt', 'role'],
         _count: {
@@ -503,14 +535,54 @@ const getAdminDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, fu
         },
         orderBy: [{ createdAt: 'asc' }, { role: 'asc' }],
     });
+    const months = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({
+            label: d.toLocaleString('default', { month: 'short', year: 'numeric' }), // e.g. "Jan 2024"
+            year: d.getFullYear(),
+            month: d.getMonth(),
+            total: 0,
+        });
+    }
+    // Map earningGrowth to month index
+    earningGrowth.forEach(item => {
+        const date = new Date(item.createdAt);
+        const idx = months.findIndex(m => m.year === date.getFullYear() && m.month === date.getMonth());
+        if (idx !== -1) {
+            months[idx].total += item._sum.paymentAmount || 0;
+        }
+    });
+    // Prepare user growth per month with month name
+    const userGrowthByMonth = [];
+    months.forEach(month => {
+        ['SALOON_OWNER', 'BARBER', 'CUSTOMER'].forEach(role => {
+            const count = userGrowth
+                .filter(item => item.role === role &&
+                item.createdAt.getFullYear() === month.year &&
+                item.createdAt.getMonth() === month.month)
+                .reduce((sum, item) => sum + item._count.id, 0);
+            userGrowthByMonth.push({
+                month: month.label,
+                role,
+                count,
+            });
+        });
+    });
     return {
         saloonCount,
         barberCount,
         customerCount,
-        userGrowth: userGrowth.map(item => ({
-            date: item.createdAt.toISOString().split('T')[0], // Format date to YYYY-MM-DD
+        totalEarnings: totalEarnings._sum.paymentAmount || 0,
+        earningGrowth: months.map(m => ({
+            month: m.label,
+            total: m.total,
+        })),
+        userGrowth: userGrowthByMonth.map(item => ({
+            date: item.month, // Use the month label as the date
             role: item.role,
-            count: item._count.id,
+            count: item.count,
         })),
     };
 });
