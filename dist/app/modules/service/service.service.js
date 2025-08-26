@@ -30,28 +30,31 @@ const createServiceIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
 const getServiceListFromDb = (options) => __awaiter(void 0, void 0, void 0, function* () {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
     // Build search query
-    const searchQuery = options.searchTerm ? {
-        OR: [
-            {
-                serviceName: {
-                    contains: options.searchTerm,
-                    mode: 'insensitive',
+    const searchQuery = options.searchTerm
+        ? {
+            OR: [
+                {
+                    serviceName: {
+                        contains: options.searchTerm,
+                        mode: 'insensitive',
+                    },
                 },
-            }, {},
-            // {
-            //   description: {
-            //     contains: options.searchTerm,
-            //     mode: 'insensitive' as const,
-            //   },
-            // },
-            // {
-            //   category: {
-            //     contains: options.searchTerm,
-            //     mode: 'insensitive' as const,
-            //   },
-            // },
-        ],
-    } : {};
+                {},
+                // {
+                //   description: {
+                //     contains: options.searchTerm,
+                //     mode: 'insensitive' as const,
+                //   },
+                // },
+                // {
+                //   category: {
+                //     contains: options.searchTerm,
+                //     mode: 'insensitive' as const,
+                //   },
+                // },
+            ],
+        }
+        : {};
     // Build filter query
     const filterQuery = {
         isActive: options.isActive !== undefined ? options.isActive === 'true' : true,
@@ -63,9 +66,11 @@ const getServiceListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
     // Build price range filter
     const priceRangeQuery = (0, searchFilter_1.buildNumericRangeQuery)('price', options.priceMin ? Number(options.priceMin) : undefined, options.priceMax ? Number(options.priceMax) : undefined);
     // Build date range query
-    const dateRangeQuery = options.startDate || options.endDate ? {
-        createdAt: Object.assign(Object.assign({}, (options.startDate && { gte: new Date(options.startDate) })), (options.endDate && { lte: new Date(options.endDate) })),
-    } : {};
+    const dateRangeQuery = options.startDate || options.endDate
+        ? {
+            createdAt: Object.assign(Object.assign({}, (options.startDate && { gte: new Date(options.startDate) })), (options.endDate && { lte: new Date(options.endDate) })),
+        }
+        : {};
     // Combine all queries
     const whereClause = Object.assign(Object.assign(Object.assign(Object.assign({}, filterQuery), priceRangeQuery), dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
     const [services, total] = yield Promise.all([
@@ -76,20 +81,24 @@ const getServiceListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
             orderBy: {
                 [sortBy]: sortOrder,
             },
-            include: {
-                saloon: {
-                    select: {
-                        shopName: true,
-                        shopLogo: true,
-                        user: {
-                            select: {
-                                fullName: true,
-                                email: true,
-                            },
-                        },
-                    },
-                },
-            },
+            // include: {
+            //   user: {
+            //     select: {
+            //       SaloonOwner: {
+            //         select: {
+            //           shopName: true,
+            //           shopLogo: true,
+            //           user: {
+            //             select: {
+            //               fullName: true,
+            //               email: true,
+            //             },
+            //           },
+            //         },
+            //       },
+            //     },
+            //   },
+            // },
         }),
         prisma_1.default.service.count({
             where: whereClause,
@@ -97,8 +106,8 @@ const getServiceListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
     ]);
     // Transform the data to include saloon information
     const transformedServices = services.map(service => {
-        var _a, _b, _c, _d, _e, _f;
-        return ({
+        // const saloonOwner = service.user?.SaloonOwner?.[0];
+        return {
             id: service.id,
             name: service.serviceName,
             // description: service.description,
@@ -109,39 +118,40 @@ const getServiceListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
             saloonOwnerId: service.saloonOwnerId,
             createdAt: service.createdAt,
             updatedAt: service.updatedAt,
-            saloon: {
-                shopName: (_a = service.saloon) === null || _a === void 0 ? void 0 : _a.shopName,
-                shopLogo: (_b = service.saloon) === null || _b === void 0 ? void 0 : _b.shopLogo,
-                ownerName: (_d = (_c = service.saloon) === null || _c === void 0 ? void 0 : _c.user) === null || _d === void 0 ? void 0 : _d.fullName,
-                ownerEmail: (_f = (_e = service.saloon) === null || _e === void 0 ? void 0 : _e.user) === null || _f === void 0 ? void 0 : _f.email,
-            },
-        });
+            // saloon: saloonOwner
+            //   ? {
+            //       shopName: saloonOwner.shopName,
+            //       shopLogo: saloonOwner.shopLogo,
+            //       ownerName: saloonOwner.user?.fullName,
+            //       ownerEmail: saloonOwner.user?.email,
+            //     }
+            //   : null,
+        };
     });
     return (0, pagination_1.formatPaginationResponse)(transformedServices, total, page, limit);
 });
 const getServiceByIdFromDb = (serviceId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     const result = yield prisma_1.default.service.findUnique({
         where: {
             id: serviceId,
             isActive: true,
         },
-        include: {
-            saloon: {
-                select: {
-                    shopName: true,
-                    shopLogo: true,
-                    shopAddress: true,
-                    user: {
-                        select: {
-                            fullName: true,
-                            email: true,
-                            phoneNumber: true,
-                        },
-                    },
-                },
-            },
-        },
+        // include: {
+        //   saloon: {
+        //     select: {
+        //       shopName: true,
+        //       shopLogo: true,
+        //       shopAddress: true,
+        //       user: {
+        //         select: {
+        //           fullName: true,
+        //           email: true,
+        //           phoneNumber: true,
+        //         },
+        //       },
+        //     },
+        //   },
+        // },
     });
     if (!result) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'service not found');
@@ -158,14 +168,14 @@ const getServiceByIdFromDb = (serviceId) => __awaiter(void 0, void 0, void 0, fu
         saloonOwnerId: result.saloonOwnerId,
         createdAt: result.createdAt,
         updatedAt: result.updatedAt,
-        saloon: {
-            shopName: (_a = result.saloon) === null || _a === void 0 ? void 0 : _a.shopName,
-            shopLogo: (_b = result.saloon) === null || _b === void 0 ? void 0 : _b.shopLogo,
-            shopAddress: (_c = result.saloon) === null || _c === void 0 ? void 0 : _c.shopAddress,
-            ownerName: (_e = (_d = result.saloon) === null || _d === void 0 ? void 0 : _d.user) === null || _e === void 0 ? void 0 : _e.fullName,
-            ownerEmail: (_g = (_f = result.saloon) === null || _f === void 0 ? void 0 : _f.user) === null || _g === void 0 ? void 0 : _g.email,
-            ownerPhone: (_j = (_h = result.saloon) === null || _h === void 0 ? void 0 : _h.user) === null || _j === void 0 ? void 0 : _j.phoneNumber,
-        },
+        // saloon: {
+        //   shopName: result.saloon?.shopName,
+        //   shopLogo: result.saloon?.shopLogo,
+        //   shopAddress: result.saloon?.shopAddress,
+        //   ownerName: result.saloon?.user?.fullName,
+        //   ownerEmail: result.saloon?.user?.email,
+        //   ownerPhone: result.saloon?.user?.phoneNumber,
+        // },
     };
     return transformedResult;
 });

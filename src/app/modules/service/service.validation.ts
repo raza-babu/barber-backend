@@ -31,16 +31,16 @@ const updateServiceSchema = z.object({
     duration: z.number().optional(),
     isActive: z.boolean().optional(),
   }),
-  params: z.object({
-    serviceId: z.string({
-      required_error: 'Service ID is required!',
-    }),
-  }).optional(),
-  query: z.object({
-    saloonId: z.string({
-      required_error: 'Saloon owner ID is required!',
-    }),
-  }).optional(),
+  // params: z.object({
+  //   serviceId: z.string({
+  //     required_error: 'Service ID is required!',
+  //   }),
+  // }).optional(),
+  // query: z.object({
+  //   saloonId: z.string({
+  //     required_error: 'Saloon owner ID is required!',
+  //   }),
+  // }).optional(),
 });  
 
 

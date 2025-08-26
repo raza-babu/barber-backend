@@ -1,3 +1,4 @@
+import { SaloonOwner } from './../../../../node_modules/.prisma/client/index.d';
 import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
@@ -50,16 +51,13 @@ const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
       price: true,
       duration: true,
       saloonOwnerId: true,
-      saloon: {
+      user: {
         select: {
-          shopName: true,
-          shopLogo: true,
-          shopAddress: true,
-          user: {
+          SaloonOwner: {
             select: {
-              fullName: true,
-              email: true,
-              phoneNumber: true,
+              shopName: true,
+              shopLogo: true,
+              shopAddress: true,
             },
           },
         },
@@ -69,23 +67,25 @@ const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
   if (result.length === 0) {
     throw new AppError(httpStatus.NOT_FOUND, 'No services found');
   }
-  return result.map(service => ({
-    id: service.id,
-    name: service.serviceName,
-    price: service.price, 
-    duration: service.duration,
-    // isActive: service.isActive,   
-    saloonOwnerId: service.saloonOwnerId,
-    saloon: {
-      shopName: service.saloon.shopName,
-      shopLogo: service.saloon.shopLogo,
-      shopAddress: service.saloon.shopAddress,    
-      ownerName: service.saloon.user.fullName,
-      ownerEmail: service.saloon.user.email,    
-      ownerPhone: service.saloon.user.phoneNumber,
-    },
-  }));
-};   
+  return result.map(service => {
+    const saloon = service.user?.SaloonOwner?.[0];
+    return {
+      id: service.id,
+      name: service.serviceName,
+      price: service.price,
+      duration: service.duration,
+      // isActive: service.isActive,
+      saloonOwnerId: service.saloonOwnerId,
+      saloon: saloon
+        ? {
+            shopName: saloon.shopName,
+            shopLogo: saloon.shopLogo,
+            shopAddress: saloon.shopAddress,
+          }
+        : null,
+    };
+  });
+};
 
 const getCustomerByIdFromDb = async (customerId: string) => {
   const result = await prisma.saloonOwner.findUnique({

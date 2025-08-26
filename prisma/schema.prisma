@@ -970,7 +970,7 @@ model SaloonOwner {
   SaloonHoliday     SaloonHoliday[]
   QrCode            QrCode[]
   CustomerVisit     CustomerVisit[]
-  Service           Service[]
+  // Service           Service[]
   jobPosts          JobPost[]
   JobApplication    JobApplication[]
   Support           Support[]
@@ -1022,7 +1022,7 @@ model SaloonSchedule {
 model Service {
   id            String      @id @default(auto()) @map("_id") @db.ObjectId
   saloonOwnerId String      @db.ObjectId
-  saloonId      String      @db.ObjectId
+  // saloonId      String      @db.ObjectId
   serviceName   String
   availableTo   AvailableTO @default(EVERYONE) // Who can book this service
   price         Float
@@ -1033,7 +1033,7 @@ model Service {
 
   // Relationships
   user           User             @relation(fields: [saloonOwnerId], references: [id])
-  saloon         SaloonOwner      @relation(fields: [saloonId], references: [id])
+  // saloon         SaloonOwner      @relation(fields: [saloonId], references: [id])
   // Booking        Booking[]
   CustomerVisit  CustomerVisit[]
   BookedServices BookedServices[]

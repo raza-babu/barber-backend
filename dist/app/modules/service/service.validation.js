@@ -31,16 +31,16 @@ const updateServiceSchema = zod_1.z.object({
         duration: zod_1.z.number().optional(),
         isActive: zod_1.z.boolean().optional(),
     }),
-    params: zod_1.z.object({
-        serviceId: zod_1.z.string({
-            required_error: 'Service ID is required!',
-        }),
-    }).optional(),
-    query: zod_1.z.object({
-        saloonId: zod_1.z.string({
-            required_error: 'Saloon owner ID is required!',
-        }),
-    }).optional(),
+    // params: z.object({
+    //   serviceId: z.string({
+    //     required_error: 'Service ID is required!',
+    //   }),
+    // }).optional(),
+    // query: z.object({
+    //   saloonId: z.string({
+    //     required_error: 'Saloon owner ID is required!',
+    //   }),
+    // }).optional(),
 });
 const toggleServiceActiveSchema = zod_1.z.object({
     params: zod_1.z.object({

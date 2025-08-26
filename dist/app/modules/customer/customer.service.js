@@ -58,16 +58,13 @@ const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void
             price: true,
             duration: true,
             saloonOwnerId: true,
-            saloon: {
+            user: {
                 select: {
-                    shopName: true,
-                    shopLogo: true,
-                    shopAddress: true,
-                    user: {
+                    SaloonOwner: {
                         select: {
-                            fullName: true,
-                            email: true,
-                            phoneNumber: true,
+                            shopName: true,
+                            shopLogo: true,
+                            shopAddress: true,
                         },
                     },
                 },
@@ -77,22 +74,25 @@ const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void
     if (result.length === 0) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'No services found');
     }
-    return result.map(service => ({
-        id: service.id,
-        name: service.serviceName,
-        price: service.price,
-        duration: service.duration,
-        // isActive: service.isActive,   
-        saloonOwnerId: service.saloonOwnerId,
-        saloon: {
-            shopName: service.saloon.shopName,
-            shopLogo: service.saloon.shopLogo,
-            shopAddress: service.saloon.shopAddress,
-            ownerName: service.saloon.user.fullName,
-            ownerEmail: service.saloon.user.email,
-            ownerPhone: service.saloon.user.phoneNumber,
-        },
-    }));
+    return result.map(service => {
+        var _a, _b;
+        const saloon = (_b = (_a = service.user) === null || _a === void 0 ? void 0 : _a.SaloonOwner) === null || _b === void 0 ? void 0 : _b[0];
+        return {
+            id: service.id,
+            name: service.serviceName,
+            price: service.price,
+            duration: service.duration,
+            // isActive: service.isActive,
+            saloonOwnerId: service.saloonOwnerId,
+            saloon: saloon
+                ? {
+                    shopName: saloon.shopName,
+                    shopLogo: saloon.shopLogo,
+                    shopAddress: saloon.shopAddress,
+                }
+                : null,
+        };
+    });
 });
 const getCustomerByIdFromDb = (customerId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.saloonOwner.findUnique({
