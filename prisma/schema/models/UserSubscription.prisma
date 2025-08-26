@@ -4,7 +4,7 @@ model UserSubscription {
   subscriptionOfferId  String        @db.ObjectId
   startDate            DateTime      @default(now())
   endDate              DateTime
-  stripeSubscriptionId String?
+  stripeSubscriptionId String?       @unique
   paymentStatus        PaymentStatus @default(PENDING)
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt

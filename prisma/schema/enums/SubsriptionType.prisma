@@ -1,4 +1,4 @@
-enum SubscriptionType{
+enum SubscriptionType {
   WEEKLY
   MONTHLY
   YEARLY

@@ -4,6 +4,8 @@ import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { userSubscriptionController } from './userSubscription.controller';
 import { userSubscriptionValidation } from './userSubscription.validation';
+import { checkPermissions } from '../../middlewares/checkPermissions';
+import { UserAccessFunctionName } from '../../utils/access';
 
 const router = express.Router();
 
@@ -14,20 +16,34 @@ router.post(
   userSubscriptionController.createUserSubscription,
 );
 
-router.get('/', auth(), userSubscriptionController.getUserSubscriptionList);
+router.get(
+  '/',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.PREMIUM_SUBSCRIBERS,
+  ),
+  userSubscriptionController.getUserSubscriptionList,
+);
 
-router.get('/:id', auth(), userSubscriptionController.getUserSubscriptionById);
+router.get(
+  '/:id',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.PREMIUM_SUBSCRIBERS,
+  ),
+  userSubscriptionController.getUserSubscriptionById,
+);
 
 router.put(
   '/:id',
-  auth(),
+  auth(UserRoleEnum.SALOON_OWNER),
   validateRequest(userSubscriptionValidation.updateSchema),
   userSubscriptionController.updateUserSubscription,
 );
 
 router.delete(
   '/:id',
-  auth(),
+  auth(UserRoleEnum.SALOON_OWNER),
   userSubscriptionController.deleteUserSubscription,
 );
 

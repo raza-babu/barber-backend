@@ -1,5 +1,10 @@
 import prisma from '../../utils/prisma';
-import { PaymentStatus, UserRoleEnum, UserStatus } from '@prisma/client';
+import {
+  PaymentStatus,
+  Prisma,
+  UserRoleEnum,
+  UserStatus,
+} from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import Stripe from 'stripe';
@@ -385,20 +390,81 @@ const deleteUserSubscriptionItemFromDb = async (
   userId: string,
   userSubscriptionId: string,
 ) => {
-  const deletedItem = await prisma.userSubscription.delete({
-    where: {
-      id: userSubscriptionId,
-      userId: userId,
-    },
-  });
-  if (!deletedItem) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'userSubscriptionId, not deleted',
-    );
-  }
+  const result = await prisma.$transaction(async tx => {
+    // Step 1: Find existing subscription
+    const existing = await tx.userSubscription.findFirst({
+      where: {
+        id: userSubscriptionId,
+        userId,
+      },
+    });
+    if (!existing) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Subscription not found');
+    }
 
-  return deletedItem;
+    // Step 2: Cancel Stripe subscription if exists
+    if (existing.stripeSubscriptionId) {
+      try {
+        await stripe.subscriptions.cancel(existing.stripeSubscriptionId);
+      } catch (err) {
+        // Log error but proceed with deletion
+        console.error('Error cancelling Stripe subscription:', err);
+      }
+    }
+
+    // Step 3: Delete user subscription record
+    await tx.userSubscription.update({
+      where: { id: userSubscriptionId },
+      data: { endDate: new Date(), paymentStatus: PaymentStatus.REFUNDED }, // Soft delete by setting endDate to now
+    });
+
+    // Step 4: Check if user has other active subscriptions
+    const activeSubscriptions = await tx.userSubscription.findUnique({
+      where: {
+        userId,
+        stripeSubscriptionId: existing.stripeSubscriptionId!,
+        endDate: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    const checkPaymentStatus = await prisma.payment.findUnique({
+      where: {
+        userId: existing.userId,
+        stripeSubscriptionId: existing.stripeSubscriptionId!,
+        status: PaymentStatus.COMPLETED,
+      },
+    });
+    if (!checkPaymentStatus) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Payment not found');
+    }
+
+    const updatePaymentStatus = await tx.payment.update({
+      where: {
+        userId: existing.userId,
+        stripeSubscriptionId: existing.stripeSubscriptionId!,
+      },
+      data: { status: PaymentStatus.REFUNDED },
+    });
+    if (!updatePaymentStatus) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Payment not updated');
+    }
+
+    // Step 5: Update user status if no active subscriptions remain
+    if (!activeSubscriptions) {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          isSubscribed: false,
+          subscriptionEnd: null,
+        },
+      });
+    }
+
+    return { message: 'Subscription cancelled successfully' };
+  });
+  return result;
 };
 
 export const userSubscriptionService = {

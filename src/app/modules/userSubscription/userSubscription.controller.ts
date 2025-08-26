@@ -5,7 +5,10 @@ import { userSubscriptionService } from './userSubscription.service';
 
 const createUserSubscription = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await userSubscriptionService.createUserSubscriptionIntoDb(user.id, req.body);
+  const result = await userSubscriptionService.createUserSubscriptionIntoDb(
+    user.id,
+    req.body,
+  );
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
@@ -16,7 +19,9 @@ const createUserSubscription = catchAsync(async (req, res) => {
 
 const getUserSubscriptionList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await userSubscriptionService.getUserSubscriptionListFromDb(user.id);
+  const result = await userSubscriptionService.getUserSubscriptionListFromDb(
+    user.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -27,7 +32,10 @@ const getUserSubscriptionList = catchAsync(async (req, res) => {
 
 const getUserSubscriptionById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await userSubscriptionService.getUserSubscriptionByIdFromDb(user.id, req.params.id);
+  const result = await userSubscriptionService.getUserSubscriptionByIdFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -38,7 +46,11 @@ const getUserSubscriptionById = catchAsync(async (req, res) => {
 
 const updateUserSubscription = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await userSubscriptionService.updateUserSubscriptionIntoDb(user.id, req.params.id, req.body);
+  const result = await userSubscriptionService.updateUserSubscriptionIntoDb(
+    user.id,
+    req.params.id,
+    req.body,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -49,12 +61,15 @@ const updateUserSubscription = catchAsync(async (req, res) => {
 
 const deleteUserSubscription = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await userSubscriptionService.deleteUserSubscriptionItemFromDb(user.id, req.params.id);
+  const result = await userSubscriptionService.deleteUserSubscriptionItemFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'UserSubscription deleted successfully',
-    data: result,
+    data: result, 
   });
 });
 

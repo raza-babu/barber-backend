@@ -3,4 +3,5 @@ enum PaymentStatus {
   COMPLETED
   FAILED
   EXPIRED
+  REFUNDED
 }

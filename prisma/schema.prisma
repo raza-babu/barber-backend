@@ -40,6 +40,7 @@ enum PaymentStatus {
   COMPLETED
   FAILED
   EXPIRED
+  REFUNDED
 }
 
 
@@ -91,7 +92,7 @@ enum RoomType {
 }
 
 
-enum SubscriptionType{
+enum SubscriptionType {
   WEEKLY
   MONTHLY
   YEARLY
@@ -730,7 +731,7 @@ model Notification {
 model Payment {
   id                       String        @id @default(auto()) @map("_id") @db.ObjectId
   userId                   String        @db.ObjectId
-  stripeSubscriptionId    String
+  stripeSubscriptionId     String        @unique
   paymentAmount            Float
   bookingId                String?       @db.ObjectId
   paymentDate              DateTime      @default(now())
@@ -741,7 +742,7 @@ model Payment {
   updatedAt                DateTime      @updatedAt
 
   booking Booking? @relation(fields: [bookingId], references: [id])
-  user    User    @relation(fields: [userId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
 
   @@map("payments")
 }
@@ -1203,7 +1204,7 @@ model UserSubscription {
   subscriptionOfferId  String        @db.ObjectId
   startDate            DateTime      @default(now())
   endDate              DateTime
-  stripeSubscriptionId String?
+  stripeSubscriptionId String?       @unique
   paymentStatus        PaymentStatus @default(PENDING)
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
