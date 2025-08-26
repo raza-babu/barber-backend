@@ -296,7 +296,7 @@ const getHiredBarbersListFromDb = async (userId: string, options: ISearchAndFilt
 
   // Transform the data
   const transformedData = hiredBarbers.map(hired => ({
-    id: hired.id,
+    // id: hired.id,
     hourlyRate: hired.hourlyRate,
     startDate: hired.startDate,
     createdAt: hired.createdAt,

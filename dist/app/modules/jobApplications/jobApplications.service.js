@@ -286,7 +286,7 @@ const getHiredBarbersListFromDb = (userId, options) => __awaiter(void 0, void 0,
     const transformedData = hiredBarbers.map(hired => {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         return ({
-            id: hired.id,
+            // id: hired.id,
             hourlyRate: hired.hourlyRate,
             startDate: hired.startDate,
             createdAt: hired.createdAt,
