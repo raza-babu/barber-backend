@@ -113,27 +113,33 @@ const getBarberDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, f
             status: client_1.BookingStatus.PENDING,
         },
     });
-    const customerGrowth = yield prisma_1.default.booking.groupBy({
-        by: ['createdAt'],
-        _count: {
-            id: true,
-        },
+    // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
+    const startDate = luxon_1.DateTime.now().minus({ months: 11 }).startOf('month').toJSDate();
+    const customerGrowthRaw = yield prisma_1.default.booking.findMany({
         where: {
             saloonOwnerId: userId,
             status: client_1.BookingStatus.COMPLETED,
             createdAt: {
-                gte: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Last month
+                gte: startDate,
             },
         },
-        orderBy: {
-            createdAt: 'asc',
+        select: {
+            createdAt: true,
         },
     });
-    // Group customer growth by month
+    // Prepare a map for each month in the last 12 months (e.g., Jan 2024)
     const monthlyGrowth = {};
-    customerGrowth.forEach(item => {
-        const month = `${item.createdAt.getFullYear()}-${String(item.createdAt.getMonth() + 1).padStart(2, '0')}`;
-        monthlyGrowth[month] = (monthlyGrowth[month] || 0) + item._count.id;
+    for (let i = 0; i < 12; i++) {
+        const dt = luxon_1.DateTime.now().minus({ months: 11 - i });
+        const monthYear = dt.toFormat('LLL yyyy'); // e.g., Jan 2024
+        monthlyGrowth[monthYear] = 0;
+    }
+    // Count bookings per month-year
+    customerGrowthRaw.forEach(item => {
+        const monthYear = luxon_1.DateTime.fromJSDate(item.createdAt).toFormat('LLL yyyy');
+        if (monthlyGrowth[monthYear] !== undefined) {
+            monthlyGrowth[monthYear]++;
+        }
     });
     return {
         totalCustomers: customerCount,

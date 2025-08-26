@@ -147,29 +147,38 @@ const getBarberDashboardFromDb = async (userId: string) => {
       status: BookingStatus.PENDING,
     },
   });
-  const customerGrowth = await prisma.booking.groupBy({
-    by: ['createdAt'],
-    _count: {
-      id: true,
-    },
+  // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
+  const startDate = DateTime.now().minus({ months: 11 }).startOf('month').toJSDate();
+  const customerGrowthRaw = await prisma.booking.findMany({
     where: {
       saloonOwnerId: userId,
       status: BookingStatus.COMPLETED,
       createdAt: {
-        gte: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Last month
+        gte: startDate,
       },
     },
-    orderBy: {
-      createdAt: 'asc',
+    select: {
+      createdAt: true,
     },
   });
 
-  // Group customer growth by month
+  // Prepare a map for each month in the last 12 months (e.g., Jan 2024)
   const monthlyGrowth: { [key: string]: number } = {};
-  customerGrowth.forEach(item => {
-    const month = `${item.createdAt.getFullYear()}-${String(item.createdAt.getMonth() + 1).padStart(2, '0')}`;
-    monthlyGrowth[month] = (monthlyGrowth[month] || 0) + item._count.id;
+  for (let i = 0; i < 12; i++) {
+    const dt = DateTime.now().minus({ months: 11 - i });
+    const monthYear = dt.toFormat('LLL yyyy'); // e.g., Jan 2024
+    monthlyGrowth[monthYear] = 0;
+  }
+
+  // Count bookings per month-year
+  customerGrowthRaw.forEach(item => {
+    const monthYear = DateTime.fromJSDate(item.createdAt).toFormat('LLL yyyy');
+    if (monthlyGrowth[monthYear] !== undefined) {
+      monthlyGrowth[monthYear]++;
+    }
   });
+
+  
 
   return {
     totalCustomers: customerCount,
