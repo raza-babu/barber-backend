@@ -55,6 +55,7 @@ const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
         select: {
           SaloonOwner: {
             select: {
+              userId: true,
               shopName: true,
               shopLogo: true,
               shopAddress: true,
@@ -78,6 +79,7 @@ const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
       saloonOwnerId: service.saloonOwnerId,
       saloon: saloon
         ? {
+            saloonId: saloon.userId,
             shopName: saloon.shopName,
             shopLogo: saloon.shopLogo,
             shopAddress: saloon.shopAddress,

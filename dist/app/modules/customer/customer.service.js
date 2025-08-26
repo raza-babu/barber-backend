@@ -62,6 +62,7 @@ const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void
                 select: {
                     SaloonOwner: {
                         select: {
+                            userId: true,
                             shopName: true,
                             shopLogo: true,
                             shopAddress: true,
@@ -86,6 +87,7 @@ const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void
             saloonOwnerId: service.saloonOwnerId,
             saloon: saloon
                 ? {
+                    saloonId: saloon.userId,
                     shopName: saloon.shopName,
                     shopLogo: saloon.shopLogo,
                     shopAddress: saloon.shopAddress,
