@@ -992,7 +992,7 @@ const updateBookingStatusIntoDb = (userId, data) => __awaiter(void 0, void 0, vo
                 },
                 data: {
                     status: status === 'CANCELED'
-                        ? client_1.BookingStatus.CANCELED
+                        ? client_1.BookingStatus.CANCELLED
                         : client_1.BookingStatus.PENDING,
                 },
             });

@@ -13,27 +13,111 @@ const manageBookingsIntoDb = async (
   },
 ) => {
   return await prisma.$transaction(async tx => {
-    const booking = await tx.booking.update({
+    const booking = await tx.booking.findUnique({
       where: {
         id: data.bookingId,
         saloonOwnerId: userId,
-        status: BookingStatus.PENDING,
-      },
-      data: {
-        status: data.status,
       },
     });
 
     if (!booking) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+    }
+
+    const currentStatus = booking.status;
+    const targetStatus = data.status;
+    const bookingEndTime = DateTime.fromJSDate(booking.endDateTime!);
+    const now = DateTime.now();
+
+    // ---------- Status Transition Rules ----------
+    switch (targetStatus) {
+      case BookingStatus.PENDING:
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Status cannot be changed back to pending',
+        );
+
+      case BookingStatus.CONFIRMED:
+        if (currentStatus !== BookingStatus.PENDING) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Only pending bookings can be confirmed',
+          );
+        }
+        break;
+
+      case BookingStatus.COMPLETED:
+        if (currentStatus !== BookingStatus.CONFIRMED) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Only confirmed bookings can be marked as completed',
+          );
+        }
+        if (now < bookingEndTime) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Cannot mark an ongoing booking as completed',
+          );
+        }
+        break;
+
+      case BookingStatus.CANCELLED:
+        if (currentStatus === BookingStatus.COMPLETED) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Completed bookings cannot be cancelled',
+          );
+        }
+        if (currentStatus === BookingStatus.CANCELLED) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Booking is already cancelled',
+          );
+        }
+        break;
+
+      default:
+        throw new AppError(httpStatus.BAD_REQUEST, 'Invalid status transition');
+    }
+
+    // ---------- Additional Rules ----------
+    if (currentStatus === BookingStatus.RESCHEDULED && now > bookingEndTime) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Cannot change status of a missed booking',
+      );
+    }
+
+    // ---------- Refund Logic Placeholders ----------
+    if (
+      (currentStatus === BookingStatus.CONFIRMED && targetStatus === BookingStatus.CANCELLED) ||
+      (currentStatus === BookingStatus.PENDING && targetStatus === BookingStatus.CANCELLED)
+    ) {
+      // Refund logic can be implemented here if needed
+    }
+
+    // ---------- Update Booking ----------
+    const updatedBooking = await tx.booking.update({
+      where: {
+        id: data.bookingId,
+        saloonOwnerId: userId,
+      },
+      data: {
+        status: targetStatus,
+      },
+    });
+
+    if (!updatedBooking) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
         'Booking not found or not updated',
       );
     }
 
-    return booking;
+    return updatedBooking;
   });
 };
+
 
 const getBarberDashboardFromDb = async (userId: string) => {
   const customerCount = await prisma.booking.count({
@@ -256,7 +340,9 @@ const terminateBarberIntoDb = async (
       let startTimeString = 'unknown time';
       if (conflictingBooking.startTime) {
         const date = new Date(conflictingBooking.startTime);
-        startTimeString = isNaN(date.getTime()) ? conflictingBooking.date.toDateString() : date.toISOString();
+        startTimeString = isNaN(date.getTime())
+          ? conflictingBooking.date.toDateString()
+          : date.toISOString();
       }
       throw new AppError(
         httpStatus.BAD_REQUEST,

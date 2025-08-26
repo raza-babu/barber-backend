@@ -20,20 +20,70 @@ const http_status_1 = __importDefault(require("http-status"));
 const luxon_1 = require("luxon");
 const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        const booking = yield tx.booking.update({
+        const booking = yield tx.booking.findUnique({
             where: {
                 id: data.bookingId,
                 saloonOwnerId: userId,
-                status: client_1.BookingStatus.PENDING,
-            },
-            data: {
-                status: data.status,
             },
         });
         if (!booking) {
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Booking not found');
+        }
+        const currentStatus = booking.status;
+        const targetStatus = data.status;
+        const bookingEndTime = luxon_1.DateTime.fromJSDate(booking.endDateTime);
+        const now = luxon_1.DateTime.now();
+        // ---------- Status Transition Rules ----------
+        switch (targetStatus) {
+            case client_1.BookingStatus.PENDING:
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Status cannot be changed back to pending');
+            case client_1.BookingStatus.CONFIRMED:
+                if (currentStatus !== client_1.BookingStatus.PENDING) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only pending bookings can be confirmed');
+                }
+                break;
+            case client_1.BookingStatus.COMPLETED:
+                if (currentStatus !== client_1.BookingStatus.CONFIRMED) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only confirmed bookings can be marked as completed');
+                }
+                if (now < bookingEndTime) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot mark an ongoing booking as completed');
+                }
+                break;
+            case client_1.BookingStatus.CANCELLED:
+                if (currentStatus === client_1.BookingStatus.COMPLETED) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Completed bookings cannot be cancelled');
+                }
+                if (currentStatus === client_1.BookingStatus.CANCELLED) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking is already cancelled');
+                }
+                break;
+            default:
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid status transition');
+        }
+        // ---------- Additional Rules ----------
+        if (currentStatus === client_1.BookingStatus.RESCHEDULED && now > bookingEndTime) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot change status of a missed booking');
+        }
+        // ---------- Refund Logic Placeholders ----------
+        if ((currentStatus === client_1.BookingStatus.CONFIRMED && targetStatus === client_1.BookingStatus.CANCELLED) ||
+            (currentStatus === client_1.BookingStatus.PENDING && targetStatus === client_1.BookingStatus.CANCELLED)) {
+            // Refund logic can be implemented here if needed
+        }
+        // ---------- Update Booking ----------
+        const updatedBooking = yield tx.booking.update({
+            where: {
+                id: data.bookingId,
+                saloonOwnerId: userId,
+            },
+            data: {
+                status: targetStatus,
+            },
+        });
+        if (!updatedBooking) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking not found or not updated');
         }
-        return booking;
+        return updatedBooking;
     }));
 });
 const getBarberDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
@@ -238,7 +288,9 @@ const terminateBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0
             let startTimeString = 'unknown time';
             if (conflictingBooking.startTime) {
                 const date = new Date(conflictingBooking.startTime);
-                startTimeString = isNaN(date.getTime()) ? conflictingBooking.date.toDateString() : date.toISOString();
+                startTimeString = isNaN(date.getTime())
+                    ? conflictingBooking.date.toDateString()
+                    : date.toISOString();
             }
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Cannot terminate barber before ${startTimeString} due to existing bookings.`);
         }

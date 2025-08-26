@@ -12,7 +12,7 @@ enum AvailableTO {
 enum BookingStatus {
   PENDING
   CONFIRMED
-  CANCELED
+  CANCELLED
   COMPLETED
   RESCHEDULED
   NO_SHOW

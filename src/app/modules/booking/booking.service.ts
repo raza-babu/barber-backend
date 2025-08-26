@@ -1124,7 +1124,7 @@ const updateBookingStatusIntoDb = async (userId: string, data: any) => {
         data: {
           status:
             status === 'CANCELED'
-              ? BookingStatus.CANCELED
+              ? BookingStatus.CANCELLED
               : BookingStatus.PENDING,
         },
       });

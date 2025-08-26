@@ -17,6 +17,8 @@ app.use((0, cors_1.default)({
         "http://localhost:3000",
         "http://10.10.20.60:3005",
         "http://10.10.20.60:3006",
+        "http://10.10.20.60:3007",
+        "http://10.10.20.60:3008",
     ],
     credentials: true,
 }));
