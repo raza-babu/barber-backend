@@ -11,16 +11,23 @@ const routes_1 = __importDefault(require("./app/routes"));
 const app = (0, express_1.default)();
 // app.use(logger);
 // app.use(loggerConsole);
+// app.use(
+//   cors({
+//     origin: [
+//       "http://localhost:3001",
+//       "http://localhost:3000",
+//       "http://10.10.20.60:3005",
+//       "http://10.10.20.60:3006",
+//       "http://10.10.20.60:3007",
+//       "http://10.10.20.60:3008",
+//     ],
+//     credentials: true,
+//   })
+// );
 app.use((0, cors_1.default)({
-    origin: [
-        "http://localhost:3001",
-        "http://localhost:3000",
-        "http://10.10.20.60:3005",
-        "http://10.10.20.60:3006",
-        "http://10.10.20.60:3007",
-        "http://10.10.20.60:3008",
-    ],
+    origin: true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
 }));
 // app.use(
 //   cors(

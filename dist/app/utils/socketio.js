@@ -21,7 +21,12 @@ const client_1 = require("@prisma/client");
 const onlineUsers = new Set();
 const userSockets = new Map();
 function setupSocketIO(server) {
-    const io = new socket_io_1.Server(server);
+    // const io = new SocketIOServer(server);
+    const io = new socket_io_1.Server(server, {
+        cors: {
+            origin: '*',
+        },
+    });
     const messagesNameSpace = io.of('/messages');
     messagesNameSpace.on('connection', (socket) => __awaiter(this, void 0, void 0, function* () {
         console.log('A user connected to messages namespace');
@@ -259,19 +264,16 @@ function setupSocketIO(server) {
                         },
                     },
                 });
-                // Only show chats relevant to the user
-                const receiverIds = rooms
-                    .map(room => {
-                    if (room.senderId === id) {
-                        return room.receiverId;
-                    }
-                    return room.senderId;
-                })
-                    .filter((uid) => uid !== null && uid !== undefined);
+                // Collect all unique user IDs involved in these rooms
+                const userIds = Array.from(new Set(rooms
+                    .map(room => [room.senderId, room.receiverId])
+                    .flat()
+                    .filter((uid) => !!uid)));
+                // Fetch user info for all involved users
                 const userInfos = yield prisma_1.default.user.findMany({
                     where: {
                         id: {
-                            in: receiverIds,
+                            in: userIds,
                         },
                     },
                     select: {
@@ -281,6 +283,7 @@ function setupSocketIO(server) {
                     },
                 });
                 const roomsWithUnreadMessages = yield Promise.all(rooms.map((room) => __awaiter(this, void 0, void 0, function* () {
+                    var _a, _b, _c, _d;
                     const unReadMessagesCount = yield prisma_1.default.chat.count({
                         where: {
                             roomId: room.id,
@@ -290,9 +293,13 @@ function setupSocketIO(server) {
                     });
                     return {
                         chat: room.chat[0], // Include only the latest chat
-                        sender: userInfos.find(userInfo => userInfo.id === room.senderId),
-                        receiver: userInfos.find(userInfo => userInfo.id === room.receiverId),
+                        // sender: userInfos.find(userInfo => userInfo.id === room.senderId),
+                        // receiver: userInfos.find(userInfo => userInfo.id === room.receiverId),
                         unReadMessagesCount,
+                        senderName: ((_a = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _a === void 0 ? void 0 : _a.fullName) || null,
+                        senderImage: ((_b = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _b === void 0 ? void 0 : _b.image) || null,
+                        receiverName: ((_c = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _c === void 0 ? void 0 : _c.fullName) || null,
+                        receiverImage: ((_d = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _d === void 0 ? void 0 : _d.image) || null,
                     };
                 })));
                 socket.emit('messageList', roomsWithUnreadMessages.length ? roomsWithUnreadMessages : []);

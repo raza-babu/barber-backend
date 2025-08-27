@@ -1,5 +1,5 @@
 import { verifyToken } from './verifyToken';
-import { Server as HTTPServer } from 'http';
+import { Server as HTTPServer, Server } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { JwtPayload, Secret } from 'jsonwebtoken';
 import config from '../../config';
@@ -10,7 +10,12 @@ const onlineUsers = new Set<string>();
 const userSockets = new Map<string, Socket>();
 
 export function setupSocketIO(server: HTTPServer) {
-  const io = new SocketIOServer(server);
+  // const io = new SocketIOServer(server);
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: '*',
+    },
+  });
 
   const messagesNameSpace = io.of('/messages');
 
@@ -74,25 +79,28 @@ export function setupSocketIO(server: HTTPServer) {
         }
 
         // Enforce customer-initiated chat with saloon owner
-        if (
-          role === UserRoleEnum.SALOON_OWNER &&
-          receiver.role === UserRoleEnum.CUSTOMER
-        ) {
-          // Check if a room already exists
-          const existingRoom = await prisma.room.findFirst({
-            where: {
-              OR: [
-                { senderId: id, receiverId: payload.receiverId },
-                { senderId: payload.receiverId, receiverId: id },
-              ],
-            },
-          });
-          if (!existingRoom) {
-            // Saloon owner cannot start chat with customer
-            socket.emit('error', 'You cannot start a chat with a customer.');
-            return;
-          }
-        }
+        // No restriction: saloon owner can start a chat with customer
+        // if (
+        //   role === UserRoleEnum.SALOON_OWNER &&
+        //   receiver.role === UserRoleEnum.CUSTOMER
+        // ) {
+        //   // console.log('Saloon owner cannot start chat with customer');
+        //   // socket.emit('error', 'You cannot start a chat with a customer.');
+        //   // Check if a room already exists
+        //   const existingRoom = await prisma.room.findFirst({
+        //     where: {
+        //       OR: [
+        //         { senderId: id, receiverId: payload.receiverId },
+        //         { senderId: payload.receiverId, receiverId: id },
+        //       ],
+        //     },
+        //   });
+        //   if (!existingRoom) {
+        //     // Saloon owner cannot start chat with customer
+        //     socket.emit('error', 'You cannot start a chat with a customer.');
+        //     return;
+        //   }
+        // }
 
         const room = await prisma.room.findFirst({
           where: {
@@ -261,20 +269,21 @@ export function setupSocketIO(server: HTTPServer) {
           },
         });
 
-        // Only show chats relevant to the user
-        const receiverIds = rooms
-          .map(room => {
-            if (room.senderId === id) {
-              return room.receiverId;
-            }
-            return room.senderId;
-          })
-          .filter((uid): uid is string => uid !== null && uid !== undefined);
+        // Collect all unique user IDs involved in these rooms
+        const userIds = Array.from(
+          new Set(
+            rooms
+              .map(room => [room.senderId, room.receiverId])
+              .flat()
+              .filter((uid): uid is string => !!uid),
+          ),
+        );
 
+        // Fetch user info for all involved users
         const userInfos = await prisma.user.findMany({
           where: {
             id: {
-              in: receiverIds,
+              in: userIds,
             },
           },
           select: {
@@ -295,11 +304,21 @@ export function setupSocketIO(server: HTTPServer) {
             });
             return {
               chat: room.chat[0], // Include only the latest chat
-              sender: userInfos.find(userInfo => userInfo.id === room.senderId),
-              receiver: userInfos.find(
-                userInfo => userInfo.id === room.receiverId,
-              ),
+              // sender: userInfos.find(userInfo => userInfo.id === room.senderId),
+              // receiver: userInfos.find(userInfo => userInfo.id === room.receiverId),
               unReadMessagesCount,
+              senderName:
+                userInfos.find(userInfo => userInfo.id === room.receiverId)
+                  ?.fullName || null,
+              senderImage:
+                userInfos.find(userInfo => userInfo.id === room.receiverId)
+                  ?.image || null,
+              receiverName:
+                userInfos.find(userInfo => userInfo.id === room.senderId)
+                  ?.fullName || null,
+              receiverImage:
+                userInfos.find(userInfo => userInfo.id === room.senderId)
+                  ?.image || null,
             };
           }),
         );
