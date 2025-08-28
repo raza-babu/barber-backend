@@ -44,17 +44,17 @@ const updateProfileSchema = zod_1.default.object({
             required_error: 'Phone number is required!',
         })
             .optional(),
+        dateOfBirth: zod_1.default
+            .string({
+            required_error: 'Date of birth is required!',
+        })
+            .optional(),
+        address: zod_1.default
+            .string({
+            required_error: 'Address is required!',
+        })
+            .optional(),
     }),
-    dateOfBirth: zod_1.default
-        .string({
-        required_error: 'Date of birth is required!',
-    })
-        .optional(),
-    address: zod_1.default
-        .string({
-        required_error: 'Address is required!',
-    })
-        .optional(),
 });
 const updatePasswordSchema = zod_1.default.object({
     body: zod_1.default.object({
@@ -166,39 +166,29 @@ const createSaloonOwner = zod_1.default.object({
             .optional(),
         qrCode: zod_1.default.string().optional(),
         isVerified: zod_1.default.boolean().optional(),
-        followerCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        followingCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        ratingCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        avgRating: zod_1.default
-            .number()
-            .nonnegative()
-            .optional()
-            .default(0),
+        followerCount: zod_1.default.number().int().nonnegative().default(0),
+        followingCount: zod_1.default.number().int().nonnegative().default(0),
+        ratingCount: zod_1.default.number().int().nonnegative().default(0),
+        avgRating: zod_1.default.number().nonnegative().optional().default(0),
     }),
 });
 const updateSaloonOwner = zod_1.default.object({
     body: zod_1.default.object({
-        shopName: zod_1.default.string({
+        shopName: zod_1.default
+            .string({
             required_error: 'Shop name is required!',
-        }).optional(),
-        registrationNumber: zod_1.default.string({
+        })
+            .optional(),
+        registrationNumber: zod_1.default
+            .string({
             required_error: 'Registration number is required!',
-        }).optional(),
-        shopAddress: zod_1.default.string({
+        })
+            .optional(),
+        shopAddress: zod_1.default
+            .string({
             required_error: 'Shop address is required!',
-        }).optional(),
+        })
+            .optional(),
         latitude: zod_1.default
             .number({
             invalid_type_error: 'Latitude must be a number!',
@@ -217,26 +207,10 @@ const updateSaloonOwner = zod_1.default.object({
             .optional(),
         qrCode: zod_1.default.string().optional(),
         isVerified: zod_1.default.boolean().optional(),
-        followerCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        followingCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        ratingCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        avgRating: zod_1.default
-            .number()
-            .nonnegative()
-            .optional()
-            .default(0),
+        followerCount: zod_1.default.number().int().nonnegative().default(0),
+        followingCount: zod_1.default.number().int().nonnegative().default(0),
+        ratingCount: zod_1.default.number().int().nonnegative().default(0),
+        avgRating: zod_1.default.number().nonnegative().optional().default(0),
     }),
 });
 const updateBarber = zod_1.default.object({
@@ -256,26 +230,10 @@ const updateBarber = zod_1.default.object({
             invalid_type_error: 'Skills must be an array of strings!',
         })
             .optional(),
-        followerCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        followingCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        ratingCount: zod_1.default
-            .number()
-            .int()
-            .nonnegative()
-            .default(0),
-        avgRating: zod_1.default
-            .number()
-            .nonnegative()
-            .optional()
-            .default(0),
+        followerCount: zod_1.default.number().int().nonnegative().default(0),
+        followingCount: zod_1.default.number().int().nonnegative().default(0),
+        ratingCount: zod_1.default.number().int().nonnegative().default(0),
+        avgRating: zod_1.default.number().nonnegative().optional().default(0),
     }),
 });
 exports.UserValidations = {

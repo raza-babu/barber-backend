@@ -39,19 +39,20 @@ const updateProfileSchema = z.object({
         required_error: 'Phone number is required!',
       })
       .optional(),
-  }),
-    dateOfBirth: z
+      dateOfBirth: z
       .string({
         required_error: 'Date of birth is required!',
       })
       .optional(),
-
+      
       address: z
       .string({
         required_error: 'Address is required!',
       })
       .optional(),
-});
+    }),
+  })
+
 
 const updatePasswordSchema = z.object({
   body: z.object({
@@ -132,7 +133,6 @@ const socialLoginSchema = z.object({
   }),
 });
 
-
 const createSaloonOwner = z.object({
   body: z.object({
     email: z
@@ -150,7 +150,6 @@ const createSaloonOwner = z.object({
       required_error: 'Registration number is required!',
     }),
 
-
     shopAddress: z.string({
       required_error: 'Shop address is required!',
     }),
@@ -179,45 +178,35 @@ const createSaloonOwner = z.object({
 
     isVerified: z.boolean().optional(),
 
-    followerCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    followerCount: z.number().int().nonnegative().default(0),
 
-    followingCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    followingCount: z.number().int().nonnegative().default(0),
 
-    ratingCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    ratingCount: z.number().int().nonnegative().default(0),
 
-    avgRating: z
-      .number()
-      .nonnegative()
-      .optional()
-      .default(0),
+    avgRating: z.number().nonnegative().optional().default(0),
   }),
 });
 
 const updateSaloonOwner = z.object({
   body: z.object({
-    shopName: z.string({
-      required_error: 'Shop name is required!',
-    }).optional(),
+    shopName: z
+      .string({
+        required_error: 'Shop name is required!',
+      })
+      .optional(),
 
-    registrationNumber: z.string({
-      required_error: 'Registration number is required!',
-    }).optional(),
+    registrationNumber: z
+      .string({
+        required_error: 'Registration number is required!',
+      })
+      .optional(),
 
-    shopAddress: z.string({
-      required_error: 'Shop address is required!',
-    }).optional(),
+    shopAddress: z
+      .string({
+        required_error: 'Shop address is required!',
+      })
+      .optional(),
 
     latitude: z
       .number({
@@ -243,46 +232,29 @@ const updateSaloonOwner = z.object({
 
     isVerified: z.boolean().optional(),
 
-    followerCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    followerCount: z.number().int().nonnegative().default(0),
 
-    followingCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    followingCount: z.number().int().nonnegative().default(0),
 
-    ratingCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    ratingCount: z.number().int().nonnegative().default(0),
 
-    avgRating: z
-      .number()
-      .nonnegative()
-      .optional()
-      .default(0),
+    avgRating: z.number().nonnegative().optional().default(0),
   }),
 });
 
- const updateBarber = z.object({
+const updateBarber = z.object({
   body: z.object({
-
     saloonOwnerId: z.string().optional(),
 
     currentWorkDes: z.string().optional(),
 
     bio: z.string().optional(),
 
-   portfolio: z
+    portfolio: z
       .array(z.string(), {
         invalid_type_error: 'Portfolio images must be an array of strings!',
       })
-      .optional(), 
+      .optional(),
 
     isAvailable: z.boolean().optional(),
 
@@ -294,32 +266,15 @@ const updateSaloonOwner = z.object({
       })
       .optional(),
 
-    followerCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    followerCount: z.number().int().nonnegative().default(0),
 
-    followingCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    followingCount: z.number().int().nonnegative().default(0),
 
-    ratingCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .default(0),
+    ratingCount: z.number().int().nonnegative().default(0),
 
-    avgRating: z
-      .number()
-      .nonnegative()
-      .optional()
-      .default(0),
+    avgRating: z.number().nonnegative().optional().default(0),
   }),
 });
-
 
 export const UserValidations = {
   registerUser,
