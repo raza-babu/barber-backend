@@ -30,29 +30,38 @@ const getBookingList = catchAsync(async (req, res) => {
 const getBookingListForSalonOwner = catchAsync(async (req, res) => {
   const user = req.user as any;
   const filters = pickValidFields(req.query, [
-      'page',
-      'limit',
-      'sortBy',
-      'sortOrder',
-      'searchTerm',
-      'startDate',
-      'endDate',
-      'status',
-    ]);
-  const result = await bookingService.getBookingListForSalonOwnerFromDb(user.id, filters);
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'startDate',
+    'endDate',
+    'status',
+  ]);
+  const result = await bookingService.getBookingListForSalonOwnerFromDb(
+    user.id,
+    filters,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Booking list for salon owner retrieved successfully',
-    data: result,
+    data: result.data, // ✅ only the bookings array
+    meta: result.meta, // ✅ pagination metadata
   });
 });
 
 const getAvailableBarbers = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const parsed = bookingValidation.availableBarbersSchema.parse({ query: req.query });
+  const parsed = bookingValidation.availableBarbersSchema.parse({
+    query: req.query,
+  });
   // console.log('Parsed query:', parsed.query);
-  const result = await bookingService.getAvailableBarbersFromDb(user.id, parsed.query);
+  const result = await bookingService.getAvailableBarbersFromDb(
+    user.id,
+    parsed.query,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -63,7 +72,10 @@ const getAvailableBarbers = catchAsync(async (req, res) => {
 
 const getBookingByIdForSalonOwner = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.getBookingByIdFromDbForSalon(user.id, req.params.id);
+  const result = await bookingService.getBookingByIdFromDbForSalon(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -74,7 +86,10 @@ const getBookingByIdForSalonOwner = catchAsync(async (req, res) => {
 
 const getBookingById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.getBookingByIdFromDb(user.id, req.params.id);
+  const result = await bookingService.getBookingByIdFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -85,10 +100,7 @@ const getBookingById = catchAsync(async (req, res) => {
 
 const updateBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.updateBookingIntoDb(
-    user.id,
-    req.body,
-  );
+  const result = await bookingService.updateBookingIntoDb(user.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

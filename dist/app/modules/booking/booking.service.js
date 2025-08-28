@@ -656,17 +656,9 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
             ],
         }
         : {};
-    // Date range filter
-    const dateRangeQuery = options.startDate || options.endDate
-        ? {
-            date: Object.assign(Object.assign({}, (options.startDate && { gte: new Date(options.startDate) })), (options.endDate && { lte: new Date(options.endDate) })),
-        }
-        : {};
-    // Status filter
-    const statusQuery = options.status
-        ? { status: client_1.BookingStatus[options.status] }
-        : {};
-    const whereClause = Object.assign(Object.assign(Object.assign({ saloonOwnerId: userId }, statusQuery), dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
+    // ✅ Only CONFIRMED and PENDING bookings
+    const allowedStatuses = [client_1.BookingStatus.CONFIRMED, client_1.BookingStatus.PENDING];
+    const whereClause = Object.assign({ saloonOwnerId: userId, status: { in: allowedStatuses } }, (Object.keys(searchQuery).length > 0 && searchQuery));
     const [result, total] = yield Promise.all([
         prisma_1.default.booking.findMany({
             where: whereClause,
@@ -690,35 +682,15 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
                 queueSlot: {
                     select: {
                         id: true,
-                        queueId: true,
-                        customerId: true,
-                        barberId: true,
                         position: true,
-                        startedAt: true,
-                        bookingId: true,
-                        barberStatus: {
-                            select: {
-                                id: true,
-                                barberId: true,
-                                isAvailable: true,
-                                startTime: true,
-                                endTime: true,
-                            },
-                        },
                     },
                 },
                 BookedServices: {
                     select: {
                         id: true,
-                        serviceId: true,
-                        customerId: true,
-                        price: true,
                         service: {
                             select: {
-                                id: true,
                                 serviceName: true,
-                                price: true,
-                                duration: true,
                             },
                         },
                     },
@@ -744,12 +716,10 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
                 },
             },
         }),
-        prisma_1.default.booking.count({
-            where: whereClause,
-        }),
+        prisma_1.default.booking.count({ where: whereClause }),
     ]);
-    // Flatten the result to include barber and booked services details at the top level
-    const data = result.map(booking => {
+    // Flatten results
+    const mapped = result.map(booking => {
         var _a, _b, _c, _d, _e, _f, _g;
         return ({
             bookingId: booking.id,
@@ -769,7 +739,16 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
             position: ((_g = booking.queueSlot[0]) === null || _g === void 0 ? void 0 : _g.position) || null,
         });
     });
-    return (0, pagination_1.formatPaginationResponse)(data, total, page, limit);
+    // ✅ Return directly in the required shape
+    return {
+        data: mapped,
+        meta: {
+            total,
+            page,
+            limit,
+            pageCount: Math.ceil(total / limit),
+        },
+    };
 });
 const getBookingByIdFromDbForSalon = (userId, bookingId) => __awaiter(void 0, void 0, void 0, function* () {
     var _h, _j, _k, _l, _m, _o;

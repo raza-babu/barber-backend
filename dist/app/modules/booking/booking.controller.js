@@ -56,12 +56,15 @@ const getBookingListForSalonOwner = (0, catchAsync_1.default)((req, res) => __aw
         statusCode: http_status_1.default.OK,
         success: true,
         message: 'Booking list for salon owner retrieved successfully',
-        data: result,
+        data: result.data, // ✅ only the bookings array
+        meta: result.meta, // ✅ pagination metadata
     });
 }));
 const getAvailableBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const parsed = booking_validation_1.bookingValidation.availableBarbersSchema.parse({ query: req.query });
+    const parsed = booking_validation_1.bookingValidation.availableBarbersSchema.parse({
+        query: req.query,
+    });
     // console.log('Parsed query:', parsed.query);
     const result = yield booking_service_1.bookingService.getAvailableBarbersFromDb(user.id, parsed.query);
     (0, sendResponse_1.default)(res, {
