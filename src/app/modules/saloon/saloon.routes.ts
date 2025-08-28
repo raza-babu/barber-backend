@@ -27,7 +27,7 @@ router.get(
 );
 
 router.get(
-  '/bookings',
+  '/booking-history',
   auth(UserRoleEnum.SALOON_OWNER),
   saloonController.getCustomerBookings,
 );

@@ -22,7 +22,7 @@ router.get(
 );
 
 router.get(
-  '/salons',
+  '/list',
   auth(UserRoleEnum.SALOON_OWNER),
   bookingController.getBookingListForSalonOwner,
 );

@@ -8,6 +8,11 @@ import {
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { DateTime } from 'luxon';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 const createBookingIntoDb = async (userId: string, data: any) => {
   const {
@@ -20,13 +25,14 @@ const createBookingIntoDb = async (userId: string, data: any) => {
     isInQueue,
   } = data;
 
-  const saloonStatus = await prisma.saloonOwner.findUnique({  
-    where: { userId: saloonOwnerId,
-      isVerified: true,
-     },
+  const saloonStatus = await prisma.saloonOwner.findUnique({
+    where: { userId: saloonOwnerId, isVerified: true },
   });
   if (!saloonStatus) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found or not verified');
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Saloon not found or not verified',
+    );
   }
 
   // 1. Fetch saloonOwner to check queue status
@@ -81,7 +87,6 @@ const createBookingIntoDb = async (userId: string, data: any) => {
     (sum, s) => sum + Number(s.price),
     0,
   );
-  
 
   // 4. Transaction for all DB operations
   const result = await prisma.$transaction(async tx => {
@@ -114,37 +119,47 @@ const createBookingIntoDb = async (userId: string, data: any) => {
       throw new AppError(httpStatus.BAD_REQUEST, 'Barber is on holiday');
     }
 
-
-
     // Check if the booking time overlaps with the barber's lunch/break time (time only, ignore date)
     const barberBreak = await tx.lunch.findFirst({
       where: {
-      saloonOwnerId: saloonOwnerId,
+        saloonOwnerId: saloonOwnerId,
       },
     });
 
     if (barberBreak) {
       // Extract only the time part from the booking start and end
-      const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', { zone: 'local' });
+      const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
+        zone: 'local',
+      });
       const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
 
       // Parse lunch break start and end times (time only, ignore date)
       if (!barberBreak.startTime || !barberBreak.endTime) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Barber break start or end time is missing');
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Barber break start or end time is missing',
+        );
       }
-      const breakStartTime = DateTime.fromFormat(barberBreak.startTime, 'hh:mm a', { zone: 'local' });
-      const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', { zone: 'local' });
+      const breakStartTime = DateTime.fromFormat(
+        barberBreak.startTime,
+        'hh:mm a',
+        { zone: 'local' },
+      );
+      const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
+        zone: 'local',
+      });
 
       // Check for overlap (time only)
       if (
-      (bookingStartTime >= breakStartTime && bookingStartTime < breakEndTime) ||
-      (bookingEndTime > breakStartTime && bookingEndTime <= breakEndTime) ||
-      (bookingStartTime <= breakStartTime && bookingEndTime >= breakEndTime)
+        (bookingStartTime >= breakStartTime &&
+          bookingStartTime < breakEndTime) ||
+        (bookingEndTime > breakStartTime && bookingEndTime <= breakEndTime) ||
+        (bookingStartTime <= breakStartTime && bookingEndTime >= breakEndTime)
       ) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Barber is unavailable during break/lunch time',
-      );
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Barber is unavailable during break/lunch time',
+        );
       }
     }
     // 4a. If queue is enabled, create queue and queueSlot
@@ -162,7 +177,6 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           date: { lt: new Date() },
         },
       });
-      
 
       // Try to find an existing queue for this barber and date (only one per day allowed)
       queue = await tx.queue.findFirst({
@@ -172,7 +186,6 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           date: new Date(date),
         },
       });
-
 
       if (!queue) {
         // If not found, create a new queue for the given date (today or any future date)
@@ -229,7 +242,10 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           data: { position: existingSlots[i].position + 1 },
         });
         if (!queueSlot) {
-          throw new AppError(httpStatus.BAD_REQUEST, 'Error updating queue slot position');
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Error updating queue slot position',
+          );
         }
       }
 
@@ -703,85 +719,160 @@ const getAvailableBarbersFromDb = async (
   return availableBarbers.filter(Boolean);
 };
 
-const getBookingListForSalonOwnerFromDb = async (userId: string) => {
-  const result = await prisma.booking.findMany({
-    where: {
-      saloonOwnerId: userId,
-    },
-    select: {
-      id: true,
-      userId: true,
-      barberId: true,
-      saloonOwnerId: true,
-      date: true,
-      notes: true,
-      isInQueue: true,
-      totalPrice: true,
-      startTime: true,
-      endTime: true,
-      status: true,
-      queueSlot: {
-        select: {
-          id: true,
-          queueId: true,
-          customerId: true,
-          barberId: true,
-          position: true,
-          startedAt: true,
-          bookingId: true,
-          barberStatus: {
-            select: {
-              id: true,
-              barberId: true,
-              isAvailable: true,
-              startTime: true,
-              endTime: true,
+const getBookingListForSalonOwnerFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions = {},
+) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Build search query for customer or barber name/email/phone
+  const searchQuery = options.searchTerm
+    ? {
+        OR: [
+          {
+            user: {
+              fullName: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            user: {
+              email: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            user: {
+              phoneNumber: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                fullName: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+        ],
+      }
+    : {};
+
+  // Date range filter
+  const dateRangeQuery =
+    options.startDate || options.endDate
+      ? {
+          date: {
+            ...(options.startDate && { gte: new Date(options.startDate) }),
+            ...(options.endDate && { lte: new Date(options.endDate) }),
+          },
+        }
+      : {};
+
+  // Status filter
+  const statusQuery = options.status
+    ? { status: BookingStatus[options.status as keyof typeof BookingStatus] }
+    : {};
+
+  const whereClause = {
+    saloonOwnerId: userId,
+    ...statusQuery,
+    ...dateRangeQuery,
+    ...(Object.keys(searchQuery).length > 0 && searchQuery),
+  };
+
+  const [result, total] = await Promise.all([
+    prisma.booking.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        id: true,
+        userId: true,
+        barberId: true,
+        saloonOwnerId: true,
+        date: true,
+        notes: true,
+        isInQueue: true,
+        totalPrice: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        queueSlot: {
+          select: {
+            id: true,
+            queueId: true,
+            customerId: true,
+            barberId: true,
+            position: true,
+            startedAt: true,
+            bookingId: true,
+            barberStatus: {
+              select: {
+                id: true,
+                barberId: true,
+                isAvailable: true,
+                startTime: true,
+                endTime: true,
+              },
             },
           },
         },
-      },
-      BookedServices: {
-        select: {
-          id: true,
-          serviceId: true,
-          customerId: true,
-          price: true,
-          service: {
-            select: {
-              id: true,
-              serviceName: true,
-              price: true,
-              duration: true,
+        BookedServices: {
+          select: {
+            id: true,
+            serviceId: true,
+            customerId: true,
+            price: true,
+            service: {
+              select: {
+                id: true,
+                serviceName: true,
+                price: true,
+                duration: true,
+              },
             },
           },
         },
-      },
-      barber: {
-        select: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              image: true,
+        barber: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                image: true,
+              },
             },
           },
         },
-      },
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          phoneNumber: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+          },
         },
       },
-    },
-  });
-  if (result.length === 0) {
-    return [];
-  }
+    }),
+    prisma.booking.count({
+      where: whereClause,
+    }),
+  ]);
   // Flatten the result to include barber and booked services details at the top level
-  return result.map(booking => ({
+  const data = result.map(booking => ({
     bookingId: booking.id,
     customerId: booking.userId,
     barberId: booking.barberId,
@@ -797,7 +888,10 @@ const getBookingListForSalonOwnerFromDb = async (userId: string) => {
       booking.BookedServices?.map(bs => bs.service?.serviceName) || [],
     barberName: booking.barber?.user?.fullName || null,
     status: booking.status || null,
+    position: booking.queueSlot[0]?.position || null,
   }));
+
+  return formatPaginationResponse(data, total, page, limit);
 };
 
 const getBookingByIdFromDbForSalon = async (

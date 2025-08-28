@@ -18,6 +18,7 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const booking_service_1 = require("./booking.service");
 const booking_validation_1 = require("./booking.validation");
+const pickValidFields_1 = require("../../utils/pickValidFields");
 const createBooking = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield booking_service_1.bookingService.createBookingIntoDb(user.id, req.body);
@@ -40,7 +41,17 @@ const getBookingList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 }));
 const getBookingListForSalonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield booking_service_1.bookingService.getBookingListForSalonOwnerFromDb(user.id);
+    const filters = (0, pickValidFields_1.pickValidFields)(req.query, [
+        'page',
+        'limit',
+        'sortBy',
+        'sortOrder',
+        'searchTerm',
+        'startDate',
+        'endDate',
+        'status',
+    ]);
+    const result = yield booking_service_1.bookingService.getBookingListForSalonOwnerFromDb(user.id, filters);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

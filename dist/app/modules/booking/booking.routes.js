@@ -13,7 +13,7 @@ const client_1 = require("@prisma/client");
 const router = express_1.default.Router();
 router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.createBookingSchema), booking_controller_1.bookingController.createBooking);
 router.get('/customers', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.getBookingList);
-router.get('/salons', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.getBookingListForSalonOwner);
+router.get('/list', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.getBookingListForSalonOwner);
 router.get('/barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.availableBarbersSchema), booking_controller_1.bookingController.getAvailableBarbers);
 router.get('/customers/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.getBookingById);
 router.get('/salons/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.getBookingByIdForSalonOwner);

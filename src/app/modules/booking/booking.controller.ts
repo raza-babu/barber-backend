@@ -3,6 +3,7 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { bookingService } from './booking.service';
 import { bookingValidation } from './booking.validation';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -28,7 +29,17 @@ const getBookingList = catchAsync(async (req, res) => {
 
 const getBookingListForSalonOwner = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.getBookingListForSalonOwnerFromDb(user.id);
+  const filters = pickValidFields(req.query, [
+      'page',
+      'limit',
+      'sortBy',
+      'sortOrder',
+      'searchTerm',
+      'startDate',
+      'endDate',
+      'status',
+    ]);
+  const result = await bookingService.getBookingListForSalonOwnerFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
