@@ -247,7 +247,7 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
             skip,
             take: limit,
             orderBy: {
-                [sortBy]: sortOrder,
+                [sortBy]: 'desc',
             },
             include: {
                 user: {
@@ -319,13 +319,76 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
 });
 const getTransactionsFromDb = (userId_2, ...args_2) => __awaiter(void 0, [userId_2, ...args_2], void 0, function* (userId, options = {}) {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
+    const searchQuery = options.searchTerm
+        ? {
+            OR: [
+                {
+                    user: {
+                        fullName: {
+                            contains: options.searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    user: {
+                        email: {
+                            contains: options.searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    user: {
+                        phoneNumber: {
+                            contains: options.searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    barber: {
+                        user: {
+                            fullName: {
+                                contains: options.searchTerm,
+                                mode: 'insensitive',
+                            },
+                        },
+                    },
+                },
+                {
+                    BookedServices: {
+                        some: {
+                            service: {
+                                serviceName: {
+                                    contains: options.searchTerm,
+                                    mode: 'insensitive',
+                                },
+                            },
+                        },
+                    },
+                },
+                // Removed invalid payment status search by 'contains' since status is an enum
+            ],
+        }
+        : {};
     // Only fetch payments with status 'COMPLETED' and join booking for saloonOwnerId
     const whereClause = {
-        status: client_1.PaymentStatus.COMPLETED || client_1.PaymentStatus.REFUNDED,
-        userId: userId,
-        booking: {
-            saloonOwnerId: userId,
-        },
+        status: { in: [client_1.PaymentStatus.COMPLETED, client_1.PaymentStatus.REFUNDED] },
+        booking: Object.assign({ saloonOwnerId: userId }, (searchQuery.OR
+            ? {
+                OR: searchQuery.OR.map((searchCondition) => {
+                    // Move booking-related search fields inside booking
+                    if (searchCondition.user ||
+                        searchCondition.barber ||
+                        searchCondition.BookedServices) {
+                        return searchCondition;
+                    }
+                    return undefined;
+                }).filter(Boolean),
+            }
+            : {})),
+        // Removed invalid payment status search by 'contains' since status is an enum
     };
     const [result, total] = yield Promise.all([
         prisma_1.default.payment.findMany({

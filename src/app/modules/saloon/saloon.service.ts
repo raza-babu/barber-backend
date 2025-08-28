@@ -299,7 +299,7 @@ const getCustomerBookingsFromDb = async (
       skip,
       take: limit,
       orderBy: {
-        [sortBy]: sortOrder,
+        [sortBy]:  'desc',
       },
       include: {
         user: {
@@ -371,19 +371,90 @@ const getCustomerBookingsFromDb = async (
 
   return formatPaginationResponse(bookings, total, page, limit);
 };
+
+
 const getTransactionsFromDb = async (
   userId: string,
   options: ISearchAndFilterOptions = {}
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
+
+  const searchQuery = options.searchTerm
+    ? {
+        OR: [
+          {
+            user: {
+              fullName: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            user: {
+              email: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            user: {
+              phoneNumber: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                fullName: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+          {
+            BookedServices: {
+              some: { 
+                service: {
+                  serviceName: {
+                    contains: options.searchTerm,
+                    mode: 'insensitive' as const,
+                  },
+                },
+              },
+            },
+          },
+          // Removed invalid payment status search by 'contains' since status is an enum
+        ],
+      }
+    : {};
   // Only fetch payments with status 'COMPLETED' and join booking for saloonOwnerId
   const whereClause = {
-    status: PaymentStatus.COMPLETED as PaymentStatus || PaymentStatus.REFUNDED as PaymentStatus,
-    userId: userId,
+    status: { in: [PaymentStatus.COMPLETED, PaymentStatus.REFUNDED] },
     booking: {
       saloonOwnerId: userId,
+      ...(searchQuery.OR
+        ? {
+            OR: searchQuery.OR.map((searchCondition: any) => {
+              // Move booking-related search fields inside booking
+              if (
+                searchCondition.user ||
+                searchCondition.barber ||
+                searchCondition.BookedServices
+              ) {
+                return searchCondition;
+              }
+              return undefined;
+            }).filter(Boolean),
+          }
+        : {}),
     },
+    // Removed invalid payment status search by 'contains' since status is an enum
   };
 
   const [result, total] = await Promise.all([
