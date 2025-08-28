@@ -182,11 +182,46 @@ const getBarberDashboardFromDb = async (userId: string) => {
     }
   });
 
+  // Calculate earning growth for the last 12 months, grouped by month and year
+  const earningGrowthRaw = await prisma.booking.findMany({
+    where: {
+      saloonOwnerId: userId,
+      status: BookingStatus.COMPLETED,
+      createdAt: {
+        gte: startDate,
+      },
+    },
+    select: {
+      createdAt: true,
+      totalPrice: true,
+    },
+  });
+
+  // Prepare a map for each month in the last 12 months for earnings
+  const monthlyEarnings: { [key: string]: number } = {};
+  for (let i = 0; i < 12; i++) {
+    const dt = DateTime.now().minus({ months: 11 - i });
+    const monthYear = dt.toFormat('LLL yyyy');
+    monthlyEarnings[monthYear] = 0;
+  }
+
+  // Sum earnings per month-year
+  earningGrowthRaw.forEach(item => {
+    const monthYear = DateTime.fromJSDate(item.createdAt).toFormat('LLL yyyy');
+    if (monthlyEarnings[monthYear] !== undefined) {
+      monthlyEarnings[monthYear] += item.totalPrice ?? 0;
+    }
+  });
+
   return {
     totalCustomers: customerCount,
     totalEarnings: totalEarnings._sum.totalPrice || 0,
     totalBarbers: barberCount,
     totalBookings: bookingCount,
+    earningGrowth: Object.entries(monthlyEarnings).map(([month, amount]) => ({
+      month,
+      amount,
+    })),
     customerGrowth: Object.entries(monthlyGrowth).map(([month, count]) => ({
       month,
       count,
