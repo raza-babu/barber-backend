@@ -1,11 +1,19 @@
 import prisma from '../../utils/prisma';
-import { BookingStatus, UserRoleEnum, UserStatus, PaymentStatus } from '@prisma/client';
+import {
+  BookingStatus,
+  UserRoleEnum,
+  UserStatus,
+  PaymentStatus,
+} from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { start } from 'repl';
 import { DateTime } from 'luxon';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
-import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
 
 const manageBookingsIntoDb = async (
   userId: string,
@@ -233,7 +241,7 @@ const getBarberDashboardFromDb = async (userId: string) => {
 
 const getCustomerBookingsFromDb = async (
   userId: string,
-  options: ISearchAndFilterOptions = {}
+  options: ISearchAndFilterOptions = {},
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
@@ -284,8 +292,8 @@ const getCustomerBookingsFromDb = async (
     options.status && Array.isArray(options.status)
       ? { status: { in: options.status.map(s => s as BookingStatus) } }
       : options.status
-      ? { status: options.status as BookingStatus }
-      : {};
+        ? { status: options.status as BookingStatus }
+        : {};
 
   const whereClause = {
     saloonOwnerId: userId,
@@ -299,7 +307,7 @@ const getCustomerBookingsFromDb = async (
       skip,
       take: limit,
       orderBy: {
-        [sortBy]:  'desc',
+        [sortBy]: 'desc',
       },
       include: {
         user: {
@@ -372,13 +380,11 @@ const getCustomerBookingsFromDb = async (
   return formatPaginationResponse(bookings, total, page, limit);
 };
 
-
 const getTransactionsFromDb = async (
   userId: string,
-  options: ISearchAndFilterOptions = {}
+  options: ISearchAndFilterOptions = {},
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-
 
   const searchQuery = options.searchTerm
     ? {
@@ -419,7 +425,7 @@ const getTransactionsFromDb = async (
           },
           {
             BookedServices: {
-              some: { 
+              some: {
                 service: {
                   serviceName: {
                     contains: options.searchTerm,
@@ -511,7 +517,6 @@ const getTransactionsFromDb = async (
     }),
   ]);
 
-
   const transactions = result.map(payment => {
     const booking = payment.booking;
     return {
@@ -558,7 +563,7 @@ const getSaloonListFromDb = async (userId: string) => {
 const getAllBarbersFromDb = async (
   userId: string,
   // saloonId: string,
-  options: ISearchAndFilterOptions = {}
+  options: ISearchAndFilterOptions = {},
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
@@ -738,27 +743,102 @@ const terminateBarberIntoDb = async (
   });
 };
 
-const getScheduledBarbersFromDb = async (userId: string) => {
-  const result = await prisma.barber.findMany({
+const getScheduledBarbersFromDb = async (
+  userId: string,
+  data: {
+    utcDateTime: string; // ISO string
+  },
+) => {
+  const { utcDateTime } = data;
+  if (!utcDateTime || !userId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Missing required fields');
+  }
+  const appointmentDateTime = DateTime.fromISO(utcDateTime).toUTC();
+  if (!appointmentDateTime.isValid) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
+  }
+
+  // Find bookings that overlap with the requested time
+  const bookings = await prisma.booking.findMany({
     where: {
       saloonOwnerId: userId,
-      // isScheduled: true,
+      startDateTime: {
+        lte: appointmentDateTime.toJSDate(),
+      },
+      endDateTime: {
+        gte: appointmentDateTime.toJSDate(),
+      },
+      status: {
+        in: [BookingStatus.PENDING, BookingStatus.CONFIRMED],
+      },
     },
-    select: {
-      id: true,
-      user: {   
+    include: {
+      barber: {
+        select: {
+          userId: true,
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              image: true,
+              phoneNumber: true,
+              address: true,
+            },
+          },
+        },
+      },
+      user: {
         select: {
           id: true,
           fullName: true,
           image: true,
+          email: true,
           phoneNumber: true,
-          address: true,
         },
       },
-      // hourlyRate: true,
+      BookedServices: {
+        select: {
+          service: {
+            select: {
+              id: true,
+              serviceName: true,
+              price: true,
+              availableTo: true,
+            },
+          },
+        },
+      },
     },
-  }); 
-  return result;
+  });
+
+  // Map bookings to include barber and booking details
+  const scheduledBarbers = bookings.map(booking => ({
+    barberId: booking.barber.userId,
+    barberName: booking.barber.user.fullName,
+    barberImage: booking.barber.user.image,
+    barberPhone: booking.barber.user.phoneNumber,
+    barberAddress: booking.barber.user.address,
+    bookingId: booking.id,
+    bookingStartTime: booking.startDateTime,
+    bookingEndTime: booking.endDateTime,
+    bookingStatus: booking.status,
+    customer: {
+      customerId: booking.user.id,
+      customerName: booking.user.fullName,
+      customerImage: booking.user.image,
+      customerEmail: booking.user.email,
+      customerPhone: booking.user.phoneNumber,
+    },
+    services: booking.BookedServices.map(service => ({
+      serviceId: service.service.id,
+      serviceName: service.service.serviceName,
+      price: service.service.price,
+      availableTo: service.service.availableTo,
+    })),
+    totalPrice: booking.totalPrice,
+  }));
+
+  return scheduledBarbers;
 };
 
 const deleteSaloonItemFromDb = async (userId: string, saloonId: string) => {

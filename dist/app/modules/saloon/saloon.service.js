@@ -633,27 +633,94 @@ const terminateBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0
         return terminationRecord;
     }));
 });
-const getScheduledBarbersFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield prisma_1.default.barber.findMany({
+const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const { utcDateTime } = data;
+    if (!utcDateTime || !userId) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Missing required fields');
+    }
+    const appointmentDateTime = luxon_1.DateTime.fromISO(utcDateTime).toUTC();
+    if (!appointmentDateTime.isValid) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid date or time format');
+    }
+    // Find bookings that overlap with the requested time
+    const bookings = yield prisma_1.default.booking.findMany({
         where: {
             saloonOwnerId: userId,
-            // isScheduled: true,
+            startDateTime: {
+                lte: appointmentDateTime.toJSDate(),
+            },
+            endDateTime: {
+                gte: appointmentDateTime.toJSDate(),
+            },
+            status: {
+                in: [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED],
+            },
         },
-        select: {
-            id: true,
+        include: {
+            barber: {
+                select: {
+                    userId: true,
+                    user: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            image: true,
+                            phoneNumber: true,
+                            address: true,
+                        },
+                    },
+                },
+            },
             user: {
                 select: {
                     id: true,
                     fullName: true,
                     image: true,
+                    email: true,
                     phoneNumber: true,
-                    address: true,
                 },
             },
-            // hourlyRate: true,
+            BookedServices: {
+                select: {
+                    service: {
+                        select: {
+                            id: true,
+                            serviceName: true,
+                            price: true,
+                            availableTo: true,
+                        },
+                    },
+                },
+            },
         },
     });
-    return result;
+    // Map bookings to include barber and booking details
+    const scheduledBarbers = bookings.map(booking => ({
+        barberId: booking.barber.userId,
+        barberName: booking.barber.user.fullName,
+        barberImage: booking.barber.user.image,
+        barberPhone: booking.barber.user.phoneNumber,
+        barberAddress: booking.barber.user.address,
+        bookingId: booking.id,
+        bookingStartTime: booking.startDateTime,
+        bookingEndTime: booking.endDateTime,
+        bookingStatus: booking.status,
+        customer: {
+            customerId: booking.user.id,
+            customerName: booking.user.fullName,
+            customerImage: booking.user.image,
+            customerEmail: booking.user.email,
+            customerPhone: booking.user.phoneNumber,
+        },
+        services: booking.BookedServices.map(service => ({
+            serviceId: service.service.id,
+            serviceName: service.service.serviceName,
+            price: service.service.price,
+            availableTo: service.service.availableTo,
+        })),
+        totalPrice: booking.totalPrice,
+    }));
+    return scheduledBarbers;
 });
 const deleteSaloonItemFromDb = (userId, saloonId) => __awaiter(void 0, void 0, void 0, function* () {
     const deletedItem = yield prisma_1.default.saloonOwner.delete({

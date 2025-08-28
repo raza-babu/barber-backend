@@ -18,6 +18,7 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const saloon_service_1 = require("./saloon.service");
 const pickValidFields_1 = require("../../utils/pickValidFields");
+const saloon_validation_1 = require("./saloon.validation");
 const manageBookings = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield saloon_service_1.saloonService.manageBookingsIntoDb(user.id, req.body);
@@ -114,7 +115,10 @@ const terminateBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
 }));
 const getScheduledBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield saloon_service_1.saloonService.getScheduledBarbersFromDb(user.id);
+    const parsed = saloon_validation_1.saloonValidation.availableBarbersSchema.parse({
+        query: req.query,
+    });
+    const result = yield saloon_service_1.saloonService.getScheduledBarbersFromDb(user.id, parsed.query);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

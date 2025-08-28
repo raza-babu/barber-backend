@@ -63,150 +63,242 @@ export function setupSocketIO(server: HTTPServer) {
 
     socket.on('message', async payload => {
       try {
-        if (!payload.receiverId || !payload.message) {
-          console.log('Receiver ID or message is undefined');
-          return;
-        }
+      if (!payload.receiverId || !payload.message) {
+        console.log('Receiver ID or message is undefined');
+        return;
+      }
 
-        // Fetch receiver's role
-        const receiver = await prisma.user.findUnique({
-          where: { id: payload.receiverId },
-          select: { role: true },
+      // Fetch receiver's role
+      const receiver = await prisma.user.findUnique({
+        where: { id: payload.receiverId },
+        select: { role: true },
+      });
+      if (!receiver) {
+        console.log('Receiver not found');
+        return;
+      }
+
+      // senderId and receiverId cannot be the same
+      if (payload.receiverId === id) {  
+        console.log('Sender and receiver cannot be the same');
+        socket.emit('error', { message: 'Sender and receiver cannot be the same' });
+        return;
+      }
+
+      const room = await prisma.room.findFirst({
+        where: {
+        OR: [
+          { senderId: id, receiverId: payload.receiverId },
+          { senderId: payload.receiverId, receiverId: id },
+        ],
+        },
+      });
+      let roomId;
+      if (!room) {
+        const newRoom = await prisma.room.create({
+        data: {
+          senderId: id,
+          receiverId: payload.receiverId,
+        },
         });
-        if (!receiver) {
-          console.log('Receiver not found');
-          return;
+        if (!newRoom) {
+        console.log('Error saving room');
+        return;
         }
+        roomId = newRoom.id;
+      } else {
+        roomId = room.id;
+      }
+      const chat = await prisma.chat.create({
+        data: {
+        senderId: id,
+        receiverId: payload.receiverId,
+        roomId: roomId,
+        message: payload.message,
+        },
+      });
+      if (!chat) {
+        console.log('Error saving chat');
+        return;
+      }
+      const roomName = [id, payload.receiverId].sort().join('-');
+      // Sender joins the room
+      socket.join(roomName);
+      // Receiver joins the room if online
+      const receiverSocket = userSockets.get(payload.receiverId);
+      if (receiverSocket) {
+        receiverSocket.join(roomName);
+      }
+      // Emit the message to the room
+      messagesNameSpace.to(roomName).emit('message', chat);
 
-        // Enforce customer-initiated chat with saloon owner
-        // No restriction: saloon owner can start a chat with customer
-        // if (
-        //   role === UserRoleEnum.SALOON_OWNER &&
-        //   receiver.role === UserRoleEnum.CUSTOMER
-        // ) {
-        //   // console.log('Saloon owner cannot start chat with customer');
-        //   // socket.emit('error', 'You cannot start a chat with a customer.');
-        //   // Check if a room already exists
-        //   const existingRoom = await prisma.room.findFirst({
-        //     where: {
-        //       OR: [
-        //         { senderId: id, receiverId: payload.receiverId },
-        //         { senderId: payload.receiverId, receiverId: id },
-        //       ],
-        //     },
-        //   });
-        //   if (!existingRoom) {
-        //     // Saloon owner cannot start chat with customer
-        //     socket.emit('error', 'You cannot start a chat with a customer.');
-        //     return;
-        //   }
-        // }
+      // Emit updated messageList to both sender and receiver
+      const emitMessageList = async (userId: string) => {
+        // Only fetch rooms where the user is sender or receiver
+        const rooms = await prisma.room.findMany({
+        where: {
+          OR: [{ senderId: userId }, { receiverId: userId }],
+        },
+        include: {
+          chat: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+          },
+        },
+        });
 
-        const room = await prisma.room.findFirst({
+        // Collect all unique user IDs involved in these rooms
+        const userIds = Array.from(
+        new Set(
+          rooms
+          .map(room => [room.senderId, room.receiverId])
+          .flat()
+          .filter((uid): uid is string => !!uid),
+        ),
+        );
+
+        // Fetch user info for all involved users
+        const userInfos = await prisma.user.findMany({
+        where: {
+          id: {
+          in: userIds,
+          },
+        },
+        select: {
+          id: true,
+          fullName: true,
+          image: true,
+        },
+        });
+
+        const roomsWithUnreadMessages = await Promise.all(
+        rooms.map(async room => {
+          const unReadMessagesCount = await prisma.chat.count({
           where: {
-            OR: [
-              { senderId: id, receiverId: payload.receiverId },
-              { senderId: payload.receiverId, receiverId: id },
-            ],
+            roomId: room.id,
+            isRead: false,
+            receiverId: userId,
           },
-        });
-        let roomId;
-        if (!room) {
-          const newRoom = await prisma.room.create({
-            data: {
-              senderId: id,
-              receiverId: payload.receiverId,
-            },
           });
-          if (!newRoom) {
-            console.log('Error saving room');
-            return;
-          }
-          roomId = newRoom.id;
-        } else {
-          roomId = room.id;
-        }
-        // if (
-        //   payload.images &&
-        //   (!Array.isArray(payload.images) || payload.images.length === 0)
-        // ) {
-        //   console.log('Images array is null');
-        // }
-        const chat = await prisma.chat.create({
-          data: {
-            senderId: id,
-            receiverId: payload.receiverId,
-            roomId: roomId,
-            message: payload.message,
-            // images: { set: payload.images }, // Ensure images are saved as an array
-          },
+          return {
+          chat: room.chat[0], // Include only the latest chat
+          unReadMessagesCount,
+          senderName:
+            userInfos.find(userInfo => userInfo.id === room.receiverId)
+            ?.fullName || null,
+          senderImage:
+            userInfos.find(userInfo => userInfo.id === room.receiverId)
+            ?.image || null,
+          receiverName:
+            userInfos.find(userInfo => userInfo.id === room.senderId)
+            ?.fullName || null,
+          receiverImage:
+            userInfos.find(userInfo => userInfo.id === room.senderId)
+            ?.image || null,
+          lastMessageAt: room.chat[0]?.createdAt || null,
+          roomId: room.id,
+          };
+        }),
+        );
+
+        // Sort so the updated room (the one with the latest message) is on top
+        const sortedRooms = roomsWithUnreadMessages
+        .sort((a, b) => {
+          // Put the room with the latest message on top
+          if (!a.lastMessageAt && !b.lastMessageAt) return 0;
+          if (!a.lastMessageAt) return 1;
+          if (!b.lastMessageAt) return -1;
+          return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
         });
-        if (!chat) {
-          console.log('Error saving chat');
-          return;
+
+        const targetSocket = userSockets.get(userId);
+        if (targetSocket) {
+        targetSocket.emit(
+          'messageList',
+          sortedRooms.length ? sortedRooms : [],
+        );
         }
-        const roomName = [id, payload.receiverId].sort().join('-');
-        // Sender joins the room
-        socket.join(roomName);
-        // Receiver joins the room if online
+      };
+
+      // Update messageList for both sender and receiver
+      await emitMessageList(id);
+      if (payload.receiverId !== id) {
         const receiverSocket = userSockets.get(payload.receiverId);
-        if (receiverSocket) {
-          receiverSocket.join(roomName);
+        if (receiverSocket && receiverSocket.connected) {
+          await emitMessageList(payload.receiverId);
+        } else {
+          // Optionally, handle offline receiver (e.g., queue notification)
+          console.log('Receiver is not online, cannot emit messageList');
         }
-        // Emit the message to the room
-        messagesNameSpace.to(roomName).emit('message', chat);
+      }
       } catch (error) {
-        console.error('Error handling message event:', error);
+      console.error('Error handling message event:', error);
       }
     });
 
     socket.on('fetchChats', async payload => {
       try {
-        if (!payload || !payload.receiverId) {
-          console.log('Receiver ID is undefined');
-          return;
-        }
-        const room = await prisma.room.findFirst({
-          where: {
-            OR: [
-              { senderId: id, receiverId: payload.receiverId },
-              { senderId: payload.receiverId, receiverId: id },
-            ],
-          },
+      if (!payload || !payload.receiverId) {
+        console.log('Receiver ID is undefined');
+        return;
+      }
+      const room = await prisma.room.findFirst({
+        where: {
+        OR: [
+          { senderId: id, receiverId: payload.receiverId },
+          { senderId: payload.receiverId, receiverId: id },
+        ],
+        },
+      });
+      if (!room) {
+        console.log('Room not found');
+        socket.emit('noRoomFound', 'No room found');
+        return;
+      }
+      const chats = await prisma.chat.findMany({
+        where: {
+        roomId: room.id,
+        },
+        orderBy: {
+        createdAt: 'asc',
+        },
+      });
+      if (chats) {
+        await prisma.chat.updateMany({
+        where: {
+          roomId: room.id,
+        },
+        data: {
+          isRead: true,
+        },
         });
-        if (!room) {
-          console.log('Room not found');
-          socket.emit('noRoomFound', 'No room found');
-          return;
-        }
-        const chats = await prisma.chat.findMany({
-          where: {
-            roomId: room.id,
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
-        });
-        if (chats) {
-          await prisma.chat.updateMany({
-            where: {
-              roomId: room.id,
-            },
-            data: {
-              isRead: true,
-            },
-          });
-        }
-        socket.emit('chats', chats);
-        // Ensure both users join the room
-        const roomName = [id, payload.receiverId].sort().join('-');
-        socket.join(roomName);
-        const receiverSocket = userSockets.get(payload.receiverId);
-        if (receiverSocket) {
-          receiverSocket.join(roomName);
-        }
+      }
+
+      // Fetch receiver info
+      const receiver = await prisma.user.findUnique({
+        where: { id: payload.receiverId },
+        select: { fullName: true, image: true },
+      });
+
+      socket.emit('chats', {
+        chats,
+        receiver: {
+        name: receiver?.fullName || null,
+        image: receiver?.image || null,
+        },
+      });
+
+      // Ensure both users join the room
+      const roomName = [id, payload.receiverId].sort().join('-');
+      socket.join(roomName);
+      const receiverSocket = userSockets.get(payload.receiverId);
+      if (receiverSocket) {
+        receiverSocket.join(roomName);
+      }
       } catch (error) {
-        console.error('Error fetching chats:', error);
+      console.error('Error fetching chats:', error);
       }
     });
 

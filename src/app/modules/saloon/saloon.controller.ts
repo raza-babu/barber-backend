@@ -3,6 +3,7 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { saloonService } from './saloon.service';
 import { pickValidFields } from '../../utils/pickValidFields';
+import { saloonValidation } from './saloon.validation';
 
 const manageBookings = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -106,7 +107,10 @@ const terminateBarber = catchAsync(async (req, res) => {
 
 const getScheduledBarbers = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await saloonService.getScheduledBarbersFromDb(user.id);
+  const parsed = saloonValidation.availableBarbersSchema.parse({
+      query: req.query,
+    });
+  const result = await saloonService.getScheduledBarbersFromDb(user.id, parsed.query);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
