@@ -4,6 +4,8 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { start } from 'repl';
 import { DateTime } from 'luxon';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
 
 const manageBookingsIntoDb = async (
   userId: string,
@@ -229,57 +231,122 @@ const getBarberDashboardFromDb = async (userId: string) => {
   };
 };
 
-const getCustomerBookingsFromDb = async (userId: string) => {
-  const result = await prisma.booking.findMany({
-    where: {
-      saloonOwnerId: userId,
-      // status: BookingStatus.COMPLETED,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          image: true,
-          email: true,
-          phoneNumber: true,
-        },
-      },
-      barber: {
-        select: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              image: true,
-              email: true,
-              phoneNumber: true,
-            },
-          },
-        },
-      },
+const getCustomerBookingsFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions = {}
+) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
-      BookedServices: {
-        select: {
-          service: {
-            select: {
-              id: true,
-              serviceName: true,
-              price: true,
-              availableTo: true,
+  // Build search query for customer name, email, phone, or barber name
+  const searchQuery = options.searchTerm
+    ? {
+        OR: [
+          {
+            user: {
+              fullName: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            user: {
+              email: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            user: {
+              phoneNumber: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                fullName: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+                },
+            },
+          },
+        ],
+      }
+    : {};
+
+  // Date range filter
+  const dateRangeQuery =
+    options.startDate || options.endDate
+      ? {
+          createdAt: {
+            ...(options.startDate && { gte: new Date(options.startDate) }),
+            ...(options.endDate && { lte: new Date(options.endDate) }),
+          },
+        }
+      : {};
+
+  const whereClause = {
+    saloonOwnerId: userId,
+    ...dateRangeQuery,
+    ...(Object.keys(searchQuery).length > 0 && searchQuery),
+  };
+
+  const [result, total] = await Promise.all([
+    prisma.booking.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            image: true,
+            email: true,
+            phoneNumber: true,
+            },
+        },
+        barber: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                image: true,
+                email: true,
+                phoneNumber: true,
+              },
+            },
+          },
+        },
+        BookedServices: {
+          select: {
+            service: {
+              select: {
+                id: true,
+                serviceName: true,
+                price: true,
+                availableTo: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-  if (result.length === 0) {
-    return [];
-  }
-  return result.map(booking => ({
+    }),
+    prisma.booking.count({
+      where: whereClause,
+    }),
+  ]);
+
+  const bookings = result.map(booking => ({
     bookingId: booking.id,
     customerId: booking.user.id,
     customerName: booking.user.fullName,
@@ -303,6 +370,8 @@ const getCustomerBookingsFromDb = async (userId: string) => {
       availableTo: service.service.availableTo,
     })),
   }));
+
+  return formatPaginationResponse(bookings, total, page, limit);
 };
 
 const getSaloonListFromDb = async (userId: string) => {
@@ -313,33 +382,88 @@ const getSaloonListFromDb = async (userId: string) => {
   return result;
 };
 
-const getAllBarbersFromDb = async (userId: string, saloonId: string) => {
-  const result = await prisma.hiredBarber.findMany({
-    where: {
-      userId: userId,
-    },
-    select: {
-      barberId: true,
-      hourlyRate: true,
-      barber: {
-        select: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              image: true,
-              phoneNumber: true,
-              address: true,
+const getAllBarbersFromDb = async (
+  userId: string,
+  saloonId: string,
+  options: ISearchAndFilterOptions = {}
+) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Search by barber name, phone, or address
+  const searchQuery = options.searchTerm
+    ? {
+        OR: [
+          {
+            barber: {
+              user: {
+                fullName: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                phoneNumber: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                address: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+        ],
+      }
+    : {};
+
+  const whereClause = {
+    userId: userId,
+    ...(Object.keys(searchQuery).length > 0 && searchQuery),
+  };
+
+  const [result, total] = await Promise.all([
+    prisma.hiredBarber.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        barberId: true,
+        hourlyRate: true,
+        barber: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                image: true,
+                phoneNumber: true,
+                address: true,
+              },
             },
           },
         },
       },
-    },
-  });
-  if (!result) {
-    throw new AppError(httpStatus.NOT_FOUND, 'saloon not found');
-  }
-  return result.map(barber => ({
+    }),
+    prisma.hiredBarber.count({
+      where: whereClause,
+    }),
+  ]);
+
+  const barbers = result.map(barber => ({
     barberId: barber.barberId,
     barberImage: barber.barber.user.image,
     barberName: barber.barber.user.fullName,
@@ -347,6 +471,8 @@ const getAllBarbersFromDb = async (userId: string, saloonId: string) => {
     barberAddress: barber.barber.user.address,
     hourlyRate: barber.hourlyRate,
   }));
+
+  return formatPaginationResponse(barbers, total, page, limit);
 };
 
 const terminateBarberIntoDb = async (

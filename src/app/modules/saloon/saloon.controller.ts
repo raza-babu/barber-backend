@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { saloonService } from './saloon.service';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const manageBookings = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -27,23 +28,45 @@ const getBarberDashboard = catchAsync(async (req, res) => {
 
 const getCustomerBookings = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await saloonService.getCustomerBookingsFromDb(user.id);
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'startDate',
+    'endDate',
+  ]);
+  const result = await saloonService.getCustomerBookingsFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Customer bookings retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 
 const getAllBarbers = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await saloonService.getAllBarbersFromDb(user.id, req.params.id);
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'startDate',
+    'endDate',
+  ]);
+  const saloonId = req.params.id 
+  const result = await saloonService.getAllBarbersFromDb(user.id, saloonId, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Barber list retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 
