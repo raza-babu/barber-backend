@@ -45,6 +45,12 @@ const updateProfileSchema = z.object({
         required_error: 'Date of birth is required!',
       })
       .optional(),
+
+      address: z
+      .string({
+        required_error: 'Address is required!',
+      })
+      .optional(),
 });
 
 const updatePasswordSchema = z.object({

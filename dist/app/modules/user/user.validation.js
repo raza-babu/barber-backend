@@ -50,6 +50,11 @@ const updateProfileSchema = zod_1.default.object({
         required_error: 'Date of birth is required!',
     })
         .optional(),
+    address: zod_1.default
+        .string({
+        required_error: 'Address is required!',
+    })
+        .optional(),
 });
 const updatePasswordSchema = zod_1.default.object({
     body: zod_1.default.object({

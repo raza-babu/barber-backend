@@ -257,6 +257,18 @@ export function setupSocketIO(server: HTTPServer) {
         socket.emit('noRoomFound', 'No room found');
         return;
       }
+      // Mark all messages as read before fetching chats
+      await prisma.chat.updateMany({
+        where: {
+        roomId: room.id,
+        receiverId: id,
+        isRead: false,
+        },
+        data: {
+        isRead: true,
+        },
+      });
+
       const chats = await prisma.chat.findMany({
         where: {
         roomId: room.id,
@@ -265,16 +277,6 @@ export function setupSocketIO(server: HTTPServer) {
         createdAt: 'asc',
         },
       });
-      if (chats) {
-        await prisma.chat.updateMany({
-        where: {
-          roomId: room.id,
-        },
-        data: {
-          isRead: true,
-        },
-        });
-      }
 
       // Fetch receiver info
       const receiver = await prisma.user.findUnique({
@@ -297,6 +299,94 @@ export function setupSocketIO(server: HTTPServer) {
       if (receiverSocket) {
         receiverSocket.join(roomName);
       }
+
+      // Emit updated messageList to the user
+      // (reuse the emitMessageList logic from above)
+      const emitMessageList = async (userId: string) => {
+        const rooms = await prisma.room.findMany({
+        where: {
+          OR: [{ senderId: userId }, { receiverId: userId }],
+        },
+        include: {
+          chat: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+          },
+        },
+        });
+
+        const userIds = Array.from(
+        new Set(
+          rooms
+          .map(room => [room.senderId, room.receiverId])
+          .flat()
+          .filter((uid): uid is string => !!uid),
+        ),
+        );
+
+        const userInfos = await prisma.user.findMany({
+        where: {
+          id: {
+          in: userIds,
+          },
+        },
+        select: {
+          id: true,
+          fullName: true,
+          image: true,
+        },
+        });
+
+        const roomsWithUnreadMessages = await Promise.all(
+        rooms.map(async room => {
+          const unReadMessagesCount = await prisma.chat.count({
+          where: {
+            roomId: room.id,
+            isRead: false,
+            receiverId: userId,
+          },
+          });
+          return {
+          chat: room.chat[0],
+          unReadMessagesCount,
+          senderName:
+            userInfos.find(userInfo => userInfo.id === room.receiverId)
+            ?.fullName || null,
+          senderImage:
+            userInfos.find(userInfo => userInfo.id === room.receiverId)
+            ?.image || null,
+          receiverName:
+            userInfos.find(userInfo => userInfo.id === room.senderId)
+            ?.fullName || null,
+          receiverImage:
+            userInfos.find(userInfo => userInfo.id === room.senderId)
+            ?.image || null,
+          lastMessageAt: room.chat[0]?.createdAt || null,
+          roomId: room.id,
+          };
+        }),
+        );
+
+        const sortedRooms = roomsWithUnreadMessages.sort((a, b) => {
+        if (!a.lastMessageAt && !b.lastMessageAt) return 0;
+        if (!a.lastMessageAt) return 1;
+        if (!b.lastMessageAt) return -1;
+        return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        });
+
+        const targetSocket = userSockets.get(userId);
+        if (targetSocket) {
+        targetSocket.emit(
+          'messageList',
+          sortedRooms.length ? sortedRooms : [],
+        );
+        }
+      };
+
+      await emitMessageList(id);
+
       } catch (error) {
       console.error('Error fetching chats:', error);
       }

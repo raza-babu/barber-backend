@@ -239,6 +239,17 @@ function setupSocketIO(server) {
                     socket.emit('noRoomFound', 'No room found');
                     return;
                 }
+                // Mark all messages as read before fetching chats
+                yield prisma_1.default.chat.updateMany({
+                    where: {
+                        roomId: room.id,
+                        receiverId: id,
+                        isRead: false,
+                    },
+                    data: {
+                        isRead: true,
+                    },
+                });
                 const chats = yield prisma_1.default.chat.findMany({
                     where: {
                         roomId: room.id,
@@ -247,16 +258,6 @@ function setupSocketIO(server) {
                         createdAt: 'asc',
                     },
                 });
-                if (chats) {
-                    yield prisma_1.default.chat.updateMany({
-                        where: {
-                            roomId: room.id,
-                        },
-                        data: {
-                            isRead: true,
-                        },
-                    });
-                }
                 // Fetch receiver info
                 const receiver = yield prisma_1.default.user.findUnique({
                     where: { id: payload.receiverId },
@@ -276,6 +277,73 @@ function setupSocketIO(server) {
                 if (receiverSocket) {
                     receiverSocket.join(roomName);
                 }
+                // Emit updated messageList to the user
+                // (reuse the emitMessageList logic from above)
+                const emitMessageList = (userId) => __awaiter(this, void 0, void 0, function* () {
+                    const rooms = yield prisma_1.default.room.findMany({
+                        where: {
+                            OR: [{ senderId: userId }, { receiverId: userId }],
+                        },
+                        include: {
+                            chat: {
+                                orderBy: {
+                                    createdAt: 'desc',
+                                },
+                                take: 1,
+                            },
+                        },
+                    });
+                    const userIds = Array.from(new Set(rooms
+                        .map(room => [room.senderId, room.receiverId])
+                        .flat()
+                        .filter((uid) => !!uid)));
+                    const userInfos = yield prisma_1.default.user.findMany({
+                        where: {
+                            id: {
+                                in: userIds,
+                            },
+                        },
+                        select: {
+                            id: true,
+                            fullName: true,
+                            image: true,
+                        },
+                    });
+                    const roomsWithUnreadMessages = yield Promise.all(rooms.map((room) => __awaiter(this, void 0, void 0, function* () {
+                        var _f, _g, _h, _j, _k;
+                        const unReadMessagesCount = yield prisma_1.default.chat.count({
+                            where: {
+                                roomId: room.id,
+                                isRead: false,
+                                receiverId: userId,
+                            },
+                        });
+                        return {
+                            chat: room.chat[0],
+                            unReadMessagesCount,
+                            senderName: ((_f = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _f === void 0 ? void 0 : _f.fullName) || null,
+                            senderImage: ((_g = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _g === void 0 ? void 0 : _g.image) || null,
+                            receiverName: ((_h = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _h === void 0 ? void 0 : _h.fullName) || null,
+                            receiverImage: ((_j = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _j === void 0 ? void 0 : _j.image) || null,
+                            lastMessageAt: ((_k = room.chat[0]) === null || _k === void 0 ? void 0 : _k.createdAt) || null,
+                            roomId: room.id,
+                        };
+                    })));
+                    const sortedRooms = roomsWithUnreadMessages.sort((a, b) => {
+                        if (!a.lastMessageAt && !b.lastMessageAt)
+                            return 0;
+                        if (!a.lastMessageAt)
+                            return 1;
+                        if (!b.lastMessageAt)
+                            return -1;
+                        return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+                    });
+                    const targetSocket = userSockets.get(userId);
+                    if (targetSocket) {
+                        targetSocket.emit('messageList', sortedRooms.length ? sortedRooms : []);
+                    }
+                });
+                yield emitMessageList(id);
             }
             catch (error) {
                 console.error('Error fetching chats:', error);
@@ -358,7 +426,7 @@ function setupSocketIO(server) {
                     },
                 });
                 const roomsWithUnreadMessages = yield Promise.all(rooms.map((room) => __awaiter(this, void 0, void 0, function* () {
-                    var _f, _g, _h, _j;
+                    var _l, _m, _o, _p;
                     const unReadMessagesCount = yield prisma_1.default.chat.count({
                         where: {
                             roomId: room.id,
@@ -371,10 +439,10 @@ function setupSocketIO(server) {
                         // sender: userInfos.find(userInfo => userInfo.id === room.senderId),
                         // receiver: userInfos.find(userInfo => userInfo.id === room.receiverId),
                         unReadMessagesCount,
-                        senderName: ((_f = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _f === void 0 ? void 0 : _f.fullName) || null,
-                        senderImage: ((_g = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _g === void 0 ? void 0 : _g.image) || null,
-                        receiverName: ((_h = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _h === void 0 ? void 0 : _h.fullName) || null,
-                        receiverImage: ((_j = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _j === void 0 ? void 0 : _j.image) || null,
+                        senderName: ((_l = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _l === void 0 ? void 0 : _l.fullName) || null,
+                        senderImage: ((_m = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _m === void 0 ? void 0 : _m.image) || null,
+                        receiverName: ((_o = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _o === void 0 ? void 0 : _o.fullName) || null,
+                        receiverImage: ((_p = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _p === void 0 ? void 0 : _p.image) || null,
                     };
                 })));
                 socket.emit('messageList', roomsWithUnreadMessages.length ? roomsWithUnreadMessages : []);
