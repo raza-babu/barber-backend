@@ -80,23 +80,28 @@ function setupSocketIO(server) {
                     return;
                 }
                 // Enforce customer-initiated chat with saloon owner
-                if (role === client_1.UserRoleEnum.SALOON_OWNER &&
-                    receiver.role === client_1.UserRoleEnum.CUSTOMER) {
-                    // Check if a room already exists
-                    const existingRoom = yield prisma_1.default.room.findFirst({
-                        where: {
-                            OR: [
-                                { senderId: id, receiverId: payload.receiverId },
-                                { senderId: payload.receiverId, receiverId: id },
-                            ],
-                        },
-                    });
-                    if (!existingRoom) {
-                        // Saloon owner cannot start chat with customer
-                        socket.emit('error', 'You cannot start a chat with a customer.');
-                        return;
-                    }
-                }
+                // No restriction: saloon owner can start a chat with customer
+                // if (
+                //   role === UserRoleEnum.SALOON_OWNER &&
+                //   receiver.role === UserRoleEnum.CUSTOMER
+                // ) {
+                //   // console.log('Saloon owner cannot start chat with customer');
+                //   // socket.emit('error', 'You cannot start a chat with a customer.');
+                //   // Check if a room already exists
+                //   const existingRoom = await prisma.room.findFirst({
+                //     where: {
+                //       OR: [
+                //         { senderId: id, receiverId: payload.receiverId },
+                //         { senderId: payload.receiverId, receiverId: id },
+                //       ],
+                //     },
+                //   });
+                //   if (!existingRoom) {
+                //     // Saloon owner cannot start chat with customer
+                //     socket.emit('error', 'You cannot start a chat with a customer.');
+                //     return;
+                //   }
+                // }
                 const room = yield prisma_1.default.room.findFirst({
                     where: {
                         OR: [

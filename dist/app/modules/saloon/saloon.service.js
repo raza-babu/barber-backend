@@ -146,11 +146,44 @@ const getBarberDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, f
             monthlyGrowth[monthYear]++;
         }
     });
+    // Calculate earning growth for the last 12 months, grouped by month and year
+    const earningGrowthRaw = yield prisma_1.default.booking.findMany({
+        where: {
+            saloonOwnerId: userId,
+            status: client_1.BookingStatus.COMPLETED,
+            createdAt: {
+                gte: startDate,
+            },
+        },
+        select: {
+            createdAt: true,
+            totalPrice: true,
+        },
+    });
+    // Prepare a map for each month in the last 12 months for earnings
+    const monthlyEarnings = {};
+    for (let i = 0; i < 12; i++) {
+        const dt = luxon_1.DateTime.now().minus({ months: 11 - i });
+        const monthYear = dt.toFormat('LLL yyyy');
+        monthlyEarnings[monthYear] = 0;
+    }
+    // Sum earnings per month-year
+    earningGrowthRaw.forEach(item => {
+        var _a;
+        const monthYear = luxon_1.DateTime.fromJSDate(item.createdAt).toFormat('LLL yyyy');
+        if (monthlyEarnings[monthYear] !== undefined) {
+            monthlyEarnings[monthYear] += (_a = item.totalPrice) !== null && _a !== void 0 ? _a : 0;
+        }
+    });
     return {
         totalCustomers: customerCount,
         totalEarnings: totalEarnings._sum.totalPrice || 0,
         totalBarbers: barberCount,
         totalBookings: bookingCount,
+        earningGrowth: Object.entries(monthlyEarnings).map(([month, amount]) => ({
+            month,
+            amount,
+        })),
         customerGrowth: Object.entries(monthlyGrowth).map(([month, count]) => ({
             month,
             count,
