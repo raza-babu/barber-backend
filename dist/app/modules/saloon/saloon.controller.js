@@ -71,7 +71,7 @@ const getAllBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
         'endDate',
     ]);
     const saloonId = req.params.id;
-    const result = yield saloon_service_1.saloonService.getAllBarbersFromDb(user.id, saloonId, filters);
+    const result = yield saloon_service_1.saloonService.getAllBarbersFromDb(user.id, filters);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

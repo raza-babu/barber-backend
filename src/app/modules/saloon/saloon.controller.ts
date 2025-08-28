@@ -60,7 +60,7 @@ const getAllBarbers = catchAsync(async (req, res) => {
     'endDate',
   ]);
   const saloonId = req.params.id 
-  const result = await saloonService.getAllBarbersFromDb(user.id, saloonId, filters);
+  const result = await saloonService.getAllBarbersFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

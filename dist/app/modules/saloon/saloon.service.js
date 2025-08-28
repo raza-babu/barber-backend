@@ -323,7 +323,9 @@ const getSaloonListFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
     }
     return result;
 });
-const getAllBarbersFromDb = (userId_2, saloonId_1, ...args_2) => __awaiter(void 0, [userId_2, saloonId_1, ...args_2], void 0, function* (userId, saloonId, options = {}) {
+const getAllBarbersFromDb = (userId_2, ...args_2) => __awaiter(void 0, [userId_2, ...args_2], void 0, function* (userId, 
+// saloonId: string,
+options = {}) {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
     // Search by barber name, phone, or address
     const searchQuery = options.searchTerm

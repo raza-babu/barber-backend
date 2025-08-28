@@ -384,7 +384,7 @@ const getSaloonListFromDb = async (userId: string) => {
 
 const getAllBarbersFromDb = async (
   userId: string,
-  saloonId: string,
+  // saloonId: string,
   options: ISearchAndFilterOptions = {}
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
