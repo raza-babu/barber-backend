@@ -1,5 +1,5 @@
 import prisma from '../../utils/prisma';
-import { BookingStatus, UserRoleEnum, UserStatus } from '@prisma/client';
+import { BookingStatus, UserRoleEnum, UserStatus, PaymentStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { start } from 'repl';
@@ -272,27 +272,24 @@ const getCustomerBookingsFromDb = async (
                   contains: options.searchTerm,
                   mode: 'insensitive' as const,
                 },
-                },
+              },
             },
           },
         ],
       }
     : {};
 
-  // Date range filter
-  const dateRangeQuery =
-    options.startDate || options.endDate
-      ? {
-          createdAt: {
-            ...(options.startDate && { gte: new Date(options.startDate) }),
-            ...(options.endDate && { lte: new Date(options.endDate) }),
-          },
-        }
+  // Status filter
+  const statusFilter =
+    options.status && Array.isArray(options.status)
+      ? { status: { in: options.status.map(s => s as BookingStatus) } }
+      : options.status
+      ? { status: options.status as BookingStatus }
       : {};
 
   const whereClause = {
     saloonOwnerId: userId,
-    ...dateRangeQuery,
+    ...statusFilter,
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
 
@@ -312,7 +309,7 @@ const getCustomerBookingsFromDb = async (
             image: true,
             email: true,
             phoneNumber: true,
-            },
+          },
         },
         barber: {
           select: {
@@ -362,6 +359,7 @@ const getCustomerBookingsFromDb = async (
     bookingDate: booking.date,
     startTime: booking.startTime,
     endTime: booking.endTime,
+    // paymentStatus: booking.paymentStatus,
     status: booking.status,
     services: booking.BookedServices.map(service => ({
       serviceId: service.service.id,
@@ -372,6 +370,110 @@ const getCustomerBookingsFromDb = async (
   }));
 
   return formatPaginationResponse(bookings, total, page, limit);
+};
+const getTransactionsFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions = {}
+) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Only fetch payments with status 'COMPLETED' and join booking for saloonOwnerId
+  const whereClause = {
+    status: PaymentStatus.COMPLETED as PaymentStatus || PaymentStatus.REFUNDED as PaymentStatus,
+    userId: userId,
+    booking: {
+      saloonOwnerId: userId,
+    },
+  };
+
+  const [result, total] = await Promise.all([
+    prisma.payment.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      include: {
+        booking: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                image: true,
+                email: true,
+                phoneNumber: true,
+              },
+            },
+            barber: {
+              select: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    image: true,
+                    email: true,
+                    phoneNumber: true,
+                  },
+                },
+              },
+            },
+            BookedServices: {
+              select: {
+                service: {
+                  select: {
+                    id: true,
+                    serviceName: true,
+                    price: true,
+                    availableTo: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.payment.count({
+      where: whereClause,
+    }),
+  ]);
+
+
+  const transactions = result.map(payment => {
+    const booking = payment.booking;
+    return {
+      paymentId: payment.id,
+      bookingId: booking?.id,
+      customerId: booking?.user.id,
+      customerName: booking?.user.fullName,
+      customerImage: booking?.user.image,
+      customEmail: booking?.user.email,
+      customerPhone: booking?.user.phoneNumber,
+      barberId: booking?.barber.user.id,
+      barberName: booking?.barber.user.fullName,
+      barberImage: booking?.barber.user.image,
+      barberEmail: booking?.barber.user.email,
+      barberPhone: booking?.barber.user.phoneNumber,
+      totalPrice: booking?.totalPrice,
+      bookingDate: booking?.date,
+      startTime: booking?.startTime,
+      endTime: booking?.endTime,
+      paymentStatus: payment.status,
+      paymentAmount: payment.paymentAmount,
+      paymentDate: payment.createdAt,
+      status: booking?.status,
+      // services: booking?.BookedServices.map(service => ({
+      //   serviceId: service.service.id,
+      //   serviceName: service.service.serviceName,
+      //   price: service.service.price,
+      //   availableTo: service.service.availableTo,
+      // })) || [],
+    };
+  });
+
+  return formatPaginationResponse(transactions, total, page, limit);
 };
 
 const getSaloonListFromDb = async (userId: string) => {
@@ -583,6 +685,7 @@ export const saloonService = {
   manageBookingsIntoDb,
   getBarberDashboardFromDb,
   getCustomerBookingsFromDb,
+  getTransactionsFromDb,
   getSaloonListFromDb,
   getAllBarbersFromDb,
   terminateBarberIntoDb,

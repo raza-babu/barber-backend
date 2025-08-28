@@ -33,6 +33,12 @@ router.get(
 );
 
 router.get(
+  '/transactions',
+  auth(UserRoleEnum.SALOON_OWNER),
+  saloonController.getTransactions,
+);
+
+router.get(
   '/barbers',
   auth(UserRoleEnum.SALOON_OWNER),
   saloonController.getAllBarbers,

@@ -48,12 +48,34 @@ const getCustomerBookings = (0, catchAsync_1.default)((req, res) => __awaiter(vo
         'searchTerm',
         'startDate',
         'endDate',
+        'status',
     ]);
     const result = yield saloon_service_1.saloonService.getCustomerBookingsFromDb(user.id, filters);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
         message: 'Customer bookings retrieved successfully',
+        data: result.data,
+        meta: result.meta,
+    });
+}));
+const getTransactions = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const filters = (0, pickValidFields_1.pickValidFields)(req.query, [
+        'page',
+        'limit',
+        'sortBy',
+        'sortOrder',
+        'searchTerm',
+        'startDate',
+        'endDate',
+        'status',
+    ]);
+    const result = yield saloon_service_1.saloonService.getTransactionsFromDb(user.id, filters);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Transactions retrieved successfully',
         data: result.data,
         meta: result.meta,
     });
@@ -103,6 +125,7 @@ const deleteSaloon = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 exports.saloonController = {
     manageBookings,
     getBarberDashboard,
+    getTransactions,
     getCustomerBookings,
     getAllBarbers,
     terminateBarber,

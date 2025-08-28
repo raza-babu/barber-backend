@@ -36,12 +36,35 @@ const getCustomerBookings = catchAsync(async (req, res) => {
     'searchTerm',
     'startDate',
     'endDate',
+    'status',
   ]);
   const result = await saloonService.getCustomerBookingsFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Customer bookings retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
+const getTransactions = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'startDate',
+    'endDate',
+    'status',
+  ]);
+  const result = await saloonService.getTransactionsFromDb(user.id, filters);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Transactions retrieved successfully',
     data: result.data,
     meta: result.meta,
   });
@@ -95,6 +118,7 @@ const deleteSaloon = catchAsync(async (req, res) => {
 export const saloonController = {
   manageBookings,
   getBarberDashboard,
+  getTransactions,
   getCustomerBookings,
   getAllBarbers,
   terminateBarber,

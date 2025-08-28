@@ -234,13 +234,13 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
             ],
         }
         : {};
-    // Date range filter
-    const dateRangeQuery = options.startDate || options.endDate
-        ? {
-            createdAt: Object.assign(Object.assign({}, (options.startDate && { gte: new Date(options.startDate) })), (options.endDate && { lte: new Date(options.endDate) })),
-        }
-        : {};
-    const whereClause = Object.assign(Object.assign({ saloonOwnerId: userId }, dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
+    // Status filter
+    const statusFilter = options.status && Array.isArray(options.status)
+        ? { status: { in: options.status.map(s => s) } }
+        : options.status
+            ? { status: options.status }
+            : {};
+    const whereClause = Object.assign(Object.assign({ saloonOwnerId: userId }, statusFilter), (Object.keys(searchQuery).length > 0 && searchQuery));
     const [result, total] = yield Promise.all([
         prisma_1.default.booking.findMany({
             where: whereClause,
@@ -306,6 +306,7 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
         bookingDate: booking.date,
         startTime: booking.startTime,
         endTime: booking.endTime,
+        // paymentStatus: booking.paymentStatus,
         status: booking.status,
         services: booking.BookedServices.map(service => ({
             serviceId: service.service.id,
@@ -316,6 +317,102 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
     }));
     return (0, pagination_1.formatPaginationResponse)(bookings, total, page, limit);
 });
+const getTransactionsFromDb = (userId_2, ...args_2) => __awaiter(void 0, [userId_2, ...args_2], void 0, function* (userId, options = {}) {
+    const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
+    // Only fetch payments with status 'COMPLETED' and join booking for saloonOwnerId
+    const whereClause = {
+        status: client_1.PaymentStatus.COMPLETED || client_1.PaymentStatus.REFUNDED,
+        userId: userId,
+        booking: {
+            saloonOwnerId: userId,
+        },
+    };
+    const [result, total] = yield Promise.all([
+        prisma_1.default.payment.findMany({
+            where: whereClause,
+            skip,
+            take: limit,
+            orderBy: {
+                [sortBy]: sortOrder,
+            },
+            include: {
+                booking: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                image: true,
+                                email: true,
+                                phoneNumber: true,
+                            },
+                        },
+                        barber: {
+                            select: {
+                                user: {
+                                    select: {
+                                        id: true,
+                                        fullName: true,
+                                        image: true,
+                                        email: true,
+                                        phoneNumber: true,
+                                    },
+                                },
+                            },
+                        },
+                        BookedServices: {
+                            select: {
+                                service: {
+                                    select: {
+                                        id: true,
+                                        serviceName: true,
+                                        price: true,
+                                        availableTo: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }),
+        prisma_1.default.payment.count({
+            where: whereClause,
+        }),
+    ]);
+    const transactions = result.map(payment => {
+        const booking = payment.booking;
+        return {
+            paymentId: payment.id,
+            bookingId: booking === null || booking === void 0 ? void 0 : booking.id,
+            customerId: booking === null || booking === void 0 ? void 0 : booking.user.id,
+            customerName: booking === null || booking === void 0 ? void 0 : booking.user.fullName,
+            customerImage: booking === null || booking === void 0 ? void 0 : booking.user.image,
+            customEmail: booking === null || booking === void 0 ? void 0 : booking.user.email,
+            customerPhone: booking === null || booking === void 0 ? void 0 : booking.user.phoneNumber,
+            barberId: booking === null || booking === void 0 ? void 0 : booking.barber.user.id,
+            barberName: booking === null || booking === void 0 ? void 0 : booking.barber.user.fullName,
+            barberImage: booking === null || booking === void 0 ? void 0 : booking.barber.user.image,
+            barberEmail: booking === null || booking === void 0 ? void 0 : booking.barber.user.email,
+            barberPhone: booking === null || booking === void 0 ? void 0 : booking.barber.user.phoneNumber,
+            totalPrice: booking === null || booking === void 0 ? void 0 : booking.totalPrice,
+            bookingDate: booking === null || booking === void 0 ? void 0 : booking.date,
+            startTime: booking === null || booking === void 0 ? void 0 : booking.startTime,
+            endTime: booking === null || booking === void 0 ? void 0 : booking.endTime,
+            paymentStatus: payment.status,
+            paymentAmount: payment.paymentAmount,
+            paymentDate: payment.createdAt,
+            status: booking === null || booking === void 0 ? void 0 : booking.status,
+            // services: booking?.BookedServices.map(service => ({
+            //   serviceId: service.service.id,
+            //   serviceName: service.service.serviceName,
+            //   price: service.service.price,
+            //   availableTo: service.service.availableTo,
+            // })) || [],
+        };
+    });
+    return (0, pagination_1.formatPaginationResponse)(transactions, total, page, limit);
+});
 const getSaloonListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.saloonOwner.findMany();
     if (result.length === 0) {
@@ -323,7 +420,7 @@ const getSaloonListFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
     }
     return result;
 });
-const getAllBarbersFromDb = (userId_2, ...args_2) => __awaiter(void 0, [userId_2, ...args_2], void 0, function* (userId, 
+const getAllBarbersFromDb = (userId_3, ...args_3) => __awaiter(void 0, [userId_3, ...args_3], void 0, function* (userId, 
 // saloonId: string,
 options = {}) {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
@@ -489,6 +586,7 @@ exports.saloonService = {
     manageBookingsIntoDb,
     getBarberDashboardFromDb,
     getCustomerBookingsFromDb,
+    getTransactionsFromDb,
     getSaloonListFromDb,
     getAllBarbersFromDb,
     terminateBarberIntoDb,
