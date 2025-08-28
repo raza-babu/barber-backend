@@ -112,6 +112,16 @@ const terminateBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
         data: result,
     });
 }));
+const getScheduledBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield saloon_service_1.saloonService.getScheduledBarbersFromDb(user.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Scheduled barbers retrieved successfully',
+        data: result,
+    });
+}));
 const deleteSaloon = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield saloon_service_1.saloonService.deleteSaloonItemFromDb(user.id, req.params.id);
@@ -129,5 +139,6 @@ exports.saloonController = {
     getCustomerBookings,
     getAllBarbers,
     terminateBarber,
+    getScheduledBarbers,
     deleteSaloon,
 };

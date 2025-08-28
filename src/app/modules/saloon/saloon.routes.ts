@@ -44,6 +44,12 @@ router.get(
   saloonController.getAllBarbers,
 );
 
+router.get(
+  '/scheduled-barbers',
+  auth(UserRoleEnum.SALOON_OWNER),
+  saloonController.getScheduledBarbers,
+);
+
 router.patch(
   '/terminate-barber',
   auth(UserRoleEnum.SALOON_OWNER),

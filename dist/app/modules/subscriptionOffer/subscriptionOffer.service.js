@@ -14,6 +14,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.subscriptionOfferService = void 0;
 const prisma_1 = __importDefault(require("../../utils/prisma"));
+const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -188,11 +189,21 @@ const updateSubscriptionOfferIntoDb = (userId, subscriptionOfferId, data) => __a
 });
 const deleteSubscriptionOfferItemFromDb = (userId, subscriptionOfferId) => __awaiter(void 0, void 0, void 0, function* () {
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        const isSuperAdmin = yield tx.user.findFirst({
+            where: {
+                id: userId,
+                role: client_1.UserRoleEnum.SUPER_ADMIN,
+                status: client_1.UserStatus.ACTIVE,
+            },
+        });
+        if (!isSuperAdmin) {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Only super admin can delete subscription offers');
+        }
         // Find the subscription offer first
         const existing = yield tx.subscriptionOffer.findUnique({
             where: {
                 id: subscriptionOfferId,
-                userId: userId,
+                // userId: userId,
             },
         });
         if (!existing) {
@@ -202,7 +213,7 @@ const deleteSubscriptionOfferItemFromDb = (userId, subscriptionOfferId) => __awa
         const deletedItem = yield tx.subscriptionOffer.delete({
             where: {
                 id: subscriptionOfferId,
-                userId: userId,
+                // userId: userId,
             },
         });
         if (!deletedItem) {

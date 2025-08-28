@@ -738,6 +738,29 @@ const terminateBarberIntoDb = async (
   });
 };
 
+const getScheduledBarbersFromDb = async (userId: string) => {
+  const result = await prisma.barber.findMany({
+    where: {
+      saloonOwnerId: userId,
+      // isScheduled: true,
+    },
+    select: {
+      id: true,
+      user: {   
+        select: {
+          id: true,
+          fullName: true,
+          image: true,
+          phoneNumber: true,
+          address: true,
+        },
+      },
+      // hourlyRate: true,
+    },
+  }); 
+  return result;
+};
+
 const deleteSaloonItemFromDb = async (userId: string, saloonId: string) => {
   const deletedItem = await prisma.saloonOwner.delete({
     where: {
@@ -760,5 +783,6 @@ export const saloonService = {
   getSaloonListFromDb,
   getAllBarbersFromDb,
   terminateBarberIntoDb,
+  getScheduledBarbersFromDb,
   deleteSaloonItemFromDb,
 };

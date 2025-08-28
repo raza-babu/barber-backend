@@ -104,6 +104,17 @@ const terminateBarber = catchAsync(async (req, res) => {
   });
 });
 
+const getScheduledBarbers = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await saloonService.getScheduledBarbersFromDb(user.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Scheduled barbers retrieved successfully',
+    data: result,
+  }); 
+});
+
 const deleteSaloon = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await saloonService.deleteSaloonItemFromDb(user.id, req.params.id);
@@ -122,5 +133,6 @@ export const saloonController = {
   getCustomerBookings,
   getAllBarbers,
   terminateBarber,
+  getScheduledBarbers,
   deleteSaloon,
 };

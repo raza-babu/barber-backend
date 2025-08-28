@@ -633,6 +633,28 @@ const terminateBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0
         return terminationRecord;
     }));
 });
+const getScheduledBarbersFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield prisma_1.default.barber.findMany({
+        where: {
+            saloonOwnerId: userId,
+            // isScheduled: true,
+        },
+        select: {
+            id: true,
+            user: {
+                select: {
+                    id: true,
+                    fullName: true,
+                    image: true,
+                    phoneNumber: true,
+                    address: true,
+                },
+            },
+            // hourlyRate: true,
+        },
+    });
+    return result;
+});
 const deleteSaloonItemFromDb = (userId, saloonId) => __awaiter(void 0, void 0, void 0, function* () {
     const deletedItem = yield prisma_1.default.saloonOwner.delete({
         where: {
@@ -653,5 +675,6 @@ exports.saloonService = {
     getSaloonListFromDb,
     getAllBarbersFromDb,
     terminateBarberIntoDb,
+    getScheduledBarbersFromDb,
     deleteSaloonItemFromDb,
 };

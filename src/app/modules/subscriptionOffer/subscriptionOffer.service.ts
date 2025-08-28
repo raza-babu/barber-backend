@@ -222,11 +222,24 @@ const deleteSubscriptionOfferItemFromDb = async (
   subscriptionOfferId: string,
 ) => {
   return await prisma.$transaction(async tx => {
+    const isSuperAdmin = await tx.user.findFirst({
+      where: {
+        id: userId,
+        role: UserRoleEnum.SUPER_ADMIN,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    if (!isSuperAdmin) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'Only super admin can delete subscription offers',
+      );
+    }
     // Find the subscription offer first
     const existing = await tx.subscriptionOffer.findUnique({
       where: {
         id: subscriptionOfferId,
-        userId: userId,
+        // userId: userId,
       },
     });
     if (!existing) {
@@ -240,7 +253,7 @@ const deleteSubscriptionOfferItemFromDb = async (
     const deletedItem = await tx.subscriptionOffer.delete({
       where: {
         id: subscriptionOfferId,
-        userId: userId,
+        // userId: userId,
       },
     });
     if (!deletedItem) {

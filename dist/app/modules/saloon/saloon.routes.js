@@ -22,6 +22,7 @@ router.get('/dashboard', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER)
 router.get('/booking-history', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), saloon_controller_1.saloonController.getCustomerBookings);
 router.get('/transactions', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), saloon_controller_1.saloonController.getTransactions);
 router.get('/barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), saloon_controller_1.saloonController.getAllBarbers);
+router.get('/scheduled-barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), saloon_controller_1.saloonController.getScheduledBarbers);
 router.patch('/terminate-barber', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), saloon_controller_1.saloonController.terminateBarber);
 router.delete('/:id', (0, auth_1.default)(), saloon_controller_1.saloonController.deleteSaloon);
 exports.saloonRoutes = router;
