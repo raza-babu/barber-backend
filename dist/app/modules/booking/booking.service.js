@@ -721,7 +721,7 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
     ]);
     // Flatten results
     const mapped = result.map(booking => {
-        var _a, _b, _c, _d, _e, _f, _g, _h;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         return ({
             bookingId: booking.id,
             customerId: booking.userId,
@@ -734,11 +734,13 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
             customerEmail: ((_c = booking.user) === null || _c === void 0 ? void 0 : _c.email) || null,
             customerContact: ((_d = booking.user) === null || _d === void 0 ? void 0 : _d.phoneNumber) || null,
             date: booking.date,
-            time: booking.startTime,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
             serviceNames: ((_e = booking.BookedServices) === null || _e === void 0 ? void 0 : _e.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
             barberName: ((_g = (_f = booking.barber) === null || _f === void 0 ? void 0 : _f.user) === null || _g === void 0 ? void 0 : _g.fullName) || null,
+            barberImage: ((_j = (_h = booking.barber) === null || _h === void 0 ? void 0 : _h.user) === null || _j === void 0 ? void 0 : _j.image) || null,
             status: booking.status || null,
-            position: ((_h = booking.queueSlot[0]) === null || _h === void 0 ? void 0 : _h.position) || null,
+            position: ((_k = booking.queueSlot[0]) === null || _k === void 0 ? void 0 : _k.position) || null,
         });
     });
     // ✅ Return directly in the required shape

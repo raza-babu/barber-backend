@@ -850,9 +850,11 @@ const getBookingListForSalonOwnerFromDb = async (
     customerEmail: booking.user?.email || null,
     customerContact: booking.user?.phoneNumber || null,
     date: booking.date,
-    time: booking.startTime,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
     serviceNames: booking.BookedServices?.map(bs => bs.service?.serviceName) || [],
     barberName: booking.barber?.user?.fullName || null,
+    barberImage: booking.barber?.user?.image || null,
     status: booking.status || null,
     position: booking.queueSlot[0]?.position || null,
   }));
