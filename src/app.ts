@@ -7,8 +7,7 @@ import { logger, loggerConsole } from "./app/middlewares/logger";
 
 const app: Application = express();
 
-app.use(logger);
-app.use(loggerConsole);
+
 
 // app.use(
 //   cors({
@@ -51,6 +50,8 @@ app.get("/", (req: Request, res: Response) => {
     Message: "The server is running. . .",
   });
 });
+app.use(logger);
+app.use(loggerConsole);
 
 app.use("/api/v1", router);
 
