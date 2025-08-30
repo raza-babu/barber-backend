@@ -234,12 +234,20 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
             ],
         }
         : {};
-    // Status filter
+    // Status filter, but always exclude PENDING and CONFIRMED
+    const excludedStatuses = [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED];
+    const excludedStatusStrings = excludedStatuses.map(s => s.toString());
     const statusFilter = options.status && Array.isArray(options.status)
-        ? { status: { in: options.status.map(s => s) } }
+        ? {
+            status: {
+                in: options.status.filter(s => !excludedStatusStrings.includes(s)),
+            },
+        }
         : options.status
-            ? { status: options.status }
-            : {};
+            ? excludedStatusStrings.includes(options.status)
+                ? { status: { notIn: excludedStatuses } }
+                : { status: options.status }
+            : { status: { notIn: excludedStatuses } };
     const whereClause = Object.assign(Object.assign({ saloonOwnerId: userId }, statusFilter), (Object.keys(searchQuery).length > 0 && searchQuery));
     const [result, total] = yield Promise.all([
         prisma_1.default.booking.findMany({

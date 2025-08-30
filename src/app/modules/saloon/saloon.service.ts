@@ -287,13 +287,23 @@ const getCustomerBookingsFromDb = async (
       }
     : {};
 
-  // Status filter
+  // Status filter, but always exclude PENDING and CONFIRMED
+  const excludedStatuses = [BookingStatus.PENDING, BookingStatus.CONFIRMED];
+  const excludedStatusStrings = excludedStatuses.map(s => s.toString());
   const statusFilter =
     options.status && Array.isArray(options.status)
-      ? { status: { in: options.status.map(s => s as BookingStatus) } }
+      ? {
+          status: {
+            in: (options.status as string[]).filter(
+              s => !excludedStatusStrings.includes(s)
+            ) as BookingStatus[],
+          },
+        }
       : options.status
-        ? { status: options.status as BookingStatus }
-        : {};
+        ? excludedStatusStrings.includes(options.status as string)
+          ? { status: { notIn: excludedStatuses } }
+          : { status: options.status as BookingStatus }
+        : { status: { notIn: excludedStatuses } };
 
   const whereClause = {
     saloonOwnerId: userId,
