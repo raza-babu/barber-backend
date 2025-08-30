@@ -826,6 +826,7 @@ const getBookingListForSalonOwnerFromDb = async (
         user: {
           select: {
             id: true,
+            image: true,
             fullName: true,
             email: true,
             phoneNumber: true,
@@ -844,6 +845,7 @@ const getBookingListForSalonOwnerFromDb = async (
     saloonOwnerId: booking.saloonOwnerId,
     totalPrice: booking.totalPrice,
     notes: booking.notes,
+    customerImage: booking.user?.image || null,
     customerName: booking.user?.fullName || null,
     customerEmail: booking.user?.email || null,
     customerContact: booking.user?.phoneNumber || null,

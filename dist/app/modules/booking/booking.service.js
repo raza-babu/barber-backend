@@ -709,6 +709,7 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
                 user: {
                     select: {
                         id: true,
+                        image: true,
                         fullName: true,
                         email: true,
                         phoneNumber: true,
@@ -720,7 +721,7 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
     ]);
     // Flatten results
     const mapped = result.map(booking => {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         return ({
             bookingId: booking.id,
             customerId: booking.userId,
@@ -728,15 +729,16 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
             saloonOwnerId: booking.saloonOwnerId,
             totalPrice: booking.totalPrice,
             notes: booking.notes,
-            customerName: ((_a = booking.user) === null || _a === void 0 ? void 0 : _a.fullName) || null,
-            customerEmail: ((_b = booking.user) === null || _b === void 0 ? void 0 : _b.email) || null,
-            customerContact: ((_c = booking.user) === null || _c === void 0 ? void 0 : _c.phoneNumber) || null,
+            customerImage: ((_a = booking.user) === null || _a === void 0 ? void 0 : _a.image) || null,
+            customerName: ((_b = booking.user) === null || _b === void 0 ? void 0 : _b.fullName) || null,
+            customerEmail: ((_c = booking.user) === null || _c === void 0 ? void 0 : _c.email) || null,
+            customerContact: ((_d = booking.user) === null || _d === void 0 ? void 0 : _d.phoneNumber) || null,
             date: booking.date,
             time: booking.startTime,
-            serviceNames: ((_d = booking.BookedServices) === null || _d === void 0 ? void 0 : _d.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
-            barberName: ((_f = (_e = booking.barber) === null || _e === void 0 ? void 0 : _e.user) === null || _f === void 0 ? void 0 : _f.fullName) || null,
+            serviceNames: ((_e = booking.BookedServices) === null || _e === void 0 ? void 0 : _e.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
+            barberName: ((_g = (_f = booking.barber) === null || _f === void 0 ? void 0 : _f.user) === null || _g === void 0 ? void 0 : _g.fullName) || null,
             status: booking.status || null,
-            position: ((_g = booking.queueSlot[0]) === null || _g === void 0 ? void 0 : _g.position) || null,
+            position: ((_h = booking.queueSlot[0]) === null || _h === void 0 ? void 0 : _h.position) || null,
         });
     });
     // ✅ Return directly in the required shape
