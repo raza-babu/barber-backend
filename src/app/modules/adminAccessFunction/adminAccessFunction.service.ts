@@ -11,6 +11,7 @@ import {
 } from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { UserAccessFunctionName } from '../../utils/access';
 
 interface CreateAdminData {
   fullName: string;
@@ -95,7 +96,7 @@ const createAdminAccessFunctionIntoDb = async (
 
     // Check if any of the selected functions is 'ADMIN_MANAGEMENT'
     const hasAdminManagement = accessFunctions.some(
-      af => af.function === 'ADMIN_MANAGEMENT'
+      af => af.function === UserAccessFunctionName.ADMIN_MANAGEMENT
     );
 
     if (hasAdminManagement) {

@@ -42,6 +42,7 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const bcrypt = __importStar(require("bcrypt"));
 const pagination_1 = require("../../utils/pagination");
+const access_1 = require("../../utils/access");
 const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const existingUser = yield prisma_1.default.user.findUnique({
         where: {
@@ -100,7 +101,7 @@ const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
                 select: { id: true, function: true },
             });
             // Check if any of the selected functions is 'ADMIN_MANAGEMENT'
-            const hasAdminManagement = accessFunctions.some(af => af.function === 'ADMIN_MANAGEMENT');
+            const hasAdminManagement = accessFunctions.some(af => af.function === access_1.UserAccessFunctionName.ADMIN_MANAGEMENT);
             if (hasAdminManagement) {
                 throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'ADMIN role cannot have ADMIN_MANAGEMENT access function');
             }

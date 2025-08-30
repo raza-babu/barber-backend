@@ -1,20 +1,48 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.paymentValidation = void 0;
+exports.refundPaymentPayloadSchema = exports.saveNewCardWithExistingCustomerPayloadSchema = exports.capturedPaymentPayloadSchema = exports.AuthorizedPaymentPayloadSchema = exports.TStripeSaveWithCustomerInfoPayloadSchema = void 0;
 const zod_1 = require("zod");
-const createSchema = zod_1.z.object({
+// Zod schemas
+const AddressSchema = zod_1.z.object({
+    city: zod_1.z.string({ required_error: 'City is required' }),
+    postal_code: zod_1.z.string({ required_error: 'Postal Code is required' }),
+    country: zod_1.z.string({ required_error: 'Country is required' }),
+});
+const UserSchema = zod_1.z.object({
+    name: zod_1.z.string({ required_error: 'Name is required' }),
+    email: zod_1.z
+        .string({ required_error: 'Email is required' })
+        .email('Invalid email format'),
+});
+exports.TStripeSaveWithCustomerInfoPayloadSchema = zod_1.z.object({
     body: zod_1.z.object({
-        name: zod_1.z.string().min(1, 'Name is required'),
-        description: zod_1.z.string().optional(),
+        paymentMethodId: zod_1.z.string({
+            required_error: 'Payment Method ID is required',
+        }),
     }),
 });
-const updateSchema = zod_1.z.object({
+exports.AuthorizedPaymentPayloadSchema = zod_1.z.object({
+    // customerId: z.string({ required_error: 'Customer ID is required' }),
+    // amount: z.number({ required_error: 'Amount is required' }),
     body: zod_1.z.object({
-        name: zod_1.z.string().optional(),
-        description: zod_1.z.string().optional(),
+        bookingId: zod_1.z.string({ required_error: 'Parcel ID is required' }),
     }),
 });
-exports.paymentValidation = {
-    createSchema,
-    updateSchema,
-};
+exports.capturedPaymentPayloadSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        parcelId: zod_1.z.string({ required_error: 'project ID is required' }),
+    }),
+});
+exports.saveNewCardWithExistingCustomerPayloadSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        customerId: zod_1.z.string({ required_error: 'Customer ID is required' }),
+        paymentMethodId: zod_1.z.string({
+            required_error: 'Payment Method ID is required',
+        }),
+    }),
+});
+exports.refundPaymentPayloadSchema = zod_1.z.object({
+    paymentIntentId: zod_1.z.string({
+        required_error: 'Payment Intent ID is required',
+    }),
+});

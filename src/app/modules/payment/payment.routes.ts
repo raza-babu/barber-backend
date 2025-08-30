@@ -1,30 +1,73 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
-import validateRequest from '../../middlewares/validateRequest';
-import { paymentController } from './payment.controller';
-import { paymentValidation } from './payment.validation';
-import { UserRoleEnum } from '@prisma/client';
+import { PaymentController } from './payment.controller';
 
 const router = express.Router();
 
+import {
+  AuthorizedPaymentPayloadSchema,
+  capturedPaymentPayloadSchema,
+  refundPaymentPayloadSchema,
+  saveNewCardWithExistingCustomerPayloadSchema,
+  TStripeSaveWithCustomerInfoPayloadSchema,
+} from './payment.validation';
+import validateRequest from '../../middlewares/validateRequest';
+
+router.post('/create-account', auth(), PaymentController.createAccount);
+
+// create a new customer with card
 router.post(
-'/',
-auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.CUSTOMER),
-validateRequest(paymentValidation.createSchema),
-paymentController.createPayment,
+  '/save-card',
+  auth(),
+  validateRequest(TStripeSaveWithCustomerInfoPayloadSchema),
+  PaymentController.saveCardWithCustomerInfo,
 );
 
-router.get('/', auth(), paymentController.getPaymentList);
-
-router.get('/:id', auth(), paymentController.getPaymentById);
-
-router.put(
-'/:id',
-auth(),
-validateRequest(paymentValidation.updateSchema),
-paymentController.updatePayment,
+// Authorize the customer with the amount and send payment request
+router.post(
+  '/authorize-payment',
+  auth(),
+  validateRequest(AuthorizedPaymentPayloadSchema),
+  PaymentController.authorizedPaymentWithSaveCard,
 );
 
-router.delete('/:id', auth(), paymentController.deletePayment);
+// Capture the payment request and deduct the amount
+router.post(
+  '/capture-payment',
+  auth(),
+  validateRequest(capturedPaymentPayloadSchema),
+  PaymentController.capturePaymentRequest,
+);
 
-export const paymentRoutes = router;
+// Save new card to existing customer
+router.post(
+  '/save-new-card',
+  validateRequest(saveNewCardWithExistingCustomerPayloadSchema),
+  PaymentController.saveNewCardWithExistingCustomer,
+);
+
+// Get all save cards for customer
+
+// Delete card from customer
+router.delete(
+  '/delete-card/:paymentMethodId',
+  PaymentController.deleteCardFromCustomer,
+);
+
+// Refund payment to customer
+router.post(
+  '/refund-payment',
+  validateRequest(refundPaymentPayloadSchema),
+  PaymentController.refundPaymentToCustomer,
+);
+router.get(
+  '/customer-save-cards',
+  auth(),
+  PaymentController.getCustomerSavedCards,
+);
+
+router.get('/customers', auth(), PaymentController.getAllCustomers);
+
+router.get('/', auth(), PaymentController.getCustomerDetails);
+
+export const PaymentRoutes = router;

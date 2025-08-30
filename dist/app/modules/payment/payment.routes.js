@@ -3,17 +3,28 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.paymentRoutes = void 0;
+exports.PaymentRoutes = void 0;
 const express_1 = __importDefault(require("express"));
 const auth_1 = __importDefault(require("../../middlewares/auth"));
-const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
 const payment_controller_1 = require("./payment.controller");
-const payment_validation_1 = require("./payment.validation");
-const client_1 = require("@prisma/client");
 const router = express_1.default.Router();
-router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(payment_validation_1.paymentValidation.createSchema), payment_controller_1.paymentController.createPayment);
-router.get('/', (0, auth_1.default)(), payment_controller_1.paymentController.getPaymentList);
-router.get('/:id', (0, auth_1.default)(), payment_controller_1.paymentController.getPaymentById);
-router.put('/:id', (0, auth_1.default)(), (0, validateRequest_1.default)(payment_validation_1.paymentValidation.updateSchema), payment_controller_1.paymentController.updatePayment);
-router.delete('/:id', (0, auth_1.default)(), payment_controller_1.paymentController.deletePayment);
-exports.paymentRoutes = router;
+const payment_validation_1 = require("./payment.validation");
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+router.post('/create-account', (0, auth_1.default)(), payment_controller_1.PaymentController.createAccount);
+// create a new customer with card
+router.post('/save-card', (0, auth_1.default)(), (0, validateRequest_1.default)(payment_validation_1.TStripeSaveWithCustomerInfoPayloadSchema), payment_controller_1.PaymentController.saveCardWithCustomerInfo);
+// Authorize the customer with the amount and send payment request
+router.post('/authorize-payment', (0, auth_1.default)(), (0, validateRequest_1.default)(payment_validation_1.AuthorizedPaymentPayloadSchema), payment_controller_1.PaymentController.authorizedPaymentWithSaveCard);
+// Capture the payment request and deduct the amount
+router.post('/capture-payment', (0, auth_1.default)(), (0, validateRequest_1.default)(payment_validation_1.capturedPaymentPayloadSchema), payment_controller_1.PaymentController.capturePaymentRequest);
+// Save new card to existing customer
+router.post('/save-new-card', (0, validateRequest_1.default)(payment_validation_1.saveNewCardWithExistingCustomerPayloadSchema), payment_controller_1.PaymentController.saveNewCardWithExistingCustomer);
+// Get all save cards for customer
+// Delete card from customer
+router.delete('/delete-card/:paymentMethodId', payment_controller_1.PaymentController.deleteCardFromCustomer);
+// Refund payment to customer
+router.post('/refund-payment', (0, validateRequest_1.default)(payment_validation_1.refundPaymentPayloadSchema), payment_controller_1.PaymentController.refundPaymentToCustomer);
+router.get('/customer-save-cards', (0, auth_1.default)(), payment_controller_1.PaymentController.getCustomerSavedCards);
+router.get('/customers', (0, auth_1.default)(), payment_controller_1.PaymentController.getAllCustomers);
+router.get('/', (0, auth_1.default)(), payment_controller_1.PaymentController.getCustomerDetails);
+exports.PaymentRoutes = router;
