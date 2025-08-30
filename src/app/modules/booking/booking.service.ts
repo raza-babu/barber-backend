@@ -852,7 +852,7 @@ const getBookingListForSalonOwnerFromDb = async (
     customerName: booking.user?.fullName || null,
     customerEmail: booking.user?.email || null,
     customerPhone: booking.user?.phoneNumber || null,
-    date: booking.date,
+    bookingDate: booking.date,
     startTime: booking.startTime,
     endTime: booking.endTime,
     services: booking.BookedServices.map(service => ({

@@ -736,7 +736,7 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
             customerName: ((_b = booking.user) === null || _b === void 0 ? void 0 : _b.fullName) || null,
             customerEmail: ((_c = booking.user) === null || _c === void 0 ? void 0 : _c.email) || null,
             customerPhone: ((_d = booking.user) === null || _d === void 0 ? void 0 : _d.phoneNumber) || null,
-            date: booking.date,
+            bookingDate: booking.date,
             startTime: booking.startTime,
             endTime: booking.endTime,
             services: booking.BookedServices.map(service => ({
