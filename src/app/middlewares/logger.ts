@@ -5,7 +5,7 @@ import path from 'path';
 // Ensure logs directory exists
 const logDir = path.join(__dirname, '../tmp/logs');
 if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir);
+  fs.mkdirSync(logDir, { recursive: true });
 }
 
 // Custom format with a clear prefix

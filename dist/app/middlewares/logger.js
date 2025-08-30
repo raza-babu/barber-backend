@@ -10,7 +10,7 @@ const path_1 = __importDefault(require("path"));
 // Ensure logs directory exists
 const logDir = path_1.default.join(__dirname, '../tmp/logs');
 if (!fs_1.default.existsSync(logDir)) {
-    fs_1.default.mkdirSync(logDir);
+    fs_1.default.mkdirSync(logDir, { recursive: true });
 }
 // Custom format with a clear prefix
 const customFormat = '\n[API REQUEST] :date[iso]\nMethod: :method\nURL: :url\nStatus: :status\nResponse Time: :response-time ms\n-----------------------------';
