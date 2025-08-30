@@ -51,6 +51,15 @@ const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
     if (existingUser) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Email already exists');
     }
+    const existingAdmin = yield prisma_1.default.admin.findFirst({
+        where: {
+            userId: userId,
+            isSuperAdmin: false,
+        },
+    });
+    if (existingAdmin) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Admin cannot create another admin');
+    }
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         // 1. Create User
         const newUser = yield tx.user.create({
@@ -78,6 +87,23 @@ const createAdminAccessFunctionIntoDb = (userId, data) => __awaiter(void 0, void
         });
         if (!newAdmin) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Admin not created');
+        }
+        // Prevent ADMIN role from having ADMIN_MANAGEMENT access
+        if (data.role === client_1.UserRoleEnum.ADMIN &&
+            data.function &&
+            data.function.length > 0) {
+            // Fetch all access function records by IDs
+            const accessFunctions = yield tx.accessFunction.findMany({
+                where: {
+                    id: { in: data.function },
+                },
+                select: { id: true, function: true },
+            });
+            // Check if any of the selected functions is 'ADMIN_MANAGEMENT'
+            const hasAdminManagement = accessFunctions.some(af => af.function === 'ADMIN_MANAGEMENT');
+            if (hasAdminManagement) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'ADMIN role cannot have ADMIN_MANAGEMENT access function');
+            }
         }
         // 3. Create Admin Access Functions only if not super admin
         let accessFunctionsResult = null;

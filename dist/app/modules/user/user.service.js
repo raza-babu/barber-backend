@@ -385,6 +385,10 @@ const changePassword = (user, userId, payload) => __awaiter(void 0, void 0, void
     if (!isCorrectPassword) {
         throw new Error('Password incorrect!');
     }
+    const newPasswordSameAsOld = yield bcrypt.compare(payload.newPassword, userData.password);
+    if (newPasswordSameAsOld) {
+        throw new AppError_1.default(http_status_1.default.CONFLICT, 'New password must be different from the old password');
+    }
     const hashedPassword = yield bcrypt.hash(payload.newPassword, 12);
     yield prisma_1.default.user.update({
         where: {

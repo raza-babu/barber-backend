@@ -402,7 +402,10 @@ const updateUserRoleStatusIntoDB = async (id: string, payload: any) => {
   return result;
 };
 
-const changePassword = async (user: any, userId: string, payload: any) => {
+const changePassword = async (user: any, userId: string, payload: {
+  oldPassword: string;
+  newPassword: string;
+}) => {
   const userData = await prisma.user.findUniqueOrThrow({
     where: {
       id: userId,
@@ -422,6 +425,18 @@ const changePassword = async (user: any, userId: string, payload: any) => {
 
   if (!isCorrectPassword) {
     throw new Error('Password incorrect!');
+  }
+
+  const newPasswordSameAsOld: boolean = await bcrypt.compare( 
+    payload.newPassword,
+    userData.password,
+  );
+
+  if (newPasswordSameAsOld) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      'New password must be different from the old password',
+    );
   }
 
   const hashedPassword: string = await bcrypt.hash(payload.newPassword, 12);

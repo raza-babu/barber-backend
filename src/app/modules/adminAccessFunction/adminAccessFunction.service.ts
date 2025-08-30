@@ -1,7 +1,7 @@
 import { access } from 'fs';
 import { log } from 'node:console';
 import prisma from '../../utils/prisma';
-import { UserRoleEnum, UserStatus } from '@prisma/client';
+import { UserRoleEnum, UserStatus, Admin } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import * as bcrypt from 'bcrypt';
@@ -35,6 +35,18 @@ const createAdminAccessFunctionIntoDb = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'Email already exists');
   }
 
+  const existingAdmin = await prisma.admin.findFirst({
+    where: {
+      userId: userId,
+      isSuperAdmin: false,
+    },
+  });
+
+  if(existingAdmin){
+    throw new AppError(httpStatus.BAD_REQUEST, 'Admin cannot create another admin');
+  }
+
+
   return await prisma.$transaction(async tx => {
     // 1. Create User
     const newUser = await tx.user.create({
@@ -66,6 +78,33 @@ const createAdminAccessFunctionIntoDb = async (
     if (!newAdmin) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Admin not created');
     }
+
+  // Prevent ADMIN role from having ADMIN_MANAGEMENT access
+  if (
+    data.role === UserRoleEnum.ADMIN &&
+    data.function &&
+    data.function.length > 0
+  ) {
+    // Fetch all access function records by IDs
+    const accessFunctions = await tx.accessFunction.findMany({
+      where: {
+        id: { in: data.function },
+      },
+      select: { id: true, function: true },
+    });
+
+    // Check if any of the selected functions is 'ADMIN_MANAGEMENT'
+    const hasAdminManagement = accessFunctions.some(
+      af => af.function === 'ADMIN_MANAGEMENT'
+    );
+
+    if (hasAdminManagement) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'ADMIN role cannot have ADMIN_MANAGEMENT access function'
+      );
+    }
+  }
 
     // 3. Create Admin Access Functions only if not super admin
     let accessFunctionsResult = null;
