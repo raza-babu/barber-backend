@@ -735,7 +735,7 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
             customerImage: ((_a = booking.user) === null || _a === void 0 ? void 0 : _a.image) || null,
             customerName: ((_b = booking.user) === null || _b === void 0 ? void 0 : _b.fullName) || null,
             customerEmail: ((_c = booking.user) === null || _c === void 0 ? void 0 : _c.email) || null,
-            customerContact: ((_d = booking.user) === null || _d === void 0 ? void 0 : _d.phoneNumber) || null,
+            customerPhone: ((_d = booking.user) === null || _d === void 0 ? void 0 : _d.phoneNumber) || null,
             date: booking.date,
             startTime: booking.startTime,
             endTime: booking.endTime,

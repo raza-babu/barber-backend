@@ -851,7 +851,7 @@ const getBookingListForSalonOwnerFromDb = async (
     customerImage: booking.user?.image || null,
     customerName: booking.user?.fullName || null,
     customerEmail: booking.user?.email || null,
-    customerContact: booking.user?.phoneNumber || null,
+    customerPhone: booking.user?.phoneNumber || null,
     date: booking.date,
     startTime: booking.startTime,
     endTime: booking.endTime,
