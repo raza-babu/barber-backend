@@ -18,7 +18,7 @@ const logStream = fs.createWriteStream(
 );
 
 // Log to file with custom format
-const logger = morgan('combined');
+const logger = morgan("dev");
 
 // Log to console with custom format
 const loggerConsole = morgan(customFormat);

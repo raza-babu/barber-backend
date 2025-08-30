@@ -16,7 +16,7 @@ if (!fs_1.default.existsSync(logDir)) {
 const customFormat = '\n[API REQUEST] :date[iso]\nMethod: :method\nURL: :url\nStatus: :status\nResponse Time: :response-time ms\n-----------------------------';
 const logStream = fs_1.default.createWriteStream(path_1.default.join(logDir, 'access.log'), { flags: 'a' });
 // Log to file with custom format
-const logger = (0, morgan_1.default)('combined');
+const logger = (0, morgan_1.default)("dev");
 exports.logger = logger;
 // Log to console with custom format
 const loggerConsole = (0, morgan_1.default)(customFormat);
