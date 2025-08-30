@@ -3,20 +3,27 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { deleteFileFromSpace } from '../../utils/deleteImage';
 
 const createAdsIntoDb = async (userId: string, data: any) => {
-
   const startDate = new Date(data.startDate);
   const endDate = new Date(data.endDate);
 
   // Convert to UTC by adjusting for local timezone offset
-  const startDateUtc = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000);
-  const endDateUtc = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000);
+  const startDateUtc = new Date(
+    startDate.getTime() - startDate.getTimezoneOffset() * 60000,
+  );
+  const endDateUtc = new Date(
+    endDate.getTime() - endDate.getTimezoneOffset() * 60000,
+  );
 
   data.startDate = startDateUtc.toISOString();
   data.endDate = endDateUtc.toISOString();
   if (startDate >= endDate) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Start date must be before end date');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Start date must be before end date',
+    );
   }
 
   const durationMs = endDateUtc.getTime() - startDateUtc.getTime();
@@ -50,7 +57,7 @@ const getAdsByIdFromDb = async (adsId: string) => {
     where: {
       id: adsId,
     },
-  }); 
+  });
   if (!result) {
     return { message: 'Ads not found' };
   }
@@ -58,45 +65,67 @@ const getAdsByIdFromDb = async (adsId: string) => {
 };
 
 const updateAdsIntoDb = async (userId: string, adsId: string, data: any) => {
-
   const existingAd = await prisma.ads.findUnique({
-    where: {
-      id: adsId,
-    },
+    where: { id: adsId },
   });
+
   if (!existingAd) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Ads not found');    
+    throw new AppError(httpStatus.BAD_REQUEST, 'Ads not found');
   }
-  const startDate = new Date(data.startDate);
-  const endDate = new Date(data.endDate); 
-  // Convert to UTC by adjusting for local timezone offset
+
+  // Normalize dates
   if (data.startDate && data.endDate) {
-    const startDateUtc = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000);
-    const endDateUtc = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000);
-    data.startDate = startDateUtc.toISOString();
-    data.endDate = endDateUtc.toISOString();
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+
     if (startDate >= endDate) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Start date must be before end date');
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Start date must be before end date',
+      );
+    }
+
+    data.startDate = new Date(
+      startDate.getTime() - startDate.getTimezoneOffset() * 60000,
+    ).toISOString();
+    data.endDate = new Date(
+      endDate.getTime() - endDate.getTimezoneOffset() * 60000,
+    ).toISOString();
+  }
+
+  // 🟢 Merge logic for images
+  let finalImages: string[] = existingAd.images || [];
+
+  if (data.images !== undefined) {
+    if (Array.isArray(data.images) && data.images.length > 0) {
+      // Case 1: client sends FINAL list (existing + new) → replace directly
+      finalImages = data.images;
+    } else {
+      // Case 2: client uploaded new images but didn’t send existing → merge
+      finalImages = [...finalImages, ...data.images];
     }
   }
-  // Only include fields that are present in the data object
+
   const updateData: any = {};
   if (data.description !== undefined) updateData.description = data.description;
-  if (data.images !== undefined) updateData.images = data.images;
+  if (finalImages.length > 0) updateData.images = finalImages;
   if (data.startDate !== undefined) updateData.startDate = data.startDate;
   if (data.endDate !== undefined) updateData.endDate = data.endDate;
   if (data.duration !== undefined) updateData.duration = data.duration;
 
   const result = await prisma.ads.update({
-    where: {
-      id: adsId,
-      // userId: userId,
-    },
+    where: { id: adsId },
     data: updateData,
   });
-  if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'adsId, not updated');
+
+  const removedImages = existingAd.images.filter(
+    img => !finalImages.includes(img),
+  );
+  for (const img of removedImages) {
+    await deleteFileFromSpace(img); // implement using DeleteObjectCommand
+    console.log('Deleted image from space:', img);
   }
+
   return result;
 };
 

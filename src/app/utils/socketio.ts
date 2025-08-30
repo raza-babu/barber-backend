@@ -1,16 +1,13 @@
-import { verifyToken } from './verifyToken';
-import { Server as HTTPServer, Server } from 'http';
+// src/app/utils/socketio.ts
+import { Server as HTTPServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import { JwtPayload, Secret } from 'jsonwebtoken';
-import config from '../../config';
 import prisma from './prisma';
-import { UserRoleEnum, UserStatus } from '@prisma/client';
+import { socketAuth } from '../middlewares/socketAuth';
 
 const onlineUsers = new Set<string>();
 const userSockets = new Map<string, Socket>();
 
 export function setupSocketIO(server: HTTPServer) {
-  // const io = new SocketIOServer(server);
   const io = new SocketIOServer(server, {
     cors: {
       origin: '*',
@@ -19,25 +16,13 @@ export function setupSocketIO(server: HTTPServer) {
 
   const messagesNameSpace = io.of('/messages');
 
-  messagesNameSpace.on('connection', async (socket: Socket) => {
-    console.log('A user connected to messages namespace');
-    const token = socket.handshake.query.token as string;
-    if (!token) {
-      console.log('No token provided');
-      socket.disconnect();
-      return;
-    }
-    const user = verifyToken(token, config.jwt.access_secret as Secret);
-    const { id, role } = user as JwtPayload & { role: string };
-    const existingUser = await prisma.user.findUnique({
-      where: { id: id, status: UserStatus.ACTIVE },
-    });
+  // Apply auth middleware to namespace
+  messagesNameSpace.use(socketAuth);
 
-    if (!existingUser) {
-      console.log('User not found or inactive');
-      socket.disconnect();
-      return;
-    }
+  messagesNameSpace.on('connection', async (socket: Socket) => {
+    console.log('✅ User connected to messages namespace');
+    const user = (socket as any).user; // comes from socketAuth
+    const { id } = user;
 
     // Add user to online users set
     onlineUsers.add(id);
@@ -45,21 +30,17 @@ export function setupSocketIO(server: HTTPServer) {
 
     // Notify all users about the new user's online status
     messagesNameSpace.emit('userStatus', { userId: id, isOnline: true });
-    // Broadcast the updated list of online users
     messagesNameSpace.emit('onlineUsers', Array.from(onlineUsers));
 
     socket.on('disconnect', () => {
-      console.log('User disconnected from messages namespace');
-      // Remove user from online users set
+      console.log('❌ User disconnected from messages namespace');
       onlineUsers.delete(id);
       userSockets.delete(id);
-      // Notify all users about the user's offline status
       messagesNameSpace.emit('userStatus', { userId: id, isOnline: false });
-      // Broadcast the updated list of online users
       messagesNameSpace.emit('onlineUsers', Array.from(onlineUsers));
     });
 
-    userSockets.set(id, socket);
+    // userSockets.set(id, socket);
 
     socket.on('message', async payload => {
       try {
