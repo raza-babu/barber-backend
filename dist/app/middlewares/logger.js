@@ -8,7 +8,7 @@ const morgan_1 = __importDefault(require("morgan"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 // Ensure logs directory exists
-const logDir = path_1.default.join(__dirname, '../logs');
+const logDir = path_1.default.join(__dirname, '../tmp/logs');
 if (!fs_1.default.existsSync(logDir)) {
     fs_1.default.mkdirSync(logDir);
 }
@@ -16,7 +16,7 @@ if (!fs_1.default.existsSync(logDir)) {
 const customFormat = '\n[API REQUEST] :date[iso]\nMethod: :method\nURL: :url\nStatus: :status\nResponse Time: :response-time ms\n-----------------------------';
 const logStream = fs_1.default.createWriteStream(path_1.default.join(logDir, 'access.log'), { flags: 'a' });
 // Log to file with custom format
-const logger = (0, morgan_1.default)("dev");
+const logger = (0, morgan_1.default)("combined", { stream: logStream });
 exports.logger = logger;
 // Log to console with custom format
 const loggerConsole = (0, morgan_1.default)(customFormat);

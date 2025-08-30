@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Ensure logs directory exists
-const logDir = path.join(__dirname, '../logs');
+const logDir = path.join(__dirname, '../tmp/logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir);
 }
@@ -18,7 +18,7 @@ const logStream = fs.createWriteStream(
 );
 
 // Log to file with custom format
-const logger = morgan("dev");
+const logger = morgan("combined", { stream: logStream });
 
 // Log to console with custom format
 const loggerConsole = morgan(customFormat);
