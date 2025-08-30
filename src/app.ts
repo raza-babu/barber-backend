@@ -7,8 +7,8 @@ import { logger, loggerConsole } from "./app/middlewares/logger";
 
 const app: Application = express();
 
-app.use(logger);
-app.use(loggerConsole);
+// app.use(logger);
+// app.use(loggerConsole);
 
 // app.use(
 //   cors({
