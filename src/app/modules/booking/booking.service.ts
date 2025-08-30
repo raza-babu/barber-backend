@@ -807,6 +807,9 @@ const getBookingListForSalonOwnerFromDb = async (
             id: true,
             service: {
               select: {
+                id: true,
+                price: true,
+                availableTo: true,
                 serviceName: true,
               },
             },
@@ -852,7 +855,12 @@ const getBookingListForSalonOwnerFromDb = async (
     date: booking.date,
     startTime: booking.startTime,
     endTime: booking.endTime,
-    serviceNames: booking.BookedServices?.map(bs => bs.service?.serviceName) || [],
+    services: booking.BookedServices.map(service => ({
+      serviceId: service.service.id,
+      serviceName: service.service.serviceName,
+      price: service.service.price,
+      availableTo: service.service.availableTo,
+    })),
     barberName: booking.barber?.user?.fullName || null,
     barberImage: booking.barber?.user?.image || null,
     status: booking.status || null,
