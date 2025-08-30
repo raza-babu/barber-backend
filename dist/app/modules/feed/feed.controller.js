@@ -64,24 +64,23 @@ const updateFeed = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, voi
     var _b;
     const user = req.user;
     const { files, body } = req;
-    const uploads = {
-        images: [],
-    };
     const fileGroups = files;
-    // Upload images
+    // Existing images array sent from client
+    const existingImages = body.existingImages || [];
+    // Upload new images
+    let newUploads = [];
     if ((_b = fileGroups.images) === null || _b === void 0 ? void 0 : _b.length) {
-        const imageUploads = yield Promise.all(fileGroups.images.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'feed-images')));
-        uploads.images.push(...imageUploads);
+        newUploads = yield Promise.all(fileGroups.images.map(file => (0, multipleFile_1.uploadFileToSpace)(file, "feed-images")));
     }
-    const feedData = Object.assign(Object.assign({}, body), { images: uploads.images });
-    if (uploads.images.length === 0) {
-        delete feedData.images; // Remove images if no new images are uploaded
-    }
-    const result = yield feed_service_1.feedService.updateFeedIntoDb(user.id, req.params.id, feedData);
+    // Merge existing + new images
+    const finalImages = [...existingImages, ...newUploads];
+    const feedData = Object.assign(Object.assign({}, body), { images: finalImages });
+    const result = yield feed_service_1.feedService.updateFeedIntoDb(user.id, req.params.id, feedData, existingImages // pass to service to check removed images
+    );
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
-        message: 'Feed updated successfully',
+        message: "Feed updated successfully",
         data: result,
     });
 }));

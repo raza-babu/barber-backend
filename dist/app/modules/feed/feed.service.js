@@ -16,6 +16,7 @@ exports.feedService = void 0;
 const prisma_1 = __importDefault(require("../../utils/prisma"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
+const deleteImage_1 = require("../../utils/deleteImage");
 const createFeedIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     let saloonOwner;
     if (userId) {
@@ -157,7 +158,14 @@ const getFeedByIdFromDb = (feedId) => __awaiter(void 0, void 0, void 0, function
             : null,
     };
 });
-const updateFeedIntoDb = (userId, feedId, data) => __awaiter(void 0, void 0, void 0, function* () {
+const updateFeedIntoDb = (userId, feedId, data, existingImages) => __awaiter(void 0, void 0, void 0, function* () {
+    const feed = yield prisma_1.default.feed.findUnique({
+        where: { id: feedId },
+    });
+    if (!feed) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, "Feed not found");
+    }
+    // Update DB
     const result = yield prisma_1.default.feed.update({
         where: {
             id: feedId,
@@ -165,8 +173,11 @@ const updateFeedIntoDb = (userId, feedId, data) => __awaiter(void 0, void 0, voi
         },
         data: Object.assign({}, data),
     });
-    if (!result) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'feedId, not updated');
+    // Delete images removed by the client
+    const removedImages = (feed.images || []).filter(img => !data.images.includes(img));
+    for (const img of removedImages) {
+        yield (0, deleteImage_1.deleteFileFromSpace)(img); // your DO Spaces delete helper
+        console.log("Deleted feed image from space:", img);
     }
     return result;
 });

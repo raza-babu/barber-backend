@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { deleteFileFromSpace } from '../../utils/deleteImage';
 
 const createFeedIntoDb = async (userId: string, data: any) => {
   let saloonOwner;
@@ -154,7 +155,21 @@ const getFeedByIdFromDb = async (feedId: string) => {
   };
 };
 
-const updateFeedIntoDb = async (userId: string, feedId: string, data: any) => {
+const updateFeedIntoDb = async (
+  userId: string,
+  feedId: string,
+  data: any,
+  existingImages: string[]
+) => {
+  const feed = await prisma.feed.findUnique({
+    where: { id: feedId },
+  });
+
+  if (!feed) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Feed not found");
+  }
+
+  // Update DB
   const result = await prisma.feed.update({
     where: {
       id: feedId,
@@ -164,11 +179,20 @@ const updateFeedIntoDb = async (userId: string, feedId: string, data: any) => {
       ...data,
     },
   });
-  if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'feedId, not updated');
+
+  // Delete images removed by the client
+  const removedImages = (feed.images || []).filter(
+    img => !data.images.includes(img)
+  );
+
+  for (const img of removedImages) {
+    await deleteFileFromSpace(img); // your DO Spaces delete helper
+    console.log("Deleted feed image from space:", img);
   }
+
   return result;
 };
+
 
 const deleteFeedItemFromDb = async (userId: string, feedId: string) => {
   const deletedItem = await prisma.feed.delete({

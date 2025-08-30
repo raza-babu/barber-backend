@@ -25,6 +25,7 @@ const createFeedSchema = z.object({
 const updateFeedSchema = z.object({
   body: z.object({
     caption: z.string().optional(),
+    existingImages: z.array(z.string()).optional(), // Array of strings
     // images: z
     //   .array(z.string(), {
     //     invalid_type_error: 'Images must be an array of strings!',
