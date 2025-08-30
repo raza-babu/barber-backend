@@ -2,8 +2,8 @@ import morgan from 'morgan';
 import fs from 'fs';
 import path from 'path';
 
-// Ensure logs directory exists
-const logDir = path.join(__dirname, '../tmp/logs');
+// Use /tmp which is writable in Vercel
+const logDir = path.join('/tmp', 'logs'); // <-- /tmp/logs
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
@@ -12,15 +12,14 @@ if (!fs.existsSync(logDir)) {
 const customFormat =
   '\n[API REQUEST] :date[iso]\nMethod: :method\nURL: :url\nStatus: :status\nResponse Time: :response-time ms\n-----------------------------';
 
+// Log to file in /tmp
 const logStream = fs.createWriteStream(
   path.join(logDir, 'access.log'),
   { flags: 'a' }
 );
 
-// Log to file with custom format
-const logger = morgan("combined", { stream: logStream });
-
-// Log to console with custom format
+// Morgan instances
+const logger = morgan('combined', { stream: logStream });
 const loggerConsole = morgan(customFormat);
 
 export { logger, loggerConsole };
