@@ -67,35 +67,43 @@ const getAdsById = catchAsync(async (req, res) => {
 const updateAds = catchAsync(async (req, res) => {
   const user = req.user as any;
   const { files, body } = req;
-  const uploads: {
-    images: string[];
-  } = {
-    images: [],
-  };
-  const fileGroups = files as {
-    images?: Express.Multer.File[];
-  };
-  // Upload images
+
+  const fileGroups = files as { images?: Express.Multer.File[] };
+
+  // Existing images (array of strings from frontend)
+  const existingImages: string[] = body.existingImages || [];
+
+  // Upload new images
+  let newUploads: string[] = [];
   if (fileGroups.images?.length) {
-    const imageUploads = await Promise.all(
-      fileGroups.images.map(file => uploadFileToSpace(file, 'ads-images'))
+    newUploads = await Promise.all(
+      fileGroups.images.map(file => uploadFileToSpace(file, "ads-images"))
     );
-    uploads.images.push(...imageUploads);
   }
+
+  // Final images = existing kept + new uploads
+  const finalImages = [...existingImages, ...newUploads];
+
   const adsData = {
     ...body,
-    images: uploads.images,
+    images: finalImages,
   };
 
-  console.log('adsData', adsData);
-  const result = await adsService.updateAdsIntoDb(user.id, req.params.id, adsData);
+  const result = await adsService.updateAdsIntoDb(
+    user.id,
+    req.params.id,
+    adsData,
+    existingImages // pass to service to check removed images
+  );
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Ads updated successfully',
+    message: "Ads updated successfully",
     data: result,
   });
 });
+
 
 const deleteAds = catchAsync(async (req, res) => {
   const user = req.user as any;

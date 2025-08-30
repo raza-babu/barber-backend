@@ -57,54 +57,40 @@ const getAdsByIdFromDb = (adsId) => __awaiter(void 0, void 0, void 0, function* 
     }
     return result;
 });
-const updateAdsIntoDb = (userId, adsId, data) => __awaiter(void 0, void 0, void 0, function* () {
+const updateAdsIntoDb = (userId, adsId, data, existingImages) => __awaiter(void 0, void 0, void 0, function* () {
     const existingAd = yield prisma_1.default.ads.findUnique({
         where: { id: adsId },
     });
     if (!existingAd) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Ads not found');
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, "Ads not found");
     }
-    // Normalize dates
+    // Dates normalization
     if (data.startDate && data.endDate) {
         const startDate = new Date(data.startDate);
         const endDate = new Date(data.endDate);
         if (startDate >= endDate) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Start date must be before end date');
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, "Start date must be before end date");
         }
         data.startDate = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000).toISOString();
         data.endDate = new Date(endDate.getTime() - endDate.getTimezoneOffset() * 60000).toISOString();
     }
-    // 🟢 Merge logic for images
-    let finalImages = existingAd.images || [];
-    if (data.images !== undefined) {
-        if (Array.isArray(data.images) && data.images.length > 0) {
-            // Case 1: client sends FINAL list (existing + new) → replace directly
-            finalImages = data.images;
-        }
-        else {
-            // Case 2: client uploaded new images but didn’t send existing → merge
-            finalImages = [...finalImages, ...data.images];
-        }
-    }
-    const updateData = {};
-    if (data.description !== undefined)
-        updateData.description = data.description;
-    if (finalImages.length > 0)
-        updateData.images = finalImages;
-    if (data.startDate !== undefined)
-        updateData.startDate = data.startDate;
-    if (data.endDate !== undefined)
-        updateData.endDate = data.endDate;
-    if (data.duration !== undefined)
-        updateData.duration = data.duration;
+    // Final images already prepared in controller
+    const finalImages = data.images;
+    const updateData = {
+        description: data.description,
+        images: finalImages,
+        startDate: data.startDate,
+        endDate: data.endDate,
+    };
     const result = yield prisma_1.default.ads.update({
         where: { id: adsId },
         data: updateData,
     });
-    const removedImages = existingAd.images.filter(img => !finalImages.includes(img));
+    // Remove images that are not in final list anymore
+    const removedImages = (existingAd.images || []).filter(img => !finalImages.includes(img));
     for (const img of removedImages) {
-        yield (0, deleteImage_1.deleteFileFromSpace)(img); // implement using DeleteObjectCommand
-        console.log('Deleted image from space:', img);
+        yield (0, deleteImage_1.deleteFileFromSpace)(img);
+        console.log("Deleted image from space:", img);
     }
     return result;
 });

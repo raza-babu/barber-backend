@@ -23,9 +23,11 @@ const updateAdsSchema = z.object({
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     description: z.string().optional(),
-    // duration: z.string().optional(),
+    existingImages: z.array(z.string()).optional() // Array of strings
   }),
 });
+
+
 export const adsValidation = {
   createAdsSchema,
   updateAdsSchema,

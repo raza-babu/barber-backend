@@ -25,7 +25,7 @@ const updateAdsSchema = zod_1.z.object({
         startDate: zod_1.z.string().optional(),
         endDate: zod_1.z.string().optional(),
         description: zod_1.z.string().optional(),
-        // duration: z.string().optional(),
+        existingImages: zod_1.z.array(zod_1.z.string()).optional() // Array of strings
     }),
 });
 exports.adsValidation = {
