@@ -35,7 +35,7 @@ const review_routes_1 = require("../modules/review/review.routes");
 const qrCode_routes_1 = require("../modules/qrCode/qrCode.routes");
 const follow_routes_1 = require("../modules/follow/follow.routes");
 const userSubscription_routes_1 = require("../modules/userSubscription/userSubscription.routes");
-const Notification_routes_1 = require("../modules/Notification/Notification.routes");
+// import { NotificationRoutes } from '../modules/Notification/Notification.routes';
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -54,10 +54,10 @@ const moduleRoutes = [
         path: '/groups',
         route: group_routes_1.groupRoutes,
     },
-    {
-        path: '/notifications',
-        route: Notification_routes_1.NotificationRoutes,
-    },
+    // {
+    //   path: '/notifications',
+    //   route: NotificationRoutes,
+    // },
     {
         path: '/services',
         route: service_routes_1.ServiceRoutes,

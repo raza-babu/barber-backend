@@ -30,7 +30,7 @@ import { reviewRoutes } from '../modules/review/review.routes';
 import { qrCodeRoutes } from '../modules/qrCode/qrCode.routes';
 import { followRoutes } from '../modules/follow/follow.routes';
 import { userSubscriptionRoutes } from '../modules/userSubscription/userSubscription.routes';
-import { NotificationRoutes } from '../modules/Notification/Notification.routes';
+// import { NotificationRoutes } from '../modules/Notification/Notification.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -50,10 +50,10 @@ const moduleRoutes = [
     path: '/groups',
     route: groupRoutes,
   },
-  {
-    path: '/notifications',
-    route: NotificationRoutes,
-  },
+  // {
+  //   path: '/notifications',
+  //   route: NotificationRoutes,
+  // },
   {
     path: '/services',
     route: ServiceRoutes,
