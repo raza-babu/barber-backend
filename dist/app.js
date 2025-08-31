@@ -22,6 +22,7 @@ app.use((0, cors_1.default)({
         "http://10.10.20.60:3008",
     ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
 }));
 // app.use(
 //   cors({
