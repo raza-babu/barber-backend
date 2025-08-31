@@ -25,21 +25,22 @@ app.use(loggerConsole);
 //     credentials: true,
 //   })
 // );
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  }),
-);
 // app.use(
-//   cors(
-//   //   {
-//   //   origin: "*", // Allow all origins for development
-//   //   credentials: true, // Allow credentials
-//   // }
-// )
+//   cors({
+//     origin: true,
+//     credentials: true,
+//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+//   }),
 // );
+app.use(
+  cors(
+    {
+    origin: "*", // Allow all origins for development
+    credentials: true, // Allow credentials
+    // methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  }
+)
+);
 
 
 //parser

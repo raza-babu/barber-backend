@@ -25,19 +25,18 @@ app.use(logger_1.loggerConsole);
 //     credentials: true,
 //   })
 // );
-app.use((0, cors_1.default)({
-    origin: true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-}));
 // app.use(
-//   cors(
-//   //   {
-//   //   origin: "*", // Allow all origins for development
-//   //   credentials: true, // Allow credentials
-//   // }
-// )
+//   cors({
+//     origin: true,
+//     credentials: true,
+//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+//   }),
 // );
+app.use((0, cors_1.default)({
+    origin: "*", // Allow all origins for development
+    credentials: true, // Allow credentials
+    // methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+}));
 //parser
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
