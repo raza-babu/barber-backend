@@ -10,21 +10,21 @@ const app: Application = express();
 app.use(logger);
 app.use(loggerConsole);
 
-// app.use(
-//   cors({
-//     origin: [
-//       "http://localhost:3001",
-//       "http://localhost:3000",
-//       "http://10.10.20.60:3005",
-//       "http://10.10.20.60:3006",
-//       "http://10.10.20.60:3007",
-//       "http://10.10.20.60:3008",
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3001",
+      "http://localhost:3000",
+      "http://10.10.20.60:3005",
+      "http://10.10.20.60:3006",
+      "http://10.10.20.60:3007",
+      "http://10.10.20.60:3008",
       
 
-//     ],
-//     credentials: true,
-//   })
-// );
+    ],
+    credentials: true,
+  })
+);
 // app.use(
 //   cors({
 //     origin: true,
@@ -32,15 +32,15 @@ app.use(loggerConsole);
 //     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
 //   }),
 // );
-app.use(
-  cors(
-    {
-    origin: "*", // Allow all origins for development
-    credentials: true, // Allow credentials
-    // methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  }
-)
-);
+// app.use(
+//   cors(
+//     {
+//     origin: "*", // Allow all origins for development
+//     credentials: true, // Allow credentials
+//     // methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+//   }
+// )
+// );
 
 
 //parser
