@@ -58,7 +58,7 @@ const prisma_1 = __importDefault(require("../../utils/prisma"));
 const stripe_1 = __importDefault(require("stripe"));
 // Initialize Stripe with your secret API key
 const stripe = new stripe_1.default(config_1.default.stripe.stripe_secret_key, {
-    apiVersion: '2025-07-30.basil',
+    apiVersion: '2025-08-27.basil',
 });
 const registerUserIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     if (payload.email) {
@@ -626,6 +626,7 @@ const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
             email: newUser.email,
             role: newUser.role,
             purpose: 'access',
+            functions: [],
         }, config_1.default.jwt.access_secret, config_1.default.jwt.access_expires_in);
         const refreshedToken = yield (0, generateToken_1.refreshToken)({
             id: newUser.id,
@@ -646,6 +647,7 @@ const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
             email: user.email,
             role: user.role,
             purpose: 'access',
+            functions: [],
         }, config_1.default.jwt.access_secret, config_1.default.jwt.access_expires_in);
         const refreshedToken = yield (0, generateToken_1.refreshToken)({
             id: user.id,

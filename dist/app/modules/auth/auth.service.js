@@ -57,7 +57,8 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
     if (!isCorrectPassword) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Password incorrect');
     }
-    if (userData.isProfileComplete === false || userData.isProfileComplete === null) {
+    if (userData.isProfileComplete === false ||
+        userData.isProfileComplete === null) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Please complete your profile before logging in');
     }
     if (userData.status === client_1.UserStatus.BLOCKED) {
@@ -73,13 +74,32 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Your saloon is not verified yet. Please wait for verification.');
         }
     }
+    let adminAccessFunctions = [];
     if (userData.role === client_1.UserRoleEnum.ADMIN) {
-        const admin = yield prisma_1.default.admin.findFirst({
+        const admin = yield prisma_1.default.admin.findUnique({
             where: {
                 userId: userData.id,
+                isSuperAdmin: false,
             },
         });
         if (admin) {
+            const accessFunctions = yield prisma_1.default.adminAccessFunction.findMany({
+                where: {
+                    adminId: userData.id,
+                },
+            });
+            if (accessFunctions.length === 0) {
+                throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You do not have access to any functions. Please contact super admin.');
+            }
+            const functionNames = yield prisma_1.default.accessFunction.findMany({
+                where: {
+                    id: { in: accessFunctions.map(func => func.accessFunctionId) },
+                },
+            });
+            if (functionNames.length === 0) {
+                throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You do not have access to any functions. Please contact super admin.');
+            }
+            adminAccessFunctions = functionNames.map(func => func.function);
         }
     }
     if (userData.isLoggedIn === false) {
@@ -96,21 +116,14 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
         email: userData.email,
         role: userData.role,
         purpose: 'access',
+        functions: adminAccessFunctions,
     }, config_1.default.jwt.access_secret, config_1.default.jwt.access_expires_in);
     const refreshedToken = yield (0, generateToken_1.refreshToken)({
         id: userData.id,
         email: userData.email,
         role: userData.role,
     }, config_1.default.jwt.refresh_secret, config_1.default.jwt.refresh_expires_in);
-    return {
-        id: userData.id,
-        name: userData.fullName,
-        email: userData.email,
-        role: userData.role,
-        image: userData.image,
-        accessToken: accessToken,
-        refreshToken: refreshedToken,
-    };
+    return Object.assign({ id: userData.id, name: userData.fullName, email: userData.email, role: userData.role, image: userData.image, accessToken: accessToken, refreshToken: refreshedToken }, (userData.role === client_1.UserRoleEnum.ADMIN && { functions: adminAccessFunctions }));
 });
 const refreshTokenFromDB = (refreshedToken) => __awaiter(void 0, void 0, void 0, function* () {
     if (!refreshedToken) {
@@ -129,11 +142,40 @@ const refreshTokenFromDB = (refreshedToken) => __awaiter(void 0, void 0, void 0,
     if (!userData) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found');
     }
+    let adminAccessFunctions = [];
+    if (userData.role === client_1.UserRoleEnum.ADMIN) {
+        const admin = yield prisma_1.default.admin.findUnique({
+            where: {
+                userId: userData.id,
+                isSuperAdmin: false,
+            },
+        });
+        if (admin) {
+            const accessFunctions = yield prisma_1.default.adminAccessFunction.findMany({
+                where: {
+                    adminId: userData.id,
+                },
+            });
+            if (accessFunctions.length === 0) {
+                throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You do not have access to any functions. Please contact super admin.');
+            }
+            const functionNames = yield prisma_1.default.accessFunction.findMany({
+                where: {
+                    id: { in: accessFunctions.map(func => func.accessFunctionId) },
+                },
+            });
+            if (functionNames.length === 0) {
+                throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You do not have access to any functions. Please contact super admin.');
+            }
+            adminAccessFunctions = functionNames.map(func => func.function);
+        }
+    }
     const newAccessToken = yield (0, generateToken_1.generateToken)({
         id: userData.id,
         email: userData.email,
         role: userData.role,
         purpose: 'access',
+        functions: adminAccessFunctions,
     }, config_1.default.jwt.access_secret, config_1.default.jwt.access_expires_in);
     const newRefreshToken = yield (0, generateToken_1.refreshToken)({
         id: userData.id,

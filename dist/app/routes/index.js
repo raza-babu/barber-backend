@@ -7,7 +7,6 @@ const express_1 = __importDefault(require("express"));
 const user_routes_1 = require("../modules/user/user.routes");
 const auth_routes_1 = require("../modules/auth/auth.routes");
 const group_routes_1 = require("../modules/group/group.routes");
-const Notification_routes_1 = require("../modules/notification/Notification.routes");
 const service_routes_1 = require("../modules/service/service.routes");
 const jobPost_routes_1 = require("../modules/jobPost/jobPost.routes");
 const jobApplications_routes_1 = require("../modules/jobApplications/jobApplications.routes");
@@ -36,6 +35,7 @@ const review_routes_1 = require("../modules/review/review.routes");
 const qrCode_routes_1 = require("../modules/qrCode/qrCode.routes");
 const follow_routes_1 = require("../modules/follow/follow.routes");
 const userSubscription_routes_1 = require("../modules/userSubscription/userSubscription.routes");
+const Notification_routes_1 = require("../modules/Notification/Notification.routes");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {

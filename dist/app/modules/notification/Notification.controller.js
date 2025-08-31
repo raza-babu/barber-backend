@@ -13,11 +13,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationController = void 0;
-// Notification.controller: Module file for the Notification.controller functionality.
-const Notification_service_1 = require("./Notification.service");
 const http_status_1 = __importDefault(require("http-status"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
+const Notification_service_1 = require("./Notification.service");
 const sendNotificationToUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { deviceToken, title, body, userId } = req.body;
     if (!deviceToken || !title || !body || !userId) {

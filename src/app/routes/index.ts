@@ -2,7 +2,6 @@ import express from 'express';
 import { UserRouters } from '../modules/user/user.routes';
 import { AuthRouters } from '../modules/auth/auth.routes';
 import { groupRoutes } from '../modules/group/group.routes';
-import { NotificationRoutes } from '../modules/notification/Notification.routes';
 import { ServiceRoutes } from '../modules/service/service.routes';
 import { jobPostRoutes } from '../modules/jobPost/jobPost.routes';
 import { jobApplicationsRoutes } from '../modules/jobApplications/jobApplications.routes';
@@ -31,6 +30,7 @@ import { reviewRoutes } from '../modules/review/review.routes';
 import { qrCodeRoutes } from '../modules/qrCode/qrCode.routes';
 import { followRoutes } from '../modules/follow/follow.routes';
 import { userSubscriptionRoutes } from '../modules/userSubscription/userSubscription.routes';
+import { NotificationRoutes } from '../modules/Notification/Notification.routes';
 const router = express.Router();
 
 const moduleRoutes = [

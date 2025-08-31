@@ -1,8 +1,7 @@
-// Notification.routes: Module file for the Notification.routes functionality.
 import express from 'express';
-import { NotificationController } from './Notification.controller';
 import auth from '../../middlewares/auth';
 import { UserRoleEnum } from '@prisma/client';
+import { NotificationController } from './Notification.controller';
 
 const router = express.Router();
 

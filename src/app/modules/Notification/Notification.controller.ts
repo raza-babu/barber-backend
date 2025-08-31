@@ -1,9 +1,8 @@
-// Notification.controller: Module file for the Notification.controller functionality.
-import { notificationService } from './Notification.service';
 import httpStatus from 'http-status';
 import { Request, Response } from 'express';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
+import { notificationService } from './Notification.service';
 
 const sendNotificationToUser = catchAsync(async (req, res) => {
   const { deviceToken, title, body, userId } = req.body;
