@@ -45,10 +45,22 @@ router.get(
 );
 
 router.get(
+  '/remaining-barbers-to-schedule',
+  auth(UserRoleEnum.SALOON_OWNER),
+  saloonController.getRemainingBarbersToSchedule,
+);
+
+router.get(
   '/scheduled-barbers',
   auth(UserRoleEnum.SALOON_OWNER),
   saloonController.getScheduledBarbers,
 );
+
+router.get(
+  '/free-barbers',
+  auth(UserRoleEnum.SALOON_OWNER),
+  saloonController.getFreeBarbersOnADate,
+)
 
 router.patch(
   '/terminate-barber',

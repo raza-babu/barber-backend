@@ -48,8 +48,17 @@ const availableBarbersSchema = z.object({
   })),
 });
 
+const availableFreeBarbersSchema = z.object({
+  query: z.object({
+    date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }).transform(({ date }) => ({
+    utcDateTime: new Date(date).toISOString(),
+  })),
+});
+
 export const saloonValidation = {
   createSchema,
   updateSchema,
   availableBarbersSchema,
+  availableFreeBarbersSchema
 };

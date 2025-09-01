@@ -325,7 +325,192 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
     }));
     return (0, pagination_1.formatPaginationResponse)(bookings, total, page, limit);
 });
-const getTransactionsFromDb = (userId_2, ...args_2) => __awaiter(void 0, [userId_2, ...args_2], void 0, function* (userId, options = {}) {
+const getRemainingBarbersToScheduleFromDb = (userId_2, ...args_2) => __awaiter(void 0, [userId_2, ...args_2], void 0, function* (userId, options = {}) {
+    // First, get all hired barbers for this saloon owner
+    const hiredBarbers = yield prisma_1.default.hiredBarber.findMany({
+        where: {
+            userId: userId,
+        },
+        select: {
+            barberId: true,
+            barber: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            image: true,
+                            phoneNumber: true,
+                            address: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+    if (hiredBarbers.length === 0) {
+        return { message: 'No hired barbers found' };
+    }
+    const hiredBarberIds = hiredBarbers.map(hb => hb.barberId);
+    // Next, find barbers who do not have any schedule entries
+    const barbersWithSchedules = yield prisma_1.default.barberSchedule.findMany({
+        where: {
+            barberId: { in: hiredBarberIds },
+            saloonOwnerId: userId,
+        },
+        select: {
+            barberId: true,
+        },
+        distinct: ['barberId'],
+    });
+    const scheduledBarberIds = barbersWithSchedules.map(bs => bs.barberId);
+    // Barbers without schedules are those hired but not in the scheduled list
+    const remainingBarbers = hiredBarbers
+        .filter(hb => !scheduledBarberIds.includes(hb.barberId))
+        .map(hb => ({
+        barberId: hb.barberId,
+        barberName: hb.barber.user.fullName,
+        barberImage: hb.barber.user.image,
+        barberPhone: hb.barber.user.phoneNumber,
+        barberAddress: hb.barber.user.address,
+    }));
+    if (remainingBarbers.length === 0) {
+        return { message: 'All hired barbers have schedules' };
+    }
+    return remainingBarbers;
+});
+const getFreeBarbersOnADateFromDb = (userId_3, date_1, ...args_3) => __awaiter(void 0, [userId_3, date_1, ...args_3], void 0, function* (userId, date, options = {}) {
+    if (!date) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date is required');
+    }
+    const targetDate = luxon_1.DateTime.fromISO(date, { zone: 'local' });
+    if (!targetDate.isValid) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid date format');
+    }
+    // const dayName = targetDate.toFormat('cccc'); // e.g., 'Monday'
+    // Step 1: Get all hired barbers for this saloon owner
+    const hiredBarbers = yield prisma_1.default.hiredBarber.findMany({
+        where: {
+            userId: userId,
+        },
+        select: {
+            barberId: true,
+            barber: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            image: true,
+                            phoneNumber: true,
+                            address: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+    if (hiredBarbers.length === 0) {
+        return { message: 'No hired barbers found' };
+    }
+    const hiredBarberIds = hiredBarbers.map(hb => hb.barberId);
+    // Step 2: Find barbers who have a schedule on the specified day and are active
+    const barbersWithDaySchedule = yield prisma_1.default.barberSchedule.findMany({
+        where: {
+            barberId: { in: hiredBarberIds },
+            saloonOwnerId: userId,
+            // dayName: dayName,
+            isActive: true,
+        },
+        select: {
+            barberId: true,
+            openingTime: true, // e.g., "09:00 AM"
+            closingTime: true, // e.g., "05:00 PM"
+        },
+        distinct: ['barberId'],
+    });
+    const scheduledBarberIds = barbersWithDaySchedule.map(bs => bs.barberId);
+    // Step 3: For each scheduled barber, get their bookings for that date
+    const bookings = yield prisma_1.default.booking.findMany({
+        where: {
+            barberId: { in: scheduledBarberIds },
+            saloonOwnerId: userId,
+            status: { in: [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED] },
+            date: targetDate.toJSDate(),
+        },
+        select: {
+            barberId: true,
+            startTime: true,
+            endTime: true,
+        },
+    });
+    console.log('targetDate', targetDate);
+    // Group bookings by barberId
+    const bookingsByBarber = {};
+    bookings.forEach(b => {
+        if (!bookingsByBarber[b.barberId])
+            bookingsByBarber[b.barberId] = [];
+        bookingsByBarber[b.barberId].push({
+            startTime: b.startTime,
+            endTime: b.endTime,
+        });
+    });
+    // For each scheduled barber, calculate free slots
+    const freeBarberSlots = barbersWithDaySchedule
+        .map(schedule => {
+        const hired = hiredBarbers.find(hb => hb.barberId === schedule.barberId);
+        if (!schedule.openingTime || !schedule.closingTime)
+            return null;
+        const dateStr = targetDate.toFormat('yyyy-MM-dd');
+        const opening = luxon_1.DateTime.fromFormat(`${dateStr} ${schedule.openingTime}`, 'yyyy-MM-dd hh:mm a', { zone: targetDate.zone });
+        const closing = luxon_1.DateTime.fromFormat(`${dateStr} ${schedule.closingTime}`, 'yyyy-MM-dd hh:mm a', { zone: targetDate.zone });
+        if (!opening.isValid || !closing.isValid)
+            return null;
+        // Get all bookings for this barber, sorted by startTime
+        const barberBookings = (bookingsByBarber[schedule.barberId] || [])
+            .map(b => ({
+            start: luxon_1.DateTime.fromFormat(`${dateStr} ${b.startTime}`, 'yyyy-MM-dd hh:mm a', { zone: targetDate.zone }),
+            end: luxon_1.DateTime.fromFormat(`${dateStr} ${b.endTime}`, 'yyyy-MM-dd hh:mm a', { zone: targetDate.zone }),
+        }))
+            .filter(b => b.start.isValid && b.end.isValid)
+            .sort((a, b) => a.start.toMillis() - b.start.toMillis());
+        // Find free slots between opening and closing, excluding bookings
+        const freeSlots = [];
+        let lastEnd = opening;
+        for (const booking of barberBookings) {
+            if (booking.start > lastEnd) {
+                freeSlots.push({
+                    start: lastEnd.toFormat('hh:mm a'),
+                    end: booking.start.toFormat('hh:mm a'),
+                });
+            }
+            if (booking.end > lastEnd && booking.end.isValid) {
+                lastEnd = booking.end;
+            }
+        }
+        if (lastEnd < closing) {
+            freeSlots.push({
+                start: lastEnd.toFormat('hh:mm a'),
+                end: closing.toFormat('hh:mm a'),
+            });
+        }
+        return {
+            barberId: hired === null || hired === void 0 ? void 0 : hired.barberId,
+            barberName: hired === null || hired === void 0 ? void 0 : hired.barber.user.fullName,
+            barberImage: hired === null || hired === void 0 ? void 0 : hired.barber.user.image,
+            barberPhone: hired === null || hired === void 0 ? void 0 : hired.barber.user.phoneNumber,
+            barberAddress: hired === null || hired === void 0 ? void 0 : hired.barber.user.address,
+            freeSlots,
+        };
+    })
+        .filter(Boolean);
+    // Barbers who do not have a schedule on that day are not available
+    if (freeBarberSlots.length === 0) {
+        return { message: 'No free barbers available on the selected date' };
+    }
+    return freeBarberSlots;
+});
+const getTransactionsFromDb = (userId_4, ...args_4) => __awaiter(void 0, [userId_4, ...args_4], void 0, function* (userId, options = {}) {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
     const searchQuery = options.searchTerm
         ? {
@@ -491,7 +676,7 @@ const getSaloonListFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
     }
     return result;
 });
-const getAllBarbersFromDb = (userId_3, ...args_3) => __awaiter(void 0, [userId_3, ...args_3], void 0, function* (userId, 
+const getAllBarbersFromDb = (userId_5, ...args_5) => __awaiter(void 0, [userId_5, ...args_5], void 0, function* (userId, 
 // saloonId: string,
 options = {}) {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
@@ -710,8 +895,9 @@ const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
         barberPhone: booking.barber.user.phoneNumber,
         barberAddress: booking.barber.user.address,
         bookingId: booking.id,
-        bookingStartTime: booking.startDateTime,
-        bookingEndTime: booking.endDateTime,
+        bookingDate: booking.date,
+        bookingStartTime: booking.startTime,
+        bookingEndTime: booking.endTime,
         bookingStatus: booking.status,
         customer: {
             customerId: booking.user.id,
@@ -746,10 +932,12 @@ exports.saloonService = {
     manageBookingsIntoDb,
     getBarberDashboardFromDb,
     getCustomerBookingsFromDb,
+    getRemainingBarbersToScheduleFromDb,
     getTransactionsFromDb,
     getSaloonListFromDb,
     getAllBarbersFromDb,
     terminateBarberIntoDb,
+    getFreeBarbersOnADateFromDb,
     getScheduledBarbersFromDb,
     deleteSaloonItemFromDb,
 };

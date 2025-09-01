@@ -39,7 +39,10 @@ const getCustomerBookings = catchAsync(async (req, res) => {
     'endDate',
     'status',
   ]);
-  const result = await saloonService.getCustomerBookingsFromDb(user.id, filters);
+  const result = await saloonService.getCustomerBookingsFromDb(
+    user.id,
+    filters,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -83,7 +86,7 @@ const getAllBarbers = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
   ]);
-  const saloonId = req.params.id 
+  const saloonId = req.params.id;
   const result = await saloonService.getAllBarbersFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -91,6 +94,31 @@ const getAllBarbers = catchAsync(async (req, res) => {
     message: 'Barber list retrieved successfully',
     data: result.data,
     meta: result.meta,
+  });
+});
+
+const getRemainingBarbersToSchedule = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'startDate',
+    'endDate',
+  ]);
+  const result = await saloonService.getRemainingBarbersToScheduleFromDb(
+    user.id,
+    filters,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Remaining barbers to schedule retrieved successfully',
+    data: result,
+    // meta: result.meta,
   });
 });
 
@@ -108,20 +136,58 @@ const terminateBarber = catchAsync(async (req, res) => {
 const getScheduledBarbers = catchAsync(async (req, res) => {
   const user = req.user as any;
   const parsed = saloonValidation.availableBarbersSchema.parse({
-      query: req.query,
-    });
-  const result = await saloonService.getScheduledBarbersFromDb(user.id, parsed.query);
+    query: req.query,
+  });
+  const result = await saloonService.getScheduledBarbersFromDb(
+    user.id,
+    parsed.query,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Scheduled barbers retrieved successfully',
     data: result,
-  }); 
+  });
+});
+
+const getFreeBarbersOnADate = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const parsed = saloonValidation.availableFreeBarbersSchema.parse({
+    query: req.query,
+  });
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'startDate',
+    'endDate',
+  ]);
+
+  const date = parsed.query.utcDateTime as string;
+
+  const result = await saloonService.getFreeBarbersOnADateFromDb(
+    user.id,
+    date,
+    filters,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Free barbers on the selected date retrieved successfully',
+    data: result,
+    // meta: result.meta,
+  });
 });
 
 const deleteSaloon = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await saloonService.deleteSaloonItemFromDb(user.id, req.params.id);
+  const result = await saloonService.deleteSaloonItemFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -136,6 +202,8 @@ export const saloonController = {
   getTransactions,
   getCustomerBookings,
   getAllBarbers,
+  getRemainingBarbersToSchedule,
+  getFreeBarbersOnADate,
   terminateBarber,
   getScheduledBarbers,
   deleteSaloon,

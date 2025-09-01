@@ -42,8 +42,16 @@ const availableBarbersSchema = zod_1.z.object({
         // totalServiceTime,
     })),
 });
+const availableFreeBarbersSchema = zod_1.z.object({
+    query: zod_1.z.object({
+        date: zod_1.z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }).transform(({ date }) => ({
+        utcDateTime: new Date(date).toISOString(),
+    })),
+});
 exports.saloonValidation = {
     createSchema,
     updateSchema,
     availableBarbersSchema,
+    availableFreeBarbersSchema
 };
