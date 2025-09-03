@@ -1,220 +1,459 @@
+import { Payment } from './../../../../node_modules/.prisma/client/index.d';
 import httpStatus from 'http-status';
 import config from '../../../config';
 import { isValidAmount } from '../../utils/isValidAmount';
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
-import { UserRoleEnum } from '@prisma/client';
-// import { ParcelStatus, PaymentStatus, UserRoleEnum } from '@prisma/client';
+import {
+  UserRoleEnum,
+  PaymentStatus,
+  BookingStatus,
+  QueueStatus,
+} from '@prisma/client';
+import Stripe from 'stripe';
+import { TStripeSaveWithCustomerInfoPayload } from './payment.interface';
 // import { notificationService } from '../Notification/Notification.service';
-// import {
-//   createRecipient,
-//   createTransfer,
-//   paystackRequest,
-// } from '../../utils/paystack';
+
+// Initialize Stripe with your secret API key
+const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
+  apiVersion: '2025-07-30.basil',
+});
 
 // Step 1: Create a Customer and Save the Card
-const saveCardWithCustomerInfoIntoPaystack = async (
-  payload: { authorization_code: string },
-  user: any,
+
+const saveCardWithCustomerInfoIntoStripe = async (
+  user: object & { id: string; name: string; email: string },
+  payload: TStripeSaveWithCustomerInfoPayload,
 ) => {
-  // try {
-  //   const { authorization_code } = payload;
-  //   // Check if the user already has a Paystack customer code
-  //   let existCustomer = await prisma.user.findUnique({
-  //     where: { id: user.id },
-  //     select: { paystackCustomerCode: true, fullName: true, email: true },
-  //   });
-  //   if (!existCustomer) {
-  //     throw new AppError(httpStatus.BAD_REQUEST, 'Customer not found');
-  //   }
-  //   if (!existCustomer.paystackCustomerCode) {
-  //     // Create a new Paystack customer
-  //     const customer = await paystack.customer.create({
-  //       email: existCustomer.email,
-  //       first_name: existCustomer.fullName.split(' ')[0],
-  //       last_name: existCustomer.fullName.split(' ')[1] || '',
-  //       phone: user.phone || '', // Add phone if available
-  //     });
-  //     // Save the customer code and authorization code in the database
-  //     await prisma.user.update({
-  //       where: { id: user.id },
-  //       data: {
-  //         paystackCustomerCode: customer.data.customer_code,
-  //         paystackAuthorizationCode: authorization_code, // Save authorization code
-  //       },
-  //     });
-  //     return {
-  //       customerCode: customer.data.customer_code,
-  //       authorizationCode: authorization_code,
-  //     };
-  //   } else {
-  //     // Update the authorization code in the database for the existing customer
-  //     await prisma.user.update({
-  //       where: { id: user.id },
-  //       data: { paystackAuthorizationCode: authorization_code },
-  //     });
-  //     return {
-  //       customerCode: existCustomer.paystackCustomerCode,
-  //       authorizationCode: authorization_code,
-  //     };
-  //   }
-  // } catch (error: any) {
-  //   console.error('Error in saveCardWithCustomerInfoIntoPaystack:', error);
-  //   throw new Error(error.message);
-  // }
+  try {
+    const { paymentMethodId } = payload;
+
+    const userId = user.id;
+    const findUserStripeId = await prisma.user.findUnique({
+      where: {
+        id: userId,
+        role: UserRoleEnum.CUSTOMER,
+        stripeCustomerId: { not: null },
+      },
+      select: {
+        stripeCustomerId: true,
+        fullName: true,
+        email: true,
+        address: true,
+      },
+    });
+
+    if (!findUserStripeId?.stripeCustomerId) {
+      // Create a new Stripe customer
+      const customer = await stripe.customers.create({
+        name: user.name,
+        email: user.email,
+      });
+
+      // Attach PaymentMethod to the Customer
+      const attach = await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: customer.id,
+      });
+
+      // Set PaymentMethod as Default
+      const updateCustomer = await stripe.customers.update(customer.id, {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
+      });
+
+      // update profile with customerId
+      await prisma.user.update({
+        where: {
+          id: userId,
+        },
+        data: {
+          stripeCustomerId: customer.id,
+        },
+      });
+
+      return {
+        customerId: customer.id,
+        paymentMethodId: paymentMethodId,
+      };
+    } else {
+      // Attach PaymentMethod to the existing Customer
+      const attach = await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: findUserStripeId.stripeCustomerId,
+      });
+
+      // Set PaymentMethod as Default
+      const updateCustomer = await stripe.customers.update(
+        findUserStripeId.stripeCustomerId,
+        {
+          invoice_settings: {
+            default_payment_method: paymentMethodId,
+          },
+        },
+      );
+
+      return {
+        customerId: findUserStripeId.stripeCustomerId,
+        paymentMethodId: paymentMethodId,
+      };
+    }
+  } catch (error: any) {
+    throw Error(error.message);
+  }
 };
 
 // Step 2: Authorize the Payment Using Saved Card
 const authorizeAndSplitPayment = async (
   userId: string,
-  payload: { parcelId: string },
+  payload: {
+    paymentMethodId: string;
+    bookingId: string;
+  },
 ) => {
-  const { parcelId } = payload;
+  const { paymentMethodId, bookingId } = payload;
 
-  // Retrieve user details
-  const customerDetails = await prisma.user.findUnique({
-    where: { id: userId, role: UserRoleEnum.CUSTOMER },
+  return await prisma.$transaction(async tx => {
+    const findBooking = await tx.booking.findUnique({
+      where: { id: bookingId, status: BookingStatus.PENDING, userId: userId },
+      include: {
+        saloonOwner: {
+          include: {
+            user: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            address: true,
+            stripeCustomerId: true,
+          },
+        },
+      },
+    });
+    if (!findBooking) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    }
+
+    let customerId;
+
+    if (!findBooking.user?.stripeCustomerId) {
+      if (customerId) {
+        await stripe.paymentMethods.attach(paymentMethodId, {
+          customer: customerId,
+        });
+        console.log('customerId', customerId);
+        console.log('paymentMethodId', paymentMethodId);
+
+        await stripe.customers.update(customerId, {
+          invoice_settings: {
+            default_payment_method: paymentMethodId,
+          },
+        });
+      }
+
+      if (!customerId) {
+        const stripeCustomer = await stripe.customers.create({
+          email: findBooking.user?.email
+            ? findBooking.user?.email
+            : (() => {
+                throw new AppError(httpStatus.BAD_REQUEST, 'Email not found');
+              })(),
+        });
+
+        await stripe.paymentMethods.attach(paymentMethodId, {
+          customer: stripeCustomer.id,
+        });
+
+        await stripe.customers.update(stripeCustomer.id, {
+          invoice_settings: {
+            default_payment_method: paymentMethodId,
+          },
+        });
+
+        await tx.user.update({
+          where: { id: userId },
+          data: { stripeCustomerId: stripeCustomer.id },
+        });
+
+        customerId = stripeCustomer.id;
+      }
+    } else {
+      customerId = findBooking.user?.stripeCustomerId;
+    }
+
+    let transferAmount = findBooking.totalPrice * 100; // Amount in cents
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: transferAmount,
+      currency: 'usd',
+      customer: customerId,
+      payment_method: paymentMethodId,
+      confirm: true,
+      metadata: {
+        bookingId: findBooking.id,
+        customerId: customerId,
+        saloonOwnerId: findBooking.saloonOwner.user?.id as string,
+      },
+      capture_method: 'manual',
+      transfer_data: {
+        destination: findBooking.saloonOwner.user?.stripeAccountId as string,
+        amount: transferAmount,
+      },
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: 'never',
+      },
+    });
+
+    if (paymentIntent.status === 'requires_capture') {
+      const payment = await tx.payment.create({
+        data: {
+          userId: findBooking.saloonOwner.user?.id as string,
+          bookingId: findBooking.id,
+          paymentIntentId: paymentIntent.id,
+          paymentAmount: transferAmount / 100,
+          status: PaymentStatus.REQUIRES_CAPTURE,
+          paymentMethodId: paymentMethodId,
+          amountProvider: customerId,
+          amountReceiver: findBooking.saloonOwner.user
+            ?.stripeAccountId as string,
+        },
+      });
+
+      if (!payment) {
+        throw new AppError(
+          httpStatus.CONFLICT,
+          'Failed to save payment information',
+        );
+      }
+      // Notification logic can be added here if needed
+      // Send notification to the user
+      // const user = await prisma.user.findUnique({
+      //   where: { id: driver.id },
+      //   select: { fcmToken: true, isNotificationOn: true },
+      // });
+
+      // const notificationTitle = 'Payment received successfully !';
+      // const notificationBody = '';
+
+      // if (user && user.fcmToken) {
+      //   await notificationService.sendNotification(
+      //     user.fcmToken,
+      //     notificationTitle,
+      //     notificationBody,
+      //     driver.id,
+      //   );
+      // }
+    }
+
+    return paymentIntent;
   });
-
-  if (!customerDetails) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'User not found');
-  }
-
-  // Retrieve the parcel details
-  // const parcel = await prisma.parcel.findUnique({
-  //   where: {
-  //     id: parcelId,
-  //     userId: userId,
-  //     paymentStatus: PaymentStatus.PENDING,
-  //   },
-  // });
-
-  // if (!parcel) {
-  //   throw new AppError(httpStatus.BAD_REQUEST, 'Parcel not found');
-  // }
-
-  // if (!parcel.deliveryPersonId) {
-  //   throw new AppError(httpStatus.BAD_REQUEST, 'Delivery person ID not found');
-  // }
-
-  // Retrieve delivery person details
-  // const deliveryPerson = await prisma.user.findUnique({
-  //   where: { id: parcel.deliveryPersonId },
-  //   select: {
-  //     // subAccountCode: true,
-  //     // bankAccount: true,
-  //     // bankCode: true,
-  //     // businessName: true,
-  //   },
-  // });
-
-  // if (!deliveryPerson || !deliveryPerson.subAccountCode) {
-    // throw new AppError(httpStatus.BAD_REQUEST, 'Delivery person not found');
-  // }
-
-  // Calculate payment split
-  // const payment = await config.paystack.paystack.transaction.initialize({
-  //   email: customerDetails.email,
-  //   amount: parcel.parcelTransportPrice * 100, // Convert to kobo
-  //   callback_url: 'http://localhost:3000/api/payments/verify',
-  //   split: {
-  //     type: 'percentage',
-  //     subaccounts: [{ subaccount: deliveryPerson.subAccountCode, share: 65 }],
-  //   },
-  //   reference: `ref_${new Date().getTime()}`, // Add a unique reference
-  //   name: customerDetails.fullName, // Add the customer's name
-  // });
-
-
-  // const payment = await config.paystack.paystack.transaction.initialize({
-  //   email: customerDetails.email,
-  //   amount: parcel.parcelTransportPrice * 100, // Convert to kobo
-  //   split: {
-  //     type: 'percentage',
-  //     subaccounts: [{ subaccount: deliveryPerson.subAccountCode, share: 65 }],
-  //   },
-  //   reference: `ref_${new Date().getTime()}`, // Unique reference
-  //   name: customerDetails.fullName, // Customer's name
-  // });
-
-  // console.log(payment, 'payment');
-
-  // if (payment.status !== true) {
-  //   throw new AppError(httpStatus.BAD_REQUEST, 'Payment authorization failed');
-  // }
-
-
-  // const updateParcel = await prisma.parcel.update({
-  //   where: { id: parcelId },
-  //   data: {
-  //     // paymentStatus: PaymentStatus.REQUIRES_CAPTURE,
-  //     referenceCode: payment.data.reference,
-  //     parcelStatus: ParcelStatus.COMPLETED,
-  //   },
-  // });
-  // console.log(updateParcel, 'payment')
-
-  // if (!updateParcel) {
-  //   throw new AppError(httpStatus.BAD_REQUEST, 'Parcel not updated');
-  // }
-
-  // return payment.data;
 };
 
 // Step 3: Capture the Payment
-const capturePaymentRequestToPaystack = async (
+const capturePaymentRequestToStripe = async (
   userId: string,
   payload: {
-    parcelId: string;
+    bookingId: string;
+    status: string;
   },
 ) => {
-  const { parcelId } = payload;
-  // // Retrieve the parcel details
-  // const parcel = await prisma.parcel.findUnique({
-  //   where: {
-  //     id: parcelId,
-  //     referenceCode: { not: null },
-  //   },
-  // });
-  // if (!parcel) {
-  //   throw new AppError(httpStatus.BAD_REQUEST, 'Parcel not found');
-  // }
+  const { bookingId, status } = payload;
+  return await prisma.$transaction(async tx => {
+    const findBooking = await tx.booking.findUnique({
+      where: {
+        id: bookingId,
+        saloonOwnerId: userId,
+        status: BookingStatus.CONFIRMED,
+      },
+      include: {
+        saloonOwner: {
+          include: {
+            user: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            address: true,
+            stripeCustomerId: true,
+          },
+        },
+      },
+    });
 
-  // Retrieve the payment details
-  // const verification = await config.stripe.paystack.transaction.verify(
-  //   parcel.referenceCode!,
-  // );
-  // console.log(verification, 'verification');
-  // Save payment to database
-  // const paymentUpdateInDb = await prisma.payment.create({
-  //   data: {
-  //     // paymentId: parcel.referenceCode!,
-  //     // paystackRecipientCode: verification.data.split.split_code,
-  //     paymentAmount: parcel.parcelTransportPrice,
-  //     userId: userId,
-  //     // deliveryPersonId: parcel.deliveryPersonId,
-  //     paymentDate: new Date(),
-  //     // parcelId,
-  //     status: PaymentStatus.COMPLETED,
-  //     // paystackCustomerCode: verification.data.customer.customer_code,
-  //   },
-  // });
+    if (!findBooking) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    }
+    if (status === BookingStatus.COMPLETED) {
+      await tx.barberRealTimeStatus.deleteMany({
+        where: {
+          barberId: findBooking.barberId,
+          startDateTime: findBooking.startDateTime!,
+          endDateTime: findBooking.endDateTime!,
+        },
+      });
+      // update queueSlot status to completed
+      await tx.queueSlot.updateMany({
+        where: {
+          bookingId: bookingId,
+        },
+        data: {
+          status: QueueStatus.COMPLETED,
+        },
+      });
+      await tx.queue.updateMany({
+        where: {
+          barberId: findBooking.barberId,
+          saloonOwnerId: findBooking.saloonOwnerId,
+          date: findBooking.date,
+        },
+        data: {
+          currentPosition: {
+            decrement: 1,
+          },
+        },
+      });
 
-  // if (!paymentUpdateInDb) {
-  //   throw new AppError(httpStatus.BAD_REQUEST, 'Payment not saved');
-  // }
+      const findPayment = await tx.payment.findFirst({
+        where: {
+          bookingId: findBooking.id,
+          status: PaymentStatus.REQUIRES_CAPTURE,
+        },
+      });
 
-  // Update parcel status
-  // const updateParcel = await prisma.parcel.update({
-  //   where: { id: parcelId },
-  //   data: { paymentStatus: PaymentStatus.COMPLETED },
-  // });
+      if (!findPayment) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Payment record not found or already captured',
+        );
+      }
+      if (!findPayment.paymentIntentId) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Payment Intent ID not found',
+        );
+      }
 
-  // if (!updateParcel) {
-  //   throw new AppError(httpStatus.BAD_REQUEST, 'Parcel not updated');
-  // }
+      const paymentIntent = await stripe.paymentIntents.capture(
+        findPayment.paymentIntentId!,
+      );
 
-  // return verification;
+      if (paymentIntent.status === 'succeeded') {
+        const updatePayment = await tx.payment.update({
+          where: { id: findPayment.id },
+          data: { status: PaymentStatus.COMPLETED },
+        });
+
+        if (!updatePayment) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            'Failed to update payment information',
+          );
+        }
+
+        const updateBooking = await tx.booking.update({
+          where: { id: findBooking.id },
+          data: { status: BookingStatus.COMPLETED },
+        });
+        if (!updateBooking) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            'Failed to update booking status',
+          );
+        }
+      }
+
+      return paymentIntent;
+    }
+    if (status === BookingStatus.CANCELLED) {
+      const findPayment = await tx.payment.findFirst({
+        where: {
+          bookingId: findBooking.id,
+          status: PaymentStatus.REQUIRES_CAPTURE,
+        },
+      });
+
+      if (!findPayment) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Payment record not found or already captured',
+        );
+      }
+      if (!findPayment.paymentIntentId) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Payment Intent ID not found',
+        );
+      }
+
+      const paymentIntent = await stripe.paymentIntents.cancel(
+        findPayment.paymentIntentId!,
+      );
+
+      if (paymentIntent.status === 'canceled') {
+        // Update payment status to REFUNDED
+
+        await tx.barberRealTimeStatus.deleteMany({
+          where: {
+            barberId: findBooking.barberId,
+            startDateTime: findBooking.startDateTime!,
+            endDateTime: findBooking.endDateTime!,
+          },
+        });
+
+        // update queueSlot status to cancelled
+        await tx.queueSlot.updateMany({
+          where: {
+            bookingId: bookingId,
+          },
+          data: {
+            status: QueueStatus.CANCELLED,
+          },
+        });
+        await tx.queue.updateMany({
+          where: {
+            barberId: findBooking.barberId,
+            saloonOwnerId: findBooking.saloonOwnerId,
+            date: findBooking.date,
+          },
+          data: {
+            currentPosition: {
+              decrement: 1,
+            },
+          },
+        });
+
+        const updatePayment = await tx.payment.updateMany({
+          where: {
+            bookingId: findBooking.id,
+            status: PaymentStatus.REQUIRES_CAPTURE,
+          },
+          data: { status: PaymentStatus.REFUNDED },
+        });
+
+        if (updatePayment.count === 0) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            'Failed to update payment information',
+          );
+        }
+        const updateBooking = await tx.booking.update({
+          where: { id: findBooking.id },
+          data: { status: BookingStatus.CANCELLED },
+        });
+        if (!updateBooking) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            'Failed to update booking status',
+          );
+        }
+        return updateBooking;
+      }
+    }
+  });
 };
 
 // New Route: Save a New Card for Existing Customer
@@ -341,59 +580,128 @@ const getAllCustomersFromStripe = async () => {
   // }
 };
 
-const createDeliveryPersonRecipient = async (
-  userId: string,
-  payload: {
-    deliveryId: string;
-  },
-) => {
-  const user = await prisma.user.findUnique({
-    where: { id: payload.deliveryId },
-    select: {
-      // businessName: true,
-      // bankAccount: true,
-      // bankCode: true,
-      fullName: true,
+const createAccountIntoStripe = async (userId: string) => {
+  const userData = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!userData) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  if (userData.stripeAccountUrl && userData.stripeCustomerId) {
+    const stripeAccountId = userData.stripeCustomerId;
+    const accountLink = await stripe.accountLinks.create({
+      account: stripeAccountId,
+      refresh_url: `${config.backend_base_url}/reauthenticate.html`,
+      return_url: `${config.backend_base_url}/onboarding-success.html`,
+      type: 'account_onboarding',
+    });
+
+    await prisma.user.update({
+      where: { id: userData.id },
+      data: {
+        stripeAccountUrl: accountLink.url,
+      },
+    });
+
+    return accountLink;
+  }
+
+  // Create a Stripe Connect account
+  const stripeAccount = await stripe.accounts.create({
+    type: 'express',
+    email: userData.email,
+    metadata: {
+      userId: userData.id,
+    },
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
     },
   });
 
-  if (!user) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'User not found');
+  // Generate the onboarding link for the Stripe Express account
+  const accountLink = await stripe.accountLinks.create({
+    account: stripeAccount.id,
+    refresh_url: `${config.backend_base_url}/reauthenticate.html`,
+    return_url: `${config.backend_base_url}/onboarding-success.html`,
+    type: 'account_onboarding',
+  });
+
+  const stripeAccountId = stripeAccount.id;
+
+  // Save both Stripe customerId and accountId in the database
+  const updateUser = await prisma.user.update({
+    where: { id: userData.id },
+    data: {
+      stripeAccountUrl: accountLink.url,
+      stripeAccountId: stripeAccountId,
+    },
+  });
+
+  if (!updateUser) {
+    throw new AppError(httpStatus.CONFLICT, 'Failed to save account details');
   }
 
-  // Create a Paystack recipient
-  // const subAccount = await config.paystack.paystack.subaccount.create({
-    // business_name: user.businessName! ?? user.fullName,
-    // settlement_bank: user.bankCode!,
-    // account_number: user.bankAccount!,
-    // percentage_charge: 65, // Delivery person gets 65%
-  // });
+  return accountLink;
+};
 
-  // console.log(subAccount, 'subAccount');
-  // if(!subAccount){
-  //   throw new AppError(httpStatus.NOT_ACCEPTABLE,'sub account create failed 1');
-  // }
+const createNewAccountIntoStripe = async (userId: string) => {
+  // Fetch user data from the database
+  const userData = await prisma.user.findUnique({
+    where: { id: userId },
+  });
 
-  // if (!subAccount.data.subaccount_code) {
-  //  // console.log('if confidintion', subAccount.data);
-  //   throw new AppError(httpStatus.NOT_ACCEPTABLE, 'sub account create failed');
-  // }
-  // const userUpdate = await prisma.user.update({
-    // where: { id: payload.deliveryId },
-    // data: { subAccountCode: subAccount.data.subaccount_code },
-  // });
+  if (!userData) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
 
-  // if (!userUpdate) {
-    // throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-  // }
+  let stripeAccountId = userData.stripeAccountId;
 
-  // return subAccount.data;
+  // If the user already has a Stripe account, delete it
+  if (stripeAccountId) {
+    await stripe.accounts.del(stripeAccountId); // Delete the old account
+  }
+
+  // Create a new Stripe account
+  const newAccount = await stripe.accounts.create({
+    type: 'express',
+    email: userData.email, // Use the user's email from the database
+    country: 'US', // Set the country dynamically if needed
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+    },
+    metadata: {
+      userId: userData.id, // Add metadata for reference
+    },
+  });
+
+  // Generate the onboarding link for the new Stripe account
+  const accountLink = await stripe.accountLinks.create({
+    account: newAccount.id,
+    refresh_url: `${config.backend_base_url}/reauthenticate.html`,
+    return_url: `${config.backend_base_url}/onboarding-success.html`,
+    type: 'account_onboarding',
+  });
+
+  // Update the user's Stripe account ID and URL in the database
+  await prisma.user.update({
+    where: { id: userData.id },
+    data: {
+      stripeAccountId: newAccount.id,
+      stripeAccountUrl: accountLink.url,
+    },
+  });
+
+  return accountLink;
 };
 
 export const StripeServices = {
-  saveCardWithCustomerInfoIntoPaystack,
+  saveCardWithCustomerInfoIntoStripe,
   authorizeAndSplitPayment,
-  capturePaymentRequestToPaystack,
+  capturePaymentRequestToStripe,
   saveNewCardWithExistingCustomerIntoStripe,
   getCustomerSavedCardsFromStripe,
   deleteCardFromCustomer,
@@ -401,5 +709,6 @@ export const StripeServices = {
   createPaymentIntentService,
   getCustomerDetailsFromStripe,
   getAllCustomersFromStripe,
-  createDeliveryPersonRecipient,
+  createAccountIntoStripe,
+  createNewAccountIntoStripe,
 };

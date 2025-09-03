@@ -18,6 +18,9 @@ model User {
   fcmToken          String?
   fcmTokenEx        String?
   stripeCustomerId  String?
+  stripeAccountUrl  String?
+  stripeAccountId   String?
+  onBoarding        Boolean       @default(false)
   isSubscribed      Boolean       @default(false)
   subscriptionEnd   DateTime?
   followerCount     Int           @default(0)

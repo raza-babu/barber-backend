@@ -32,4 +32,5 @@ exports.default = {
         stripe_publishable_key: process.env.STRIPE_PUBLISHABLE_KEY,
         stripe_webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
     },
+    backend_base_url: process.env.BACKEND_BASE_URL,
 };

@@ -32,6 +32,14 @@ const updateBookingSchema = zod_1.z.object({
         id: zod_1.z.string().min(1, 'Booking ID is required').optional(), // ID of the booking to update
     }),
 });
+const updateBookingStatusSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        bookingId: zod_1.z.string().min(1, 'Booking ID is required'),
+        status: zod_1.z.enum(['PENDING', 'CONFIRMED', 'RESCHEDULED'], {
+            required_error: 'Status is required',
+        }),
+    }),
+});
 function convertToUTC(date, time) {
     // Combine into a single string
     const combined = `${date} ${time}`;
@@ -58,5 +66,6 @@ const availableBarbersSchema = zod_1.z.object({
 exports.bookingValidation = {
     createBookingSchema,
     updateBookingSchema,
+    updateBookingStatusSchema,
     availableBarbersSchema,
 };

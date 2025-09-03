@@ -56,7 +56,7 @@ router.put(
 router.put(
   '/schedule-status',
   auth(UserRoleEnum.SALOON_OWNER),
-  validateRequest(bookingValidation.updateBookingSchema),
+  validateRequest(bookingValidation.updateBookingStatusSchema),
   bookingController.updateBookingStatus,
 );
 

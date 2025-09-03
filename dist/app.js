@@ -9,6 +9,8 @@ const http_status_1 = __importDefault(require("http-status"));
 const globalErrorHandler_1 = __importDefault(require("./app/middlewares/globalErrorHandler"));
 const routes_1 = __importDefault(require("./app/routes"));
 const logger_1 = require("./app/middlewares/logger");
+const path_1 = __importDefault(require("path"));
+const payment_controller_1 = require("./app/modules/payment/payment.controller");
 const app = (0, express_1.default)();
 app.use(logger_1.logger);
 app.use(logger_1.loggerConsole);
@@ -38,6 +40,7 @@ app.use((0, cors_1.default)({
 //   // }
 // )
 // );
+app.use('/api/v1/stripe/payment-webhook', express_1.default.raw({ type: 'application/json' }), payment_controller_1.PaymentController.handleWebHook);
 //parser
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
@@ -46,6 +49,8 @@ app.get("/", (req, res) => {
         Message: "The server is running. . .",
     });
 });
+// Serve static files from 'public' folder
+app.use(express_1.default.static(path_1.default.join(process.cwd(), "public")));
 app.use("/api/v1", routes_1.default);
 app.use(globalErrorHandler_1.default);
 app.use((req, res, next) => {

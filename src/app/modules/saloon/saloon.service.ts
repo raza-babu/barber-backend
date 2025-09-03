@@ -63,12 +63,24 @@ const manageBookingsIntoDb = async (
             'Only confirmed bookings can be marked as completed',
           );
         }
-        if (now < bookingEndTime) {
+        if (booking && booking.endDateTime) {
+          const currentTime = new Date();
+          // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
+          const fifteenMinutesBeforeEnd = new Date(
+            booking.endDateTime.getTime() - 15 * 60 * 1000,
+          );
+          if (currentTime < fifteenMinutesBeforeEnd) {
+            throw new AppError(
+              httpStatus.BAD_REQUEST,
+              'Cannot change status to COMPLETED before 15 minutes prior to the booking end time',
+            );
+          }
           throw new AppError(
             httpStatus.BAD_REQUEST,
-            'Cannot mark an ongoing booking as completed',
+            'Cannot change status to COMPLETED before the booking end time',
           );
         }
+
         break;
 
       case BookingStatus.CANCELLED:

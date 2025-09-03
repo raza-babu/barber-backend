@@ -36,6 +36,7 @@ const review_routes_1 = require("../modules/review/review.routes");
 const qrCode_routes_1 = require("../modules/qrCode/qrCode.routes");
 const follow_routes_1 = require("../modules/follow/follow.routes");
 const userSubscription_routes_1 = require("../modules/userSubscription/userSubscription.routes");
+const payment_routes_1 = require("../modules/payment/payment.routes");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -169,6 +170,10 @@ const moduleRoutes = [
     {
         path: '/subscription-order',
         route: userSubscription_routes_1.userSubscriptionRoutes,
+    },
+    {
+        path: '/payments',
+        route: payment_routes_1.PaymentRoutes,
     },
 ];
 moduleRoutes.forEach(route => router.use(route.path, route.route));

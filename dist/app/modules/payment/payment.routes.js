@@ -11,6 +11,7 @@ const router = express_1.default.Router();
 const payment_validation_1 = require("./payment.validation");
 const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
 router.post('/create-account', (0, auth_1.default)(), payment_controller_1.PaymentController.createAccount);
+router.post('/create-new-account', (0, auth_1.default)(), payment_controller_1.PaymentController.createNewAccount);
 // create a new customer with card
 router.post('/save-card', (0, auth_1.default)(), (0, validateRequest_1.default)(payment_validation_1.TStripeSaveWithCustomerInfoPayloadSchema), payment_controller_1.PaymentController.saveCardWithCustomerInfo);
 // Authorize the customer with the amount and send payment request

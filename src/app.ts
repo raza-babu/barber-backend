@@ -4,6 +4,9 @@ import httpStatus from "http-status";
 import globalErrorHandler from "./app/middlewares/globalErrorHandler";
 import router from "./app/routes";
 import { logger, loggerConsole } from "./app/middlewares/logger";
+import path from "path";
+import bodyParser from "body-parser";
+import { PaymentController } from "./app/modules/payment/payment.controller";
 
 const app: Application = express();
 
@@ -41,6 +44,11 @@ app.use(
 // )
 // );
 
+app.use(
+  '/api/v1/stripe/payment-webhook',
+  express.raw({ type: 'application/json' }),
+  PaymentController.handleWebHook,
+);
 
 //parser
 app.use(express.json());
@@ -51,6 +59,8 @@ app.get("/", (req: Request, res: Response) => {
     Message: "The server is running. . .",
   });
 });
+// Serve static files from 'public' folder
+app.use(express.static(path.join(process.cwd(), "public")));
 
 app.use("/api/v1", router);
 

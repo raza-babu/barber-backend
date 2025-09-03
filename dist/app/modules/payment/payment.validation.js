@@ -25,12 +25,18 @@ exports.AuthorizedPaymentPayloadSchema = zod_1.z.object({
     // customerId: z.string({ required_error: 'Customer ID is required' }),
     // amount: z.number({ required_error: 'Amount is required' }),
     body: zod_1.z.object({
+        paymentMethodId: zod_1.z.string({
+            required_error: 'Payment Method ID is required',
+        }),
         bookingId: zod_1.z.string({ required_error: 'Parcel ID is required' }),
     }),
 });
 exports.capturedPaymentPayloadSchema = zod_1.z.object({
     body: zod_1.z.object({
-        parcelId: zod_1.z.string({ required_error: 'project ID is required' }),
+        bookingId: zod_1.z.string({ required_error: 'booking ID is required' }),
+        status: zod_1.z.enum(['CANCELLED', 'COMPLETED'], {
+            required_error: 'Status is required',
+        }),
     }),
 });
 exports.saveNewCardWithExistingCustomerPayloadSchema = zod_1.z.object({

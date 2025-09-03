@@ -1127,8 +1127,13 @@ const updateBookingIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const updateBookingStatusIntoDb = async (userId: string, data: any) => {
+const updateBookingStatusIntoDb = async (userId: string, data: {
+  bookingId: string;
+  status: BookingStatus;
+}) => {
   const { bookingId, status } = data;
+    console.log('Current booking status:',status);
+
   // Only allow salon owner to update the status
   const booking = await prisma.booking.findUnique({
     where: {
@@ -1139,101 +1144,101 @@ const updateBookingStatusIntoDb = async (userId: string, data: any) => {
   if (!booking) {
     throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
   }
-  if (!['CONFIRMED', 'CANCELED', 'COMPLETED', 'RESCHEDULED'].includes(status)) {
+  if (!['CONFIRMED', 'RESCHEDULED', 'PENDING'].includes(status)) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Invalid status. Allowed values are CONFIRMED, CANCELED, COMPLETED',
+      'Invalid status. Allowed value is CONFIRMED',
     );
   }
 
+  // if (booking.status === BookingStatus.COMPLETED) {
+  //   const findBookingEndTime = await prisma.booking.findFirst({
+  //     where: {
+  //       id: bookingId,
+  //       saloonOwnerId: userId,
+  //     },
+  //     select: {
+  //       endDateTime: true,
+  //     },
+  //   });
+  //   if (findBookingEndTime && findBookingEndTime.endDateTime) {
+  //     const currentTime = new Date();
+  //     // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
+  //     const fifteenMinutesBeforeEnd = new Date(
+  //       findBookingEndTime.endDateTime.getTime() - 15 * 60 * 1000,
+  //     );
+  //     if (currentTime < fifteenMinutesBeforeEnd) {
+  //       throw new AppError(
+  //         httpStatus.BAD_REQUEST,
+  //         'Cannot change status to COMPLETED before 15 minutes prior to the booking end time',
+  //       );
+  //     }
+  //     throw new AppError(
+  //       httpStatus.BAD_REQUEST,
+  //       'Cannot change status to COMPLETED before the booking end time',
+  //     );
+  //   }
+  // }
+
+  // If status is CANCELED or COMPLETED, update related records in a transaction
+  // If CANCELED: delete queueSlot and barberRealTimeStatus, decrement queue currentPosition
+  // If COMPLETED: delete barberRealTimeStatus, update queueSlot status to COMPLETED, decrement queue currentPosition
+  // If CONFIRMED: just update the booking status
+  // If RESCHEDULED: just update the booking status
+
   const result = await prisma.$transaction(async tx => {
-    const updatedBooking = await tx.booking.update({
-      where: {
-        id: bookingId,
-        saloonOwnerId: userId,
-      },
-      data: {
-        status:
-          status === 'COMPLETED'
-            ? BookingStatus.COMPLETED
-            : BookingStatus.PENDING,
-      },
-    });
-    if (!updatedBooking) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Booking status not updated');
-    }
+    // const updatedBooking = await tx.booking.update({
+    //   where: {
+    //     id: bookingId,
+    //     saloonOwnerId: userId,
+    //   },
+    //   data: {
+    //     status:
+    //       status === 'COMPLETED'
+    //         ? BookingStatus.COMPLETED
+    //         : BookingStatus.PENDING,
+    //   },
+    // });
+    // if (!updatedBooking) {
+    //   throw new AppError(httpStatus.BAD_REQUEST, 'Booking status not updated');
+    // }
     // If status is COMPLETED, update barber's real-time status to available
-    if (status === 'COMPLETED') {
-      await tx.barberRealTimeStatus.deleteMany({
+    if (status === BookingStatus.CONFIRMED) {
+      const checkPending = await tx.booking.update({
         where: {
-          barberId: booking.barberId,
-          startDateTime: booking.startDateTime!,
-          endDateTime: booking.endDateTime!,
-        },
-      });
-      // update queueSlot status to completed
-      await tx.queueSlot.updateMany({
-        where: {
-          bookingId: bookingId,
+          id: bookingId,
+          saloonOwnerId: userId,
+          status: BookingStatus.PENDING,
         },
         data: {
-          status: QueueStatus.COMPLETED,
+          status: BookingStatus.CONFIRMED,
         },
       });
-      await tx.queue.updateMany({
-        where: {
-          barberId: booking.barberId,
-          saloonOwnerId: booking.saloonOwnerId,
-          date: booking.date,
-        },
-        data: {
-          currentPosition: {
-            decrement: 1,
-          },
-        },
-      });
+      if (!checkPending) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Only PENDING bookings can be CONFIRMED',
+        );
+      }
+      return checkPending;
     }
     // If status is CANCELED, delete the queueSlot and barberRealTimeStatus
-    if (status === 'CANCELED') {
-      await tx.booking.update({
+    if (status === BookingStatus.PENDING) {
+      const checkConfirmed = await tx.booking.findFirst({
         where: {
           id: bookingId,
           saloonOwnerId: userId,
         },
-        data: {
-          status:
-            status === 'CANCELED'
-              ? BookingStatus.CANCELLED
-              : BookingStatus.PENDING,
-        },
       });
-      // Delete the queueSlot and barberRealTimeStatus
-      await tx.queueSlot.deleteMany({
-        where: {
-          bookingId: bookingId,
-        },
-      });
-      await tx.queue.updateMany({
-        where: {
-          barberId: booking.barberId,
-          saloonOwnerId: booking.saloonOwnerId,
-          date: booking.date,
-        },
-        data: {
-          currentPosition: {
-            decrement: 1,
-          },
-        },
-      });
-      await tx.barberRealTimeStatus.deleteMany({
-        where: {
-          barberId: booking.barberId,
-          startDateTime: booking.startDateTime!,
-          endDateTime: booking.endDateTime!,
-        },
-      });
+      if (checkConfirmed) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Bookings can not be set to PENDING by salon owner',
+        );
+      }
+
+      return checkConfirmed;
     }
-    return updatedBooking;
   });
 
   return result;

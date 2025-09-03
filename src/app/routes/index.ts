@@ -31,6 +31,7 @@ import { reviewRoutes } from '../modules/review/review.routes';
 import { qrCodeRoutes } from '../modules/qrCode/qrCode.routes';
 import { followRoutes } from '../modules/follow/follow.routes';
 import { userSubscriptionRoutes } from '../modules/userSubscription/userSubscription.routes';
+import { PaymentRoutes } from '../modules/payment/payment.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -165,6 +166,10 @@ const moduleRoutes = [
   {
     path: '/subscription-order',
     route: userSubscriptionRoutes,
+  },
+  {
+    path: '/payments',
+    route: PaymentRoutes,
   },
 ];
 

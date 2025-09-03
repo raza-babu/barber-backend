@@ -158,7 +158,7 @@ const createUserSubscriptionIntoDb = async (
         data: {
           stripeSubscriptionId: subscription.id,
           paymentAmount: subscriptionOffer.price,
-          stripeCustomerIdProvider: stripeCustomerId,
+          amountProvider: stripeCustomerId,
           status: PaymentStatus.COMPLETED,
           user: {
             connect: { id: userId },
@@ -358,7 +358,7 @@ const updateUserSubscriptionIntoDb = async (
           userId: userId,
           stripeSubscriptionId: subscription.id,
           paymentAmount: subscriptionOffer.price,
-          stripeCustomerIdProvider: user.stripeCustomerId!,
+          amountProvider: user.stripeCustomerId!,
           status: PaymentStatus.COMPLETED,
         },
       });

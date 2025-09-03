@@ -8,6 +8,7 @@ import {
 } from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import config from '../../../config';
 
 const getSaloonFromDb = async (
   userId: string,
@@ -109,6 +110,8 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       email: true,
       phoneNumber: true,
       status: true,
+      stripeAccountId: true,
+      stripeAccountUrl: true,
       SaloonOwner: {
         select: {
           userId: true,
@@ -172,6 +175,51 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     ? result.SaloonOwner[0]
     : result.SaloonOwner;
 
+    //get bank details from the stripe
+    const stripe = require('stripe')(config.stripe.stripe_secret_key);
+    let account = null;
+    let bankName = null;
+    let accountHolderName = null;
+    let branchCity = null;
+    let branchCode = null;
+    let accountNumber = null;
+
+    if (saloonOwner?.isVerified && result.stripeAccountId) {
+      account = await stripe.accounts.retrieve(result.stripeAccountId);
+
+      // Stripe external_accounts may contain bank details
+      interface StripeBankAccount {
+        object: string;
+        bank_name?: string;
+        routing_number?: string;
+        last4?: string;
+        [key: string]: any;
+      }
+
+      interface StripeExternalAccounts {
+        data?: StripeBankAccount[];
+        [key: string]: any;
+      }
+
+      interface StripeAccount {
+        external_accounts?: StripeExternalAccounts;
+        [key: string]: any;
+      }
+
+      const bankAccount: StripeBankAccount | undefined = (account as StripeAccount)?.external_accounts?.data?.find(
+        (acc: StripeBankAccount) => acc.object === 'bank_account'
+      );
+      bankName = bankAccount?.bank_name || null;
+      accountHolderName = account?.individual?.first_name && account?.individual?.last_name
+        ? `${account.individual.first_name} ${account.individual.last_name}`
+        : null;
+
+      branchCity = bankAccount?.bank_name || null;
+      branchCode = bankAccount?.routing_number || null;
+      accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+    }
+    
+      
   return {
     saloonOwnerIdd: result.id,
     fullName: result.fullName,
@@ -204,6 +252,13 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
         avgRating: barber.avgRating || 0,
       })) || [],
     services: result.Service || [],
+    bankDetails: {
+      bankName,
+      accountHolderName,
+      accountNumber,
+      branchCity,
+      branchCode,
+    },
   };
 };
 
@@ -350,6 +405,8 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
       email: true,
       phoneNumber: true,
       status: true,
+      stripeAccountId: true,
+      stripeAccountUrl: true,
       createdAt: true,
       Barber: {
         select: {
@@ -377,6 +434,51 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
   if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
   }
+
+  //get bank details from the stripe
+    const stripe = require('stripe')(config.stripe.stripe_secret_key);
+    let account = null;
+    let bankName = null;
+    let accountHolderName = null;
+    let branchCity = null;
+    let branchCode = null;
+    let accountNumber = null;
+
+    if (result.stripeAccountId) {
+      account = await stripe.accounts.retrieve(result.stripeAccountId);
+
+      // Stripe external_accounts may contain bank details
+      interface StripeBankAccount {
+        object: string;
+        bank_name?: string;
+        routing_number?: string;
+        last4?: string;
+        [key: string]: any;
+      }
+
+      interface StripeExternalAccounts {
+        data?: StripeBankAccount[];
+        [key: string]: any;
+      }
+
+      interface StripeAccount {
+        external_accounts?: StripeExternalAccounts;
+        [key: string]: any;
+      }
+
+      const bankAccount: StripeBankAccount | undefined = (account as StripeAccount)?.external_accounts?.data?.find(
+        (acc: StripeBankAccount) => acc.object === 'bank_account'
+      );
+      bankName = bankAccount?.bank_name || null;
+      accountHolderName = account?.individual?.first_name && account?.individual?.last_name
+        ? `${account.individual.first_name} ${account.individual.last_name}`
+        : null;
+
+      branchCity = bankAccount?.bank_name || null;
+      branchCode = bankAccount?.routing_number || null;
+      accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+    }
+
   return {
     barberIdd: result.id,
     fullName: result.fullName,
@@ -395,6 +497,13 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
     shopVideo: result.Barber?.saloonOwner?.shopVideo || null,
     ratingCount: result.Barber?.ratingCount || 0,
     avgRating: result.Barber?.avgRating || 0,
+     bankDetails: {
+      bankName,
+      accountHolderName,
+      accountNumber,
+      branchCity,
+      branchCode,
+    }
   };
 };
 

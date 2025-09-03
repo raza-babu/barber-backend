@@ -134,7 +134,7 @@ const createUserSubscriptionIntoDb = (userId, data) => __awaiter(void 0, void 0,
             data: {
                 stripeSubscriptionId: subscription.id,
                 paymentAmount: subscriptionOffer.price,
-                stripeCustomerIdProvider: stripeCustomerId,
+                amountProvider: stripeCustomerId,
                 status: client_1.PaymentStatus.COMPLETED,
                 user: {
                     connect: { id: userId },
@@ -281,7 +281,7 @@ const updateUserSubscriptionIntoDb = (userId, userSubscriptionId, data) => __awa
                 userId: userId,
                 stripeSubscriptionId: subscription.id,
                 paymentAmount: subscriptionOffer.price,
-                stripeCustomerIdProvider: user.stripeCustomerId,
+                amountProvider: user.stripeCustomerId,
                 status: client_1.PaymentStatus.COMPLETED,
             },
         });

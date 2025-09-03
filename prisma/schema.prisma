@@ -41,6 +41,7 @@ enum PaymentStatus {
   FAILED
   EXPIRED
   REFUNDED
+  REQUIRES_CAPTURE
 }
 
 
@@ -729,17 +730,19 @@ model Notification {
 
 
 model Payment {
-  id                       String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId                   String        @db.ObjectId
-  stripeSubscriptionId     String?        @unique
-  paymentAmount            Float
-  bookingId                String?       @db.ObjectId @unique
-  paymentDate              DateTime      @default(now())
-  stripeCustomerIdProvider String
-  stripeAccountIdReceiver  String?
-  status                   PaymentStatus @default(PENDING)
-  createdAt                DateTime      @default(now())
-  updatedAt                DateTime      @updatedAt
+  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId               String        @db.ObjectId
+  stripeSubscriptionId String?       @unique
+  paymentIntentId      String?       @unique
+  paymentMethodId      String?
+  paymentAmount        Float
+  bookingId            String?       @unique @db.ObjectId
+  paymentDate          DateTime      @default(now())
+  amountProvider       String
+  amountReceiver       String?
+  status               PaymentStatus @default(PENDING)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   booking Booking? @relation(fields: [bookingId], references: [id])
   user    User     @relation(fields: [userId], references: [id])
@@ -1138,6 +1141,9 @@ model User {
   fcmToken          String?
   fcmTokenEx        String?
   stripeCustomerId  String?
+  stripeAccountUrl  String?
+  stripeAccountId   String?
+  onBoarding        Boolean       @default(false)
   isSubscribed      Boolean       @default(false)
   subscriptionEnd   DateTime?
   followerCount     Int           @default(0)

@@ -979,6 +979,7 @@ const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
 });
 const updateBookingStatusIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const { bookingId, status } = data;
+    console.log('Current booking status:', status);
     // Only allow salon owner to update the status
     const booking = yield prisma_1.default.booking.findUnique({
         where: {
@@ -989,95 +990,88 @@ const updateBookingStatusIntoDb = (userId, data) => __awaiter(void 0, void 0, vo
     if (!booking) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Booking not found');
     }
-    if (!['CONFIRMED', 'CANCELED', 'COMPLETED', 'RESCHEDULED'].includes(status)) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid status. Allowed values are CONFIRMED, CANCELED, COMPLETED');
+    if (!['CONFIRMED', 'RESCHEDULED', 'PENDING'].includes(status)) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid status. Allowed value is CONFIRMED');
     }
+    // if (booking.status === BookingStatus.COMPLETED) {
+    //   const findBookingEndTime = await prisma.booking.findFirst({
+    //     where: {
+    //       id: bookingId,
+    //       saloonOwnerId: userId,
+    //     },
+    //     select: {
+    //       endDateTime: true,
+    //     },
+    //   });
+    //   if (findBookingEndTime && findBookingEndTime.endDateTime) {
+    //     const currentTime = new Date();
+    //     // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
+    //     const fifteenMinutesBeforeEnd = new Date(
+    //       findBookingEndTime.endDateTime.getTime() - 15 * 60 * 1000,
+    //     );
+    //     if (currentTime < fifteenMinutesBeforeEnd) {
+    //       throw new AppError(
+    //         httpStatus.BAD_REQUEST,
+    //         'Cannot change status to COMPLETED before 15 minutes prior to the booking end time',
+    //       );
+    //     }
+    //     throw new AppError(
+    //       httpStatus.BAD_REQUEST,
+    //       'Cannot change status to COMPLETED before the booking end time',
+    //     );
+    //   }
+    // }
+    // If status is CANCELED or COMPLETED, update related records in a transaction
+    // If CANCELED: delete queueSlot and barberRealTimeStatus, decrement queue currentPosition
+    // If COMPLETED: delete barberRealTimeStatus, update queueSlot status to COMPLETED, decrement queue currentPosition
+    // If CONFIRMED: just update the booking status
+    // If RESCHEDULED: just update the booking status
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        const updatedBooking = yield tx.booking.update({
-            where: {
-                id: bookingId,
-                saloonOwnerId: userId,
-            },
-            data: {
-                status: status === 'COMPLETED'
-                    ? client_1.BookingStatus.COMPLETED
-                    : client_1.BookingStatus.PENDING,
-            },
-        });
-        if (!updatedBooking) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking status not updated');
-        }
+        // const updatedBooking = await tx.booking.update({
+        //   where: {
+        //     id: bookingId,
+        //     saloonOwnerId: userId,
+        //   },
+        //   data: {
+        //     status:
+        //       status === 'COMPLETED'
+        //         ? BookingStatus.COMPLETED
+        //         : BookingStatus.PENDING,
+        //   },
+        // });
+        // if (!updatedBooking) {
+        //   throw new AppError(httpStatus.BAD_REQUEST, 'Booking status not updated');
+        // }
         // If status is COMPLETED, update barber's real-time status to available
-        if (status === 'COMPLETED') {
-            yield tx.barberRealTimeStatus.deleteMany({
+        if (status === client_1.BookingStatus.CONFIRMED) {
+            const checkPending = yield tx.booking.update({
                 where: {
-                    barberId: booking.barberId,
-                    startDateTime: booking.startDateTime,
-                    endDateTime: booking.endDateTime,
-                },
-            });
-            // update queueSlot status to completed
-            yield tx.queueSlot.updateMany({
-                where: {
-                    bookingId: bookingId,
+                    id: bookingId,
+                    saloonOwnerId: userId,
+                    status: client_1.BookingStatus.PENDING,
                 },
                 data: {
-                    status: client_1.QueueStatus.COMPLETED,
+                    status: client_1.BookingStatus.CONFIRMED,
                 },
             });
-            yield tx.queue.updateMany({
-                where: {
-                    barberId: booking.barberId,
-                    saloonOwnerId: booking.saloonOwnerId,
-                    date: booking.date,
-                },
-                data: {
-                    currentPosition: {
-                        decrement: 1,
-                    },
-                },
-            });
+            if (!checkPending) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only PENDING bookings can be CONFIRMED');
+            }
+            return checkPending;
         }
         // If status is CANCELED, delete the queueSlot and barberRealTimeStatus
-        if (status === 'CANCELED') {
-            yield tx.booking.update({
+        if (status === client_1.BookingStatus.PENDING) {
+            const checkConfirmed = yield tx.booking.findFirst({
                 where: {
                     id: bookingId,
                     saloonOwnerId: userId,
                 },
-                data: {
-                    status: status === 'CANCELED'
-                        ? client_1.BookingStatus.CANCELLED
-                        : client_1.BookingStatus.PENDING,
-                },
             });
-            // Delete the queueSlot and barberRealTimeStatus
-            yield tx.queueSlot.deleteMany({
-                where: {
-                    bookingId: bookingId,
-                },
-            });
-            yield tx.queue.updateMany({
-                where: {
-                    barberId: booking.barberId,
-                    saloonOwnerId: booking.saloonOwnerId,
-                    date: booking.date,
-                },
-                data: {
-                    currentPosition: {
-                        decrement: 1,
-                    },
-                },
-            });
-            yield tx.barberRealTimeStatus.deleteMany({
-                where: {
-                    barberId: booking.barberId,
-                    startDateTime: booking.startDateTime,
-                    endDateTime: booking.endDateTime,
-                },
-            });
+            if (checkConfirmed) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Bookings can not be set to PENDING by salon owner');
+            }
+            return checkConfirmed;
         }
-        return updatedBooking;
     }));
     return result;
 });

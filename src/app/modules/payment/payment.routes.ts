@@ -15,6 +15,8 @@ import validateRequest from '../../middlewares/validateRequest';
 
 router.post('/create-account', auth(), PaymentController.createAccount);
 
+router.post('/create-new-account',auth(), PaymentController.createNewAccount);
+
 // create a new customer with card
 router.post(
   '/save-card',

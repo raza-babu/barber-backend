@@ -1,3 +1,5 @@
+import exp from 'constants';
+
 export interface InitializeTransactionSplitResponse {
   data: {
     authorization_url: string;
@@ -53,4 +55,8 @@ export interface InitializeTransactionSplitResponse {
   };
   status: boolean;
   message: string;
+}
+
+export interface TStripeSaveWithCustomerInfoPayload {
+  paymentMethodId: string;
 }

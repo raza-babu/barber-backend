@@ -33,6 +33,14 @@ const updateBookingSchema = z.object({
     id: z.string().min(1, 'Booking ID is required').optional(), // ID of the booking to update
   }),
 });
+const updateBookingStatusSchema = z.object({
+  body: z.object({
+    bookingId: z.string().min(1, 'Booking ID is required'),
+    status: z.enum(['PENDING', 'CONFIRMED', 'RESCHEDULED'], {
+      required_error: 'Status is required',
+    }),
+  }),
+});
 
 function convertToUTC(date: string, time: string): string {
   // Combine into a single string
@@ -67,5 +75,6 @@ const availableBarbersSchema = z.object({
 export const bookingValidation = {
   createBookingSchema,
   updateBookingSchema,
+  updateBookingStatusSchema,
   availableBarbersSchema,
 };
