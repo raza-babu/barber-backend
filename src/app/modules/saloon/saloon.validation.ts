@@ -36,9 +36,12 @@ function convertToUTC(date: string, time: string): string {
 
 const availableBarbersSchema = z.object({
  query: z.object({
-  // salonId: z.string().min(1),
-  date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  time: z.coerce.string().regex(/^\d{1,2}:\d{2}(\s?(AM|PM))?$/),
+  date: z.string({
+    required_error: 'Date is required!',
+  }),
+  time: z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
+    message: 'Time must be in hh:mm AM/PM format',
+  }),
   // totalServiceTime: z.coerce.number().int().positive(),
 
   }).transform(({  date, time }) => ({

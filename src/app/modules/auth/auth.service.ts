@@ -18,10 +18,10 @@ const loginUserFromDB = async (payload: {
     },
   });
 
-  if(userData.password === null) {
+  if (userData.password === null) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Password is not set');
   }
-  
+
   const isCorrectPassword: Boolean = await bcrypt.compare(
     payload.password,
     userData.password,
@@ -30,20 +30,23 @@ const loginUserFromDB = async (payload: {
   if (!isCorrectPassword) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
   }
-  if (userData.isProfileComplete === false || userData.isProfileComplete === null ) {
+  if (
+    userData.isProfileComplete === false ||
+    userData.isProfileComplete === null
+  ) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Please complete your profile before logging in',
     );
   }
-  if(userData.status === UserStatus.BLOCKED) {
+  if (userData.status === UserStatus.BLOCKED) {
     throw new AppError(
       httpStatus.FORBIDDEN,
       'Your account is blocked. Please contact support.',
     );
   }
 
-  if(userData.role === UserRoleEnum.SALOON_OWNER){
+  if (userData.role === UserRoleEnum.SALOON_OWNER) {
     const saloon = await prisma.saloonOwner.findFirst({
       where: {
         userId: userData.id,
@@ -56,34 +59,61 @@ const loginUserFromDB = async (payload: {
       );
     }
   }
+  let adminAccessFunctions: string[] = [];
 
-  if(userData.role === UserRoleEnum.ADMIN) {
-    const admin = await prisma.admin.findFirst({
+  if (userData.role === UserRoleEnum.ADMIN) {
+    const admin = await prisma.admin.findUnique({
       where: {
         userId: userData.id,
+        isSuperAdmin: false,
       },
     });
     if (admin) {
-      
+      const accessFunctions = await prisma.adminAccessFunction.findMany({
+        where: {
+          adminId: userData.id,
+        },
+      });
+      if (accessFunctions.length === 0) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          'You do not have access to any functions. Please contact super admin.',
+        );
+      }
+
+      const functionNames = await prisma.accessFunction.findMany({
+        where: {
+          id: { in: accessFunctions.map(func => func.accessFunctionId) },
+        },
+      });
+      if (functionNames.length === 0) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          'You do not have access to any functions. Please contact super admin.',
+        );
+      }
+
+      adminAccessFunctions = functionNames.map(func => func.function);
     }
   }
 
   if (userData.isLoggedIn === false) {
-  const updateUser = await prisma.user.update({
-    where: { id: userData.id },
-    data: { isLoggedIn: true },
-  });
-  if (!updateUser) {
-    throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User login failed');
+    const updateUser = await prisma.user.update({
+      where: { id: userData.id },
+      data: { isLoggedIn: true },
+    });
+    if (!updateUser) {
+      throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User login failed');
+    }
   }
-}
 
   const accessToken = await generateToken(
     {
       id: userData.id,
       email: userData.email,
       role: userData.role,
-      purpose: 'access', 
+      purpose: 'access',
+      functions: adminAccessFunctions,
     },
     config.jwt.access_secret as Secret,
     config.jwt.access_expires_in as string,
@@ -106,11 +136,11 @@ const loginUserFromDB = async (payload: {
     image: userData.image,
     accessToken: accessToken,
     refreshToken: refreshedToken,
+    ...(userData.role === UserRoleEnum.ADMIN && { functions: adminAccessFunctions }),
   };
 };
 
 const refreshTokenFromDB = async (refreshedToken: string) => {
-
   if (!refreshedToken) {
     throw new AppError(httpStatus.UNAUTHORIZED, 'Refresh token is required');
   }
@@ -134,12 +164,51 @@ const refreshTokenFromDB = async (refreshedToken: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
 
+  let adminAccessFunctions: string[] = [];
+
+  if (userData.role === UserRoleEnum.ADMIN) {
+    const admin = await prisma.admin.findUnique({
+      where: {
+        userId: userData.id,
+        isSuperAdmin: false,
+      },
+    });
+    if (admin) {
+      const accessFunctions = await prisma.adminAccessFunction.findMany({
+        where: {
+          adminId: userData.id,
+        },
+      });
+      if (accessFunctions.length === 0) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          'You do not have access to any functions. Please contact super admin.',
+        );
+      }
+
+      const functionNames = await prisma.accessFunction.findMany({
+        where: {
+          id: { in: accessFunctions.map(func => func.accessFunctionId) },
+        },
+      });
+      if (functionNames.length === 0) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          'You do not have access to any functions. Please contact super admin.',
+        );
+      }
+
+      adminAccessFunctions = functionNames.map(func => func.function);
+    }
+  }
+
   const newAccessToken = await generateToken(
     {
       id: userData.id,
       email: userData.email,
       role: userData.role,
-      purpose: 'access', 
+      purpose: 'access',
+      functions: adminAccessFunctions,
     },
     config.jwt.access_secret as Secret,
     config.jwt.access_expires_in as string,

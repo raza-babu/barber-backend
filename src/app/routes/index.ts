@@ -2,7 +2,6 @@ import express from 'express';
 import { UserRouters } from '../modules/user/user.routes';
 import { AuthRouters } from '../modules/auth/auth.routes';
 import { groupRoutes } from '../modules/group/group.routes';
-import { NotificationRoutes } from '../modules/notification/Notification.routes';
 import { ServiceRoutes } from '../modules/service/service.routes';
 import { jobPostRoutes } from '../modules/jobPost/jobPost.routes';
 import { jobApplicationsRoutes } from '../modules/jobApplications/jobApplications.routes';
@@ -51,10 +50,10 @@ const moduleRoutes = [
     path: '/groups',
     route: groupRoutes,
   },
-  {
-    path: '/notifications',
-    route: NotificationRoutes,
-  },
+  // {
+  //   path: '/notifications',
+  //   route: NotificationRoutes,
+  // },
   {
     path: '/services',
     route: ServiceRoutes,
