@@ -1,0 +1,21 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.termAndConditionRoutes = void 0;
+const client_1 = require("@prisma/client");
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const termAndCondition_controller_1 = require("./termAndCondition.controller");
+const termAndCondition_validation_1 = require("./termAndCondition.validation");
+const checkPermissions_1 = require("../../middlewares/checkPermissions");
+const access_1 = require("../../utils/access");
+const router = express_1.default.Router();
+router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.SETTINGS), (0, validateRequest_1.default)(termAndCondition_validation_1.termAndConditionValidation.createTermAndConditionSchema), termAndCondition_controller_1.termAndConditionController.createTermAndCondition);
+router.get('/', (0, auth_1.default)(), termAndCondition_controller_1.termAndConditionController.getTermAndConditionList);
+router.get('/:id', (0, auth_1.default)(), termAndCondition_controller_1.termAndConditionController.getTermAndConditionById);
+router.patch('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.SETTINGS), (0, validateRequest_1.default)(termAndCondition_validation_1.termAndConditionValidation.updateTermAndConditionSchema), termAndCondition_controller_1.termAndConditionController.updateTermAndCondition);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.SETTINGS), termAndCondition_controller_1.termAndConditionController.deleteTermAndCondition);
+exports.termAndConditionRoutes = router;

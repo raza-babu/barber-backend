@@ -16,6 +16,7 @@ model SaloonOwner {
   followingCount     Int      @default(0)
   ratingCount        Int      @default(0)
   avgRating          Float?   @default(0)
+  jobPostCount       Int      @default(0)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

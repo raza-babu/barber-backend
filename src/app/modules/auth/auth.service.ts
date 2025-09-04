@@ -51,7 +51,20 @@ const loginUserFromDB = async (payload: {
       where: {
         userId: userData.id,
       },
+      include: {
+        user: {
+          select: {
+            isSubscribed: true,
+            subscriptionEnd: true,
+            subscriptionPlan: true,
+          },
+        },
+      },
     });
+    userData.isSubscribed = saloon?.user.isSubscribed || false;
+    userData.subscriptionEnd = saloon?.user.subscriptionEnd || null;
+    userData.subscriptionPlan = saloon?.user.subscriptionPlan || 'FREE';
+
     if (saloon?.isVerified === false) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
@@ -114,6 +127,7 @@ const loginUserFromDB = async (payload: {
       role: userData.role,
       purpose: 'access',
       functions: adminAccessFunctions,
+      subscriptionPlan: userData.subscriptionPlan,
     },
     config.jwt.access_secret as Secret,
     config.jwt.access_expires_in as string,
@@ -136,7 +150,14 @@ const loginUserFromDB = async (payload: {
     image: userData.image,
     accessToken: accessToken,
     refreshToken: refreshedToken,
-    ...(userData.role === UserRoleEnum.ADMIN && { functions: adminAccessFunctions }),
+    ...(userData.role === UserRoleEnum.ADMIN && {
+      functions: adminAccessFunctions,
+    }),
+    ...(userData.role === UserRoleEnum.SALOON_OWNER && {
+      isSubscribed: userData.isSubscribed,
+      subscriptionEnd: userData.subscriptionEnd,
+      subscriptionPlan: userData.subscriptionPlan,
+    }),
   };
 };
 
@@ -202,6 +223,33 @@ const refreshTokenFromDB = async (refreshedToken: string) => {
     }
   }
 
+  if (userData.role === UserRoleEnum.SALOON_OWNER) {
+    const saloon = await prisma.saloonOwner.findFirst({
+      where: {
+        userId: userData.id,
+      },
+      include: {
+        user: {
+          select: {
+            isSubscribed: true,
+            subscriptionEnd: true,
+            subscriptionPlan: true,
+          },
+        },
+      },
+    });
+    userData.isSubscribed = saloon?.user.isSubscribed || false;
+    userData.subscriptionEnd = saloon?.user.subscriptionEnd || null;
+    userData.subscriptionPlan = saloon?.user.subscriptionPlan || 'FREE';
+
+    if (saloon?.isVerified === false) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Your saloon is not verified yet. Please wait for verification.',
+      );
+    }
+  }
+
   const newAccessToken = await generateToken(
     {
       id: userData.id,
@@ -209,6 +257,7 @@ const refreshTokenFromDB = async (refreshedToken: string) => {
       role: userData.role,
       purpose: 'access',
       functions: adminAccessFunctions,
+      subscriptionPlan: userData.subscriptionPlan,
     },
     config.jwt.access_secret as Secret,
     config.jwt.access_expires_in as string,

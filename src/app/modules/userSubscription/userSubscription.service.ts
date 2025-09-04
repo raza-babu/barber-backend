@@ -31,6 +31,7 @@ const createUserSubscriptionIntoDb = async (
       endDate: {
         gt: new Date(),
       },
+      paymentStatus: PaymentStatus.COMPLETED,
     },
   });
   if (existingSubscription) {
@@ -107,17 +108,45 @@ const createUserSubscriptionIntoDb = async (
     );
   }
 
+  // check if user is trying to subscribe to their own plan
+  if (subscriptionOffer.creator.stripeCustomerId === stripeCustomerId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'You cannot subscribe to your own subscription plan',
+    );
+  }
+
+  // check in stripe that the user is already not subscribed to this plan
+  const existingStripeSubscriptions = await stripe.subscriptions.list({
+    customer: stripeCustomerId,
+    status: 'active',
+    expand: ['data.items'],
+  });
+  const isAlreadySubscribed = existingStripeSubscriptions.data.some(sub =>
+    sub.items.data.some(
+      item => item.price.id === subscriptionOffer.stripePriceId,
+    ),
+  );
+  if (isAlreadySubscribed) {  
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'You are already subscribed to this plan',
+    );
+  }
+
   // 6. Create subscription in Stripe (outside transaction)
   const subscription = (await stripe.subscriptions.create({
     customer: stripeCustomerId,
     items: [{ price: subscriptionOffer.stripePriceId }],
     default_payment_method: data.paymentMethodId,
     expand: ['latest_invoice.payment_intent'],
-  })) as Stripe.Subscription;
+  })) ;
 
   // Extract details
   const latestInvoice = subscription.latest_invoice as any;
   const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent;
+
+  console.log(latestInvoice, paymentIntent);
   if (
     subscription.status === 'incomplete' &&
     paymentIntent?.status !== 'succeeded'

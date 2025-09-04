@@ -93,6 +93,13 @@ enum RoomType {
 }
 
 
+enum SubscriptionPlanStatus {
+  FREE
+  BASIC_PREMIUM
+  ADVANCED_PREMIUM
+  PRO_PREMIUM
+}
+
 enum SubscriptionType {
   WEEKLY
   MONTHLY
@@ -740,6 +747,7 @@ model Payment {
   paymentDate          DateTime      @default(now())
   amountProvider       String
   amountReceiver       String?
+  invoiceId            String?
   status               PaymentStatus @default(PENDING)
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -1053,6 +1061,7 @@ model SubscriptionOffer {
   price           Float
   currency        String?          @default("usd")
   duration        SubscriptionType
+  planType        SubscriptionPlanStatus @default(BASIC_PREMIUM)
   status          UserStatus       @default(ACTIVE)
   stripeProductId String?
   stripePriceId   String?
@@ -1122,16 +1131,16 @@ model TerminateBarber {
 
 
 model User {
-  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  id                String                 @id @default(auto()) @map("_id") @db.ObjectId
   fullName          String
-  email             String        @unique
+  email             String                 @unique
   password          String?
-  role              UserRoleEnum  @default(CUSTOMER)
-  status            UserStatus    @default(PENDING)
+  role              UserRoleEnum           @default(CUSTOMER)
+  status            UserStatus             @default(PENDING)
   intendedRole      UserRoleEnum?
-  isProfileComplete Boolean       @default(false)
+  isProfileComplete Boolean                @default(false)
   address           String?
-  isLoggedIn        Boolean       @default(false)
+  isLoggedIn        Boolean                @default(false)
   image             String?
   phoneNumber       String?
   dateOfBirth       String?
@@ -1143,13 +1152,14 @@ model User {
   stripeCustomerId  String?
   stripeAccountUrl  String?
   stripeAccountId   String?
-  onBoarding        Boolean       @default(false)
-  isSubscribed      Boolean       @default(false)
+  onBoarding        Boolean                @default(false)
+  subscriptionPlan  SubscriptionPlanStatus @default(FREE)
+  isSubscribed      Boolean                @default(false)
   subscriptionEnd   DateTime?
-  followerCount     Int           @default(0)
-  followingCount    Int           @default(0)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  followerCount     Int                    @default(0)
+  followingCount    Int                    @default(0)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
   // Relationships
   roomsSent           Room[]                @relation("SenderRelation")

@@ -1,0 +1,6 @@
+enum SubscriptionPlanStatus {
+  FREE
+  BASIC_PREMIUM
+  ADVANCED_PREMIUM
+  PRO_PREMIUM
+}

@@ -1,16 +1,17 @@
 model SubscriptionOffer {
-  id              String           @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String           @db.ObjectId
+  id              String                 @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String                 @db.ObjectId
   title           String
   description     String?
   price           Float
-  currency        String?          @default("usd")
+  currency        String?                @default("usd")
   duration        SubscriptionType
-  status          UserStatus       @default(ACTIVE)
+  planType        SubscriptionPlanStatus @default(BASIC_PREMIUM)
+  status          UserStatus             @default(ACTIVE)
   stripeProductId String?
   stripePriceId   String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   // Relationships
   creator          User               @relation(fields: [userId], references: [id])

@@ -1,7 +1,7 @@
 import jwt, { Secret } from "jsonwebtoken";
 
 export const generateToken = (
-  payload: { id: string; email: string; role: string, purpose: string, functions: string[] },
+  payload: { id: string; email: string; role: string, purpose: string, functions: string[], subscriptionPlan: string },
   secret: Secret,
   expiresIn: string
 ) => {
