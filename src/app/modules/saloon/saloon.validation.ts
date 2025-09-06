@@ -19,6 +19,14 @@ const updateSchema = z.object({
   }),
 });
 
+const updateQueueSchema = z.object({
+  body: z.object({
+    isQueueEnabled: z.boolean({
+      required_error: 'isQueueEnabled is required!',
+    }),
+  }),
+});
+
 function convertToUTC(date: string, time: string): string {
   // Combine into a single string
   const combined = `${date} ${time}`;
@@ -62,6 +70,7 @@ const availableFreeBarbersSchema = z.object({
 export const saloonValidation = {
   createSchema,
   updateSchema,
+  updateQueueSchema,
   availableBarbersSchema,
   availableFreeBarbersSchema
 };

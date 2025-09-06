@@ -4,6 +4,7 @@ import validateRequest from '../../middlewares/validateRequest';
 import { saloonController } from './saloon.controller';
 import { saloonValidation } from './saloon.validation';
 import { UserRoleEnum } from '@prisma/client';
+import checkSubscriptionForSalonOwners from '../../middlewares/checkSubscriptionForSalonOwners';
 
 const router = express.Router();
 
@@ -66,6 +67,14 @@ router.patch(
   '/terminate-barber',
   auth(UserRoleEnum.SALOON_OWNER),
   saloonController.terminateBarber,
+);
+
+router.patch(
+  '/queue-control',
+  auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
+  validateRequest(saloonValidation.updateQueueSchema),
+  saloonController.updateSaloonQueueControl,
 );
 
 router.delete('/:id', auth(), saloonController.deleteSaloon);

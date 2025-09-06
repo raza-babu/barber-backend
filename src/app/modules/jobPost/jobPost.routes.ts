@@ -6,6 +6,7 @@ import { jobPostValidation } from './jobPost.validation';
 import { parseBody } from '../../middlewares/parseBody';
 import { multerUploadMultiple } from '../../utils/multipleFile';
 import { UserRoleEnum } from '@prisma/client';
+import checkSubscriptionForSalonOwners from '../../middlewares/checkSubscriptionForSalonOwners';
 
 const router = express.Router();
 
@@ -15,7 +16,8 @@ router.post(
   //   { name: 'shop_logo', maxCount: 1 },
   // ]),
   // parseBody,
-  auth(),
+  auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   validateRequest(jobPostValidation.createJobPostSchema),
   jobPostController.createJobPost,
 );

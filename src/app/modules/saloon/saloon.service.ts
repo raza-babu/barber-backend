@@ -1096,6 +1096,27 @@ const getScheduledBarbersFromDb = async (
   return scheduledBarbers;
 };
 
+const updateSaloonQueueControlIntoDb = async (
+  userId: string,
+  data: {
+    isQueueEnabled: boolean;
+  },
+) => {
+  const updatedSaloon = await prisma.saloonOwner.update({
+    where: {
+      userId: userId,
+    },
+    data: {
+      isQueueEnabled: data.isQueueEnabled,
+    },
+  });
+  if (!updatedSaloon) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'saloonId, not updated');
+  }
+
+  return updatedSaloon;
+};
+
 const deleteSaloonItemFromDb = async (userId: string, saloonId: string) => {
   const deletedItem = await prisma.saloonOwner.delete({
     where: {
@@ -1121,5 +1142,6 @@ export const saloonService = {
   terminateBarberIntoDb,
   getFreeBarbersOnADateFromDb,
   getScheduledBarbersFromDb,
+  updateSaloonQueueControlIntoDb,
   deleteSaloonItemFromDb,
 };

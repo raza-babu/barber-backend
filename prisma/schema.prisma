@@ -968,6 +968,7 @@ model SaloonOwner {
   followingCount     Int      @default(0)
   ratingCount        Int      @default(0)
   avgRating          Float?   @default(0)
+  jobPostCount       Int      @default(0)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -1054,19 +1055,19 @@ model Service {
 
 
 model SubscriptionOffer {
-  id              String           @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String           @db.ObjectId
+  id              String                 @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String                 @db.ObjectId
   title           String
   description     String?
   price           Float
-  currency        String?          @default("usd")
+  currency        String?                @default("usd")
   duration        SubscriptionType
   planType        SubscriptionPlanStatus @default(BASIC_PREMIUM)
-  status          UserStatus       @default(ACTIVE)
+  status          UserStatus             @default(ACTIVE)
   stripeProductId String?
   stripePriceId   String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   // Relationships
   creator          User               @relation(fields: [userId], references: [id])

@@ -1,84 +1,166 @@
 import prisma from '../../utils/prisma';
-import { UserRoleEnum, UserStatus } from '@prisma/client';
+import {
+  SubscriptionPlanStatus,
+  UserRoleEnum,
+  UserStatus,
+} from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
-import { buildCompleteQuery, buildNumericRangeQuery } from '../../utils/searchFilter';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
+import {
+  buildCompleteQuery,
+  buildNumericRangeQuery,
+} from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
-const createJobPostIntoDb = async (userId: string, data: any) => {
-  const shopDetails = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-    include: {
-      SaloonOwner: {
-        select: {
-          userId: true,
-          shopLogo: true,
-          shopName: true,
+const createJobPostIntoDb = async (
+  userId: string,
+  subscriptionPlan: string,
+  data: any,
+) => {
+  // Free plan allows only 1 active job post per year. Please upgrade your subscription to create more job posts.
+  if (subscriptionPlan === SubscriptionPlanStatus.FREE) {
+    const existingJobPosts = await prisma.jobPost.findMany({
+      where: {
+        userId: userId,
+        createdAt: {
+          gte: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
+        },
+        isActive: true,
+      },
+    });
+
+    if (existingJobPosts.length >= 1) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'Free plan allows only 1 active job post per year. Please upgrade your subscription to create more job posts.',
+      );
+    }
+  } else if (subscriptionPlan === SubscriptionPlanStatus.BASIC_PREMIUM) {
+    // Basic plan allows only 3 active job posts per year. Please upgrade your subscription to create more job posts.
+    const existingJobPosts = await prisma.jobPost.findMany({
+      where: {
+        userId: userId,
+        createdAt: {
+          gte: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
+        },
+        isActive: true,
+      },
+    });
+
+    if (existingJobPosts.length >= 3) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'Basic plan allows only 3 active job posts per year. Please upgrade your subscription to create more job posts.',
+      );
+    }
+
+    // If the plan is PRO_PREMIUM no restrictions apply
+  } else if (subscriptionPlan === SubscriptionPlanStatus.PRO_PREMIUM ||
+    subscriptionPlan === SubscriptionPlanStatus.BASIC_PREMIUM) {
+    // No restrictions
+    const shopDetails = await prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      include: {
+        SaloonOwner: {
+          select: {
+            userId: true,
+            shopLogo: true,
+            shopName: true,
+          },
         },
       },
-    },
-  });
-  if (!shopDetails) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Shop not found');
-  }
+    });
+    if (!shopDetails) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Shop not found');
+    }
+  
 
-  const result = await prisma.jobPost.create({
-    data: {
-      ...data,
-      userId: userId,
-      saloonOwnerId: shopDetails.SaloonOwner[0]?.userId as string,
-      startDate: new Date(data.startDate),
-      endDate: new Date(data.endDate),
-      datePosted: new Date(data.datePosted),
-      shopName: shopDetails.SaloonOwner[0]?.shopName as string,
-      shopLogo: shopDetails.SaloonOwner[0]?.shopLogo as string,
-    },
-  });
-  if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'jobPost not created');
+    return await prisma.$transaction(async tx => {
+      const result = await tx.jobPost.create({
+        data: {
+          ...data,
+          userId: userId,
+          saloonOwnerId: shopDetails.SaloonOwner[0]?.userId as string,
+          startDate: new Date(data.startDate),
+          endDate: new Date(data.endDate),
+          datePosted: new Date(data.datePosted),
+          shopName: shopDetails.SaloonOwner[0]?.shopName as string,
+          shopLogo: shopDetails.SaloonOwner[0]?.shopLogo as string,
+        },
+      });
+      if (!result) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'jobPost not created');
+      }
+
+      await tx.saloonOwner.update({
+        where: {
+          userId: userId,
+        },
+        data: {
+          jobPostCount: {
+            increment: 1,
+          },
+        }
+      
+      });
+    
+
+      return result;
+    
+    
+    });
+  
+  
   }
-  return result;
 };
+
+
 
 const getJobPostListFromDb = async (options: ISearchAndFilterOptions) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   // Build search query
-  const searchQuery = options.searchTerm ? {
-    OR: [
-      {
-        // title: {
-        //   contains: options.searchTerm,
-        //   mode: 'insensitive' as const,
-        // },
-      },
-      {
-        description: {
-          contains: options.searchTerm,
-          mode: 'insensitive' as const,
-        },
-      },
-      {
-        shopName: {
-          contains: options.searchTerm,
-          mode: 'insensitive' as const,
-        },
-      },
-      {
-        location: {
-          contains: options.searchTerm,
-          mode: 'insensitive' as const,
-        },
-      },
-    ],
-  } : {};
+  const searchQuery = options.searchTerm
+    ? {
+        OR: [
+          {
+            // title: {
+            //   contains: options.searchTerm,
+            //   mode: 'insensitive' as const,
+            // },
+          },
+          {
+            description: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            shopName: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            location: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+        ],
+      }
+    : {};
 
   // Build filter query
   const filterQuery: any = {
-    isActive: options.isActive !== undefined ? options.isActive === 'true' : true,
+    isActive:
+      options.isActive !== undefined ? options.isActive === 'true' : true,
   };
 
   // Add experience filter if provided
@@ -92,16 +174,19 @@ const getJobPostListFromDb = async (options: ISearchAndFilterOptions) => {
   const salaryRangeQuery = buildNumericRangeQuery(
     'salary',
     options.salaryMin ? Number(options.salaryMin) : undefined,
-    options.salaryMax ? Number(options.salaryMax) : undefined
+    options.salaryMax ? Number(options.salaryMax) : undefined,
   );
 
   // Build date range query
-  const dateRangeQuery = options.startDate || options.endDate ? {
-    datePosted: {
-      ...(options.startDate && { gte: new Date(options.startDate) }),
-      ...(options.endDate && { lte: new Date(options.endDate) }),
-    },
-  } : {};
+  const dateRangeQuery =
+    options.startDate || options.endDate
+      ? {
+          datePosted: {
+            ...(options.startDate && { gte: new Date(options.startDate) }),
+            ...(options.endDate && { lte: new Date(options.endDate) }),
+          },
+        }
+      : {};
 
   // Combine all queries
   const whereClause = {
@@ -154,7 +239,7 @@ const getJobPostByIdFromDb = async (userId: string, jobPostId: string) => {
     },
   });
   if (!result) {
-    return { message: "No job post found" }
+    return { message: 'No job post found' };
   }
   return result;
 };

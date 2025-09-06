@@ -8,11 +8,12 @@ import AppError from '../../errors/AppError';
 import emailSender from '../../utils/emailSender';
 import { generateToken, refreshToken } from '../../utils/generateToken';
 import prisma from '../../utils/prisma';
+import { SubscriptionPlanStatus } from '@prisma/client';
 import Stripe from 'stripe';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
-  apiVersion: '2025-08-27.basil',
+  apiVersion: '2025-07-30.basil',
 });
 
 interface UserWithOptionalPassword extends Omit<User, 'password'> {
@@ -361,6 +362,10 @@ const getMyProfileFromDB = async (id: string) => {
 
 const updateMyProfileIntoDB = async (id: string, payload: any) => {
   const userData = payload;
+
+  if(userData.isQueueEnabled){
+    return { message: 'Queue feature is available for Premium plan users. Please upgrade your plan to access this feature.' };
+  }
 
   // update user data
   await prisma.$transaction(async (transactionClient: any) => {
@@ -734,6 +739,7 @@ const socialLoginIntoDB = async (payload: any) => {
         role: newUser.role,
         purpose: 'access',
         functions: [],
+        subscriptionPlan: SubscriptionPlanStatus.FREE,
       },
       config.jwt.access_secret as Secret,
       config.jwt.access_expires_in as string,
@@ -765,6 +771,7 @@ const socialLoginIntoDB = async (payload: any) => {
         role: user.role,
         purpose: 'access',
         functions: [],
+        subscriptionPlan: SubscriptionPlanStatus.FREE,
       },
       config.jwt.access_secret as Secret,
       config.jwt.access_expires_in as string,

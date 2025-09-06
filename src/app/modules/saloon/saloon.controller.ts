@@ -4,6 +4,7 @@ import catchAsync from '../../utils/catchAsync';
 import { saloonService } from './saloon.service';
 import { pickValidFields } from '../../utils/pickValidFields';
 import { saloonValidation } from './saloon.validation';
+import { SubscriptionPlanStatus } from '@prisma/client';
 
 const manageBookings = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -182,6 +183,38 @@ const getFreeBarbersOnADate = catchAsync(async (req, res) => {
   });
 });
 
+const updateSaloonQueueControl = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const subscriptionPlanName = user.subscriptionPlan;
+  if (
+    subscriptionPlanName === SubscriptionPlanStatus.FREE ||
+    subscriptionPlanName === SubscriptionPlanStatus.BASIC_PREMIUM
+  ) {
+    return sendResponse(res, {
+      statusCode: httpStatus.FORBIDDEN,
+      success: false,
+      message:
+        'Access denied. Upgrade your subscription to access hired barbers.',
+      data: null,
+    });
+  }
+  if (
+    subscriptionPlanName === SubscriptionPlanStatus.ADVANCED_PREMIUM ||
+    SubscriptionPlanStatus.PRO_PREMIUM
+  ) {
+    const result = await saloonService.updateSaloonQueueControlIntoDb(
+      user.id,
+      req.body,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Saloon queue control updated successfully',
+      data: result,
+    });
+  }
+});
+
 const deleteSaloon = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await saloonService.deleteSaloonItemFromDb(
@@ -206,5 +239,6 @@ export const saloonController = {
   getFreeBarbersOnADate,
   terminateBarber,
   getScheduledBarbers,
+  updateSaloonQueueControl,
   deleteSaloon,
 };

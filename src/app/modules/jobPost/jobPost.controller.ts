@@ -6,7 +6,8 @@ import { pickValidFields } from '../../utils/pickValidFields';
 
 const createJobPost = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await jobPostService.createJobPostIntoDb(user.id, req.body);
+  const subscriptionPlan = user.subscriptionPlan as string;
+  const result = await jobPostService.createJobPostIntoDb(user.id, subscriptionPlan, req.body);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
