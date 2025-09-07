@@ -293,9 +293,32 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
       if (!user) break;
 
       // Find which plan this subscription is tied to
-      const subscriptionOffer = await prisma.subscriptionOffer.findFirst({
-        where: { stripePriceId: subscription.items.data[0].price.id },
-      });
+      let planType = SubscriptionPlanStatus.FREE as SubscriptionPlanStatus;
+      if (subscription.items.data.length > 0) {
+        const subscriptionOffer = await prisma.subscriptionOffer.findFirst({
+          where: { stripePriceId: subscription.items.data[0].price.id },
+        });
+        planType = subscriptionOffer?.planType || SubscriptionPlanStatus.FREE;
+      }
+
+      // Handle scheduled cancellations
+      if (subscription.cancel_at_period_end) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isSubscribed: true, // Still active until period ends
+            subscriptionEnd: new Date(
+              (subscription as any).current_period_end * 1000,
+            ),
+            subscriptionPlan: planType,
+          },
+        });
+        console.log(
+          'Subscription scheduled for cancellation:',
+          subscription.id,
+        );
+        break;
+      }
 
       // Update the user with subscription details
       await prisma.user.update({
@@ -305,9 +328,7 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
           subscriptionEnd: new Date(
             (subscription as any).current_period_end * 1000,
           ),
-          subscriptionPlan: subscriptionOffer
-            ? subscriptionOffer.planType // map to actual plan
-            : SubscriptionPlanStatus.FREE,
+          subscriptionPlan: planType,
         },
       });
 
@@ -315,14 +336,19 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
         where: { stripeSubscriptionId: subscription.id },
       });
 
-      // If subscription was canceled/refunded → trigger refund logic
+      // If subscription was canceled → trigger refund logic
       if (subscription.status === 'canceled') {
-        // Optional: call Stripe refund API first, then update DB
-        const refund = await stripe.refunds.create({
-          payment_intent: paymentToUpdate?.paymentIntentId!,
-        });
-
-        console.log(refund, 'check refund');
+        // Only attempt refund if we have a paymentIntentId
+        if (paymentToUpdate?.paymentIntentId) {
+          try {
+            const refund = await stripe.refunds.create({
+              payment_intent: paymentToUpdate.paymentIntentId,
+            });
+            console.log('Refund processed:', refund.id);
+          } catch (refundError) {
+            console.error('Refund failed:', refundError);
+          }
+        }
 
         await prisma.payment.updateMany({
           where: {
@@ -336,7 +362,7 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
           where: { id: user.id },
           data: {
             isSubscribed: false,
-            subscriptionEnd: new Date(), // Expired now
+            subscriptionEnd: new Date(),
             subscriptionPlan: SubscriptionPlanStatus.FREE,
           },
         });
@@ -347,8 +373,6 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
           },
           data: { paymentStatus: PaymentStatus.REFUNDED, endDate: new Date() },
         });
-
-        // console.log('Subscription canceled and refund processed:', refund);
       }
 
       break;
@@ -357,7 +381,6 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription;
       // console.log(subscription, 'check subscription deleted');
-
 
       const user = await prisma.user.findFirst({
         where: { stripeCustomerId: subscription.customer as string },
@@ -369,10 +392,10 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
         where: { stripeSubscriptionId: subscription.id },
       });
       const refund = await stripe.refunds.create({
-          payment_intent: paymentToUpdate?.paymentIntentId!,
-        });
+        payment_intent: paymentToUpdate?.paymentIntentId!,
+      });
 
-        // console.log(refund, 'check refund');
+      // console.log(refund, 'check refund');
 
       if (user) {
         await prisma.user.update({
@@ -383,8 +406,6 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
             subscriptionPlan: SubscriptionPlanStatus.FREE,
           },
         });
-
-
 
         await prisma.userSubscription.updateMany({
           where: {
@@ -409,37 +430,114 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
       break;
 
     case 'invoice.paid': {
-      // Stripe sends the invoice object
       const invoice = event.data.object as any;
-
-      // Extract the invoice ID and PaymentIntent ID
+      // Use type assertion for subscription field
+      // const subscriptionId = (invoice as any).subscription as string;
       const invoiceId = invoice.id;
       const paymentIntentId = invoice.payment_intent;
       const subscriptionId = invoice.subscription;
       console.log(subscriptionId, 'check subscription id from invoice');
 
-      // Find the related payment record in your DB
-      const paymentRecord = await prisma.payment.findUnique({
-        where: {
-          stripeSubscriptionId: subscriptionId!,
-          invoiceId: invoiceId!,
-        },
-      });
+      if (subscriptionId && invoice.billing_reason === 'subscription_create') {
+        // This is a renewal payment - update subscription end date
+        const subscription =
+          await stripe.subscriptions.retrieve(subscriptionId);
 
-      console.log(paymentRecord, 'check payment record for invoice');
-      if (!paymentRecord) {
-        console.log('No payment record found for invoice:', invoiceId);
-        break;
+        // Type assertion for current_period_end
+        const subscriptionWithPeriod = subscription as unknown as {
+          current_period_end: number;
+        };
+
+        const newEndDate = new Date(
+          subscriptionWithPeriod.current_period_end * 1000,
+        );
+
+        await prisma.userSubscription.updateMany({
+          where: { stripeSubscriptionId: subscriptionId },
+          data: {
+            endDate: newEndDate,
+            paymentStatus: PaymentStatus.COMPLETED,
+          },
+        });
+
+        // Get user associated with this subscription
+        const userSubscription = await prisma.userSubscription.findFirst({
+          where: { stripeSubscriptionId: subscriptionId },
+          include: { user: true },
+        });
+
+        if (userSubscription) {
+          // UPDATE existing payment record instead of creating new one
+          const existingPayment = await prisma.payment.findUnique({
+            where: {
+              stripeSubscriptionId: subscriptionId,
+              status: PaymentStatus.COMPLETED, // Look for the pending renewal record
+            },
+          });
+
+          if (existingPayment) {
+            // Update the existing payment with payment_intent and mark as completed
+            await prisma.payment.update({
+              where: { id: existingPayment.id, invoiceId: invoice.id },
+              data: {
+                paymentIntentId: paymentIntentId,
+                status: PaymentStatus.COMPLETED,
+                paymentAmount: invoice.amount_paid
+                  ? invoice.amount_paid / 100
+                  : 0,
+              },
+            });
+          } else {
+            // Fallback: Create new payment record if no existing one found
+            await prisma.payment.create({
+              data: {
+                stripeSubscriptionId: subscriptionId,
+                invoiceId: invoice.id,
+                paymentIntentId: (invoice as any).payment_intent as string,
+                paymentAmount: invoice.amount_paid
+                  ? invoice.amount_paid / 100
+                  : 0,
+                amountProvider: userSubscription.user.stripeCustomerId || '',
+                status: PaymentStatus.COMPLETED,
+                user: {
+                  connect: { id: userSubscription.userId },
+                },
+              },
+            });
+          }
+        }
       }
+      break;
+    }
 
-      await prisma.payment.update({
-        where: { id: paymentRecord.id },
-        data: {
-          status: PaymentStatus.COMPLETED, 
-          paymentIntentId: paymentIntentId,
+    // Add these cases to your existing switch statement
+    case 'invoice.upcoming': {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer as string;
+      const subscriptionId = (invoice as any).subscription as string;
+      const amountDue = invoice.amount_due / 100; // Convert to dollars
+      const dueDate = invoice.due_date
+        ? new Date(invoice.due_date * 1000)
+        : null;
+
+      // Get user and subscription details
+      const user = await prisma.user.findFirst({
+        where: { stripeCustomerId: customerId },
+        include: {
+          UserSubscription: { where: { stripeSubscriptionId: subscriptionId } },
         },
       });
 
+      if (user && user.UserSubscription.length > 0 && dueDate) {
+        const subscription = user.UserSubscription[0];
+
+        // Send renewal reminder (email, push notification, etc.)
+        //   await sendNotification(user.id, {
+        //     type: 'SUBSCRIPTION_RENEWAL_REMINDER',
+        //     message: `Your subscription for $${amountDue} will renew on ${dueDate.toLocaleDateString()}`,
+        //     data: { subscriptionId, amountDue, dueDate }
+        //   });
+      }
       break;
     }
 

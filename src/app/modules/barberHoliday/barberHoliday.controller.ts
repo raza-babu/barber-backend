@@ -2,20 +2,43 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { barberHolidayService } from './barberHoliday.service';
+import { SubscriptionPlanStatus } from '@prisma/client';
 
 const createBarberHoliday = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberHolidayService.createBarberHolidayIntoDb(user.id, req.body);
-  sendResponse(res, {
-    statusCode: httpStatus.CREATED,
-    success: true,
-    message: 'BarberHoliday created successfully',
-    data: result,
-  });
+  const subscriptionPlanName = user.subscriptionPlan;
+  if (
+    subscriptionPlanName === SubscriptionPlanStatus.FREE ||
+    subscriptionPlanName === SubscriptionPlanStatus.ADVANCED_PREMIUM
+  ) {
+    return sendResponse(res, {
+      statusCode: httpStatus.FORBIDDEN,
+      success: false,
+      message:
+        'Access denied. Upgrade your subscription to access to manage barber holidays.',
+      data: null,
+    });
+  }
+  if (
+    subscriptionPlanName === SubscriptionPlanStatus.BASIC_PREMIUM ||
+    SubscriptionPlanStatus.PRO_PREMIUM
+  ) {
+    const result = await barberHolidayService.createBarberHolidayIntoDb(
+      user.id,
+      req.body,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.CREATED,
+      success: true,
+      message: 'BarberHoliday created successfully',
+      data: result,
+    });
+  }
 });
 
 const getBarberHolidayList = catchAsync(async (req, res) => {
   const user = req.user as any;
+
   const result = await barberHolidayService.getBarberHolidayListFromDb(user.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -27,7 +50,10 @@ const getBarberHolidayList = catchAsync(async (req, res) => {
 
 const getBarberHolidayById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberHolidayService.getBarberHolidayByIdFromDb(user.id, req.params.id);
+  const result = await barberHolidayService.getBarberHolidayByIdFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -38,24 +64,67 @@ const getBarberHolidayById = catchAsync(async (req, res) => {
 
 const updateBarberHoliday = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberHolidayService.updateBarberHolidayIntoDb(user.id, req.params.id, req.body);
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: 'BarberHoliday updated successfully',
-    data: result,
-  });
+  const subscriptionPlanName = user.subscriptionPlan;
+  if (
+    subscriptionPlanName === SubscriptionPlanStatus.FREE ||
+    subscriptionPlanName === SubscriptionPlanStatus.ADVANCED_PREMIUM
+  ) {
+    return sendResponse(res, {
+      statusCode: httpStatus.FORBIDDEN,
+      success: false,
+      message:
+        'Access denied. Upgrade your subscription to access to manage barber holidays.',
+      data: null,
+    });
+  }
+  if (
+    subscriptionPlanName === SubscriptionPlanStatus.BASIC_PREMIUM ||
+    SubscriptionPlanStatus.PRO_PREMIUM
+  ) {
+    const result = await barberHolidayService.updateBarberHolidayIntoDb(
+      user.id,
+      req.params.id,
+      req.body,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'BarberHoliday updated successfully',
+      data: result,
+    });
+  }
 });
 
 const deleteBarberHoliday = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberHolidayService.deleteBarberHolidayItemFromDb(user.id, req.params.id);
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: 'BarberHoliday deleted successfully',
-    data: result,
-  });
+  const subscriptionPlanName = user.subscriptionPlan;
+  if (
+    subscriptionPlanName === SubscriptionPlanStatus.FREE ||
+    subscriptionPlanName === SubscriptionPlanStatus.ADVANCED_PREMIUM
+  ) {
+    return sendResponse(res, {
+      statusCode: httpStatus.FORBIDDEN,
+      success: false,
+      message:
+        'Access denied. Upgrade your subscription to access to manage barber holidays.',
+      data: null,
+    });
+  }
+  if (
+    subscriptionPlanName === SubscriptionPlanStatus.BASIC_PREMIUM ||
+    SubscriptionPlanStatus.PRO_PREMIUM
+  ) {
+    const result = await barberHolidayService.deleteBarberHolidayItemFromDb(
+      user.id,
+      req.params.id,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'BarberHoliday deleted successfully',
+      data: result,
+    });
+  }
 });
 
 export const barberHolidayController = {

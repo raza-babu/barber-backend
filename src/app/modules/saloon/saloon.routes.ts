@@ -18,54 +18,63 @@ const router = express.Router();
 router.patch(
   '/manage-bookings',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   validateRequest(saloonValidation.createSchema),
   saloonController.manageBookings,
 );
 router.get(
   '/dashboard',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   saloonController.getBarberDashboard,
 );
 
 router.get(
   '/booking-history',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   saloonController.getCustomerBookings,
 );
 
 router.get(
   '/transactions',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   saloonController.getTransactions,
 );
 
 router.get(
   '/barbers',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   saloonController.getAllBarbers,
 );
 
 router.get(
   '/remaining-barbers-to-schedule',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   saloonController.getRemainingBarbersToSchedule,
 );
 
 router.get(
   '/scheduled-barbers',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   saloonController.getScheduledBarbers,
 );
 
 router.get(
   '/free-barbers',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   saloonController.getFreeBarbersOnADate,
-)
+);
 
 router.patch(
   '/terminate-barber',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   saloonController.terminateBarber,
 );
 

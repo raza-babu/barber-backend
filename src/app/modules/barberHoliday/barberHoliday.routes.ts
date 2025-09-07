@@ -4,23 +4,36 @@ import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { barberHolidayController } from './barberHoliday.controller';
 import { barberHolidayValidation } from './barberHoliday.validation';
+import checkSubscriptionForSalonOwners from '../../middlewares/checkSubscriptionForSalonOwners';
 
 const router = express.Router();
 
 router.post(
   '/',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   validateRequest(barberHolidayValidation.createBarberDayOffSchema),
   barberHolidayController.createBarberHoliday,
 );
 
-router.get('/', auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER), barberHolidayController.getBarberHolidayList);
+router.get(
+  '/',
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
+  checkSubscriptionForSalonOwners(),
+  barberHolidayController.getBarberHolidayList,
+);
 
-router.get('/:id', auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER), barberHolidayController.getBarberHolidayById);
+router.get(
+  '/:id',
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
+  checkSubscriptionForSalonOwners(),
+  barberHolidayController.getBarberHolidayById,
+);
 
 router.patch(
   '/:id',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   validateRequest(barberHolidayValidation.updateBarberDayOffSchema),
   barberHolidayController.updateBarberHoliday,
 );
@@ -28,6 +41,7 @@ router.patch(
 router.delete(
   '/:id',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   barberHolidayController.deleteBarberHoliday,
 );
 

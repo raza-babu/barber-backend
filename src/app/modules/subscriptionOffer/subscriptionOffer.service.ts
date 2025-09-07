@@ -46,10 +46,12 @@ const createSubscriptionOfferIntoDb = async (userId: string, data: any) => {
         },
         product: product.id,
       });
-    } catch (err) {
-      // Optionally, you could delete the product if price creation fails
+    } catch (err: any) {
       await stripe.products.del(product.id);
-      throw new AppError(httpStatus.BAD_REQUEST, 'Stripe price not created!');
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Stripe price creation failed: ${err.message}`,
+      );
     }
 
     console.log(
@@ -266,11 +268,17 @@ const deleteSubscriptionOfferItemFromDb = async (
     // Delete the product from Stripe
     let deleteFromStripe;
     try {
-      deleteFromStripe = await stripe.products.update(existing.stripeProductId!, {
-        active: false,
-      });
+      deleteFromStripe = await stripe.products.update(
+        existing.stripeProductId!,
+        {
+          active: false,
+        },
+      );
       if (!deleteFromStripe.active === false) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Stripe product not deleted!');
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Stripe product not deleted!',
+        );
       }
     } catch (err) {
       // Throwing here will rollback the transaction

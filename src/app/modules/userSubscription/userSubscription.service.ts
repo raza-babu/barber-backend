@@ -10,6 +10,8 @@ import httpStatus from 'http-status';
 import Stripe from 'stripe';
 import config from '../../../config';
 import { DateTime } from 'luxon';
+import { send } from 'node:process';
+import emailSender from '../../utils/emailSender';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -127,7 +129,7 @@ const createUserSubscriptionIntoDb = async (
       item => item.price.id === subscriptionOffer.stripePriceId,
     ),
   );
-  if (isAlreadySubscribed) {  
+  if (isAlreadySubscribed) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'You are already subscribed to this plan',
@@ -135,23 +137,223 @@ const createUserSubscriptionIntoDb = async (
   }
 
   // 6. Create subscription in Stripe (outside transaction)
-  const subscription = (await stripe.subscriptions.create({
+  const subscription = await stripe.subscriptions.create({
     customer: stripeCustomerId,
     items: [{ price: subscriptionOffer.stripePriceId }],
     default_payment_method: data.paymentMethodId,
     expand: ['latest_invoice.payment_intent'],
-  })) ;
+    metadata: {
+      userId: userId,
+      subscriptionOfferId: data.subscriptionOfferId,
+      createdBy: 'api-direct', // Helps identify source
+    },
+  });
 
   // Extract details
   const latestInvoice = subscription.latest_invoice as any;
   const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent;
 
   console.log(latestInvoice, paymentIntent);
+
   if (
     subscription.status === 'incomplete' &&
     paymentIntent?.status !== 'succeeded'
   ) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Subscription payment failed');
+  }
+
+  // Also handle other failure cases
+  if (
+    subscription.status === 'incomplete_expired' ||
+    subscription.status === 'past_due'
+  ) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Subscription payment failed');
+  }
+
+  console.log('Subscription status:', subscription.status);
+  // After successful payment check, send invoice
+  if (subscription.status === 'active' && subscription.latest_invoice) {
+    try {
+      console.log(
+        'Attempting to send invoice to customer:',
+        subscription.latest_invoice,
+      );
+
+      const invoiceId =
+        typeof subscription.latest_invoice === 'string'
+          ? subscription.latest_invoice
+          : subscription.latest_invoice?.id;
+
+      console.log('Invoice ID to be sent:', invoiceId);
+
+      if (typeof invoiceId === 'string') {
+        await stripe.invoices.sendInvoice(invoiceId);
+        console.log('Invoice sent to customer:', invoiceId);
+      } else {
+        console.log('Invoice ID is undefined, cannot send invoice.');
+      }
+    } catch (error) {
+      console.log('Invoice sending failed, but subscription is active:', error);
+      // Optional: fallback to your own email system
+      if (userCheck.email) {
+        try {
+          console.log('Attempting fallback email to user:', userCheck.email);
+          await emailSender(
+            'Your Subscription is Active',
+            userCheck.email,
+            `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscription Confirmation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            margin: 0;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px 20px;
+            text-align: center;
+            color: white;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+        .message {
+            margin-bottom: 25px;
+            font-size: 16px;
+            color: #4a5568;
+        }
+        .invoice-section {
+            background-color: #f7fafc;
+            padding: 20px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            margin: 25px 0;
+        }
+        .invoice-title {
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        .invoice-link {
+            display: inline-block;
+            background-color: #667eea;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .invoice-link:hover {
+            background-color: #5a67d8;
+        }
+        .support {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            color: #718096;
+        }
+        .footer {
+            background-color: #edf2f7;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #718096;
+        }
+        .signature {
+            margin-top: 25px;
+            color: #2d3748;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">✂️ Barber Shift App</div>
+            <h1>Subscription Activated</h1>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">Dear ${userCheck.fullName},</div>
+            
+            <div class="message">
+                Thank you for subscribing! Your subscription is now active and you can start enjoying all the premium features immediately.
+            </div>
+
+            <div class="invoice-section">
+                <div class="invoice-title">📄 Your Invoice</div>
+                <p>You can view and download your invoice directly from our secure payment portal:</p>
+                ${
+                  latestInvoice?.hosted_invoice_url
+                    ? `<a href="${latestInvoice.hosted_invoice_url}" class="invoice-link" target="_blank">
+                        View & Download Invoice
+                      </a>`
+                    : `<p style="color: #e53e3e;">Invoice link will be available shortly. If you don't receive it within 24 hours, please contact support.</p>`
+                }
+            </div>
+
+            <div class="message">
+                <strong>What's next?</strong><br>
+                • Access your premium features immediately<br>
+                • Manage your subscription from your account settings<br>
+                • Receive automatic receipts for future payments
+            </div>
+
+            <div class="support">
+                <strong>Need Help?</strong><br>
+                If you have any questions or need assistance, our support team is here to help!<br>
+                📧 Email: support@barbershiftapp.com<br>
+                ⏰ Hours: Monday-Friday, 9AM-6PM
+            </div>
+
+            <div class="signature">
+                Best regards,<br>
+                <strong>The Barber Shift App Team</strong>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 Barber Shift App. All rights reserved.</p>
+            <p>You're receiving this email because you recently subscribed to our service.</p>
+        </div>
+    </div>
+</body>
+            </html>`,
+          );
+          console.log('Fallback email sent to user:', userCheck.email);
+        } catch (emailError) {
+          console.log('Fallback email sending failed:', emailError);
+        }
+      }
+    }
   }
 
   const subscriptionWithPeriod =
@@ -189,6 +391,8 @@ const createUserSubscriptionIntoDb = async (
           paymentAmount: subscriptionOffer.price,
           amountProvider: stripeCustomerId,
           status: PaymentStatus.COMPLETED,
+          // paymentIntentId: paymentIntent?.id,
+          invoiceId: latestInvoice?.id,
           user: {
             connect: { id: userId },
           },
@@ -200,6 +404,7 @@ const createUserSubscriptionIntoDb = async (
         data: {
           isSubscribed: true,
           subscriptionEnd: endDate,
+          subscriptionPlan: subscriptionOffer.planType,
         },
       });
 

@@ -58,8 +58,11 @@ const createJobPostIntoDb = async (
       );
     }
 
+
     // If the plan is PRO_PREMIUM no restrictions apply
-  } else if (subscriptionPlan === SubscriptionPlanStatus.PRO_PREMIUM ||
+  }
+  
+  if (subscriptionPlan === SubscriptionPlanStatus.PRO_PREMIUM ||
     subscriptionPlan === SubscriptionPlanStatus.BASIC_PREMIUM) {
     // No restrictions
     const shopDetails = await prisma.user.findUnique({
@@ -111,8 +114,8 @@ const createJobPostIntoDb = async (
       });
     
 
+      
       return result;
-    
     
     });
   
@@ -303,15 +306,26 @@ const toggleJobPostActiveIntoDb = async (userId: string, jobPostId: string) => {
 };
 
 const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
+  console.log('Deleting Job Post ID:', jobPostId, 'for User ID:', userId);
   const deletedItem = await prisma.jobPost.delete({
     where: {
       id: jobPostId,
-      userId: userId,
+      saloonOwnerId: userId,
     },
   });
   if (!deletedItem) {
     throw new AppError(httpStatus.BAD_REQUEST, 'jobPostId, not deleted');
   }
+  await prisma.saloonOwner.update({
+    where: {
+      userId: userId,
+    },
+    data: {
+      jobPostCount: {
+        decrement: 1,
+      },
+    },
+  });
 
   return deletedItem;
 };

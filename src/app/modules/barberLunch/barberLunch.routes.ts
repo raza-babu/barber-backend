@@ -4,12 +4,14 @@ import validateRequest from '../../middlewares/validateRequest';
 import { barberLunchController } from './barberLunch.controller';
 import { barberLunchValidation } from './barberLunch.validation';
 import { UserRoleEnum } from '@prisma/client';
+import checkSubscriptionForSalonOwners from '../../middlewares/checkSubscriptionForSalonOwners';
 
 const router = express.Router();
 
 router.post(
   '/',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   validateRequest(barberLunchValidation.createBarberLunchSchema),
   barberLunchController.createBarberLunch,
 );

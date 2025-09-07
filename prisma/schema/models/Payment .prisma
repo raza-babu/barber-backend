@@ -5,7 +5,7 @@ model Payment {
   paymentIntentId      String?       @unique
   paymentMethodId      String?
   paymentAmount        Float
-  bookingId            String?       @unique @db.ObjectId
+  bookingId            String?       @db.ObjectId
   paymentDate          DateTime      @default(now())
   amountProvider       String
   amountReceiver       String?
