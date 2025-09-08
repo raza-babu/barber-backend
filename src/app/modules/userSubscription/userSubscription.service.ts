@@ -172,6 +172,72 @@ const createUserSubscriptionIntoDb = async (
 
   console.log('Subscription status:', subscription.status);
   // After successful payment check, send invoice
+
+  const subscriptionWithPeriod =
+    subscription as unknown as Stripe.Subscription & {
+      current_period_start: number;
+      current_period_end: number;
+    };
+
+  // 7. ONLY database operations go inside the transaction
+  const result = await prisma.$transaction(
+    async tx => {
+      // Convert Stripe Unix timestamps to JavaScript Date objects
+      const startDate = subscriptionWithPeriod.current_period_start
+        ? new Date(subscriptionWithPeriod.current_period_start * 1000)
+        : new Date();
+
+      const endDate = subscriptionWithPeriod.current_period_end
+        ? new Date(subscriptionWithPeriod.current_period_end * 1000)
+        : new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const createdSubscription = await tx.userSubscription.create({
+        data: {
+          userId: userCheck.id,
+          subscriptionOfferId: subscriptionOffer.id,
+          startDate: startDate,
+          endDate: endDate,
+          stripeSubscriptionId: subscription.id,
+          paymentStatus: PaymentStatus.COMPLETED,
+        },
+      });
+
+      await tx.payment.create({
+        data: {
+          stripeSubscriptionId: subscription.id,
+          paymentAmount: subscriptionOffer.price,
+          amountProvider: stripeCustomerId,
+          status: PaymentStatus.COMPLETED,
+          // paymentIntentId: paymentIntent?.id,
+          invoiceId: latestInvoice?.id,
+          user: {
+            connect: { id: userId },
+          },
+        },
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          isSubscribed: true,
+          subscriptionEnd: endDate,
+          subscriptionPlan: subscriptionOffer.planType,
+          stripeSubscriptionId: subscription.id,
+        },
+      });
+
+      return {
+        ...createdSubscription,
+        subscriptionId: subscription.id,
+        paymentIntentId: paymentIntent?.id,
+      };
+    },
+    {
+      // Optional: Increase timeout if needed (default is 5000ms)
+      timeout: 10000, // 10 seconds
+    },
+  );
+
   if (subscription.status === 'active' && subscription.latest_invoice) {
     try {
       console.log(
@@ -206,13 +272,12 @@ const createUserSubscriptionIntoDb = async (
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subscription Confirmation</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
             color: #333333;
-            margin: 0;
+            margin: 10px;
             padding: 10px;
             background-color: #f9f9f9;
         }
@@ -341,7 +406,7 @@ const createUserSubscriptionIntoDb = async (
         </div>
 
         <div class="footer">
-            <p>© 2024 Barber Shift App. All rights reserved.</p>
+            <p>©${new Date().getFullYear()} Barber Shift App. All rights reserved.</p>
             <p>You're receiving this email because you recently subscribed to our service.</p>
         </div>
     </div>
@@ -356,71 +421,39 @@ const createUserSubscriptionIntoDb = async (
     }
   }
 
-  const subscriptionWithPeriod =
-    subscription as unknown as Stripe.Subscription & {
-      current_period_start: number;
-      current_period_end: number;
-    };
-
-  // 7. ONLY database operations go inside the transaction
-  const result = await prisma.$transaction(
-    async tx => {
-      // Convert Stripe Unix timestamps to JavaScript Date objects
-      const startDate = subscriptionWithPeriod.current_period_start
-        ? new Date(subscriptionWithPeriod.current_period_start * 1000)
-        : new Date();
-
-      const endDate = subscriptionWithPeriod.current_period_end
-        ? new Date(subscriptionWithPeriod.current_period_end * 1000)
-        : new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-      const createdSubscription = await tx.userSubscription.create({
-        data: {
-          userId: userCheck.id,
-          subscriptionOfferId: subscriptionOffer.id,
-          startDate: startDate,
-          endDate: endDate,
-          stripeSubscriptionId: subscription.id,
-          paymentStatus: PaymentStatus.COMPLETED,
-        },
-      });
-
-      await tx.payment.create({
-        data: {
-          stripeSubscriptionId: subscription.id,
-          paymentAmount: subscriptionOffer.price,
-          amountProvider: stripeCustomerId,
-          status: PaymentStatus.COMPLETED,
-          // paymentIntentId: paymentIntent?.id,
-          invoiceId: latestInvoice?.id,
-          user: {
-            connect: { id: userId },
-          },
-        },
-      });
-
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          isSubscribed: true,
-          subscriptionEnd: endDate,
-          subscriptionPlan: subscriptionOffer.planType,
-        },
-      });
-
-      return {
-        ...createdSubscription,
-        subscriptionId: subscription.id,
-        paymentIntentId: paymentIntent?.id,
-      };
-    },
-    {
-      // Optional: Increase timeout if needed (default is 5000ms)
-      timeout: 10000, // 10 seconds
-    },
-  );
-
   return result;
+};
+
+const getOwnerSubscriptionPlanFromDb = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      subscriptionPlan: true,
+      isSubscribed: true,
+      subscriptionEnd: true,
+      stripeSubscriptionId: true,
+      SaloonOwner: {
+        select: {
+          shopName: true,
+          shopLogo: true,
+          userId: true,
+          isVerified: true,
+        },
+      },
+      UserSubscription: {
+        select: {
+          id: true,
+          startDate: true,
+          endDate: true,
+        },
+        where: { paymentStatus: PaymentStatus.COMPLETED },
+      }
+    },
+  });
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+  return user;
 };
 
 const getUserSubscriptionListFromDb = async (userId: string) => {
@@ -620,16 +653,76 @@ const updateUserSubscriptionIntoDb = async (
   return result;
 };
 
-const deleteUserSubscriptionItemFromDb = async (
+const cancelAutomaticRenewalIntoDb = async (
   userId: string,
   userSubscriptionId: string,
+) => {
+  const result = await prisma.$transaction(async tx => {
+    // Step 1: Find existing subscription for THIS USER
+    const existing = await tx.userSubscription.findFirst({
+      where: {
+        id: userSubscriptionId,
+        userId: userId, // ← CRITICAL: Add user filter
+        paymentStatus: PaymentStatus.COMPLETED,
+      },
+    });
+    if (!existing) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Subscription not found');
+    }
+    if (!existing.stripeSubscriptionId) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Stripe subscription ID missing',
+      );
+    }
+    // Step 2: Update Stripe subscription to cancel at period end
+    try {
+      console.log(
+        'Setting Stripe subscription to cancel at period end:',
+        existing.stripeSubscriptionId,
+      );
+      await stripe.subscriptions.update(existing.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+      console.log(
+        'Stripe subscription set to cancel at period end:',
+        existing.stripeSubscriptionId,
+      );
+    } catch (err) {
+      console.error('Error updating Stripe subscription:', err);
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Failed to update Stripe subscription',
+      );
+    }
+    // Step 3: Update user subscription record in DB
+    const updatedSubscription = await tx.userSubscription.update({
+      where: {
+        id: existing.id, // Use the ID from the found subscription
+      },
+      data: {
+        // endDate remains unchanged
+        paymentStatus: PaymentStatus.CANCELLED, // Mark as CANCELLED to indicate no renewal
+      },
+    });
+    return {
+      message: 'Subscription set to cancel at period end',
+      subscription: updatedSubscription,
+    };
+  });
+  return result;
+};
+
+const deleteCustomerSubscriptionItemFromDb = async (
+  userId: string,
+  saloonOwnerId: string,
 ) => {
   const result = await prisma.$transaction(async tx => {
     // Step 1: Find existing subscription
     const existing = await tx.userSubscription.findFirst({
       where: {
-        id: userSubscriptionId,
-        userId,
+        userId: saloonOwnerId,
+        paymentStatus: PaymentStatus.COMPLETED,
       },
     });
     if (!existing) {
@@ -639,54 +732,159 @@ const deleteUserSubscriptionItemFromDb = async (
     // Step 2: Cancel Stripe subscription if exists
     if (existing.stripeSubscriptionId) {
       try {
+        console.log(
+          'Cancelling Stripe subscription:',
+          existing.stripeSubscriptionId,
+        );
         await stripe.subscriptions.cancel(existing.stripeSubscriptionId);
+        console.log(
+          'Stripe subscription cancelled:',
+          existing.stripeSubscriptionId,
+        );
       } catch (err) {
-        // Log error but proceed with deletion
         console.error('Error cancelling Stripe subscription:', err);
+        // Don't throw - proceed with database cancellation
       }
     }
-
-    // Step 3: Delete user subscription record
-    await tx.userSubscription.update({
-      where: { id: userSubscriptionId },
-      data: { endDate: new Date(), paymentStatus: PaymentStatus.REFUNDED }, // Soft delete by setting endDate to now
-    });
-
-    // Step 4: Check if user has other active subscriptions
-    const activeSubscriptions = await tx.userSubscription.findUnique({
+    console.log('Proceeding to cancel subscription in DB:', saloonOwnerId);
+    // Step 3: Update user subscription record (soft delete)
+    const updatedSubscription = await tx.userSubscription.update({
       where: {
-        userId,
+        userId: saloonOwnerId,
         stripeSubscriptionId: existing.stripeSubscriptionId!,
-        endDate: {
-          gt: new Date(),
-        },
+      },
+      data: {
+        endDate: new Date(),
+        paymentStatus: PaymentStatus.CANCELLED, // Use CANCELLED instead of REFUNDED
       },
     });
 
-    const checkPaymentStatus = await prisma.payment.findUnique({
+    console.log('Proceeding to cancel subscription in DB:', saloonOwnerId);
+
+    // Step 4: Update related payments
+    const paymentsToUpdate = await tx.payment.findMany({
       where: {
-        userId: existing.userId,
-        stripeSubscriptionId: existing.stripeSubscriptionId!,
+        stripeSubscriptionId: existing.stripeSubscriptionId,
         status: PaymentStatus.COMPLETED,
       },
     });
-    if (!checkPaymentStatus) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Payment not found');
+
+    if (paymentsToUpdate.length > 0) {
+      await tx.payment.updateMany({
+        where: {
+          stripeSubscriptionId: existing.stripeSubscriptionId,
+          status: PaymentStatus.COMPLETED,
+        },
+        data: {
+          status: PaymentStatus.CANCELLED, // Or REFUNDED if you actually process refunds
+        },
+      });
     }
 
-    const updatePaymentStatus = await tx.payment.update({
+    // Step 5: Check if user has other active subscriptions
+    // const otherActiveSubscriptions = await tx.userSubscription.findFirst({
+    //   where: {
+    //     userId: userId,
+    //     id: { not: subscriptionOfferId }, // Exclude this subscription
+    //     endDate: { gt: new Date() },
+    //     paymentStatus: PaymentStatus.COMPLETED,
+    //   },
+    // });
+
+    // // Step 6: Update user status if no active subscriptions remain
+    // if (!otherActiveSubscriptions) {
+    //   await tx.user.update({
+    //     where: { id: userId },
+    //     data: {
+    //       isSubscribed: false,
+    //       subscriptionEnd: null,
+    //     },
+    //   });
+    // }
+
+    return {
+      message: 'Subscription cancelled successfully',
+      saloonOwnerId: saloonOwnerId,
+    };
+  });
+  return result;
+};
+
+const deleteUserSubscriptionItemFromDb = async (
+  userId: string,
+  subscriptionOfferId: string,
+) => {
+  const result = await prisma.$transaction(async tx => {
+    // Step 1: Find existing subscription for THIS USER
+    const existing = await tx.userSubscription.findFirst({
       where: {
-        userId: existing.userId,
-        stripeSubscriptionId: existing.stripeSubscriptionId!,
+        subscriptionOfferId: subscriptionOfferId,
+        userId: userId, // ← CRITICAL: Add user filter
+        paymentStatus: PaymentStatus.COMPLETED,
       },
-      data: { status: PaymentStatus.REFUNDED },
     });
-    if (!updatePaymentStatus) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Payment not updated');
+    if (!existing) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Subscription not found');
     }
 
-    // Step 5: Update user status if no active subscriptions remain
-    if (!activeSubscriptions) {
+    // Step 2: Cancel Stripe subscription if exists
+    if (existing.stripeSubscriptionId) {
+      try {
+        console.log(
+          'Cancelling Stripe subscription:',
+          existing.stripeSubscriptionId,
+        );
+
+        // CANCEL IMMEDIATELY (no refund)
+        // CORRECT: Use .cancel() with options to prevent refunds
+        await stripe.subscriptions.cancel(existing.stripeSubscriptionId, {
+          invoice_now: false, // Don't create final invoice
+          prorate: false, // Don't prorate refund
+        });
+        console.log(
+          'Stripe subscription cancelled immediately (no refund):',
+          existing.stripeSubscriptionId,
+        );
+      } catch (err) {
+        console.error('Error cancelling Stripe subscription:', err);
+        // Don't throw - proceed with database cancellation
+      }
+    }
+
+    // Step 3: Update user subscription record (soft delete)
+    const updatedSubscription = await tx.userSubscription.update({
+      where: {
+        id: existing.id, // Use the ID from the found subscription
+      },
+      data: {
+        endDate: new Date(),
+        paymentStatus: PaymentStatus.CANCELLED,
+      },
+    });
+
+    // Step 4: Update related payments to CANCELLED (not refunded)
+    await tx.payment.updateMany({
+      where: {
+        stripeSubscriptionId: existing.stripeSubscriptionId,
+        status: PaymentStatus.COMPLETED,
+      },
+      data: {
+        status: PaymentStatus.CANCELLED,
+      },
+    });
+
+    // Step 5: Check if user has other active subscriptions
+    const otherActiveSubscriptions = await tx.userSubscription.findFirst({
+      where: {
+        userId: userId,
+        id: { not: existing.id }, // Exclude this subscription
+        endDate: { gt: new Date() },
+        paymentStatus: PaymentStatus.COMPLETED,
+      },
+    });
+
+    // Step 6: Update user status if no active subscriptions remain
+    if (!otherActiveSubscriptions) {
       await tx.user.update({
         where: { id: userId },
         data: {
@@ -696,7 +894,10 @@ const deleteUserSubscriptionItemFromDb = async (
       });
     }
 
-    return { message: 'Subscription cancelled successfully' };
+    return {
+      message: 'Subscription cancelled successfully (no refund issued)',
+      cancelledSubscriptionId: existing.id,
+    };
   });
   return result;
 };
@@ -704,7 +905,10 @@ const deleteUserSubscriptionItemFromDb = async (
 export const userSubscriptionService = {
   createUserSubscriptionIntoDb,
   getUserSubscriptionListFromDb,
+  getOwnerSubscriptionPlanFromDb,
   getUserSubscriptionByIdFromDb,
   updateUserSubscriptionIntoDb,
+  cancelAutomaticRenewalIntoDb,
   deleteUserSubscriptionItemFromDb,
+  deleteCustomerSubscriptionItemFromDb,
 };

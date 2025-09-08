@@ -18,6 +18,7 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const jobApplications_service_1 = require("./jobApplications.service");
 const pickValidFields_1 = require("../../utils/pickValidFields");
+const client_1 = require("@prisma/client");
 const createJobApplications = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield jobApplications_service_1.jobApplicationsService.createJobApplicationsIntoDb(user.id, req.body);
@@ -41,24 +42,50 @@ const getJobApplicationsList = (0, catchAsync_1.default)((req, res) => __awaiter
         'startDate',
         'endDate',
     ]);
-    const result = yield jobApplications_service_1.jobApplicationsService.getJobApplicationsListFromDb(user.id, filters);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'JobApplications list retrieved successfully',
-        data: result.data,
-        meta: result.meta,
-    });
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access hired barbers.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield jobApplications_service_1.jobApplicationsService.getJobApplicationsListFromDb(user.id, filters);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'JobApplications list retrieved successfully',
+            data: result.data,
+            meta: result.meta,
+        });
+    }
 }));
 const getJobApplicationsById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield jobApplications_service_1.jobApplicationsService.getJobApplicationsByIdFromDb(user.id, req.params.id);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'JobApplications details retrieved successfully',
-        data: result,
-    });
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access hired barbers.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield jobApplications_service_1.jobApplicationsService.getJobApplicationsByIdFromDb(user.id, req.params.id);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'JobApplications details retrieved successfully',
+            data: result,
+        });
+    }
 }));
 const getHiredBarbersList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
@@ -71,34 +98,73 @@ const getHiredBarbersList = (0, catchAsync_1.default)((req, res) => __awaiter(vo
         'startDate',
         'endDate',
     ]);
-    const result = yield jobApplications_service_1.jobApplicationsService.getHiredBarbersListFromDb(user.id, filters);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'Hired Barbers list retrieved successfully',
-        data: result.data,
-        meta: result.meta,
-    });
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access hired barbers.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield jobApplications_service_1.jobApplicationsService.getHiredBarbersListFromDb(user.id, filters);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Hired Barbers list retrieved successfully',
+            data: result.data,
+            meta: result.meta,
+        });
+    }
 }));
 const updateJobApplications = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield jobApplications_service_1.jobApplicationsService.updateJobApplicationsIntoDb(user.id, req.params.id, req.body);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'JobApplications updated successfully',
-        data: result,
-    });
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access hired barbers.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield jobApplications_service_1.jobApplicationsService.updateJobApplicationsIntoDb(user.id, req.params.id, req.body);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'JobApplications updated successfully',
+            data: result,
+        });
+    }
 }));
 const deleteJobApplications = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield jobApplications_service_1.jobApplicationsService.deleteJobApplicationsItemFromDb(user.id, req.params.id);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'JobApplications deleted successfully',
-        data: result,
-    });
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access hired barbers.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield jobApplications_service_1.jobApplicationsService.deleteJobApplicationsItemFromDb(user.id, req.params.id);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'JobApplications deleted successfully',
+            data: result,
+        });
+    }
 }));
 exports.jobApplicationsController = {
     createJobApplications,

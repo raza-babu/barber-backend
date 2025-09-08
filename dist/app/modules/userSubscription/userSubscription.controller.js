@@ -27,6 +27,16 @@ const createUserSubscription = (0, catchAsync_1.default)((req, res) => __awaiter
         data: result,
     });
 }));
+const getUOwnerSubscriptionPlan = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield userSubscription_service_1.userSubscriptionService.getOwnerSubscriptionPlanFromDb(user.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Owner Subscription Plan retrieved successfully',
+        data: result,
+    });
+}));
 const getUserSubscriptionList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield userSubscription_service_1.userSubscriptionService.getUserSubscriptionListFromDb(user.id);
@@ -57,6 +67,16 @@ const updateUserSubscription = (0, catchAsync_1.default)((req, res) => __awaiter
         data: result,
     });
 }));
+const cancelAutomaticRenewal = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield userSubscription_service_1.userSubscriptionService.cancelAutomaticRenewalIntoDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Automatic renewal cancelled successfully',
+        data: result,
+    });
+}));
 const deleteUserSubscription = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield userSubscription_service_1.userSubscriptionService.deleteUserSubscriptionItemFromDb(user.id, req.params.id);
@@ -67,10 +87,23 @@ const deleteUserSubscription = (0, catchAsync_1.default)((req, res) => __awaiter
         data: result,
     });
 }));
+const deleteUserSubscriptionForCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield userSubscription_service_1.userSubscriptionService.deleteCustomerSubscriptionItemFromDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'UserSubscription deleted successfully',
+        data: result,
+    });
+}));
 exports.userSubscriptionController = {
     createUserSubscription,
     getUserSubscriptionList,
+    getUOwnerSubscriptionPlan,
     getUserSubscriptionById,
     updateUserSubscription,
+    cancelAutomaticRenewal,
     deleteUserSubscription,
+    deleteUserSubscriptionForCustomer,
 };

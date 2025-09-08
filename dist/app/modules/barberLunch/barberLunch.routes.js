@@ -10,8 +10,9 @@ const validateRequest_1 = __importDefault(require("../../middlewares/validateReq
 const barberLunch_controller_1 = require("./barberLunch.controller");
 const barberLunch_validation_1 = require("./barberLunch.validation");
 const client_1 = require("@prisma/client");
+const checkSubscriptionForSalonOwners_1 = __importDefault(require("../../middlewares/checkSubscriptionForSalonOwners"));
 const router = express_1.default.Router();
-router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(barberLunch_validation_1.barberLunchValidation.createBarberLunchSchema), barberLunch_controller_1.barberLunchController.createBarberLunch);
+router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(barberLunch_validation_1.barberLunchValidation.createBarberLunchSchema), barberLunch_controller_1.barberLunchController.createBarberLunch);
 router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), barberLunch_controller_1.barberLunchController.getBarberLunchList);
 router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), barberLunch_controller_1.barberLunchController.getBarberLunchById);
 router.put('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(barberLunch_validation_1.barberLunchValidation.updateBarberLunchSchema), barberLunch_controller_1.barberLunchController.updateBarberLunch);

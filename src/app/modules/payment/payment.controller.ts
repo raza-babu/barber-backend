@@ -250,36 +250,106 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
       }
       break;
 
-    case 'customer.subscription.created': {
+    case 'customer.subscription.updated': {
       const subscription = event.data.object as Stripe.Subscription;
 
-      // console.log(subscription, 'check subscription created');
-
-      // find user by customerId
       const user = await prisma.user.findFirst({
         where: { stripeCustomerId: subscription.customer as string },
       });
 
-      if (user) {
+      if (!user) break;
+      // Find which plan this subscription is tied to
+      let planType: SubscriptionPlanStatus = SubscriptionPlanStatus.FREE;
+      if (subscription.items.data.length > 0) {
+        const subscriptionOffer = await prisma.subscriptionOffer.findFirst({
+          where: { stripePriceId: subscription.items.data[0].price.id },
+        });
+        planType = subscriptionOffer?.planType ?? SubscriptionPlanStatus.FREE;
+      }
+
+      // Get current_period_end from subscription items
+      const currentPeriodEnd = subscription.items.data[0]?.current_period_end;
+      const subscriptionEndDate = currentPeriodEnd
+        ? new Date(currentPeriodEnd * 1000)
+        : new Date();
+
+      // Handle scheduled cancellations (customer turned off auto-renewal)
+      if (subscription.cancel_at_period_end) {
         await prisma.user.update({
           where: { id: user.id },
           data: {
-            isSubscribed: true,
-            subscriptionEnd: new Date(
-              (subscription as any).current_period_end * 1000,
-            ), // Stripe gives timestamp in seconds
+            isSubscribed: true, // Still active until period ends
+            subscriptionEnd: subscriptionEndDate,
+            subscriptionPlan: planType,
           },
         });
+        console.log(
+          'Auto-renewal turned off - subscription continues until:',
+          subscriptionEndDate,
+        );
+      }
+
+      // Update user status regardless of cancellation type
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isSubscribed: subscription.status === 'active',
+          subscriptionEnd: subscriptionEndDate,
+          subscriptionPlan: planType,
+        },
+      });
+
+      // ONLY process refund if subscription is immediately canceled (not just auto-renewal turned off)
+      if (
+        subscription.status === 'canceled' &&
+        !subscription.cancel_at_period_end
+      ) {
+        console.log('Immediate cancellation detected - processing refund');
+
+        const paymentToUpdate = await prisma.payment.findFirst({
+          where: {
+            stripeSubscriptionId: subscription.id,
+            status: PaymentStatus.COMPLETED,
+          },
+        });
+
+        // Only attempt refund if we have a paymentIntentId and subscription was active
+        if (paymentToUpdate?.paymentIntentId) {
+          try {
+            const refund = await stripe.refunds.create({
+              payment_intent: paymentToUpdate.paymentIntentId,
+            });
+            console.log(
+              'Refund processed for immediate cancellation:',
+              refund.id,
+            );
+          } catch (refundError) {
+            console.error('Refund failed:', refundError);
+          }
+        }
+
+        // Update payment status to refunded
         await prisma.payment.updateMany({
           where: {
             stripeSubscriptionId: subscription.id,
+            status: PaymentStatus.COMPLETED,
+          },
+          data: { status: PaymentStatus.REFUNDED },
+        });
+
+        // Update user subscription status
+        await prisma.userSubscription.updateMany({
+          where: {
+            userId: user.id,
+            stripeSubscriptionId: subscription.id,
           },
           data: {
-            status: PaymentStatus.COMPLETED,
-            invoiceId: subscription.latest_invoice as string,
+            paymentStatus: PaymentStatus.REFUNDED,
+            endDate: new Date(),
           },
         });
       }
+
       break;
     }
 
@@ -293,7 +363,7 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
       if (!user) break;
 
       // Find which plan this subscription is tied to
-      let planType = SubscriptionPlanStatus.FREE as SubscriptionPlanStatus;
+      let planType: SubscriptionPlanStatus = SubscriptionPlanStatus.FREE;
       if (subscription.items.data.length > 0) {
         const subscriptionOffer = await prisma.subscriptionOffer.findFirst({
           where: { stripePriceId: subscription.items.data[0].price.id },
@@ -301,55 +371,68 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
         planType = subscriptionOffer?.planType || SubscriptionPlanStatus.FREE;
       }
 
-      // Handle scheduled cancellations
+      // Get current_period_end from subscription items
+      const currentPeriodEnd = subscription.items.data[0]?.current_period_end;
+      const subscriptionEndDate = currentPeriodEnd
+        ? new Date(currentPeriodEnd * 1000)
+        : new Date();
+
+      // Handle scheduled cancellations (customer turned off auto-renewal)
       if (subscription.cancel_at_period_end) {
         await prisma.user.update({
           where: { id: user.id },
           data: {
             isSubscribed: true, // Still active until period ends
-            subscriptionEnd: new Date(
-              (subscription as any).current_period_end * 1000,
-            ),
+            subscriptionEnd: subscriptionEndDate,
             subscriptionPlan: planType,
           },
         });
         console.log(
-          'Subscription scheduled for cancellation:',
-          subscription.id,
+          'Auto-renewal turned off - subscription continues until:',
+          subscriptionEndDate,
         );
-        break;
       }
 
-      // Update the user with subscription details
+      // Update user status regardless of cancellation type
       await prisma.user.update({
         where: { id: user.id },
         data: {
           isSubscribed: subscription.status === 'active',
-          subscriptionEnd: new Date(
-            (subscription as any).current_period_end * 1000,
-          ),
+          subscriptionEnd: subscriptionEndDate,
           subscriptionPlan: planType,
         },
       });
 
-      const paymentToUpdate = await prisma.payment.findFirst({
-        where: { stripeSubscriptionId: subscription.id },
-      });
+      // ONLY process refund if subscription is immediately canceled (not just auto-renewal turned off)
+      if (
+        subscription.status === 'canceled' &&
+        !subscription.cancel_at_period_end
+      ) {
+        console.log('Immediate cancellation detected - processing refund');
 
-      // If subscription was canceled → trigger refund logic
-      if (subscription.status === 'canceled') {
-        // Only attempt refund if we have a paymentIntentId
+        const paymentToUpdate = await prisma.payment.findFirst({
+          where: {
+            stripeSubscriptionId: subscription.id,
+            status: PaymentStatus.COMPLETED,
+          },
+        });
+
+        // Only attempt refund if we have a paymentIntentId and subscription was active
         if (paymentToUpdate?.paymentIntentId) {
           try {
             const refund = await stripe.refunds.create({
               payment_intent: paymentToUpdate.paymentIntentId,
             });
-            console.log('Refund processed:', refund.id);
+            console.log(
+              'Refund processed for immediate cancellation:',
+              refund.id,
+            );
           } catch (refundError) {
             console.error('Refund failed:', refundError);
           }
         }
 
+        // Update payment status to refunded
         await prisma.payment.updateMany({
           where: {
             stripeSubscriptionId: subscription.id,
@@ -358,20 +441,16 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
           data: { status: PaymentStatus.REFUNDED },
         });
 
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            isSubscribed: false,
-            subscriptionEnd: new Date(),
-            subscriptionPlan: SubscriptionPlanStatus.FREE,
-          },
-        });
-
+        // Update user subscription status
         await prisma.userSubscription.updateMany({
           where: {
             userId: user.id,
+            stripeSubscriptionId: subscription.id,
           },
-          data: { paymentStatus: PaymentStatus.REFUNDED, endDate: new Date() },
+          data: {
+            paymentStatus: PaymentStatus.REFUNDED,
+            endDate: new Date(),
+          },
         });
       }
 
@@ -431,86 +510,247 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
 
     case 'invoice.paid': {
       const invoice = event.data.object as any;
-      // Use type assertion for subscription field
-      // const subscriptionId = (invoice as any).subscription as string;
       const invoiceId = invoice.id;
-      const paymentIntentId = invoice.payment_intent;
-      const subscriptionId = invoice.subscription;
-      console.log(subscriptionId, 'check subscription id from invoice');
+      const paymentIntentId = invoice.payment_intent as string;
+      const subscriptionId = invoice.subscription as string;
+      const billingReason = invoice.billing_reason;
 
-      if (subscriptionId && invoice.billing_reason === 'subscription_create') {
-        // This is a renewal payment - update subscription end date
-        const subscription =
-          await stripe.subscriptions.retrieve(subscriptionId);
+      console.log('Invoice paid:', {
+        invoiceId,
+        subscriptionId,
+        paymentIntentId,
+        billingReason,
+      });
 
-        // Type assertion for current_period_end
-        const subscriptionWithPeriod = subscription as unknown as {
-          current_period_end: number;
-        };
+      if (!subscriptionId) {
+        console.log('No subscription associated with this invoice');
+        break;
+      }
 
-        const newEndDate = new Date(
-          subscriptionWithPeriod.current_period_end * 1000,
-        );
+      try {
+        if (billingReason === 'subscription_cycle') {
+          // ==================== AUTO-RENEWAL PAYMENT ====================
+          console.log('Auto-renewal payment detected');
 
-        await prisma.userSubscription.updateMany({
-          where: { stripeSubscriptionId: subscriptionId },
-          data: {
-            endDate: newEndDate,
-            paymentStatus: PaymentStatus.COMPLETED,
-          },
-        });
+          // 1. Retrieve subscription to get new end date
+          const subscription =
+            await stripe.subscriptions.retrieve(subscriptionId);
 
-        // Get user associated with this subscription
-        const userSubscription = await prisma.userSubscription.findFirst({
-          where: { stripeSubscriptionId: subscriptionId },
-          include: { user: true },
-        });
+          // Get current_period_end from the first subscription item
+          const currentPeriodEnd =
+            subscription.items.data[0]?.current_period_end;
 
-        if (userSubscription) {
-          // UPDATE existing payment record instead of creating new one
-          const existingPayment = await prisma.payment.findUnique({
-            where: {
-              stripeSubscriptionId: subscriptionId,
-              status: PaymentStatus.COMPLETED, // Look for the pending renewal record
+          if (!currentPeriodEnd) {
+            console.error('No current_period_end found in subscription items');
+            break;
+          }
+
+          const newEndDate = new Date(currentPeriodEnd * 1000);
+          console.log('Updating subscription end date to:', newEndDate);
+
+          // 2. Update subscription end date in database
+          await prisma.userSubscription.updateMany({
+            where: { stripeSubscriptionId: subscriptionId },
+            data: {
+              endDate: newEndDate,
+              paymentStatus: PaymentStatus.COMPLETED,
             },
           });
 
-          if (existingPayment) {
-            // Update the existing payment with payment_intent and mark as completed
-            await prisma.payment.update({
-              where: { id: existingPayment.id, invoiceId: invoice.id },
-              data: {
-                paymentIntentId: paymentIntentId,
-                status: PaymentStatus.COMPLETED,
-                paymentAmount: invoice.amount_paid
-                  ? invoice.amount_paid / 100
-                  : 0,
+          // 3. Update user's subscription end date
+          await prisma.user.updateMany({
+            where: {
+              UserSubscription: {
+                some: { stripeSubscriptionId: subscriptionId },
               },
-            });
-          } else {
-            // Fallback: Create new payment record if no existing one found
+            },
+            data: {
+              subscriptionEnd: newEndDate,
+              isSubscribed: true,
+            },
+          });
+
+          // 4. Create payment record for the renewal
+          const userSubscription = await prisma.userSubscription.findFirst({
+            where: { stripeSubscriptionId: subscriptionId },
+            include: {
+              user: {
+                select: { id: true, stripeCustomerId: true },
+              },
+            },
+          });
+
+          if (userSubscription && userSubscription.user) {
             await prisma.payment.create({
               data: {
                 stripeSubscriptionId: subscriptionId,
-                invoiceId: invoice.id,
-                paymentIntentId: (invoice as any).payment_intent as string,
+                invoiceId: invoiceId,
+                paymentIntentId: paymentIntentId,
                 paymentAmount: invoice.amount_paid
                   ? invoice.amount_paid / 100
                   : 0,
-                amountProvider: userSubscription.user.stripeCustomerId || '',
+                amountProvider:
+                  userSubscription.user.stripeCustomerId ||
+                  invoice.customer ||
+                  '',
                 status: PaymentStatus.COMPLETED,
                 user: {
                   connect: { id: userSubscription.userId },
                 },
               },
             });
+            console.log('Created renewal payment record');
+          }
+
+          console.log('Auto-renewal successfully processed');
+        } else if (billingReason === 'subscription_create') {
+          // ==================== INITIAL PAYMENT ====================
+          console.log('Initial subscription payment detected');
+
+          // For initial payments, just ensure paymentIntentId is updated if missing
+          const existingPayment = await prisma.payment.findFirst({
+            where: {
+              stripeSubscriptionId: subscriptionId,
+              status: PaymentStatus.COMPLETED,
+              invoiceId: invoiceId,
+            },
+          });
+
+          if (existingPayment && !existingPayment.paymentIntentId) {
+            await prisma.payment.update({
+              where: { id: existingPayment.id },
+              data: {
+                paymentIntentId: paymentIntentId,
+              },
+            });
+            console.log('Updated initial payment with paymentIntentId');
+          }
+
+          // Also update invoiceId if it's missing
+          if (existingPayment && !existingPayment.invoiceId) {
+            await prisma.payment.update({
+              where: { id: existingPayment.id },
+              data: {
+                invoiceId: invoiceId,
+              },
+            });
+            console.log('Updated initial payment with invoiceId');
+          }
+        } else if (billingReason === 'subscription_update') {
+          // ==================== SUBSCRIPTION UPDATE (UPGRADE/DOWNGRADE) ====================
+          console.log('Subscription update payment detected');
+
+          // Handle plan changes - update subscription details
+          const subscription =
+            await stripe.subscriptions.retrieve(subscriptionId);
+          const currentPeriodEnd =
+            subscription.items.data[0]?.current_period_end;
+
+          if (currentPeriodEnd) {
+            const newEndDate = new Date(currentPeriodEnd * 1000);
+
+            await prisma.userSubscription.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: {
+                endDate: newEndDate,
+              },
+            });
+
+            await prisma.user.updateMany({
+              where: {
+                UserSubscription: {
+                  some: { stripeSubscriptionId: subscriptionId },
+                },
+              },
+              data: {
+                subscriptionEnd: newEndDate,
+              },
+            });
+          }
+
+          // Create payment record for the update
+          const userSubscription = await prisma.userSubscription.findFirst({
+            where: { stripeSubscriptionId: subscriptionId },
+            include: {
+              user: {
+                select: { id: true, stripeCustomerId: true },
+              },
+            },
+          });
+
+          if (userSubscription && userSubscription.user) {
+            await prisma.payment.create({
+              data: {
+                stripeSubscriptionId: subscriptionId,
+                invoiceId: invoiceId,
+                paymentIntentId: paymentIntentId,
+                paymentAmount: invoice.amount_paid
+                  ? invoice.amount_paid / 100
+                  : 0,
+                amountProvider:
+                  userSubscription.user.stripeCustomerId ||
+                  invoice.customer ||
+                  '',
+                status: PaymentStatus.COMPLETED,
+                user: {
+                  connect: { id: userSubscription.userId },
+                },
+              },
+            });
+            console.log('Created update payment record');
+          }
+        } else {
+          // ==================== OTHER PAYMENT TYPES ====================
+          console.log('Other invoice type:', billingReason);
+
+          // Handle other payment types (manual, upcoming, etc.)
+          // Create a basic payment record if it doesn't exist
+          const existingPayment = await prisma.payment.findFirst({
+            where: {
+              invoiceId: invoiceId,
+            },
+          });
+
+          if (!existingPayment) {
+            const userSubscription = await prisma.userSubscription.findFirst({
+              where: { stripeSubscriptionId: subscriptionId },
+              include: {
+                user: {
+                  select: { id: true, stripeCustomerId: true },
+                },
+              },
+            });
+
+            if (userSubscription && userSubscription.user) {
+              await prisma.payment.create({
+                data: {
+                  stripeSubscriptionId: subscriptionId,
+                  invoiceId: invoiceId,
+                  paymentIntentId: paymentIntentId,
+                  paymentAmount: invoice.amount_paid
+                    ? invoice.amount_paid / 100
+                    : 0,
+                  amountProvider:
+                    userSubscription.user.stripeCustomerId ||
+                    invoice.customer ||
+                    '',
+                  status: PaymentStatus.COMPLETED,
+                  user: {
+                    connect: { id: userSubscription.userId },
+                  },
+                },
+              });
+              console.log('Created payment record for other invoice type');
+            }
           }
         }
+      } catch (error) {
+        console.error('Error processing invoice.paid:', error);
+        // Consider sending an alert for failed invoice processing
       }
       break;
     }
 
-    // Add these cases to your existing switch statement
     case 'invoice.upcoming': {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;

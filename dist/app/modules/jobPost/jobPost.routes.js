@@ -10,13 +10,14 @@ const validateRequest_1 = __importDefault(require("../../middlewares/validateReq
 const jobPost_controller_1 = require("./jobPost.controller");
 const jobPost_validation_1 = require("./jobPost.validation");
 const client_1 = require("@prisma/client");
+const checkSubscriptionForSalonOwners_1 = __importDefault(require("../../middlewares/checkSubscriptionForSalonOwners"));
 const router = express_1.default.Router();
 router.post('/', 
 // multerUploadMultiple.fields([
 //   { name: 'shop_logo', maxCount: 1 },
 // ]),
 // parseBody,
-(0, auth_1.default)(), (0, validateRequest_1.default)(jobPost_validation_1.jobPostValidation.createJobPostSchema), jobPost_controller_1.jobPostController.createJobPost);
+(0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(jobPost_validation_1.jobPostValidation.createJobPostSchema), jobPost_controller_1.jobPostController.createJobPost);
 router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), jobPost_controller_1.jobPostController.getJobPostList);
 router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), jobPost_controller_1.jobPostController.getJobPostById);
 router.patch('/:id', 

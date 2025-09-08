@@ -5,4 +5,5 @@ enum PaymentStatus {
   EXPIRED
   REFUNDED
   REQUIRES_CAPTURE
+  CANCELLED
 }

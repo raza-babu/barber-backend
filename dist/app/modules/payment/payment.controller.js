@@ -150,7 +150,7 @@ const getAllCustomers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
     });
 }));
 const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _b, _c;
+    var _b, _c, _d, _e, _f, _g, _h;
     const sig = req.headers['stripe-signature'];
     console.log(sig);
     if (!sig) {
@@ -210,28 +210,86 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                 console.log('Onboarding incomplete for account:', account.id);
             }
             break;
-        case 'customer.subscription.created': {
+        case 'customer.subscription.updated': {
             const subscription = event.data.object;
-            // console.log(subscription, 'check subscription created');
-            // find user by customerId
             const user = yield prisma_1.default.user.findFirst({
                 where: { stripeCustomerId: subscription.customer },
             });
-            if (user) {
+            if (!user)
+                break;
+            // Find which plan this subscription is tied to
+            let planType = client_1.SubscriptionPlanStatus.FREE;
+            if (subscription.items.data.length > 0) {
+                const subscriptionOffer = yield prisma_1.default.subscriptionOffer.findFirst({
+                    where: { stripePriceId: subscription.items.data[0].price.id },
+                });
+                planType = (_d = subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.planType) !== null && _d !== void 0 ? _d : client_1.SubscriptionPlanStatus.FREE;
+            }
+            // Get current_period_end from subscription items
+            const currentPeriodEnd = (_e = subscription.items.data[0]) === null || _e === void 0 ? void 0 : _e.current_period_end;
+            const subscriptionEndDate = currentPeriodEnd
+                ? new Date(currentPeriodEnd * 1000)
+                : new Date();
+            // Handle scheduled cancellations (customer turned off auto-renewal)
+            if (subscription.cancel_at_period_end) {
                 yield prisma_1.default.user.update({
                     where: { id: user.id },
                     data: {
-                        isSubscribed: true,
-                        subscriptionEnd: new Date(subscription.current_period_end * 1000), // Stripe gives timestamp in seconds
+                        isSubscribed: true, // Still active until period ends
+                        subscriptionEnd: subscriptionEndDate,
+                        subscriptionPlan: planType,
                     },
                 });
+                console.log('Auto-renewal turned off - subscription continues until:', subscriptionEndDate);
+            }
+            // Update user status regardless of cancellation type
+            yield prisma_1.default.user.update({
+                where: { id: user.id },
+                data: {
+                    isSubscribed: subscription.status === 'active',
+                    subscriptionEnd: subscriptionEndDate,
+                    subscriptionPlan: planType,
+                },
+            });
+            // ONLY process refund if subscription is immediately canceled (not just auto-renewal turned off)
+            if (subscription.status === 'canceled' &&
+                !subscription.cancel_at_period_end) {
+                console.log('Immediate cancellation detected - processing refund');
+                const paymentToUpdate = yield prisma_1.default.payment.findFirst({
+                    where: {
+                        stripeSubscriptionId: subscription.id,
+                        status: client_1.PaymentStatus.COMPLETED,
+                    },
+                });
+                // Only attempt refund if we have a paymentIntentId and subscription was active
+                if (paymentToUpdate === null || paymentToUpdate === void 0 ? void 0 : paymentToUpdate.paymentIntentId) {
+                    try {
+                        const refund = yield stripe.refunds.create({
+                            payment_intent: paymentToUpdate.paymentIntentId,
+                        });
+                        console.log('Refund processed for immediate cancellation:', refund.id);
+                    }
+                    catch (refundError) {
+                        console.error('Refund failed:', refundError);
+                    }
+                }
+                // Update payment status to refunded
                 yield prisma_1.default.payment.updateMany({
                     where: {
                         stripeSubscriptionId: subscription.id,
+                        status: client_1.PaymentStatus.COMPLETED,
+                    },
+                    data: { status: client_1.PaymentStatus.REFUNDED },
+                });
+                // Update user subscription status
+                yield prisma_1.default.userSubscription.updateMany({
+                    where: {
+                        userId: user.id,
+                        stripeSubscriptionId: subscription.id,
                     },
                     data: {
-                        status: client_1.PaymentStatus.COMPLETED,
-                        invoiceId: subscription.latest_invoice,
+                        paymentStatus: client_1.PaymentStatus.REFUNDED,
+                        endDate: new Date(),
                     },
                 });
             }
@@ -245,30 +303,62 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
             if (!user)
                 break;
             // Find which plan this subscription is tied to
-            const subscriptionOffer = yield prisma_1.default.subscriptionOffer.findFirst({
-                where: { stripePriceId: subscription.items.data[0].price.id },
-            });
-            // Update the user with subscription details
+            let planType = client_1.SubscriptionPlanStatus.FREE;
+            if (subscription.items.data.length > 0) {
+                const subscriptionOffer = yield prisma_1.default.subscriptionOffer.findFirst({
+                    where: { stripePriceId: subscription.items.data[0].price.id },
+                });
+                planType = (subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.planType) || client_1.SubscriptionPlanStatus.FREE;
+            }
+            // Get current_period_end from subscription items
+            const currentPeriodEnd = (_f = subscription.items.data[0]) === null || _f === void 0 ? void 0 : _f.current_period_end;
+            const subscriptionEndDate = currentPeriodEnd
+                ? new Date(currentPeriodEnd * 1000)
+                : new Date();
+            // Handle scheduled cancellations (customer turned off auto-renewal)
+            if (subscription.cancel_at_period_end) {
+                yield prisma_1.default.user.update({
+                    where: { id: user.id },
+                    data: {
+                        isSubscribed: true, // Still active until period ends
+                        subscriptionEnd: subscriptionEndDate,
+                        subscriptionPlan: planType,
+                    },
+                });
+                console.log('Auto-renewal turned off - subscription continues until:', subscriptionEndDate);
+            }
+            // Update user status regardless of cancellation type
             yield prisma_1.default.user.update({
                 where: { id: user.id },
                 data: {
                     isSubscribed: subscription.status === 'active',
-                    subscriptionEnd: new Date(subscription.current_period_end * 1000),
-                    subscriptionPlan: subscriptionOffer
-                        ? subscriptionOffer.planType // map to actual plan
-                        : client_1.SubscriptionPlanStatus.FREE,
+                    subscriptionEnd: subscriptionEndDate,
+                    subscriptionPlan: planType,
                 },
             });
-            const paymentToUpdate = yield prisma_1.default.payment.findFirst({
-                where: { stripeSubscriptionId: subscription.id },
-            });
-            // If subscription was canceled/refunded → trigger refund logic
-            if (subscription.status === 'canceled') {
-                // Optional: call Stripe refund API first, then update DB
-                const refund = yield stripe.refunds.create({
-                    payment_intent: paymentToUpdate === null || paymentToUpdate === void 0 ? void 0 : paymentToUpdate.paymentIntentId,
+            // ONLY process refund if subscription is immediately canceled (not just auto-renewal turned off)
+            if (subscription.status === 'canceled' &&
+                !subscription.cancel_at_period_end) {
+                console.log('Immediate cancellation detected - processing refund');
+                const paymentToUpdate = yield prisma_1.default.payment.findFirst({
+                    where: {
+                        stripeSubscriptionId: subscription.id,
+                        status: client_1.PaymentStatus.COMPLETED,
+                    },
                 });
-                console.log(refund, 'check refund');
+                // Only attempt refund if we have a paymentIntentId and subscription was active
+                if (paymentToUpdate === null || paymentToUpdate === void 0 ? void 0 : paymentToUpdate.paymentIntentId) {
+                    try {
+                        const refund = yield stripe.refunds.create({
+                            payment_intent: paymentToUpdate.paymentIntentId,
+                        });
+                        console.log('Refund processed for immediate cancellation:', refund.id);
+                    }
+                    catch (refundError) {
+                        console.error('Refund failed:', refundError);
+                    }
+                }
+                // Update payment status to refunded
                 yield prisma_1.default.payment.updateMany({
                     where: {
                         stripeSubscriptionId: subscription.id,
@@ -276,21 +366,17 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                     },
                     data: { status: client_1.PaymentStatus.REFUNDED },
                 });
-                yield prisma_1.default.user.update({
-                    where: { id: user.id },
-                    data: {
-                        isSubscribed: false,
-                        subscriptionEnd: new Date(), // Expired now
-                        subscriptionPlan: client_1.SubscriptionPlanStatus.FREE,
-                    },
-                });
+                // Update user subscription status
                 yield prisma_1.default.userSubscription.updateMany({
                     where: {
                         userId: user.id,
+                        stripeSubscriptionId: subscription.id,
                     },
-                    data: { paymentStatus: client_1.PaymentStatus.REFUNDED, endDate: new Date() },
+                    data: {
+                        paymentStatus: client_1.PaymentStatus.REFUNDED,
+                        endDate: new Date(),
+                    },
                 });
-                // console.log('Subscription canceled and refund processed:', refund);
             }
             break;
         }
@@ -338,32 +424,244 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
             console.log('Capability updated event received. Handle accordingly.');
             break;
         case 'invoice.paid': {
-            // Stripe sends the invoice object
             const invoice = event.data.object;
-            // Extract the invoice ID and PaymentIntent ID
             const invoiceId = invoice.id;
             const paymentIntentId = invoice.payment_intent;
             const subscriptionId = invoice.subscription;
-            console.log(subscriptionId, 'check subscription id from invoice');
-            // Find the related payment record in your DB
-            const paymentRecord = yield prisma_1.default.payment.findUnique({
-                where: {
-                    stripeSubscriptionId: subscriptionId,
-                    invoiceId: invoiceId,
-                },
+            const billingReason = invoice.billing_reason;
+            console.log('Invoice paid:', {
+                invoiceId,
+                subscriptionId,
+                paymentIntentId,
+                billingReason,
             });
-            console.log(paymentRecord, 'check payment record for invoice');
-            if (!paymentRecord) {
-                console.log('No payment record found for invoice:', invoiceId);
+            if (!subscriptionId) {
+                console.log('No subscription associated with this invoice');
                 break;
             }
-            yield prisma_1.default.payment.update({
-                where: { id: paymentRecord.id },
-                data: {
-                    status: client_1.PaymentStatus.COMPLETED,
-                    paymentIntentId: paymentIntentId,
+            try {
+                if (billingReason === 'subscription_cycle') {
+                    // ==================== AUTO-RENEWAL PAYMENT ====================
+                    console.log('Auto-renewal payment detected');
+                    // 1. Retrieve subscription to get new end date
+                    const subscription = yield stripe.subscriptions.retrieve(subscriptionId);
+                    // Get current_period_end from the first subscription item
+                    const currentPeriodEnd = (_g = subscription.items.data[0]) === null || _g === void 0 ? void 0 : _g.current_period_end;
+                    if (!currentPeriodEnd) {
+                        console.error('No current_period_end found in subscription items');
+                        break;
+                    }
+                    const newEndDate = new Date(currentPeriodEnd * 1000);
+                    console.log('Updating subscription end date to:', newEndDate);
+                    // 2. Update subscription end date in database
+                    yield prisma_1.default.userSubscription.updateMany({
+                        where: { stripeSubscriptionId: subscriptionId },
+                        data: {
+                            endDate: newEndDate,
+                            paymentStatus: client_1.PaymentStatus.COMPLETED,
+                        },
+                    });
+                    // 3. Update user's subscription end date
+                    yield prisma_1.default.user.updateMany({
+                        where: {
+                            UserSubscription: {
+                                some: { stripeSubscriptionId: subscriptionId },
+                            },
+                        },
+                        data: {
+                            subscriptionEnd: newEndDate,
+                            isSubscribed: true,
+                        },
+                    });
+                    // 4. Create payment record for the renewal
+                    const userSubscription = yield prisma_1.default.userSubscription.findFirst({
+                        where: { stripeSubscriptionId: subscriptionId },
+                        include: {
+                            user: {
+                                select: { id: true, stripeCustomerId: true },
+                            },
+                        },
+                    });
+                    if (userSubscription && userSubscription.user) {
+                        yield prisma_1.default.payment.create({
+                            data: {
+                                stripeSubscriptionId: subscriptionId,
+                                invoiceId: invoiceId,
+                                paymentIntentId: paymentIntentId,
+                                paymentAmount: invoice.amount_paid
+                                    ? invoice.amount_paid / 100
+                                    : 0,
+                                amountProvider: userSubscription.user.stripeCustomerId ||
+                                    invoice.customer ||
+                                    '',
+                                status: client_1.PaymentStatus.COMPLETED,
+                                user: {
+                                    connect: { id: userSubscription.userId },
+                                },
+                            },
+                        });
+                        console.log('Created renewal payment record');
+                    }
+                    console.log('Auto-renewal successfully processed');
+                }
+                else if (billingReason === 'subscription_create') {
+                    // ==================== INITIAL PAYMENT ====================
+                    console.log('Initial subscription payment detected');
+                    // For initial payments, just ensure paymentIntentId is updated if missing
+                    const existingPayment = yield prisma_1.default.payment.findFirst({
+                        where: {
+                            stripeSubscriptionId: subscriptionId,
+                            status: client_1.PaymentStatus.COMPLETED,
+                            invoiceId: invoiceId,
+                        },
+                    });
+                    if (existingPayment && !existingPayment.paymentIntentId) {
+                        yield prisma_1.default.payment.update({
+                            where: { id: existingPayment.id },
+                            data: {
+                                paymentIntentId: paymentIntentId,
+                            },
+                        });
+                        console.log('Updated initial payment with paymentIntentId');
+                    }
+                    // Also update invoiceId if it's missing
+                    if (existingPayment && !existingPayment.invoiceId) {
+                        yield prisma_1.default.payment.update({
+                            where: { id: existingPayment.id },
+                            data: {
+                                invoiceId: invoiceId,
+                            },
+                        });
+                        console.log('Updated initial payment with invoiceId');
+                    }
+                }
+                else if (billingReason === 'subscription_update') {
+                    // ==================== SUBSCRIPTION UPDATE (UPGRADE/DOWNGRADE) ====================
+                    console.log('Subscription update payment detected');
+                    // Handle plan changes - update subscription details
+                    const subscription = yield stripe.subscriptions.retrieve(subscriptionId);
+                    const currentPeriodEnd = (_h = subscription.items.data[0]) === null || _h === void 0 ? void 0 : _h.current_period_end;
+                    if (currentPeriodEnd) {
+                        const newEndDate = new Date(currentPeriodEnd * 1000);
+                        yield prisma_1.default.userSubscription.updateMany({
+                            where: { stripeSubscriptionId: subscriptionId },
+                            data: {
+                                endDate: newEndDate,
+                            },
+                        });
+                        yield prisma_1.default.user.updateMany({
+                            where: {
+                                UserSubscription: {
+                                    some: { stripeSubscriptionId: subscriptionId },
+                                },
+                            },
+                            data: {
+                                subscriptionEnd: newEndDate,
+                            },
+                        });
+                    }
+                    // Create payment record for the update
+                    const userSubscription = yield prisma_1.default.userSubscription.findFirst({
+                        where: { stripeSubscriptionId: subscriptionId },
+                        include: {
+                            user: {
+                                select: { id: true, stripeCustomerId: true },
+                            },
+                        },
+                    });
+                    if (userSubscription && userSubscription.user) {
+                        yield prisma_1.default.payment.create({
+                            data: {
+                                stripeSubscriptionId: subscriptionId,
+                                invoiceId: invoiceId,
+                                paymentIntentId: paymentIntentId,
+                                paymentAmount: invoice.amount_paid
+                                    ? invoice.amount_paid / 100
+                                    : 0,
+                                amountProvider: userSubscription.user.stripeCustomerId ||
+                                    invoice.customer ||
+                                    '',
+                                status: client_1.PaymentStatus.COMPLETED,
+                                user: {
+                                    connect: { id: userSubscription.userId },
+                                },
+                            },
+                        });
+                        console.log('Created update payment record');
+                    }
+                }
+                else {
+                    // ==================== OTHER PAYMENT TYPES ====================
+                    console.log('Other invoice type:', billingReason);
+                    // Handle other payment types (manual, upcoming, etc.)
+                    // Create a basic payment record if it doesn't exist
+                    const existingPayment = yield prisma_1.default.payment.findFirst({
+                        where: {
+                            invoiceId: invoiceId,
+                        },
+                    });
+                    if (!existingPayment) {
+                        const userSubscription = yield prisma_1.default.userSubscription.findFirst({
+                            where: { stripeSubscriptionId: subscriptionId },
+                            include: {
+                                user: {
+                                    select: { id: true, stripeCustomerId: true },
+                                },
+                            },
+                        });
+                        if (userSubscription && userSubscription.user) {
+                            yield prisma_1.default.payment.create({
+                                data: {
+                                    stripeSubscriptionId: subscriptionId,
+                                    invoiceId: invoiceId,
+                                    paymentIntentId: paymentIntentId,
+                                    paymentAmount: invoice.amount_paid
+                                        ? invoice.amount_paid / 100
+                                        : 0,
+                                    amountProvider: userSubscription.user.stripeCustomerId ||
+                                        invoice.customer ||
+                                        '',
+                                    status: client_1.PaymentStatus.COMPLETED,
+                                    user: {
+                                        connect: { id: userSubscription.userId },
+                                    },
+                                },
+                            });
+                            console.log('Created payment record for other invoice type');
+                        }
+                    }
+                }
+            }
+            catch (error) {
+                console.error('Error processing invoice.paid:', error);
+                // Consider sending an alert for failed invoice processing
+            }
+            break;
+        }
+        case 'invoice.upcoming': {
+            const invoice = event.data.object;
+            const customerId = invoice.customer;
+            const subscriptionId = invoice.subscription;
+            const amountDue = invoice.amount_due / 100; // Convert to dollars
+            const dueDate = invoice.due_date
+                ? new Date(invoice.due_date * 1000)
+                : null;
+            // Get user and subscription details
+            const user = yield prisma_1.default.user.findFirst({
+                where: { stripeCustomerId: customerId },
+                include: {
+                    UserSubscription: { where: { stripeSubscriptionId: subscriptionId } },
                 },
             });
+            if (user && user.UserSubscription.length > 0 && dueDate) {
+                const subscription = user.UserSubscription[0];
+                // Send renewal reminder (email, push notification, etc.)
+                //   await sendNotification(user.id, {
+                //     type: 'SUBSCRIPTION_RENEWAL_REMINDER',
+                //     message: `Your subscription for $${amountDue} will renew on ${dueDate.toLocaleDateString()}`,
+                //     data: { subscriptionId, amountDue, dueDate }
+                //   });
+            }
             break;
         }
         case 'invoice.payment_failed':

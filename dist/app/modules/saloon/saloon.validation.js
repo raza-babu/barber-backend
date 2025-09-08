@@ -19,6 +19,13 @@ const updateSchema = zod_1.z.object({
         status: zod_1.z.nativeEnum(client_1.BookingStatus),
     }),
 });
+const updateQueueSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        isQueueEnabled: zod_1.z.boolean({
+            required_error: 'isQueueEnabled is required!',
+        }),
+    }),
+});
 function convertToUTC(date, time) {
     // Combine into a single string
     const combined = `${date} ${time}`;
@@ -55,6 +62,7 @@ const availableFreeBarbersSchema = zod_1.z.object({
 exports.saloonValidation = {
     createSchema,
     updateSchema,
+    updateQueueSchema,
     availableBarbersSchema,
     availableFreeBarbersSchema
 };

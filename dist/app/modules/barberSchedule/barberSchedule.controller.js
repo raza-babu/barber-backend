@@ -17,15 +17,29 @@ const http_status_1 = __importDefault(require("http-status"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const barberSchedule_service_1 = require("./barberSchedule.service");
+const client_1 = require("@prisma/client");
 const createBarberSchedule = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield barberSchedule_service_1.barberScheduleService.createBarberScheduleIntoDb(user.id, req.body);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.CREATED,
-        success: true,
-        message: 'BarberSchedule created successfully',
-        data: result,
-    });
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access to manage barber schedules.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield barberSchedule_service_1.barberScheduleService.createBarberScheduleIntoDb(user.id, req.body);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.CREATED,
+            success: true,
+            message: 'BarberSchedule created successfully',
+            data: result,
+        });
+    }
 }));
 const getBarberScheduleList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
@@ -49,23 +63,49 @@ const getBarberScheduleById = (0, catchAsync_1.default)((req, res) => __awaiter(
 }));
 const updateBarberSchedule = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield barberSchedule_service_1.barberScheduleService.updateBarberScheduleIntoDb(user.id, req.params.id, req.body);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'BarberSchedule updated successfully',
-        data: result,
-    });
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access to manage barber schedules.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield barberSchedule_service_1.barberScheduleService.updateBarberScheduleIntoDb(user.id, req.params.id, req.body);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'BarberSchedule updated successfully',
+            data: result,
+        });
+    }
 }));
 const deleteBarberSchedule = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield barberSchedule_service_1.barberScheduleService.deleteBarberScheduleItemFromDb(user.id, req.params.id);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'BarberSchedule deleted successfully',
-        data: result,
-    });
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access to manage barber schedules.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield barberSchedule_service_1.barberScheduleService.deleteBarberScheduleItemFromDb(user.id, req.params.id);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'BarberSchedule deleted successfully',
+            data: result,
+        });
+    }
 }));
 exports.barberScheduleController = {
     createBarberSchedule,

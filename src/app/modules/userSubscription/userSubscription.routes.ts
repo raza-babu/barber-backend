@@ -26,6 +26,12 @@ router.get(
 );
 
 router.get(
+  '/own-plan',
+  auth(UserRoleEnum.SALOON_OWNER),
+  userSubscriptionController.getUOwnerSubscriptionPlan,
+);
+
+router.get(
   '/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   checkPermissions(
@@ -41,10 +47,24 @@ router.put(
   userSubscriptionController.updateUserSubscription,
 );
 
+router.patch(
+  '/cancel-automatic-renewal/:id',
+  auth(UserRoleEnum.SALOON_OWNER),
+  userSubscriptionController.cancelAutomaticRenewal,
+);
+
 router.delete(
   '/:id',
   auth(UserRoleEnum.SALOON_OWNER),
   userSubscriptionController.deleteUserSubscription,
+);
+router.delete(
+  '/admin/:id',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.PREMIUM_SUBSCRIBERS,
+  ),
+  userSubscriptionController.deleteUserSubscriptionForCustomer,
 );
 
 export const userSubscriptionRoutes = router;

@@ -14,68 +14,118 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.jobPostService = void 0;
 const prisma_1 = __importDefault(require("../../utils/prisma"));
+const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const pagination_1 = require("../../utils/pagination");
 const searchFilter_1 = require("../../utils/searchFilter");
-const createJobPostIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
-    const shopDetails = yield prisma_1.default.user.findUnique({
-        where: {
-            id: userId,
-        },
-        include: {
-            SaloonOwner: {
-                select: {
-                    userId: true,
-                    shopLogo: true,
-                    shopName: true,
+const createJobPostIntoDb = (userId, subscriptionPlan, data) => __awaiter(void 0, void 0, void 0, function* () {
+    // Free plan allows only 1 active job post per year. Please upgrade your subscription to create more job posts.
+    if (subscriptionPlan === client_1.SubscriptionPlanStatus.FREE) {
+        const existingJobPosts = yield prisma_1.default.jobPost.findMany({
+            where: {
+                userId: userId,
+                createdAt: {
+                    gte: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
+                },
+                isActive: true,
+            },
+        });
+        if (existingJobPosts.length >= 1) {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Free plan allows only 1 active job post per year. Please upgrade your subscription to create more job posts.');
+        }
+    }
+    else if (subscriptionPlan === client_1.SubscriptionPlanStatus.BASIC_PREMIUM) {
+        // Basic plan allows only 3 active job posts per year. Please upgrade your subscription to create more job posts.
+        const existingJobPosts = yield prisma_1.default.jobPost.findMany({
+            where: {
+                userId: userId,
+                createdAt: {
+                    gte: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
+                },
+                isActive: true,
+            },
+        });
+        if (existingJobPosts.length >= 3) {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Basic plan allows only 3 active job posts per year. Please upgrade your subscription to create more job posts.');
+        }
+        // If the plan is PRO_PREMIUM no restrictions apply
+    }
+    if (subscriptionPlan === client_1.SubscriptionPlanStatus.PRO_PREMIUM ||
+        subscriptionPlan === client_1.SubscriptionPlanStatus.BASIC_PREMIUM) {
+        // No restrictions
+        const shopDetails = yield prisma_1.default.user.findUnique({
+            where: {
+                id: userId,
+            },
+            include: {
+                SaloonOwner: {
+                    select: {
+                        userId: true,
+                        shopLogo: true,
+                        shopName: true,
+                    },
                 },
             },
-        },
-    });
-    if (!shopDetails) {
-        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Shop not found');
+        });
+        if (!shopDetails) {
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Shop not found');
+        }
+        return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a, _b, _c;
+            const result = yield tx.jobPost.create({
+                data: Object.assign(Object.assign({}, data), { userId: userId, saloonOwnerId: (_a = shopDetails.SaloonOwner[0]) === null || _a === void 0 ? void 0 : _a.userId, startDate: new Date(data.startDate), endDate: new Date(data.endDate), datePosted: new Date(data.datePosted), shopName: (_b = shopDetails.SaloonOwner[0]) === null || _b === void 0 ? void 0 : _b.shopName, shopLogo: (_c = shopDetails.SaloonOwner[0]) === null || _c === void 0 ? void 0 : _c.shopLogo }),
+            });
+            if (!result) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'jobPost not created');
+            }
+            yield tx.saloonOwner.update({
+                where: {
+                    userId: userId,
+                },
+                data: {
+                    jobPostCount: {
+                        increment: 1,
+                    },
+                }
+            });
+            return result;
+        }));
     }
-    const result = yield prisma_1.default.jobPost.create({
-        data: Object.assign(Object.assign({}, data), { userId: userId, saloonOwnerId: (_a = shopDetails.SaloonOwner[0]) === null || _a === void 0 ? void 0 : _a.userId, startDate: new Date(data.startDate), endDate: new Date(data.endDate), datePosted: new Date(data.datePosted), shopName: (_b = shopDetails.SaloonOwner[0]) === null || _b === void 0 ? void 0 : _b.shopName, shopLogo: (_c = shopDetails.SaloonOwner[0]) === null || _c === void 0 ? void 0 : _c.shopLogo }),
-    });
-    if (!result) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'jobPost not created');
-    }
-    return result;
 });
 const getJobPostListFromDb = (options) => __awaiter(void 0, void 0, void 0, function* () {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
     // Build search query
-    const searchQuery = options.searchTerm ? {
-        OR: [
-            {
-            // title: {
-            //   contains: options.searchTerm,
-            //   mode: 'insensitive' as const,
-            // },
-            },
-            {
-                description: {
-                    contains: options.searchTerm,
-                    mode: 'insensitive',
+    const searchQuery = options.searchTerm
+        ? {
+            OR: [
+                {
+                // title: {
+                //   contains: options.searchTerm,
+                //   mode: 'insensitive' as const,
+                // },
                 },
-            },
-            {
-                shopName: {
-                    contains: options.searchTerm,
-                    mode: 'insensitive',
+                {
+                    description: {
+                        contains: options.searchTerm,
+                        mode: 'insensitive',
+                    },
                 },
-            },
-            {
-                location: {
-                    contains: options.searchTerm,
-                    mode: 'insensitive',
+                {
+                    shopName: {
+                        contains: options.searchTerm,
+                        mode: 'insensitive',
+                    },
                 },
-            },
-        ],
-    } : {};
+                {
+                    location: {
+                        contains: options.searchTerm,
+                        mode: 'insensitive',
+                    },
+                },
+            ],
+        }
+        : {};
     // Build filter query
     const filterQuery = {
         isActive: options.isActive !== undefined ? options.isActive === 'true' : true,
@@ -89,9 +139,11 @@ const getJobPostListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
     // Build salary range filter
     const salaryRangeQuery = (0, searchFilter_1.buildNumericRangeQuery)('salary', options.salaryMin ? Number(options.salaryMin) : undefined, options.salaryMax ? Number(options.salaryMax) : undefined);
     // Build date range query
-    const dateRangeQuery = options.startDate || options.endDate ? {
-        datePosted: Object.assign(Object.assign({}, (options.startDate && { gte: new Date(options.startDate) })), (options.endDate && { lte: new Date(options.endDate) })),
-    } : {};
+    const dateRangeQuery = options.startDate || options.endDate
+        ? {
+            datePosted: Object.assign(Object.assign({}, (options.startDate && { gte: new Date(options.startDate) })), (options.endDate && { lte: new Date(options.endDate) })),
+        }
+        : {};
     // Combine all queries
     const whereClause = Object.assign(Object.assign(Object.assign(Object.assign({}, filterQuery), salaryRangeQuery), dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
     const [jobPosts, total] = yield Promise.all([
@@ -135,7 +187,7 @@ const getJobPostByIdFromDb = (userId, jobPostId) => __awaiter(void 0, void 0, vo
         },
     });
     if (!result) {
-        return { message: "No job post found" };
+        return { message: 'No job post found' };
     }
     return result;
 });
@@ -184,15 +236,26 @@ const toggleJobPostActiveIntoDb = (userId, jobPostId) => __awaiter(void 0, void 
     return updatedJobPost;
 });
 const deleteJobPostItemFromDb = (userId, jobPostId) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log('Deleting Job Post ID:', jobPostId, 'for User ID:', userId);
     const deletedItem = yield prisma_1.default.jobPost.delete({
         where: {
             id: jobPostId,
-            userId: userId,
+            saloonOwnerId: userId,
         },
     });
     if (!deletedItem) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'jobPostId, not deleted');
     }
+    yield prisma_1.default.saloonOwner.update({
+        where: {
+            userId: userId,
+        },
+        data: {
+            jobPostCount: {
+                decrement: 1,
+            },
+        },
+    });
     return deletedItem;
 });
 exports.jobPostService = {

@@ -922,6 +922,20 @@ const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
     }));
     return scheduledBarbers;
 });
+const updateSaloonQueueControlIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const updatedSaloon = yield prisma_1.default.saloonOwner.update({
+        where: {
+            userId: userId,
+        },
+        data: {
+            isQueueEnabled: data.isQueueEnabled,
+        },
+    });
+    if (!updatedSaloon) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'saloonId, not updated');
+    }
+    return updatedSaloon;
+});
 const deleteSaloonItemFromDb = (userId, saloonId) => __awaiter(void 0, void 0, void 0, function* () {
     const deletedItem = yield prisma_1.default.saloonOwner.delete({
         where: {
@@ -945,5 +959,6 @@ exports.saloonService = {
     terminateBarberIntoDb,
     getFreeBarbersOnADateFromDb,
     getScheduledBarbersFromDb,
+    updateSaloonQueueControlIntoDb,
     deleteSaloonItemFromDb,
 };

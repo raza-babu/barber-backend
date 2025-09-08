@@ -16,6 +16,7 @@ exports.setupSocketIO = void 0;
 const socket_io_1 = require("socket.io");
 const prisma_1 = __importDefault(require("./prisma"));
 const socketAuth_1 = require("../middlewares/socketAuth");
+const client_1 = require("@prisma/client");
 const onlineUsers = new Set();
 const userSockets = new Map();
 function setupSocketIO(server) {
@@ -51,6 +52,9 @@ function setupSocketIO(server) {
                     console.log('Receiver ID or message is undefined');
                     return;
                 }
+                // Check subscription plan from user token (assumed to be set by socketAuth)
+                const subscriptionPlan = user.subscriptionPlan; // e.g., 'free', 'premium', etc.
+                const senderRole = user.role; // e.g., 'saloonOwner', 'barber', etc.
                 // Fetch receiver's role
                 const receiver = yield prisma_1.default.user.findUnique({
                     where: { id: payload.receiverId },
@@ -60,10 +64,40 @@ function setupSocketIO(server) {
                     console.log('Receiver not found');
                     return;
                 }
+                const receiverRole = receiver.role;
+                // If subscription is free, prevent chat between saloon owner and barber or the customer
+                if (subscriptionPlan === client_1.SubscriptionPlanStatus.FREE &&
+                    ((senderRole === client_1.UserRoleEnum.SALOON_OWNER &&
+                        receiverRole === client_1.UserRoleEnum.BARBER) ||
+                        (senderRole === client_1.UserRoleEnum.SALOON_OWNER &&
+                            receiverRole === client_1.UserRoleEnum.CUSTOMER))) {
+                    socket.emit('error', {
+                        message: 'Chat between saloon owner and barber or customer is not allowed on free plan.',
+                    });
+                    return;
+                }
+                // BASIC_PREMIUM: can only chat with barbers, not customers
+                if (subscriptionPlan === client_1.SubscriptionPlanStatus.BASIC_PREMIUM &&
+                    receiverRole !== client_1.UserRoleEnum.BARBER) {
+                    socket.emit('error', {
+                        message: `With BASIC_PREMIUM, you can only chat with barbers.`,
+                    });
+                    return;
+                }
+                // ADVANCED_PREMIUM: can only chat with customers, not barbers
+                if (subscriptionPlan === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM &&
+                    receiverRole !== client_1.UserRoleEnum.CUSTOMER) {
+                    socket.emit('error', {
+                        message: `With ADVANCED_PREMIUM, you can only chat with customers.`,
+                    });
+                    return;
+                }
                 // senderId and receiverId cannot be the same
                 if (payload.receiverId === id) {
                     console.log('Sender and receiver cannot be the same');
-                    socket.emit('error', { message: 'Sender and receiver cannot be the same' });
+                    socket.emit('error', {
+                        message: 'Sender and receiver cannot be the same',
+                    });
                     return;
                 }
                 const room = yield prisma_1.default.room.findFirst({
@@ -168,8 +202,7 @@ function setupSocketIO(server) {
                         };
                     })));
                     // Sort so the updated room (the one with the latest message) is on top
-                    const sortedRooms = roomsWithUnreadMessages
-                        .sort((a, b) => {
+                    const sortedRooms = roomsWithUnreadMessages.sort((a, b) => {
                         // Put the room with the latest message on top
                         if (!a.lastMessageAt && !b.lastMessageAt)
                             return 0;
@@ -177,7 +210,8 @@ function setupSocketIO(server) {
                             return 1;
                         if (!b.lastMessageAt)
                             return -1;
-                        return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+                        return (new Date(b.lastMessageAt).getTime() -
+                            new Date(a.lastMessageAt).getTime());
                     });
                     const targetSocket = userSockets.get(userId);
                     if (targetSocket) {
@@ -206,6 +240,47 @@ function setupSocketIO(server) {
                 if (!payload || !payload.receiverId) {
                     console.log('Receiver ID is undefined');
                     return;
+                }
+                // Check subscription plan from user token (assumed to be set by socketAuth)
+                const subscriptionPlan = user.subscriptionPlan; // e.g., 'free', 'premium', etc.
+                const senderRole = user.role; // e.g., 'saloonOwner', 'barber', etc.
+                // Fetch receiver's role and info
+                const receiver = yield prisma_1.default.user.findUnique({
+                    where: { id: payload.receiverId },
+                    select: { fullName: true, image: true, role: true },
+                });
+                if (!receiver) {
+                    console.log('Receiver not found');
+                    return;
+                }
+                const receiverRole = receiver.role;
+                // If subscription is free, prevent chat between saloon owner and barber or customer
+                if (subscriptionPlan === client_1.SubscriptionPlanStatus.FREE &&
+                    (senderRole === client_1.UserRoleEnum.SALOON_OWNER ||
+                        receiverRole === client_1.UserRoleEnum.SALOON_OWNER)) {
+                    socket.emit('error', {
+                        message: `Cannot fetch chats between saloon owner and the barber or the customer if saloon owner's subscription is free.`,
+                    });
+                    return;
+                }
+                // BASIC_PREMIUM: can only fetch chats with barbers, not customers
+                if (subscriptionPlan === client_1.SubscriptionPlanStatus.BASIC_PREMIUM &&
+                    receiverRole !== client_1.UserRoleEnum.BARBER) {
+                    socket.emit('error', {
+                        message: `With BASIC_PREMIUM, you can only fetch chats with barbers.`,
+                    });
+                    return;
+                }
+                // ADVANCED_PREMIUM: can only fetch chats with customers, not barbers
+                if (subscriptionPlan === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM &&
+                    receiverRole !== client_1.UserRoleEnum.CUSTOMER) {
+                    socket.emit('error', {
+                        message: `With ADVANCED_PREMIUM, you can only fetch chats with customers.`,
+                    });
+                    return;
+                }
+                if (subscriptionPlan === client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+                    // No restriction for PRO_PREMIUM, allow fetching chats (do nothing, just proceed)
                 }
                 const room = yield prisma_1.default.room.findFirst({
                     where: {
@@ -239,11 +314,6 @@ function setupSocketIO(server) {
                         createdAt: 'asc',
                     },
                 });
-                // Fetch receiver info
-                const receiver = yield prisma_1.default.user.findUnique({
-                    where: { id: payload.receiverId },
-                    select: { fullName: true, image: true },
-                });
                 socket.emit('chats', {
                     chats,
                     receiver: {
@@ -259,7 +329,6 @@ function setupSocketIO(server) {
                     receiverSocket.join(roomName);
                 }
                 // Emit updated messageList to the user
-                // (reuse the emitMessageList logic from above)
                 const emitMessageList = (userId) => __awaiter(this, void 0, void 0, function* () {
                     const rooms = yield prisma_1.default.room.findMany({
                         where: {
@@ -317,7 +386,8 @@ function setupSocketIO(server) {
                             return 1;
                         if (!b.lastMessageAt)
                             return -1;
-                        return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+                        return (new Date(b.lastMessageAt).getTime() -
+                            new Date(a.lastMessageAt).getTime());
                     });
                     const targetSocket = userSockets.get(userId);
                     if (targetSocket) {
@@ -404,9 +474,32 @@ function setupSocketIO(server) {
                         id: true,
                         fullName: true,
                         image: true,
+                        subscriptionPlan: true,
+                        role: true,
                     },
                 });
-                const roomsWithUnreadMessages = yield Promise.all(rooms.map((room) => __awaiter(this, void 0, void 0, function* () {
+                let filteredRooms = rooms;
+                // Apply filtering based on saloon owner's subscription plan
+                if (user.role === client_1.UserRoleEnum.SALOON_OWNER) {
+                    if (user.subscriptionPlan === client_1.SubscriptionPlanStatus.BASIC_PREMIUM) {
+                        // Only show rooms with barbers
+                        filteredRooms = rooms.filter(room => {
+                            const otherUserId = room.senderId === id ? room.receiverId : room.senderId;
+                            const otherUser = userInfos.find(u => u.id === otherUserId);
+                            return (otherUser === null || otherUser === void 0 ? void 0 : otherUser.role) === client_1.UserRoleEnum.BARBER;
+                        });
+                    }
+                    else if (user.subscriptionPlan === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM) {
+                        // Only show rooms with customers
+                        filteredRooms = rooms.filter(room => {
+                            const otherUserId = room.senderId === id ? room.receiverId : room.senderId;
+                            const otherUser = userInfos.find(u => u.id === otherUserId);
+                            return (otherUser === null || otherUser === void 0 ? void 0 : otherUser.role) === client_1.UserRoleEnum.CUSTOMER;
+                        });
+                    }
+                    // PRO_PREMIUM: no restriction
+                }
+                const roomsWithUnreadMessages = yield Promise.all(filteredRooms.map((room) => __awaiter(this, void 0, void 0, function* () {
                     var _l, _m, _o, _p;
                     const unReadMessagesCount = yield prisma_1.default.chat.count({
                         where: {
@@ -415,18 +508,26 @@ function setupSocketIO(server) {
                             receiverId: id,
                         },
                     });
+                    const otherUserId = room.senderId === id ? room.receiverId : room.senderId;
+                    const otherUser = userInfos.find(u => u.id === otherUserId);
                     return {
-                        chat: room.chat[0], // Include only the latest chat
-                        // sender: userInfos.find(userInfo => userInfo.id === room.senderId),
-                        // receiver: userInfos.find(userInfo => userInfo.id === room.receiverId),
+                        chat: room.chat[0], // Always include latest chat
                         unReadMessagesCount,
                         senderName: ((_l = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _l === void 0 ? void 0 : _l.fullName) || null,
                         senderImage: ((_m = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _m === void 0 ? void 0 : _m.image) || null,
                         receiverName: ((_o = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _o === void 0 ? void 0 : _o.fullName) || null,
                         receiverImage: ((_p = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _p === void 0 ? void 0 : _p.image) || null,
+                        saloonOwnerSubscriptionPlan: user.role === client_1.UserRoleEnum.SALOON_OWNER
+                            ? user.subscriptionPlan
+                            : null,
+                        // Always include the other user's subscription plan name
+                        // otherUserSubscriptionPlan: otherUser?.subscriptionPlan || null,
+                        // lastMessageAt: room.chat[0]?.createdAt || null,
+                        // roomId: room.id,
                     };
                 })));
-                socket.emit('messageList', roomsWithUnreadMessages.length ? roomsWithUnreadMessages : []);
+                // Emit all rooms, even if unread count is zero
+                socket.emit('messageList', roomsWithUnreadMessages);
             }
             catch (error) {
                 console.error('Error fetching messageList:', error);

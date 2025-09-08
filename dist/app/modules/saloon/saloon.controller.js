@@ -19,6 +19,7 @@ const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const saloon_service_1 = require("./saloon.service");
 const pickValidFields_1 = require("../../utils/pickValidFields");
 const saloon_validation_1 = require("./saloon.validation");
+const client_1 = require("@prisma/client");
 const manageBookings = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield saloon_service_1.saloonService.manageBookingsIntoDb(user.id, req.body);
@@ -172,6 +173,29 @@ const getFreeBarbersOnADate = (0, catchAsync_1.default)((req, res) => __awaiter(
         // meta: result.meta,
     });
 }));
+const updateSaloonQueueControl = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const subscriptionPlanName = user.subscriptionPlan;
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.FREE ||
+        subscriptionPlanName === client_1.SubscriptionPlanStatus.BASIC_PREMIUM) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.FORBIDDEN,
+            success: false,
+            message: 'Access denied. Upgrade your subscription to access hired barbers.',
+            data: null,
+        });
+    }
+    if (subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM ||
+        client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
+        const result = yield saloon_service_1.saloonService.updateSaloonQueueControlIntoDb(user.id, req.body);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Saloon queue control updated successfully',
+            data: result,
+        });
+    }
+}));
 const deleteSaloon = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield saloon_service_1.saloonService.deleteSaloonItemFromDb(user.id, req.params.id);
@@ -192,5 +216,6 @@ exports.saloonController = {
     getFreeBarbersOnADate,
     terminateBarber,
     getScheduledBarbers,
+    updateSaloonQueueControl,
     deleteSaloon,
 };

@@ -54,9 +54,8 @@ const createSubscriptionOfferIntoDb = (userId, data) => __awaiter(void 0, void 0
             });
         }
         catch (err) {
-            // Optionally, you could delete the product if price creation fails
             yield stripe.products.del(product.id);
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Stripe price not created!');
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Stripe price creation failed: ${err.message}`);
         }
         console.log('Success! Here is your starter subscription product id: ' + product.id);
         console.log('Success! Here is your starter subscription price id: ' + price.id);
