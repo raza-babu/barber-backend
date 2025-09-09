@@ -3,8 +3,6 @@ model CustomerLoyalty {
   userId         String    @unique @db.ObjectId
   totalPoints    Int       @default(0)
   redeemedPoints Int       @default(0)
-  visitCount     Int       @default(0)
-  lastVisitAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

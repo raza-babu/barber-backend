@@ -16,6 +16,7 @@ model Service {
   // Booking        Booking[]
   CustomerVisit  CustomerVisit[]
   BookedServices BookedServices[]
+  LoyaltyProgram LoyaltyProgram[]
 
   @@map("services")
 }

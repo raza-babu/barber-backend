@@ -78,6 +78,7 @@ model User {
   Lunch               Lunch[]
   TerminateBarber     TerminateBarber[]
   Payment             Payment[]
+  LoyaltyScheme        LoyaltyScheme[]
 
   @@map("users")
 }

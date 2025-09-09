@@ -424,8 +424,6 @@ model CustomerLoyalty {
   userId         String    @unique @db.ObjectId
   totalPoints    Int       @default(0)
   redeemedPoints Int       @default(0)
-  visitCount     Int       @default(0)
-  lastVisitAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -585,20 +583,16 @@ model JobPost {
 
 
 model LoyaltyPointLog {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  customerId String    @db.ObjectId
-  schemeId   String?   @db.ObjectId // Which scheme earned points
-  points     Int // +ve (earned) or -ve (redeemed)
-  reason     String // "VISIT", "PURCHASE", "REDEMPTION", "BONUS"
-  expiresAt  DateTime? // If points have expiry
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  customerId       String   @db.ObjectId
+  loyaltyProgramId String   @db.ObjectId
+  points           Int // +ve (earned) or -ve (redeemed)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Relationships
-  customer         User            @relation(fields: [customerId], references: [id])
-  scheme           LoyaltyScheme?  @relation(fields: [schemeId], references: [id])
-  LoyaltyProgram   LoyaltyProgram? @relation(fields: [loyaltyProgramId], references: [id])
-  loyaltyProgramId String?         @db.ObjectId
+  customer       User           @relation(fields: [customerId], references: [id])
+  LoyaltyProgram LoyaltyProgram @relation(fields: [loyaltyProgramId], references: [id])
 
   @@map("loyalty_point_logs")
 }
@@ -607,17 +601,16 @@ model LoyaltyPointLog {
 model LoyaltyProgram {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   userId      String   @db.ObjectId
-  name        String
-  description String?
-  percentage  Float?
+  serviceId   String   @db.ObjectId
+  serviceName String
+  points      Int
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relationships
   user      User              @relation(fields: [userId], references: [id])
-  schemes   LoyaltyScheme[]
-  rewards   LoyaltyReward[]
+  service   Service           @relation(fields: [serviceId], references: [id])
   pointLogs LoyaltyPointLog[]
 
   @@map("loyalty_programs")
@@ -625,60 +618,37 @@ model LoyaltyProgram {
 
 
 model LoyaltyRedemption {
-  id         String           @id @default(auto()) @map("_id") @db.ObjectId
-  customerId String           @db.ObjectId
-  rewardId   String           @db.ObjectId
-  pointsUsed Int
-  bookingId  String?          @db.ObjectId // If applied to a booking
-  status     RedemptionStatus @default(PENDING)
-  redeemedAt DateTime         @default(now())
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  customerId        String           @db.ObjectId
+  customerLoyaltyId String?          @db.ObjectId
+  bookingId         String?          @db.ObjectId // If applied to a booking
+  pointsUsed        Int
+  status            RedemptionStatus @default(PENDING)
+  redeemedAt        DateTime         @default(now())
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   // Relationships
-  customer          User             @relation(fields: [customerId], references: [id])
-  reward            LoyaltyReward    @relation(fields: [rewardId], references: [id])
-  booking           Booking?         @relation(fields: [bookingId], references: [id])
-  CustomerLoyalty   CustomerLoyalty? @relation(fields: [customerLoyaltyId], references: [id])
-  customerLoyaltyId String?          @db.ObjectId
+  customer        User             @relation(fields: [customerId], references: [id])
+  booking         Booking?         @relation(fields: [bookingId], references: [id])
+  CustomerLoyalty CustomerLoyalty? @relation(fields: [customerLoyaltyId], references: [id])
 
   @@map("loyalty_redemptions")
 }
 
 
-model LoyaltyReward {
-  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
-  programId          String   @db.ObjectId
-  name               String
-  description        String?
-  pointsRequired     Int
-  discountPercentage Float
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  // Relationships
-  program     LoyaltyProgram      @relation(fields: [programId], references: [id])
-  redemptions LoyaltyRedemption[]
-
-  @@map("loyalty_rewards")
-}
-
-
 model LoyaltyScheme {
-  id             String            @id @default(auto()) @map("_id") @db.ObjectId
-  programId      String            @db.ObjectId
-  type           LoyaltySchemeType @default(VISIT_BASED) // Type of scheme: visit-based, spending-based, or service-based
-  points         Int
-  minVisitCount  Int?
-  minSpendAmount Float?
-  isActive       Boolean           @default(true)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @db.ObjectId
+  pointThreshold Int // Points needed to redeem reward
+  percentage     Float // Discount percentage on service
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relationships
-  program         LoyaltyProgram    @relation(fields: [programId], references: [id])
-  LoyaltyPointLog LoyaltyPointLog[]
+  user      User              @relation(fields: [userId], references: [id])
+
 
   @@map("loyalty_schemes")
 }
@@ -1050,6 +1020,7 @@ model Service {
   // Booking        Booking[]
   CustomerVisit  CustomerVisit[]
   BookedServices BookedServices[]
+  LoyaltyProgram LoyaltyProgram[]
 
   @@map("services")
 }
@@ -1212,6 +1183,7 @@ model User {
   Lunch               Lunch[]
   TerminateBarber     TerminateBarber[]
   Payment             Payment[]
+  LoyaltyScheme        LoyaltyScheme[]
 
   @@map("users")
 }
