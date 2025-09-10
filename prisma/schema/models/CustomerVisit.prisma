@@ -2,7 +2,7 @@ model CustomerVisit {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   customerId   String   @db.ObjectId
   saloonId     String   @db.ObjectId
-  serviceId    String   @db.ObjectId // Which service was taken
+  serviceId    String[]
   visitDate    DateTime @default(now())
   amountSpent  Float? // Bill amount (if tracking spending-based points)
   earnedPoints Int? // Points earned in this visit

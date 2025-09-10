@@ -1,14 +1,14 @@
 model LoyaltyPointLog {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  customerId       String   @db.ObjectId
-  loyaltyProgramId String   @db.ObjectId
-  points           Int // +ve (earned) or -ve (redeemed)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  customerId String   @db.ObjectId
+  saloonId   String   @db.ObjectId
+  visitCount Int      
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relationships
   customer       User           @relation(fields: [customerId], references: [id])
-  LoyaltyProgram LoyaltyProgram @relation(fields: [loyaltyProgramId], references: [id])
+  saloon         SaloonOwner    @relation(fields: [saloonId], references: [userId])
 
   @@map("loyalty_point_logs")
 }

@@ -11,6 +11,7 @@ const createBookingSchema = z.object({
     services: z.array(z.string()).min(1, 'At least one service is required'),
     // totalPrice: z.number({ required_error: 'Total price is required' }),
     notes: z.string().optional(),
+    loyaltySchemeId: z.string().optional(),
     isInQueue: z.boolean().optional(),
   }),
 });
@@ -28,6 +29,7 @@ const updateBookingSchema = z.object({
     isInQueue: z.boolean().optional(),
     barberName: z.string().optional(),
     barberImage: z.string().optional(),
+    loyaltySchemeId: z.string().optional(),
   }),
   params: z.object({
     id: z.string().min(1, 'Booking ID is required').optional(), // ID of the booking to update
@@ -61,7 +63,9 @@ const availableBarbersSchema = z.object({
  query: z.object({
   salonId: z.string().min(1),
   date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  time: z.coerce.string().regex(/^\d{1,2}:\d{2}(\s?(AM|PM))?$/),
+  time: z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
+    message: 'Time must be in hh:mm AM/PM format',
+  }),
   totalServiceTime: z.coerce.number().int().positive(),
 
   }).transform(({ salonId, date, time, totalServiceTime }) => ({

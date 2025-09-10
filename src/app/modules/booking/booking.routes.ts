@@ -66,4 +66,10 @@ router.delete(
   bookingController.deleteBooking,
 );
 
+router.get(
+  '/loyalty-schemes/:id',
+  auth(UserRoleEnum.CUSTOMER),
+  bookingController.getLoyaltySchemesForACustomer,
+)
+
 export const bookingRoutes = router;

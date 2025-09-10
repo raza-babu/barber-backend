@@ -1,7 +1,7 @@
 model LoyaltyProgram {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   userId      String   @db.ObjectId
-  serviceId   String   @db.ObjectId
+  serviceId   String   @db.ObjectId @unique
   serviceName String
   points      Int
   isActive    Boolean  @default(true)
@@ -11,7 +11,6 @@ model LoyaltyProgram {
   // Relationships
   user      User              @relation(fields: [userId], references: [id])
   service   Service           @relation(fields: [serviceId], references: [id])
-  pointLogs LoyaltyPointLog[]
 
   @@map("loyalty_programs")
 }

@@ -137,6 +137,17 @@ const deleteBooking = catchAsync(async (req, res) => {
   });
 });
 
+const getLoyaltySchemesForACustomer = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await bookingService.getLoyaltySchemesForCustomerFromDb(user.id, req.params.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Loyalty schemes retrieved successfully',
+    data: result,
+  });
+});
+
 export const bookingController = {
   createBooking,
   getBookingList,
@@ -147,4 +158,5 @@ export const bookingController = {
   updateBooking,
   updateBookingStatus,
   deleteBooking,
+  getLoyaltySchemesForACustomer,
 };

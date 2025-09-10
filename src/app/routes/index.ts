@@ -1,3 +1,4 @@
+import { LoyaltyProgram, LoyaltyScheme } from './../../../node_modules/.prisma/client/index.d';
 import express from 'express';
 import { UserRouters } from '../modules/user/user.routes';
 import { AuthRouters } from '../modules/auth/auth.routes';
@@ -31,6 +32,8 @@ import { qrCodeRoutes } from '../modules/qrCode/qrCode.routes';
 import { followRoutes } from '../modules/follow/follow.routes';
 import { userSubscriptionRoutes } from '../modules/userSubscription/userSubscription.routes';
 import { PaymentRoutes } from '../modules/payment/payment.routes';
+import { loyaltyProgramRoutes } from '../modules/loyaltyProgram/loyaltyProgram.routes';
+import { loyaltySchemeRoutes } from '../modules/loyaltyScheme/loyaltyScheme.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -169,6 +172,14 @@ const moduleRoutes = [
   {
     path: '/payments',
     route: PaymentRoutes,
+  },
+  {
+    path: '/loyalty-programs',
+    route: loyaltyProgramRoutes,
+  },
+  {
+    path: '/loyalty-schemes',
+    route: loyaltySchemeRoutes,
   },
 ];
 

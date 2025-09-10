@@ -352,33 +352,37 @@ model BookedServices {
 
 
 model Booking {
-  id            String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String        @db.ObjectId
-  barberId      String        @db.ObjectId
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String        @db.ObjectId
+  barberId        String        @db.ObjectId
   //  serviceId     String        @db.ObjectId
-  saloonOwnerId String        @db.ObjectId
-  queueSlotId   String?       @db.ObjectId
-  appointmentAt DateTime
-  status        BookingStatus @default(PENDING)
-  totalPrice    Float
-  date          DateTime
-  startDateTime DateTime?
-  endDateTime   DateTime?
-  startTime     String?
-  endTime       String?
-  notes         String?
-  isInQueue     Boolean       @default(false)
-  barberName    String?
-  barberImage   String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  saloonOwnerId   String        @db.ObjectId
+  queueSlotId     String?       @db.ObjectId
+  appointmentAt   DateTime
+  status          BookingStatus @default(PENDING)
+  totalPrice      Float
+  date            DateTime
+  startDateTime   DateTime?
+  endDateTime     DateTime?
+  startTime       String?
+  endTime         String?
+  notes           String?
+  isInQueue       Boolean       @default(false)
+  barberName      String?
+  barberImage     String?
+  loyaltyUsed     Boolean       @default(false)
+  loyaltySchemeId String?       @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relationships
-  user        User        @relation(fields: [userId], references: [id])
-  barber      Barber      @relation(fields: [barberId], references: [userId])
+  user          User           @relation(fields: [userId], references: [id])
+  barber        Barber         @relation(fields: [barberId], references: [userId])
   // service     Service     @relation(fields: [serviceId], references: [id])
-  saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
-  queueSlot   QueueSlot[]
+  saloonOwner   SaloonOwner    @relation(fields: [saloonOwnerId], references: [userId])
+  loyaltyScheme LoyaltyScheme? @relation(fields: [loyaltySchemeId], references: [id])
+  queueSlot     QueueSlot[]
 
   LoyaltyRedemption LoyaltyRedemption[]
   BookedServices    BookedServices[]
@@ -440,7 +444,7 @@ model CustomerVisit {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   customerId   String   @db.ObjectId
   saloonId     String   @db.ObjectId
-  serviceId    String   @db.ObjectId // Which service was taken
+  serviceId    String[]
   visitDate    DateTime @default(now())
   amountSpent  Float? // Bill amount (if tracking spending-based points)
   earnedPoints Int? // Points earned in this visit
@@ -583,16 +587,16 @@ model JobPost {
 
 
 model LoyaltyPointLog {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  customerId       String   @db.ObjectId
-  loyaltyProgramId String   @db.ObjectId
-  points           Int // +ve (earned) or -ve (redeemed)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  customerId String   @db.ObjectId
+  saloonId   String   @db.ObjectId
+  visitCount Int      
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relationships
   customer       User           @relation(fields: [customerId], references: [id])
-  LoyaltyProgram LoyaltyProgram @relation(fields: [loyaltyProgramId], references: [id])
+  saloon         SaloonOwner    @relation(fields: [saloonId], references: [userId])
 
   @@map("loyalty_point_logs")
 }
@@ -601,7 +605,7 @@ model LoyaltyPointLog {
 model LoyaltyProgram {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   userId      String   @db.ObjectId
-  serviceId   String   @db.ObjectId
+  serviceId   String   @db.ObjectId @unique
   serviceName String
   points      Int
   isActive    Boolean  @default(true)
@@ -611,7 +615,6 @@ model LoyaltyProgram {
   // Relationships
   user      User              @relation(fields: [userId], references: [id])
   service   Service           @relation(fields: [serviceId], references: [id])
-  pointLogs LoyaltyPointLog[]
 
   @@map("loyalty_programs")
 }
@@ -648,7 +651,10 @@ model LoyaltyScheme {
 
   // Relationships
   user      User              @relation(fields: [userId], references: [id])
+  bookings  Booking[]
 
+
+  @@unique([userId, pointThreshold, percentage])
 
   @@map("loyalty_schemes")
 }
@@ -958,6 +964,7 @@ model SaloonOwner {
   JobApplication    JobApplication[]
   Support           Support[]
   Review            Review[]
+  LoyaltyPointLog    LoyaltyPointLog[]
 
   @@map("saloon_owners")
 }

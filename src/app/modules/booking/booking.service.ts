@@ -23,6 +23,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
     services,
     notes,
     isInQueue,
+    loyaltySchemeId,
   } = data;
 
   const saloonStatus = await prisma.saloonOwner.findUnique({
@@ -264,6 +265,47 @@ const createBookingIntoDb = async (userId: string, data: any) => {
       }
     }
 
+    let price = totalPrice;
+    let loyaltyUsed = null;
+
+    if (loyaltySchemeId) {
+      // Verify the loyalty scheme exists and belongs to the saloon owner
+      const loyaltyScheme = await tx.loyaltyScheme.findUnique({
+        where: { id: loyaltySchemeId, userId: saloonOwnerId },
+      });
+      if (!loyaltyScheme) {
+        throw new AppError(httpStatus.NOT_FOUND, 'Loyalty scheme not found');
+      }
+      // Check if the customer has enough points
+      const customerLoyalty = await tx.customerLoyalty.findUnique({
+        where: { userId: userId },
+        select: { id: true, totalPoints: true },
+      });
+      if (
+        !customerLoyalty ||
+        (customerLoyalty.totalPoints || 0) < loyaltyScheme.pointThreshold
+      ) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Not enough loyalty points');
+      }
+      // Deduct points from customerLoyalty
+      await tx.customerLoyalty.update({
+        where: { userId: userId },
+        data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
+      });
+      // Add a record to loyaltyRedemption
+      loyaltyUsed = await tx.loyaltyRedemption.create({
+        data: {
+          customerId: userId,
+          customerLoyaltyId: customerLoyalty.id,
+          pointsUsed: loyaltyScheme.pointThreshold,
+        },
+      });
+
+      // Reduce the totalPrice by the discountAmount
+      price = totalPrice - totalPrice * (loyaltyScheme.percentage / 100);
+      if (price < 0) price = 0;
+    }
+
     // 4b. Create booking
     const booking = await tx.booking.create({
       data: {
@@ -274,7 +316,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         date: new Date(date),
         notes,
         isInQueue: !!(saloonOwner.isQueueEnabled && isInQueue),
-        totalPrice,
+        totalPrice: price,
         startDateTime: utcDateTime,
         endDateTime: DateTime.fromJSDate(utcDateTime)
           .plus({ minutes: totalDuration })
@@ -283,8 +325,20 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         endTime: DateTime.fromJSDate(utcDateTime)
           .plus({ minutes: totalDuration })
           .toFormat('hh:mm a'),
+        loyaltySchemeId: data.loyaltySchemeId || null,
+        loyaltyUsed: data.loyaltyProgramId ? true : false,
       },
     });
+    if(loyaltyUsed){
+    if(booking && booking.loyaltySchemeId){
+      await tx.loyaltyRedemption.update({
+        where: { id: loyaltyUsed.id, customerId: userId, bookingId: null },
+        data: { bookingId: booking.id },
+        
+      })
+    }
+  }
+
 
     // 4c. Create bookedService records
     await Promise.all(
@@ -490,24 +544,43 @@ const getBookingListFromDb = async (userId: string) => {
     return [];
   }
   // Flatten the result to include barber and booked services details at the top level
-  return result.map(booking => ({
-    bookingId: booking.id,
-    customerId: booking.userId,
-    barberId: booking.barberId,
-    saloonOwnerId: booking.saloonOwnerId,
-    totalPrice: booking.totalPrice,
-    notes: booking.notes,
-    customerName: booking.user?.fullName || null,
-    customerEmail: booking.user?.email || null,
-    customerContact: booking.user?.phoneNumber || null,
-    date: booking.date,
-    time: booking.startTime,
-    position: booking.queueSlot[0]?.position || null,
-    serviceNames:
-      booking.BookedServices?.map(bs => bs.service?.serviceName) || [],
-    barberName: booking.barber?.user?.fullName || null,
-    status: booking.status || null,
-  }));
+  return result.map(booking => {
+    // Calculate estimatedWaitTime as the difference in minutes between startTime and now
+    let estimatedWaitTime: number | null = null;
+    if (booking.startTime) {
+      // booking.date is a Date object, booking.startTime is a string like "11:00 AM"
+      const startDateTime = DateTime.fromFormat(
+        `${DateTime.fromJSDate(booking.date).toFormat('yyyy-MM-dd')} ${booking.startTime}`,
+        'yyyy-MM-dd hh:mm a'
+      );
+      if (startDateTime.isValid) {
+        estimatedWaitTime = Math.max(
+          0,
+          Math.round(startDateTime.diffNow('minutes').minutes)
+        );
+      }
+    }
+
+    return {
+      bookingId: booking.id,
+      customerId: booking.userId,
+      barberId: booking.barberId,
+      saloonOwnerId: booking.saloonOwnerId,
+      totalPrice: booking.totalPrice,
+      notes: booking.notes,
+      customerName: booking.user?.fullName || null,
+      customerEmail: booking.user?.email || null,
+      customerContact: booking.user?.phoneNumber || null,
+      date: booking.date,
+      time: booking.startTime,
+      estimatedWaitTime,
+      position: booking.queueSlot[0]?.position || null,
+      serviceNames:
+        booking.BookedServices?.map(bs => bs.service?.serviceName) || [],
+      barberName: booking.barber?.user?.fullName || null,
+      status: booking.status || null,
+    };
+  });
 };
 
 const getBookingByIdFromDb = async (userId: string, bookingId: string) => {
@@ -646,6 +719,17 @@ const getAvailableBarbersFromDb = async (
     where: {
       saloonOwnerId: data.salonId,
     },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phoneNumber: true,
+          status: true,
+        },
+      },
+    },
   });
 
   // 3. Parallelize per-barber checks
@@ -690,7 +774,7 @@ const getAvailableBarbersFromDb = async (
           dayName: luxonDate.toFormat('cccc').toLowerCase(),
         },
       });
-      if (!schedule) return { message: 'Barber schedule not found' };
+      // if (!schedule) return { message: 'Barber schedule not found' };
 
       const overlappingBooking = await prisma.booking.findFirst({
         where: {
@@ -1066,6 +1150,8 @@ const updateBookingIntoDb = async (userId: string, data: any) => {
         endDateTime: endDateTime,
         startTime: localDateTime.toFormat('hh:mm a'),
         endTime: DateTime.fromJSDate(endDateTime).toFormat('hh:mm a'),
+        loyaltySchemeId: data.loyaltySchemeId || null,
+        loyaltyUsed: data.loyaltyProgramId ? true : false,
       },
     });
 
@@ -1127,12 +1213,15 @@ const updateBookingIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const updateBookingStatusIntoDb = async (userId: string, data: {
-  bookingId: string;
-  status: BookingStatus;
-}) => {
+const updateBookingStatusIntoDb = async (
+  userId: string,
+  data: {
+    bookingId: string;
+    status: BookingStatus;
+  },
+) => {
   const { bookingId, status } = data;
-    console.log('Current booking status:',status);
+  console.log('Current booking status:', status);
 
   // Only allow salon owner to update the status
   const booking = await prisma.booking.findUnique({
@@ -1258,6 +1347,33 @@ const deleteBookingItemFromDb = async (userId: string, bookingId: string) => {
   return deletedItem;
 };
 
+const getLoyaltySchemesForCustomerFromDb = async (
+  userId: string,
+  saloonOwnerId: string,
+) => {
+  const totalPoints = await prisma.customerLoyalty.aggregate({
+    where: { userId: userId },
+    _sum: { totalPoints: true },
+  });
+  const schemes = await prisma.loyaltyScheme.findMany({
+    where: {
+      userId: saloonOwnerId,
+    },
+    orderBy: { pointThreshold: 'asc' },
+  });
+
+  const availableSchemes = schemes.filter(
+    scheme =>
+      totalPoints._sum.totalPoints !== null &&
+      scheme.pointThreshold <= totalPoints._sum.totalPoints,
+  );
+
+  return {
+    totalPoints: totalPoints._sum.totalPoints || 0,
+    schemes: availableSchemes,
+  };
+};
+
 export const bookingService = {
   createBookingIntoDb,
   getBookingListFromDb,
@@ -1268,4 +1384,5 @@ export const bookingService = {
   updateBookingIntoDb,
   updateBookingStatusIntoDb,
   deleteBookingItemFromDb,
+  getLoyaltySchemesForCustomerFromDb,
 };

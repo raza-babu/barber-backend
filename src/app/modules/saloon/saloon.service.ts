@@ -129,6 +129,9 @@ const manageBookingsIntoDb = async (
       data: {
         status: targetStatus,
       },
+      include: {
+        BookedServices: true,
+      },
     });
 
     if (!updatedBooking) {
@@ -136,6 +139,77 @@ const manageBookingsIntoDb = async (
         httpStatus.BAD_REQUEST,
         'Booking not found or not updated',
       );
+    }
+
+    if (updatedBooking.status === BookingStatus.COMPLETED) {
+      // Increment loyalty points for the customer if a loyalty scheme exist for the saloon owner
+      // Get all unique serviceIds from the completed booking
+      const serviceIds = updatedBooking.BookedServices.map(bs => bs.serviceId);
+
+      // Find all loyalty programs for the saloon owner that match any of the booked services
+      const loyaltyPrograms = await tx.loyaltyProgram.findMany({
+        where: {
+          userId: userId,
+          serviceId: { in: serviceIds },
+        },
+      });
+      if (loyaltyPrograms.length > 0) {
+        const totalPoints = loyaltyPrograms.reduce(
+          (sum, lp) => sum + lp.points,
+          0,
+        );
+        if (totalPoints > 0) {
+          await tx.customerLoyalty.create({
+            data: {
+              userId: updatedBooking.userId,
+              totalPoints: totalPoints,
+            },
+          });
+        }
+
+        const updateVisitLog = await tx.customerVisit.create({
+          data: {
+            customerId: updatedBooking.userId,
+            saloonId: userId,
+            serviceId: serviceIds,
+            visitDate: new Date(),
+            amountSpent: updatedBooking.totalPrice,
+            earnedPoints: totalPoints,
+          },
+        });
+        if (!updateVisitLog) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Failed to log customer visit',
+          );
+        }
+
+        const updatePointLog = await tx.loyaltyPointLog.updateMany({
+          where: {
+            customerId: updatedBooking.userId,
+            saloonId: userId,
+            visitCount: { gt: 0}
+          },
+          data: {
+            visitCount: { increment: 1 },
+          },
+        });
+        if (!updatePointLog) {
+          const createPointLog = await tx.loyaltyPointLog.create({
+            data: {
+              customerId: updatedBooking.userId,
+              saloonId: userId,
+              visitCount: 1,
+            },
+          });
+          if (!createPointLog) {
+            throw new AppError(
+              httpStatus.BAD_REQUEST,
+              'Failed to create loyalty point log',
+            );
+          }
+        }
+      }
     }
 
     return updatedBooking;

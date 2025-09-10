@@ -9,7 +9,10 @@ model LoyaltyScheme {
 
   // Relationships
   user      User              @relation(fields: [userId], references: [id])
+  bookings  Booking[]
 
+
+  @@unique([userId, pointThreshold, percentage])
 
   @@map("loyalty_schemes")
 }

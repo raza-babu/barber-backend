@@ -35,6 +35,7 @@ model SaloonOwner {
   JobApplication    JobApplication[]
   Support           Support[]
   Review            Review[]
+  LoyaltyPointLog    LoyaltyPointLog[]
 
   @@map("saloon_owners")
 }
