@@ -56,3 +56,14 @@ export const refundPaymentPayloadSchema = z.object({
     required_error: 'Payment Intent ID is required',
   }),
 });
+
+export const tipPayloadSchema = z.object({
+  body: z.object({
+    bookingId: z.string({ required_error: 'Parcel ID is required' }),
+    barberAmount: z.number({ required_error: 'Amount is required' }),
+    saloonOwnerAmount: z.number({ required_error: 'Amount is required' }),
+    paymentMethodId: z.string({
+      required_error: 'Payment Method ID is required',
+    }),
+  }),
+});

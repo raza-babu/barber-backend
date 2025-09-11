@@ -47,8 +47,8 @@ const getBookingListForSalonOwner = catchAsync(async (req, res) => {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Booking list for salon owner retrieved successfully',
-    data: result.data, // ✅ only the bookings array
-    meta: result.meta, // ✅ pagination metadata
+    data: result.data, 
+    meta: result.meta, 
   });
 });
 
@@ -66,6 +66,20 @@ const getAvailableBarbers = catchAsync(async (req, res) => {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Available barbers retrieved successfully',
+    data: result,
+  });
+});
+
+const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await bookingService.getAvailableBarbersForWalkingInFromDb(
+    user.id,
+    req.body
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Available barbers for walking-in retrieved successfully',
     data: result,
   });
 });
@@ -153,6 +167,7 @@ export const bookingController = {
   getBookingList,
   getBookingListForSalonOwner,
   getBookingByIdForSalonOwner,
+  getAvailableBarbersForWalkingIn,
   getAvailableBarbers,
   getBookingById,
   updateBooking,

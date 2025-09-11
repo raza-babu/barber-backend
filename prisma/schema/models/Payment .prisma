@@ -1,8 +1,8 @@
 model Payment {
   id                   String        @id @default(auto()) @map("_id") @db.ObjectId
   userId               String        @db.ObjectId
-  stripeSubscriptionId String?       @unique
-  paymentIntentId      String?       @unique
+  stripeSubscriptionId String?       
+  paymentIntentId      String?       
   paymentMethodId      String?
   paymentAmount        Float
   bookingId            String?       @db.ObjectId

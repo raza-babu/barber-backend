@@ -157,6 +157,10 @@ const loginUserFromDB = async (payload: {
       isSubscribed: userData.isSubscribed,
       subscriptionEnd: userData.subscriptionEnd,
       subscriptionPlan: userData.subscriptionPlan,
+      onBoarding: userData.onBoarding,
+    }),
+    ...(userData.role === UserRoleEnum.BARBER && {
+      onBoarding: userData.onBoarding,
     }),
   };
 };

@@ -34,6 +34,7 @@ import { userSubscriptionRoutes } from '../modules/userSubscription/userSubscrip
 import { PaymentRoutes } from '../modules/payment/payment.routes';
 import { loyaltyProgramRoutes } from '../modules/loyaltyProgram/loyaltyProgram.routes';
 import { loyaltySchemeRoutes } from '../modules/loyaltyScheme/loyaltyScheme.routes';
+import { nonRegisteredBookingRoutes } from '../modules/nonRegisteredBooking/nonRegisteredBooking.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -180,6 +181,10 @@ const moduleRoutes = [
   {
     path: '/loyalty-schemes',
     route: loyaltySchemeRoutes,
+  },
+  {
+    path: '/non-registered-bookings',
+    route: nonRegisteredBookingRoutes,
   },
 ];
 

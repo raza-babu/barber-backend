@@ -830,6 +830,21 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
   res.status(200).send('Event received');
 });
 
+const tipPaymentToBarber = catchAsync(async (req: any, res: any) => {
+  const user = req.user as any;
+  const result = await StripeServices.tipPaymentToBarberService(
+    user.id,
+    req.body,
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Tip payment to barber successfully',
+    data: result,
+  });
+});
+
 export const PaymentController = {
   saveCardWithCustomerInfo,
   authorizedPaymentWithSaveCard,
@@ -843,5 +858,6 @@ export const PaymentController = {
   getAllCustomers,
   createAccount,
   createNewAccount,
+  tipPaymentToBarber,
   handleWebHook,
 };

@@ -1,3 +1,4 @@
+import { User, UserRoleEnum } from '@prisma/client';
 import express from 'express';
 import auth from '../../middlewares/auth';
 import { PaymentController } from './payment.controller';
@@ -9,13 +10,14 @@ import {
   capturedPaymentPayloadSchema,
   refundPaymentPayloadSchema,
   saveNewCardWithExistingCustomerPayloadSchema,
+  tipPayloadSchema,
   TStripeSaveWithCustomerInfoPayloadSchema,
 } from './payment.validation';
 import validateRequest from '../../middlewares/validateRequest';
 
 router.post('/create-account', auth(), PaymentController.createAccount);
 
-router.post('/create-new-account',auth(), PaymentController.createNewAccount);
+router.post('/create-new-account', auth(), PaymentController.createNewAccount);
 
 // create a new customer with card
 router.post(
@@ -71,5 +73,12 @@ router.get(
 router.get('/customers', auth(), PaymentController.getAllCustomers);
 
 router.get('/', auth(), PaymentController.getCustomerDetails);
+
+router.post(
+  '/tip-payment',
+  auth(UserRoleEnum.CUSTOMER),
+  validateRequest(tipPayloadSchema),
+  PaymentController.tipPaymentToBarber,
+);
 
 export const PaymentRoutes = router;

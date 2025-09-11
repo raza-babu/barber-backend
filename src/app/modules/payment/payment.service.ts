@@ -698,6 +698,103 @@ const createNewAccountIntoStripe = async (userId: string) => {
   return accountLink;
 };
 
+const tipPaymentToBarberService = async (
+  userId: string,
+  payload: {
+    bookingId: string;
+    barberAmount: number;
+    saloonOwnerAmount: number;
+    paymentMethodId: string;
+  },
+) => {
+  const { bookingId, barberAmount, saloonOwnerAmount, paymentMethodId } = payload;
+
+  if (!isValidAmount(barberAmount) || !isValidAmount(saloonOwnerAmount)) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid amount. Amount must be positive with up to 2 decimals.');
+  }
+
+  return await prisma.$transaction(async tx => {
+    const booking = await tx.booking.findUnique({
+      where: { id: bookingId, status: BookingStatus.COMPLETED, userId },
+      include: {
+        saloonOwner: { include: { user: true } },
+        barber: { include: { user: true } },
+        user: { select: { id: true, stripeCustomerId: true } },
+      },
+    });
+    if (!booking) throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    if (!booking.user?.stripeCustomerId) throw new AppError(httpStatus.BAD_REQUEST, 'Customer has no Stripe ID');
+    if (!booking.saloonOwner.user?.stripeAccountId) throw new AppError(httpStatus.BAD_REQUEST, 'Saloon owner missing Stripe account ID');
+    if (!booking.barber.user?.stripeAccountId) throw new AppError(httpStatus.BAD_REQUEST, 'Barber missing Stripe account ID');
+
+    const totalAmount = barberAmount + saloonOwnerAmount;
+    const serviceCharge = totalAmount * 0.001; // 0.1% service fee
+    const finalAmount = totalAmount + serviceCharge;
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(finalAmount * 100), // in cents
+      currency: 'usd',
+      customer: booking.user.stripeCustomerId,
+      payment_method: paymentMethodId,
+      confirm: true,
+      metadata: {
+        bookingId: booking.id,
+        customerId: booking.user.id,
+        saloonOwnerId: booking.saloonOwner.user.id,
+        barberId: booking.barber.user.id,
+      },
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+    });
+
+    if (paymentIntent.status === 'succeeded') {
+      // Transfer to saloon owner
+      await stripe.transfers.create({
+        amount: Math.round(saloonOwnerAmount * 100),
+        currency: 'usd',
+        destination: booking.saloonOwner.user.stripeAccountId,
+        metadata: { bookingId: booking.id, role: 'saloon_owner' },
+      });
+
+      // Transfer to barber
+      await stripe.transfers.create({
+        amount: Math.round(barberAmount * 100),
+        currency: 'usd',
+        destination: booking.barber.user.stripeAccountId,
+        metadata: { bookingId: booking.id, role: 'barber' },
+      });
+
+      // DB payments
+      await tx.payment.createMany({
+        data: [
+          {
+            userId: booking.saloonOwner.user.id,
+            bookingId: booking.id,
+            paymentIntentId: paymentIntent.id,
+            paymentAmount: saloonOwnerAmount,
+            status: PaymentStatus.COMPLETED,
+            paymentMethodId,
+            amountProvider: booking.user.stripeCustomerId!,
+            amountReceiver: booking.saloonOwner.user.stripeAccountId!,
+          },
+          {
+            userId: booking.barber.user.id,
+            bookingId: booking.id,
+            paymentIntentId: paymentIntent.id,
+            paymentAmount: barberAmount,
+            status: PaymentStatus.COMPLETED,
+            paymentMethodId,
+            amountProvider: booking.user.stripeCustomerId!,
+            amountReceiver: booking.barber.user.stripeAccountId!,
+          },
+        ],
+      });
+    }
+
+    return paymentIntent;
+  });
+};
+
+
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,
   authorizeAndSplitPayment,
@@ -711,4 +808,5 @@ export const StripeServices = {
   getAllCustomersFromStripe,
   createAccountIntoStripe,
   createNewAccountIntoStripe,
+  tipPaymentToBarberService,
 };

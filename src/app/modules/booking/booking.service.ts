@@ -46,6 +46,14 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   }
 
   // 2. Convert date and time to UTC DateTime
+
+  // check the date is not in the past
+  const dateObj = DateTime.fromISO(date, { zone: 'local' });
+  const today = DateTime.now().startOf('day');
+  if (dateObj < today) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Date cannot be in the past');
+  }
+
   // Combine date and appointmentAt (e.g., "2025-08-20" + "11:00 AM")
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
@@ -329,16 +337,14 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         loyaltyUsed: data.loyaltyProgramId ? true : false,
       },
     });
-    if(loyaltyUsed){
-    if(booking && booking.loyaltySchemeId){
-      await tx.loyaltyRedemption.update({
-        where: { id: loyaltyUsed.id, customerId: userId, bookingId: null },
-        data: { bookingId: booking.id },
-        
-      })
+    if (loyaltyUsed) {
+      if (booking && booking.loyaltySchemeId) {
+        await tx.loyaltyRedemption.update({
+          where: { id: loyaltyUsed.id, customerId: userId, bookingId: null },
+          data: { bookingId: booking.id },
+        });
+      }
     }
-  }
-
 
     // 4c. Create bookedService records
     await Promise.all(
@@ -551,12 +557,12 @@ const getBookingListFromDb = async (userId: string) => {
       // booking.date is a Date object, booking.startTime is a string like "11:00 AM"
       const startDateTime = DateTime.fromFormat(
         `${DateTime.fromJSDate(booking.date).toFormat('yyyy-MM-dd')} ${booking.startTime}`,
-        'yyyy-MM-dd hh:mm a'
+        'yyyy-MM-dd hh:mm a',
       );
       if (startDateTime.isValid) {
         estimatedWaitTime = Math.max(
           0,
-          Math.round(startDateTime.diffNow('minutes').minutes)
+          Math.round(startDateTime.diffNow('minutes').minutes),
         );
       }
     }
@@ -683,10 +689,192 @@ const getBookingByIdFromDb = async (userId: string, bookingId: string) => {
   };
 };
 
+const getAvailableBarbersForWalkingInFromDb = async (
+  userId: string,
+  data: { saloonOwnerId: string; date: string },
+) => {
+  const date = DateTime.fromFormat(data.date, 'yyyy-MM-dd', { zone: 'local' });
+  if (!date.isValid) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
+  }
+
+  const today = DateTime.now().startOf('day');
+  if (date < today) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Date cannot be in the past');
+  }
+
+  const startOfDay = date.startOf('day').toJSDate();
+  const endOfDay = date.endOf('day').toJSDate();
+
+  // Check if salon is closed
+  const salon = await prisma.saloonOwner.findUnique({
+    where: { userId: data.saloonOwnerId },
+    select: { userId: true, isQueueEnabled: true },
+  });
+  if (!salon) throw new AppError(httpStatus.NOT_FOUND, 'Salon not found');
+
+  const holiday = await prisma.saloonHoliday.findFirst({
+    where: { userId: salon.userId, date: date.toJSDate() },
+  });
+  if (holiday) return { message: 'Salon is closed on this date' };
+
+  let barbers = await prisma.barber.findMany({
+    where: { saloonOwnerId: data.saloonOwnerId },
+    include: {
+      user: { select: { id: true, fullName: true, status: true } },
+    },
+  });
+
+  // if barber schedule is not added for the saloon owner, that barber should not be shown in the list
+  const barberIdsWithSchedule = await prisma.barberSchedule.findMany({
+    where: { barber: { saloonOwnerId: data.saloonOwnerId } },
+    select: { barberId: true },
+    distinct: ['barberId'],
+  });
+  const barberIdsSet = new Set(barberIdsWithSchedule.map(b => b.barberId));
+  const filteredBarbers = barbers.filter(b => barberIdsSet.has(b.userId));
+  if (filteredBarbers.length === 0) {
+    return { message: 'No barbers with schedules found for this salon' };
+  }
+  barbers = filteredBarbers;
+
+  const results = await Promise.all(
+    barbers.map(async barber => {
+      // Skip if day off
+      const dayOff = await prisma.barberDayOff.findFirst({
+        where: { barberId: barber.userId, date: date.toJSDate() },
+      });
+      if (dayOff) return null;
+
+      // Get schedule
+      const schedule = await prisma.barberSchedule.findFirst({
+        where: {
+          barberId: barber.userId,
+          dayName: date.toFormat('cccc').toLowerCase(),
+        },
+      });
+
+      // Get bookings
+      const bookings = await prisma.booking.findMany({
+        where: {
+          barberId: barber.userId,
+          startDateTime: { gte: startOfDay },
+          endDateTime: { lte: endOfDay },
+        },
+        orderBy: { startDateTime: 'asc' },
+      });
+
+      // Build booking ranges
+      const bookingRanges = bookings.map(b => ({
+        start: DateTime.fromJSDate(b.startDateTime!).toISO(),
+        end: DateTime.fromJSDate(b.endDateTime!).toISO(),
+      }));
+
+      // Estimate wait time = sum of current bookings lengths
+      const estimatedWaitTime = bookings.reduce((sum, b) => {
+        return (
+          sum +
+          DateTime.fromJSDate(b.endDateTime!).diff(
+            DateTime.fromJSDate(b.startDateTime!),
+            'minutes',
+          ).minutes
+        );
+      }, 0);
+
+      // Queue info if enabled
+      let queueInfo = null;
+      if (salon.isQueueEnabled) {
+        const queue = await prisma.queue.findFirst({
+          where: {
+            barberId: barber.userId,
+            saloonOwnerId: data.saloonOwnerId,
+            date: date.toJSDate(),
+          },
+          select: {
+            id: true,
+            currentPosition: true,
+            queueSlots: { select: { id: true }, orderBy: { position: 'asc' } },
+          },
+        });
+        queueInfo = queue
+          ? {
+              queueId: queue.id,
+              currentPosition: queue.currentPosition,
+              totalInQueue: queue.queueSlots.length,
+              estimatedWaitTime,
+            }
+          : { totalInQueue: 0, estimatedWaitTime: 0 };
+      }
+
+      // Calculate free slots based on schedule and bookings
+      let freeSlots: { start: string; end: string }[] = [];
+      if (schedule) {
+        // Build an array of busy intervals (sorted)
+        const busyIntervals = bookings
+          .map(b => ({
+        start: DateTime.fromJSDate(b.startDateTime!),
+        end: DateTime.fromJSDate(b.endDateTime!),
+          }))
+          .sort((a, b) => a.start.toMillis() - b.start.toMillis());
+
+        // Opening and closing times as DateTime
+        const opening = DateTime.fromFormat(
+          `${date.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
+          'yyyy-MM-dd hh:mm a'
+        );
+        const closing = DateTime.fromFormat(
+          `${date.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
+          'yyyy-MM-dd hh:mm a'
+        );
+
+        let lastEnd = opening;
+
+        for (const interval of busyIntervals) {
+          if (interval.start > lastEnd) {
+        freeSlots.push({
+          start: lastEnd.toFormat('hh:mm a'),
+          end: interval.start.toFormat('hh:mm a'),
+        });
+          }
+          if (interval.end > lastEnd) {
+        lastEnd = interval.end;
+          }
+        }
+
+        // Free slot after last booking until closing
+        if (lastEnd < closing) {
+          freeSlots.push({
+        start: lastEnd.toFormat('hh:mm a'),
+        end: closing.toFormat('hh:mm a'),
+          });
+        }
+      }
+
+      return {
+        barberId: barber.userId,
+        name: barber.user.fullName,
+        status: barber.user.status,
+        schedule: schedule
+          ? { start: schedule.openingTime, end: schedule.closingTime }
+          : null,
+        bookings: bookings.map(b => ({
+          startTime: DateTime.fromJSDate(b.startDateTime!).toFormat('hh:mm a'),
+          endTime: DateTime.fromJSDate(b.endDateTime!).toFormat('hh:mm a'),
+        })),
+        freeSlots,
+        // estimatedWaitTime,
+        queue: queueInfo,
+      };
+    }),
+  );
+
+  return results.filter(Boolean);
+};
+
 const getAvailableBarbersFromDb = async (
   userId: string,
   data: {
-    salonId: string;
+    saloonOwnerId: string;
     utcDateTime: string; // ISO string
     totalServiceTime: number;
   },
@@ -695,7 +883,7 @@ const getAvailableBarbersFromDb = async (
   const luxonDate = DateTime.fromJSDate(date);
   // 1. Check if the salon is on holiday (global filter)
   const salon = await prisma.saloonOwner.findUnique({
-    where: { userId: data.salonId },
+    where: { userId: data.saloonOwnerId },
     select: {
       userId: true,
     },
@@ -715,22 +903,42 @@ const getAvailableBarbersFromDb = async (
   }
 
   // 2. Get all barbers for the salon
-  const barbers = await prisma.barber.findMany({
-    where: {
-      saloonOwnerId: data.salonId,
-    },
+  // const barbers = await prisma.barber.findMany({
+  //   where: {
+  //     saloonOwnerId: data.salonId,
+  //   },
+  //   include: {
+  //     user: {
+  //       select: {
+  //         id: true,
+  //         fullName: true,
+  //         email: true,
+  //         phoneNumber: true,
+  //         status: true,
+  //       },
+  //     },
+  //   },
+  // });
+
+   let barbers = await prisma.barber.findMany({
+    where: { saloonOwnerId: data.saloonOwnerId },
     include: {
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          phoneNumber: true,
-          status: true,
-        },
-      },
+      user: { select: { id: true, fullName: true, status: true } },
     },
   });
+
+  // if barber schedule is not added for the saloon owner, that barber should not be shown in the list
+  const barberIdsWithSchedule = await prisma.barberSchedule.findMany({
+    where: { barber: { saloonOwnerId: data.saloonOwnerId } },
+    select: { barberId: true },
+    distinct: ['barberId'],
+  });
+  const barberIdsSet = new Set(barberIdsWithSchedule.map(b => b.barberId));
+  const filteredBarbers = barbers.filter(b => barberIdsSet.has(b.userId));
+  if (filteredBarbers.length === 0) {
+    return { message: 'No barbers with schedules found for this salon' };
+  }
+  barbers = filteredBarbers;
 
   // 3. Parallelize per-barber checks
   const availableBarbers = await Promise.all(
@@ -738,7 +946,7 @@ const getAvailableBarbersFromDb = async (
       // 3a. Check day-off
       const dayOff = await prisma.barberDayOff.findFirst({
         where: {
-          saloonOwnerId: data.salonId,
+          saloonOwnerId: data.saloonOwnerId,
           barberId: barber.userId,
           date: date,
         },
@@ -923,6 +1131,36 @@ const getBookingListForSalonOwnerFromDb = async (
     }),
     prisma.booking.count({ where: whereClause }),
   ]);
+
+  // Gracefully fetch non-registered user details if user is null
+  await Promise.all(
+    result.map(async booking => {
+      if (!booking.user) {
+        const nonRegistered = await prisma.nonRegisteredUser.findUnique({
+          where: { id: booking.userId },
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+          },
+        });
+        if (nonRegistered) {
+          booking.user = {
+            id: nonRegistered.id,
+            image: null,
+            fullName: nonRegistered.fullName,
+            email: nonRegistered.email ? nonRegistered.email : '',
+            phoneNumber: nonRegistered.phone,
+          };
+        }
+      }
+    })
+  );
+
+  
+
+
 
   // Flatten results
   const mapped = result.map(booking => ({
@@ -1379,6 +1617,7 @@ export const bookingService = {
   getBookingListFromDb,
   getBookingListForSalonOwnerFromDb,
   getBookingByIdFromDbForSalon,
+  getAvailableBarbersForWalkingInFromDb,
   getAvailableBarbersFromDb,
   getBookingByIdFromDb,
   updateBookingIntoDb,

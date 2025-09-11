@@ -35,6 +35,13 @@ router.get(
 );
 
 router.get(
+  '/walking-in/barbers',
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.CUSTOMER),
+  validateRequest(bookingValidation.walkingInBarbersSchema),
+  bookingController.getAvailableBarbersForWalkingIn,
+);
+
+router.get(
   '/customers/:id',
   auth(UserRoleEnum.CUSTOMER),
   bookingController.getBookingById,

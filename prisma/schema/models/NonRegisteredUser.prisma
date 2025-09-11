@@ -12,3 +12,5 @@ model NonRegisteredUser {
 
   @@map("non_registered_users")
 }
+
+ 

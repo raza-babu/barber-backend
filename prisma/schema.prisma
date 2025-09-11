@@ -39,6 +39,7 @@ enum PaymentStatus {
   PENDING
   COMPLETED
   FAILED
+  CASH
   EXPIRED
   REFUNDED
   REQUIRES_CAPTURE
@@ -695,6 +696,7 @@ model NonRegisteredUser {
   @@map("non_registered_users")
 }
 
+ 
 
 model Notification {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -716,8 +718,8 @@ model Notification {
 model Payment {
   id                   String        @id @default(auto()) @map("_id") @db.ObjectId
   userId               String        @db.ObjectId
-  stripeSubscriptionId String?       @unique
-  paymentIntentId      String?       @unique
+  stripeSubscriptionId String?       
+  paymentIntentId      String?       
   paymentMethodId      String?
   paymentAmount        Float
   bookingId            String?       @db.ObjectId

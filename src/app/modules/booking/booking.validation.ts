@@ -61,19 +61,26 @@ function convertToUTC(date: string, time: string): string {
 
 const availableBarbersSchema = z.object({
  query: z.object({
-  salonId: z.string().min(1),
+  saloonOwnerId: z.string().min(1),
   date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
     message: 'Time must be in hh:mm AM/PM format',
   }),
   totalServiceTime: z.coerce.number().int().positive(),
 
-  }).transform(({ salonId, date, time, totalServiceTime }) => ({
-    salonId,
+  }).transform(({ saloonOwnerId, date, time, totalServiceTime }) => ({
+    saloonOwnerId,
     utcDateTime: convertToUTC(date, time),
     totalServiceTime,
   })),
 });
+
+const walkingInBarbersSchema = z.object({
+  body: z.object({
+   saloonOwnerId: z.string().min(1),
+   date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+ });
 
 
 export const bookingValidation = {
@@ -81,4 +88,5 @@ export const bookingValidation = {
   updateBookingSchema,
   updateBookingStatusSchema,
   availableBarbersSchema,
+  walkingInBarbersSchema,
 };
