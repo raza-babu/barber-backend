@@ -125,7 +125,17 @@ const socialLoginSchema = zod_1.default.object({
         fcmToken: zod_1.default.string({
             required_error: 'Fcm token is required!',
         }),
-        role: zod_1.default.string({
+        phoneNumber: zod_1.default
+            .string({
+            required_error: 'Phone number is required!',
+        })
+            .optional(),
+        plateForm: zod_1.default.enum(['GOOGLE', 'FACEBOOK', 'APPLE'], {
+            required_error: 'PlatForm is required!',
+        }),
+        image: zod_1.default.string().optional(),
+        address: zod_1.default.string().optional(),
+        role: zod_1.default.enum(['CUSTOMER', 'SALOON_OWNER', 'BARBER'], {
             required_error: 'Role is required!',
         }),
     }),

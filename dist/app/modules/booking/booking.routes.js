@@ -15,9 +15,11 @@ router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), (0, valida
 router.get('/customers', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.getBookingList);
 router.get('/list', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.getBookingListForSalonOwner);
 router.get('/barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.availableBarbersSchema), booking_controller_1.bookingController.getAvailableBarbers);
+router.get('/walking-in/barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.walkingInBarbersSchema), booking_controller_1.bookingController.getAvailableBarbersForWalkingIn);
 router.get('/customers/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.getBookingById);
 router.get('/salons/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.getBookingByIdForSalonOwner);
 router.put('/reschedule', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.updateBookingSchema), booking_controller_1.bookingController.updateBooking);
 router.put('/schedule-status', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.updateBookingStatusSchema), booking_controller_1.bookingController.updateBookingStatus);
 router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.deleteBooking);
+router.get('/loyalty-schemes/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.getLoyaltySchemesForACustomer);
 exports.bookingRoutes = router;

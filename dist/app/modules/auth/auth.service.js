@@ -136,12 +136,15 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
         email: userData.email,
         role: userData.role,
     }, config_1.default.jwt.refresh_secret, config_1.default.jwt.refresh_expires_in);
-    return Object.assign(Object.assign({ id: userData.id, name: userData.fullName, email: userData.email, role: userData.role, image: userData.image, accessToken: accessToken, refreshToken: refreshedToken }, (userData.role === client_1.UserRoleEnum.ADMIN && {
+    return Object.assign(Object.assign(Object.assign({ id: userData.id, name: userData.fullName, email: userData.email, role: userData.role, image: userData.image, accessToken: accessToken, refreshToken: refreshedToken }, (userData.role === client_1.UserRoleEnum.ADMIN && {
         functions: adminAccessFunctions,
     })), (userData.role === client_1.UserRoleEnum.SALOON_OWNER && {
         isSubscribed: userData.isSubscribed,
         subscriptionEnd: userData.subscriptionEnd,
         subscriptionPlan: userData.subscriptionPlan,
+        onBoarding: userData.onBoarding,
+    })), (userData.role === client_1.UserRoleEnum.BARBER && {
+        onBoarding: userData.onBoarding,
     }));
 });
 const refreshTokenFromDB = (refreshedToken) => __awaiter(void 0, void 0, void 0, function* () {

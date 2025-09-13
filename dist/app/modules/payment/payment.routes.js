@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PaymentRoutes = void 0;
+const client_1 = require("@prisma/client");
 const express_1 = __importDefault(require("express"));
 const auth_1 = __importDefault(require("../../middlewares/auth"));
 const payment_controller_1 = require("./payment.controller");
@@ -28,4 +29,5 @@ router.post('/refund-payment', (0, validateRequest_1.default)(payment_validation
 router.get('/customer-save-cards', (0, auth_1.default)(), payment_controller_1.PaymentController.getCustomerSavedCards);
 router.get('/customers', (0, auth_1.default)(), payment_controller_1.PaymentController.getAllCustomers);
 router.get('/', (0, auth_1.default)(), payment_controller_1.PaymentController.getCustomerDetails);
+router.post('/tip-payment', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(payment_validation_1.tipPayloadSchema), payment_controller_1.PaymentController.tipPaymentToBarber);
 exports.PaymentRoutes = router;

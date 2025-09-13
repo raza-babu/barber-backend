@@ -15,6 +15,7 @@ model User {
   gender               String?
   otp                  Int?
   otpExpiry            DateTime?
+  plateForm            PlatFormType?          
   fcmToken             String?
   fcmTokenEx           String?
   stripeCustomerId     String?                

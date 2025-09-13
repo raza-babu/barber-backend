@@ -13,7 +13,7 @@ const path_1 = __importDefault(require("path"));
 const payment_controller_1 = require("./app/modules/payment/payment.controller");
 const app = (0, express_1.default)();
 app.use(logger_1.logger);
-// app.use(loggerConsole);
+app.use(logger_1.loggerConsole);
 // app.use(
 //   cors({
 //     origin: [

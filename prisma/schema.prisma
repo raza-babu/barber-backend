@@ -47,6 +47,12 @@ enum PaymentStatus {
 }
 
 
+enum PlatFormType {
+  GOOGLE
+  FACEBOOK
+  APPLE
+}
+
 enum QRCodeType {
   SALOON_REGISTRATION // For saloon owner registration
   BARBER_PROFILE // Links to barber profile
@@ -1129,6 +1135,7 @@ model User {
   gender               String?
   otp                  Int?
   otpExpiry            DateTime?
+  plateForm            PlatFormType?          
   fcmToken             String?
   fcmTokenEx           String?
   stripeCustomerId     String?                

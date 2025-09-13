@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.StripeServices = void 0;
 const http_status_1 = __importDefault(require("http-status"));
 const config_1 = __importDefault(require("../../../config"));
+const isValidAmount_1 = require("../../utils/isValidAmount");
 const prisma_1 = __importDefault(require("../../utils/prisma"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const client_1 = require("@prisma/client");
@@ -583,6 +584,90 @@ const createNewAccountIntoStripe = (userId) => __awaiter(void 0, void 0, void 0,
     });
     return accountLink;
 });
+const tipPaymentToBarberService = (userId, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    const { bookingId, barberAmount, saloonOwnerAmount, paymentMethodId } = payload;
+    if (!(0, isValidAmount_1.isValidAmount)(barberAmount) || !(0, isValidAmount_1.isValidAmount)(saloonOwnerAmount)) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid amount. Amount must be positive with up to 2 decimals.');
+    }
+    return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        var _j, _k, _l;
+        const booking = yield tx.booking.findUnique({
+            where: { id: bookingId, status: client_1.BookingStatus.COMPLETED, userId },
+            include: {
+                saloonOwner: { include: { user: true } },
+                barber: { include: { user: true } },
+                user: { select: { id: true, stripeCustomerId: true } },
+            },
+        });
+        if (!booking)
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking not found');
+        if (!((_j = booking.user) === null || _j === void 0 ? void 0 : _j.stripeCustomerId))
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Customer has no Stripe ID');
+        if (!((_k = booking.saloonOwner.user) === null || _k === void 0 ? void 0 : _k.stripeAccountId))
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon owner missing Stripe account ID');
+        if (!((_l = booking.barber.user) === null || _l === void 0 ? void 0 : _l.stripeAccountId))
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Barber missing Stripe account ID');
+        const totalAmount = barberAmount + saloonOwnerAmount;
+        const serviceCharge = totalAmount * 0.001; // 0.1% service fee
+        const finalAmount = totalAmount + serviceCharge;
+        const paymentIntent = yield stripe.paymentIntents.create({
+            amount: Math.round(finalAmount * 100), // in cents
+            currency: 'usd',
+            customer: booking.user.stripeCustomerId,
+            payment_method: paymentMethodId,
+            confirm: true,
+            metadata: {
+                bookingId: booking.id,
+                customerId: booking.user.id,
+                saloonOwnerId: booking.saloonOwner.user.id,
+                barberId: booking.barber.user.id,
+            },
+            automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+        });
+        if (paymentIntent.status === 'succeeded') {
+            // Transfer to saloon owner
+            yield stripe.transfers.create({
+                amount: Math.round(saloonOwnerAmount * 100),
+                currency: 'usd',
+                destination: booking.saloonOwner.user.stripeAccountId,
+                metadata: { bookingId: booking.id, role: 'saloon_owner' },
+            });
+            // Transfer to barber
+            yield stripe.transfers.create({
+                amount: Math.round(barberAmount * 100),
+                currency: 'usd',
+                destination: booking.barber.user.stripeAccountId,
+                metadata: { bookingId: booking.id, role: 'barber' },
+            });
+            // DB payments
+            yield tx.payment.createMany({
+                data: [
+                    {
+                        userId: booking.saloonOwner.user.id,
+                        bookingId: booking.id,
+                        paymentIntentId: paymentIntent.id,
+                        paymentAmount: saloonOwnerAmount,
+                        status: client_1.PaymentStatus.COMPLETED,
+                        paymentMethodId,
+                        amountProvider: booking.user.stripeCustomerId,
+                        amountReceiver: booking.saloonOwner.user.stripeAccountId,
+                    },
+                    {
+                        userId: booking.barber.user.id,
+                        bookingId: booking.id,
+                        paymentIntentId: paymentIntent.id,
+                        paymentAmount: barberAmount,
+                        status: client_1.PaymentStatus.COMPLETED,
+                        paymentMethodId,
+                        amountProvider: booking.user.stripeCustomerId,
+                        amountReceiver: booking.barber.user.stripeAccountId,
+                    },
+                ],
+            });
+        }
+        return paymentIntent;
+    }));
+});
 exports.StripeServices = {
     saveCardWithCustomerInfoIntoStripe,
     authorizeAndSplitPayment,
@@ -596,4 +681,5 @@ exports.StripeServices = {
     getAllCustomersFromStripe,
     createAccountIntoStripe,
     createNewAccountIntoStripe,
+    tipPaymentToBarberService,
 };

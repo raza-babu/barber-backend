@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.refundPaymentPayloadSchema = exports.saveNewCardWithExistingCustomerPayloadSchema = exports.capturedPaymentPayloadSchema = exports.AuthorizedPaymentPayloadSchema = exports.TStripeSaveWithCustomerInfoPayloadSchema = void 0;
+exports.tipPayloadSchema = exports.refundPaymentPayloadSchema = exports.saveNewCardWithExistingCustomerPayloadSchema = exports.capturedPaymentPayloadSchema = exports.AuthorizedPaymentPayloadSchema = exports.TStripeSaveWithCustomerInfoPayloadSchema = void 0;
 const zod_1 = require("zod");
 // Zod schemas
 const AddressSchema = zod_1.z.object({
@@ -50,5 +50,15 @@ exports.saveNewCardWithExistingCustomerPayloadSchema = zod_1.z.object({
 exports.refundPaymentPayloadSchema = zod_1.z.object({
     paymentIntentId: zod_1.z.string({
         required_error: 'Payment Intent ID is required',
+    }),
+});
+exports.tipPayloadSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        bookingId: zod_1.z.string({ required_error: 'Parcel ID is required' }),
+        barberAmount: zod_1.z.number({ required_error: 'Amount is required' }),
+        saloonOwnerAmount: zod_1.z.number({ required_error: 'Amount is required' }),
+        paymentMethodId: zod_1.z.string({
+            required_error: 'Payment Method ID is required',
+        }),
     }),
 });

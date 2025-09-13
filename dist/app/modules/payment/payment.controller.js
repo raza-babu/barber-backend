@@ -699,6 +699,16 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
     }
     res.status(200).send('Event received');
 }));
+const tipPaymentToBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield payment_service_1.StripeServices.tipPaymentToBarberService(user.id, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Tip payment to barber successfully',
+        data: result,
+    });
+}));
 exports.PaymentController = {
     saveCardWithCustomerInfo,
     authorizedPaymentWithSaveCard,
@@ -712,5 +722,6 @@ exports.PaymentController = {
     getAllCustomers,
     createAccount,
     createNewAccount,
+    tipPaymentToBarber,
     handleWebHook,
 };

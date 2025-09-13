@@ -56,8 +56,8 @@ const getBookingListForSalonOwner = (0, catchAsync_1.default)((req, res) => __aw
         statusCode: http_status_1.default.OK,
         success: true,
         message: 'Booking list for salon owner retrieved successfully',
-        data: result.data, // ✅ only the bookings array
-        meta: result.meta, // ✅ pagination metadata
+        data: result.data,
+        meta: result.meta,
     });
 }));
 const getAvailableBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -71,6 +71,16 @@ const getAvailableBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(vo
         statusCode: http_status_1.default.OK,
         success: true,
         message: 'Available barbers retrieved successfully',
+        data: result,
+    });
+}));
+const getAvailableBarbersForWalkingIn = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield booking_service_1.bookingService.getAvailableBarbersForWalkingInFromDb(user.id, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Available barbers for walking-in retrieved successfully',
         data: result,
     });
 }));
@@ -124,14 +134,26 @@ const deleteBooking = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
         data: result,
     });
 }));
+const getLoyaltySchemesForACustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield booking_service_1.bookingService.getLoyaltySchemesForCustomerFromDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Loyalty schemes retrieved successfully',
+        data: result,
+    });
+}));
 exports.bookingController = {
     createBooking,
     getBookingList,
     getBookingListForSalonOwner,
     getBookingByIdForSalonOwner,
+    getAvailableBarbersForWalkingIn,
     getAvailableBarbers,
     getBookingById,
     updateBooking,
     updateBookingStatus,
     deleteBooking,
+    getLoyaltySchemesForACustomer,
 };

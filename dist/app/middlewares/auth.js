@@ -52,6 +52,12 @@ const auth = (...roles) => {
             if (!user) {
                 throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'You are not authorized!');
             }
+            if (user.status !== client_1.UserStatus.ACTIVE) {
+                throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'User is not active. Please contact support.');
+            }
+            if (!user.isProfileComplete) {
+                throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Please complete your profile to proceed.');
+            }
             // Initialize permissions and super admin status
             let isSuperAdmin = false;
             let permissions = [];

@@ -39,20 +39,19 @@ const updateProfileSchema = z.object({
         required_error: 'Phone number is required!',
       })
       .optional(),
-      dateOfBirth: z
+    dateOfBirth: z
       .string({
         required_error: 'Date of birth is required!',
       })
       .optional(),
-      
-      address: z
+
+    address: z
       .string({
         required_error: 'Address is required!',
       })
       .optional(),
-    }),
-  })
-
+  }),
+});
 
 const updatePasswordSchema = z.object({
   body: z.object({
@@ -127,7 +126,17 @@ const socialLoginSchema = z.object({
     fcmToken: z.string({
       required_error: 'Fcm token is required!',
     }),
-    role: z.string({
+    phoneNumber: z
+      .string({
+        required_error: 'Phone number is required!',
+      })
+      .optional(),
+    plateForm: z.enum(['GOOGLE', 'FACEBOOK', 'APPLE'], {
+      required_error: 'PlatForm is required!',
+    }),
+    image: z.string().optional(),
+    address: z.string().optional(),
+    role: z.enum(['CUSTOMER', 'SALOON_OWNER', 'BARBER'], {
       required_error: 'Role is required!',
     }),
   }),

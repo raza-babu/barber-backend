@@ -338,7 +338,9 @@ const getMyProfileFromDB = (id) => __awaiter(void 0, void 0, void 0, function* (
 const updateMyProfileIntoDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const userData = payload;
     if (userData.isQueueEnabled) {
-        return { message: 'Queue feature is available for Premium plan users. Please upgrade your plan to access this feature.' };
+        return {
+            message: 'Queue feature is available for Premium plan users. Please upgrade your plan to access this feature.',
+        };
     }
     // update user data
     yield prisma_1.default.$transaction((transactionClient) => __awaiter(void 0, void 0, void 0, function* () {
@@ -610,58 +612,138 @@ const verifyOtpForgotPasswordInDB = (bodyData) => __awaiter(void 0, void 0, void
     return { message: 'OTP verified successfully!' };
 });
 const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const user = yield prisma_1.default.user.findUnique({
-        where: {
-            email: payload.email,
+    var _b, _c, _d, _e, _f, _g, _h, _j;
+    // Prevent creating an ADMIN via social sign-up
+    if (payload.role === client_1.UserRoleEnum.ADMIN || payload.role === client_1.UserRoleEnum.SUPER_ADMIN) {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Admin accounts cannot be created via social sign-up.');
+    }
+    // Find existing user by email
+    let userRecord = yield prisma_1.default.user.findUnique({
+        where: { email: payload.email, role: payload.role },
+        select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+            image: true,
+            onBoarding: true,
+            isSubscribed: true,
+            subscriptionEnd: true,
+            subscriptionPlan: true,
+            isProfileComplete: true,
+            status: true,
         },
     });
-    if (!user) {
-        const newUser = yield prisma_1.default.user.create({
-            data: Object.assign(Object.assign({}, payload), { status: client_1.UserStatus.ACTIVE }),
+    let isNewUser = false;
+    if (userRecord) {
+        // Check profile completion
+        if (userRecord.isProfileComplete === false) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Please complete your profile before logging in');
+        }
+        // Check if account is blocked
+        if (userRecord.status === client_1.UserStatus.BLOCKED) {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account is blocked. Please contact support.');
+        }
+        // For SALOON_OWNERS, check verification status
+        if (userRecord.role === client_1.UserRoleEnum.SALOON_OWNER) {
+            const saloon = yield prisma_1.default.saloonOwner.findFirst({
+                where: { userId: userRecord.id },
+            });
+            if ((saloon === null || saloon === void 0 ? void 0 : saloon.isVerified) === false) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Your saloon is not verified yet. Please wait for verification.');
+            }
+        }
+        // For BARBER, add similar verification check (assuming a barber model exists)
+        // if (userRecord.role === UserRoleEnum.BARBER) {
+        //   const barber = await prisma.barber.findFirst({
+        //     where: { userId: userRecord.id },
+        //   });
+        //   if (barber?.isVerified === false) {
+        //     throw new AppError(
+        //       httpStatus.BAD_REQUEST,
+        //       'Your barber profile is not verified yet. Please wait for verification.',
+        //     );
+        //   }
+        // }
+    }
+    else {
+        // Validate and sanitize role for new users (default to CUSTOMER if invalid/missing)
+        let userRole = client_1.UserRoleEnum.CUSTOMER;
+        if (payload.role && Object.values(client_1.UserRoleEnum).includes(payload.role)) {
+            userRole = payload.role;
+        }
+        // If user does not exist, create
+        const created = yield prisma_1.default.user.create({
+            data: {
+                fullName: payload.fullName,
+                email: payload.email,
+                image: (_b = payload.image) !== null && _b !== void 0 ? _b : null,
+                role: userRole,
+                status: client_1.UserStatus.ACTIVE,
+                fcmToken: (_c = payload.fcmToken) !== null && _c !== void 0 ? _c : null,
+                phoneNumber: (_d = payload.phoneNumber) !== null && _d !== void 0 ? _d : null,
+                address: (_e = payload.address) !== null && _e !== void 0 ? _e : null,
+                isProfileComplete: payload.role === client_1.UserRoleEnum.CUSTOMER ? true : false, // Auto-complete profile for CUSTOMER
+            },
             select: {
                 id: true,
                 fullName: true,
                 email: true,
                 role: true,
+                image: true,
+                onBoarding: true,
+                isSubscribed: true,
+                subscriptionEnd: true,
+                subscriptionPlan: true,
             },
         });
-        const accessToken = yield (0, generateToken_1.generateToken)({
-            id: newUser.id,
-            email: newUser.email,
-            role: newUser.role,
-            purpose: 'access',
-            functions: [],
-            subscriptionPlan: client_2.SubscriptionPlanStatus.FREE,
-        }, config_1.default.jwt.access_secret, config_1.default.jwt.access_expires_in);
-        const refreshedToken = yield (0, generateToken_1.refreshToken)({
-            id: newUser.id,
-            email: newUser.email,
-            role: newUser.role,
-        }, config_1.default.jwt.refresh_secret, config_1.default.jwt.refresh_expires_in);
-        return { newUser, accessToken, refreshedToken };
+        // Use created data with defaults (avoid re-fetch)
+        userRecord = Object.assign(Object.assign({}, created), { status: client_1.UserStatus.ACTIVE, isProfileComplete: true, onBoarding: (_f = created.onBoarding) !== null && _f !== void 0 ? _f : false, isSubscribed: (_g = created.isSubscribed) !== null && _g !== void 0 ? _g : false, subscriptionEnd: (_h = created.subscriptionEnd) !== null && _h !== void 0 ? _h : null, subscriptionPlan: (_j = created.subscriptionPlan) !== null && _j !== void 0 ? _j : null });
+        isNewUser = true;
     }
-    if (user) {
-        const fcmUpdate = yield prisma_1.default.user.update({
-            where: { email: payload.email },
-            data: {
-                fcmToken: payload.fcmToken,
-            },
+    // Update FCM token if provided (for both new and existing users)
+    if (payload.fcmToken && !isNewUser) { // Skip for new users if already set during create
+        yield prisma_1.default.user.update({
+            where: { id: userRecord.id },
+            data: { fcmToken: payload.fcmToken },
         });
+    }
+    // Helper to build tokens
+    const buildTokensForUser = (user) => __awaiter(void 0, void 0, void 0, function* () {
+        var _k;
         const accessToken = yield (0, generateToken_1.generateToken)({
             id: user.id,
             email: user.email,
             role: user.role,
             purpose: 'access',
             functions: [],
-            subscriptionPlan: client_2.SubscriptionPlanStatus.FREE,
+            subscriptionPlan: (_k = user.subscriptionPlan) !== null && _k !== void 0 ? _k : client_2.SubscriptionPlanStatus.FREE,
         }, config_1.default.jwt.access_secret, config_1.default.jwt.access_expires_in);
-        const refreshedToken = yield (0, generateToken_1.refreshToken)({
-            id: user.id,
-            email: user.email,
-            role: user.role,
-        }, config_1.default.jwt.refresh_secret, config_1.default.jwt.refresh_expires_in);
-        return { user, accessToken, refreshedToken };
+        const refreshTokenValue = yield (0, generateToken_1.refreshToken)({ id: user.id, email: user.email, role: user.role }, config_1.default.jwt.refresh_secret, config_1.default.jwt.refresh_expires_in);
+        return { accessToken, refreshToken: refreshTokenValue };
+    });
+    const { accessToken, refreshToken: refreshTokenValue } = yield buildTokensForUser(userRecord);
+    // Prepare response based on role
+    const response = {
+        id: userRecord.id,
+        name: userRecord.fullName,
+        email: userRecord.email,
+        role: userRecord.role,
+        image: userRecord.image,
+        accessToken,
+        refreshToken: refreshTokenValue,
+    };
+    // Add role-specific fields
+    if (userRecord.role === client_1.UserRoleEnum.SALOON_OWNER) {
+        response.isSubscribed = userRecord.isSubscribed;
+        response.subscriptionEnd = userRecord.subscriptionEnd;
+        response.subscriptionPlan = userRecord.subscriptionPlan;
+        response.onBoarding = userRecord.onBoarding;
     }
+    else if (userRecord.role === client_1.UserRoleEnum.BARBER) {
+        response.onBoarding = userRecord.onBoarding;
+    }
+    return response;
 });
 const updatePasswordIntoDb = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     const userData = yield prisma_1.default.user.findUnique({

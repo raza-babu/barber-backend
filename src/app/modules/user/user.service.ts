@@ -363,8 +363,11 @@ const getMyProfileFromDB = async (id: string) => {
 const updateMyProfileIntoDB = async (id: string, payload: any) => {
   const userData = payload;
 
-  if(userData.isQueueEnabled){
-    return { message: 'Queue feature is available for Premium plan users. Please upgrade your plan to access this feature.' };
+  if (userData.isQueueEnabled) {
+    return {
+      message:
+        'Queue feature is available for Premium plan users. Please upgrade your plan to access this feature.',
+    };
   }
 
   // update user data
@@ -407,10 +410,14 @@ const updateUserRoleStatusIntoDB = async (id: string, payload: any) => {
   return result;
 };
 
-const changePassword = async (user: any, userId: string, payload: {
-  oldPassword: string;
-  newPassword: string;
-}) => {
+const changePassword = async (
+  user: any,
+  userId: string,
+  payload: {
+    oldPassword: string;
+    newPassword: string;
+  },
+) => {
   const userData = await prisma.user.findUniqueOrThrow({
     where: {
       id: userId,
@@ -432,7 +439,7 @@ const changePassword = async (user: any, userId: string, payload: {
     throw new Error('Password incorrect!');
   }
 
-  const newPasswordSameAsOld: boolean = await bcrypt.compare( 
+  const newPasswordSameAsOld: boolean = await bcrypt.compare(
     payload.newPassword,
     userData.password,
   );
@@ -712,58 +719,152 @@ const verifyOtpForgotPasswordInDB = async (bodyData: {
   return { message: 'OTP verified successfully!' };
 };
 
-const socialLoginIntoDB = async (payload: any) => {
-  const user = await prisma.user.findUnique({
-    where: {
-      email: payload.email,
+
+
+// Define a type for the payload to improve type safety
+interface SocialLoginPayload {
+  fullName: string;
+  email: string;
+  image?: string | null;
+  role?: UserRoleEnum;
+  fcmToken?: string | null;
+  phoneNumber?: string | null;
+  address?: string | null;
+}
+
+const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
+  // Prevent creating an ADMIN via social sign-up
+  if (payload.role === UserRoleEnum.ADMIN || payload.role === UserRoleEnum.SUPER_ADMIN) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Admin accounts cannot be created via social sign-up.',
+    );
+  }
+
+  // Find existing user by email
+  let userRecord = await prisma.user.findUnique({
+    where: { email: payload.email, role: payload.role},
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      role: true,
+      image: true,
+      onBoarding: true,
+      isSubscribed: true,
+      subscriptionEnd: true,
+      subscriptionPlan: true,
+      isProfileComplete: true,
+      status: true,
     },
   });
 
-  if (!user) {
-    const newUser = await prisma.user.create({
+  let isNewUser = false;
+
+  if (userRecord) {
+    // Check profile completion
+    if (userRecord.isProfileComplete === false) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Please complete your profile before logging in',
+      );
+    }
+
+    // Check if account is blocked
+    if (userRecord.status === UserStatus.BLOCKED) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'Your account is blocked. Please contact support.',
+      );
+    }
+
+    // For SALOON_OWNERS, check verification status
+    if (userRecord.role === UserRoleEnum.SALOON_OWNER) {
+      const saloon = await prisma.saloonOwner.findFirst({
+        where: { userId: userRecord.id },
+      });
+      
+      if (saloon?.isVerified === false) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Your saloon is not verified yet. Please wait for verification.',
+        );
+      }
+    }
+
+    // For BARBER, add similar verification check (assuming a barber model exists)
+    // if (userRecord.role === UserRoleEnum.BARBER) {
+    //   const barber = await prisma.barber.findFirst({
+    //     where: { userId: userRecord.id },
+    //   });
+      
+    //   if (barber?.isVerified === false) {
+    //     throw new AppError(
+    //       httpStatus.BAD_REQUEST,
+    //       'Your barber profile is not verified yet. Please wait for verification.',
+    //     );
+    //   }
+    // }
+  } else {
+    // Validate and sanitize role for new users (default to CUSTOMER if invalid/missing)
+    let userRole: UserRoleEnum = UserRoleEnum.CUSTOMER;
+    if (payload.role && Object.values(UserRoleEnum).includes(payload.role)) {
+      userRole = payload.role;
+    }
+
+    // If user does not exist, create
+    const created = await prisma.user.create({
       data: {
-        ...payload,
+        fullName: payload.fullName,
+        email: payload.email,
+        image: payload.image ?? null,
+        role: userRole,
         status: UserStatus.ACTIVE,
+        fcmToken: payload.fcmToken ?? null,
+        phoneNumber: payload.phoneNumber ?? null,
+        address: payload.address ?? null,
+        isProfileComplete: payload.role === UserRoleEnum.CUSTOMER ? true : false, // Auto-complete profile for CUSTOMER
       },
       select: {
         id: true,
         fullName: true,
         email: true,
         role: true,
+        image: true,
+        onBoarding: true,
+        isSubscribed: true,
+        subscriptionEnd: true,
+        subscriptionPlan: true,
       },
     });
-    const accessToken = await generateToken(
-      {
-        id: newUser.id,
-        email: newUser.email,
-        role: newUser.role,
-        purpose: 'access',
-        functions: [],
-        subscriptionPlan: SubscriptionPlanStatus.FREE,
-      },
-      config.jwt.access_secret as Secret,
-      config.jwt.access_expires_in as string,
-    );
+    
 
-    const refreshedToken = await refreshToken(
-      {
-        id: newUser.id,
-        email: newUser.email,
-        role: newUser.role,
-      },
-      config.jwt.refresh_secret as Secret,
-      config.jwt.refresh_expires_in as string,
-    );
+    // Use created data with defaults (avoid re-fetch)
+    userRecord = {
+      ...created,
+      status: UserStatus.ACTIVE,
+      isProfileComplete: true,
+      onBoarding: created.onBoarding ?? false,
+      isSubscribed: created.isSubscribed ?? false,
+      subscriptionEnd: created.subscriptionEnd ?? null,
+      subscriptionPlan: created.subscriptionPlan ?? null,
+    };
 
-    return { newUser, accessToken, refreshedToken };
+    isNewUser = true;
   }
-  if (user) {
-    const fcmUpdate = await prisma.user.update({
-      where: { email: payload.email },
-      data: {
-        fcmToken: payload.fcmToken,
-      },
+
+  // Update FCM token if provided (for both new and existing users)
+  if (payload.fcmToken && !isNewUser) { // Skip for new users if already set during create
+    await prisma.user.update({
+      where: { id: userRecord.id },
+      data: { fcmToken: payload.fcmToken },
     });
+  }
+
+  // Helper to build tokens
+  const buildTokensForUser = async (
+    user: typeof userRecord
+  ): Promise<{ accessToken: string; refreshToken: string }> => {
     const accessToken = await generateToken(
       {
         id: user.id,
@@ -771,22 +872,45 @@ const socialLoginIntoDB = async (payload: any) => {
         role: user.role,
         purpose: 'access',
         functions: [],
-        subscriptionPlan: SubscriptionPlanStatus.FREE,
+        subscriptionPlan: user.subscriptionPlan ?? SubscriptionPlanStatus.FREE,
       },
       config.jwt.access_secret as Secret,
       config.jwt.access_expires_in as string,
     );
-    const refreshedToken = await refreshToken(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
+
+    const refreshTokenValue = await refreshToken(
+      { id: user.id, email: user.email, role: user.role },
       config.jwt.refresh_secret as Secret,
       config.jwt.refresh_expires_in as string,
     );
-    return { user, accessToken, refreshedToken };
+
+    return { accessToken, refreshToken: refreshTokenValue };
+  };
+
+  const { accessToken, refreshToken: refreshTokenValue } = await buildTokensForUser(userRecord);
+
+  // Prepare response based on role
+  const response: any = {
+    id: userRecord.id,
+    name: userRecord.fullName,
+    email: userRecord.email,
+    role: userRecord.role,
+    image: userRecord.image,
+    accessToken,
+    refreshToken: refreshTokenValue,
+  };
+
+  // Add role-specific fields
+  if (userRecord.role === UserRoleEnum.SALOON_OWNER) {
+    response.isSubscribed = userRecord.isSubscribed;
+    response.subscriptionEnd = userRecord.subscriptionEnd;
+    response.subscriptionPlan = userRecord.subscriptionPlan;
+    response.onBoarding = userRecord.onBoarding;
+  } else if (userRecord.role === UserRoleEnum.BARBER) {
+    response.onBoarding = userRecord.onBoarding;
   }
+
+  return response;
 };
 
 const updatePasswordIntoDb = async (payload: any) => {

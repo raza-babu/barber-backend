@@ -11,6 +11,7 @@ const createBookingSchema = zod_1.z.object({
         services: zod_1.z.array(zod_1.z.string()).min(1, 'At least one service is required'),
         // totalPrice: z.number({ required_error: 'Total price is required' }),
         notes: zod_1.z.string().optional(),
+        loyaltySchemeId: zod_1.z.string().optional(),
         isInQueue: zod_1.z.boolean().optional(),
     }),
 });
@@ -27,6 +28,7 @@ const updateBookingSchema = zod_1.z.object({
         isInQueue: zod_1.z.boolean().optional(),
         barberName: zod_1.z.string().optional(),
         barberImage: zod_1.z.string().optional(),
+        loyaltySchemeId: zod_1.z.string().optional(),
     }),
     params: zod_1.z.object({
         id: zod_1.z.string().min(1, 'Booking ID is required').optional(), // ID of the booking to update
@@ -53,19 +55,28 @@ function convertToUTC(date, time) {
 }
 const availableBarbersSchema = zod_1.z.object({
     query: zod_1.z.object({
-        salonId: zod_1.z.string().min(1),
+        saloonOwnerId: zod_1.z.string().min(1),
         date: zod_1.z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        time: zod_1.z.coerce.string().regex(/^\d{1,2}:\d{2}(\s?(AM|PM))?$/),
+        time: zod_1.z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
+            message: 'Time must be in hh:mm AM/PM format',
+        }),
         totalServiceTime: zod_1.z.coerce.number().int().positive(),
-    }).transform(({ salonId, date, time, totalServiceTime }) => ({
-        salonId,
+    }).transform(({ saloonOwnerId, date, time, totalServiceTime }) => ({
+        saloonOwnerId,
         utcDateTime: convertToUTC(date, time),
         totalServiceTime,
     })),
+});
+const walkingInBarbersSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        saloonOwnerId: zod_1.z.string().min(1),
+        date: zod_1.z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    })
 });
 exports.bookingValidation = {
     createBookingSchema,
     updateBookingSchema,
     updateBookingStatusSchema,
     availableBarbersSchema,
+    walkingInBarbersSchema,
 };

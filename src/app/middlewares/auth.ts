@@ -5,7 +5,7 @@ import config from '../../config';
 import AppError from '../errors/AppError';
 import prisma from '../utils/prisma';
 import { verifyToken } from '../utils/verifyToken';
-import { UserRoleEnum } from '@prisma/client'; 
+import { UserRoleEnum, UserStatus } from '@prisma/client'; 
 import { Admin, User } from '@prisma/client';
 
 // Define a type for the user with included relations
@@ -60,6 +60,12 @@ const auth = (...roles: string[]) => {
 
       if (!user) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'You are not authorized!');
+      }
+      if (user.status !== UserStatus.ACTIVE) {
+        throw new AppError(httpStatus.UNAUTHORIZED, 'User is not active. Please contact support.');
+      }
+      if (!user.isProfileComplete) {
+        throw new AppError(httpStatus.FORBIDDEN, 'Please complete your profile to proceed.');
       }
 
       // Initialize permissions and super admin status

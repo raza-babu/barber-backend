@@ -88,9 +88,70 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
             data: {
                 status: targetStatus,
             },
+            include: {
+                BookedServices: true,
+            },
         });
         if (!updatedBooking) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking not found or not updated');
+        }
+        if (updatedBooking.status === client_1.BookingStatus.COMPLETED) {
+            // Increment loyalty points for the customer if a loyalty scheme exist for the saloon owner
+            // Get all unique serviceIds from the completed booking
+            const serviceIds = updatedBooking.BookedServices.map(bs => bs.serviceId);
+            // Find all loyalty programs for the saloon owner that match any of the booked services
+            const loyaltyPrograms = yield tx.loyaltyProgram.findMany({
+                where: {
+                    userId: userId,
+                    serviceId: { in: serviceIds },
+                },
+            });
+            if (loyaltyPrograms.length > 0) {
+                const totalPoints = loyaltyPrograms.reduce((sum, lp) => sum + lp.points, 0);
+                if (totalPoints > 0) {
+                    yield tx.customerLoyalty.create({
+                        data: {
+                            userId: updatedBooking.userId,
+                            totalPoints: totalPoints,
+                        },
+                    });
+                }
+                const updateVisitLog = yield tx.customerVisit.create({
+                    data: {
+                        customerId: updatedBooking.userId,
+                        saloonId: userId,
+                        serviceId: serviceIds,
+                        visitDate: new Date(),
+                        amountSpent: updatedBooking.totalPrice,
+                        earnedPoints: totalPoints,
+                    },
+                });
+                if (!updateVisitLog) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Failed to log customer visit');
+                }
+                const updatePointLog = yield tx.loyaltyPointLog.updateMany({
+                    where: {
+                        customerId: updatedBooking.userId,
+                        saloonId: userId,
+                        visitCount: { gt: 0 }
+                    },
+                    data: {
+                        visitCount: { increment: 1 },
+                    },
+                });
+                if (!updatePointLog) {
+                    const createPointLog = yield tx.loyaltyPointLog.create({
+                        data: {
+                            customerId: updatedBooking.userId,
+                            saloonId: userId,
+                            visitCount: 1,
+                        },
+                    });
+                    if (!createPointLog) {
+                        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Failed to create loyalty point log');
+                    }
+                }
+            }
         }
         return updatedBooking;
     }));
@@ -203,76 +264,40 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
     const searchQuery = options.searchTerm
         ? {
             OR: [
-                {
-                    user: {
-                        fullName: {
-                            contains: options.searchTerm,
-                            mode: 'insensitive',
-                        },
-                    },
-                },
-                {
-                    user: {
-                        email: {
-                            contains: options.searchTerm,
-                            mode: 'insensitive',
-                        },
-                    },
-                },
-                {
-                    user: {
-                        phoneNumber: {
-                            contains: options.searchTerm,
-                            mode: 'insensitive',
-                        },
-                    },
-                },
-                {
-                    barber: {
-                        user: {
-                            fullName: {
-                                contains: options.searchTerm,
-                                mode: 'insensitive',
-                            },
-                        },
-                    },
-                },
+                { user: { fullName: { contains: options.searchTerm, mode: 'insensitive' } } },
+                { user: { email: { contains: options.searchTerm, mode: 'insensitive' } } },
+                { user: { phoneNumber: { contains: options.searchTerm, mode: 'insensitive' } } },
+                { barber: { user: { fullName: { contains: options.searchTerm, mode: 'insensitive' } } } },
             ],
         }
         : {};
-    // Status filter, but always exclude PENDING and CONFIRMED
+    // Status filter: exclude PENDING and CONFIRMED by default
     const excludedStatuses = [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED];
     const excludedStatusStrings = excludedStatuses.map(s => s.toString());
     const statusFilter = options.status && Array.isArray(options.status)
-        ? {
-            status: {
-                in: options.status.filter(s => !excludedStatusStrings.includes(s)),
-            },
-        }
+        ? { status: { in: options.status.filter(s => !excludedStatusStrings.includes(s)) } }
         : options.status
             ? excludedStatusStrings.includes(options.status)
                 ? { status: { notIn: excludedStatuses } }
                 : { status: options.status }
             : { status: { notIn: excludedStatuses } };
     const whereClause = Object.assign(Object.assign({ saloonOwnerId: userId }, statusFilter), (Object.keys(searchQuery).length > 0 && searchQuery));
+    // 1) Query bookings but do NOT include `user` relation directly (use userId scalar instead)
     const [result, total] = yield Promise.all([
         prisma_1.default.booking.findMany({
             where: whereClause,
             skip,
             take: limit,
-            orderBy: {
-                [sortBy]: 'desc',
-            },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        fullName: true,
-                        image: true,
-                        email: true,
-                        phoneNumber: true,
-                    },
-                },
+            orderBy: { [sortBy]: sortOrder },
+            select: {
+                id: true,
+                userId: true, // scalar id (could refer to User OR NonRegisteredUser)
+                date: true,
+                startTime: true,
+                endTime: true,
+                status: true,
+                totalPrice: true,
+                // Barber info (barber.user is expected to exist)
                 barber: {
                     select: {
                         user: {
@@ -300,35 +325,90 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
                 },
             },
         }),
-        prisma_1.default.booking.count({
-            where: whereClause,
-        }),
+        prisma_1.default.booking.count({ where: whereClause }),
     ]);
-    const bookings = result.map(booking => ({
-        bookingId: booking.id,
-        customerId: booking.user.id,
-        customerName: booking.user.fullName,
-        customerImage: booking.user.image,
-        customEmail: booking.user.email,
-        customerPhone: booking.user.phoneNumber,
-        barberId: booking.barber.user.id,
-        barberName: booking.barber.user.fullName,
-        barberImage: booking.barber.user.image,
-        barberEmail: booking.barber.user.email,
-        barberPhone: booking.barber.user.phoneNumber,
-        totalPrice: booking.totalPrice,
-        bookingDate: booking.date,
-        startTime: booking.startTime,
-        endTime: booking.endTime,
-        // paymentStatus: booking.paymentStatus,
-        status: booking.status,
-        services: booking.BookedServices.map(service => ({
-            serviceId: service.service.id,
-            serviceName: service.service.serviceName,
-            price: service.service.price,
-            availableTo: service.service.availableTo,
-        })),
-    }));
+    // 2) Collect unique customer ids from this page
+    const customerIds = Array.from(new Set(result.map(b => b.userId).filter(Boolean)));
+    // 3) Fetch registered users for these ids
+    const registeredUsers = customerIds.length > 0
+        ? yield prisma_1.default.user.findMany({
+            where: { id: { in: customerIds } },
+            select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+        })
+        : [];
+    const regUserMap = registeredUsers.reduce((acc, u) => {
+        acc[u.id] = u;
+        return acc;
+    }, {});
+    // 4) Identify ids not present in registered users → query non-registered users
+    const nonRegisteredIds = customerIds.filter(id => !regUserMap[id]);
+    const nonRegisteredUsers = nonRegisteredIds.length > 0
+        ? yield prisma_1.default.nonRegisteredUser.findMany({
+            where: { id: { in: nonRegisteredIds } },
+            select: { id: true, fullName: true, email: true, phone: true },
+        })
+        : [];
+    const nonRegMap = nonRegisteredUsers.reduce((acc, n) => {
+        acc[n.id] = n;
+        return acc;
+    }, {});
+    // 5) Map bookings and merge customer info (registered or non-registered)
+    const bookings = result.map(booking => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+        // Resolve customer info
+        let customerId = null;
+        let customerName = null;
+        let customerImage = null;
+        let customerEmail = null;
+        let customerPhone = null;
+        if (booking.userId) {
+            if (regUserMap[booking.userId]) {
+                const u = regUserMap[booking.userId];
+                customerId = u.id;
+                customerName = u.fullName;
+                customerImage = (_a = u.image) !== null && _a !== void 0 ? _a : null;
+                customerEmail = (_b = u.email) !== null && _b !== void 0 ? _b : null;
+                customerPhone = (_c = u.phoneNumber) !== null && _c !== void 0 ? _c : null;
+            }
+            else if (nonRegMap[booking.userId]) {
+                const n = nonRegMap[booking.userId];
+                customerId = n.id;
+                customerName = n.fullName;
+                customerImage = null;
+                customerEmail = (_d = n.email) !== null && _d !== void 0 ? _d : null;
+                customerPhone = (_e = n.phone) !== null && _e !== void 0 ? _e : null;
+            }
+            else {
+                customerId = booking.userId;
+                customerName = 'Unknown Customer';
+            }
+        }
+        const barberUser = (_f = booking.barber) === null || _f === void 0 ? void 0 : _f.user;
+        return {
+            bookingId: booking.id,
+            customerId,
+            customerName,
+            customerImage,
+            customEmail: customerEmail,
+            customerPhone,
+            barberId: (_g = barberUser === null || barberUser === void 0 ? void 0 : barberUser.id) !== null && _g !== void 0 ? _g : null,
+            barberName: (_h = barberUser === null || barberUser === void 0 ? void 0 : barberUser.fullName) !== null && _h !== void 0 ? _h : null,
+            barberImage: (_j = barberUser === null || barberUser === void 0 ? void 0 : barberUser.image) !== null && _j !== void 0 ? _j : null,
+            barberEmail: (_k = barberUser === null || barberUser === void 0 ? void 0 : barberUser.email) !== null && _k !== void 0 ? _k : null,
+            barberPhone: (_l = barberUser === null || barberUser === void 0 ? void 0 : barberUser.phoneNumber) !== null && _l !== void 0 ? _l : null,
+            totalPrice: booking.totalPrice,
+            bookingDate: booking.date,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+            status: booking.status,
+            services: booking.BookedServices.map(s => ({
+                serviceId: s.service.id,
+                serviceName: s.service.serviceName,
+                price: s.service.price,
+                availableTo: s.service.availableTo,
+            })),
+        };
+    });
     return (0, pagination_1.formatPaginationResponse)(bookings, total, page, limit);
 });
 const getRemainingBarbersToScheduleFromDb = (userId_2, ...args_2) => __awaiter(void 0, [userId_2, ...args_2], void 0, function* (userId, options = {}) {
@@ -517,98 +597,48 @@ const getFreeBarbersOnADateFromDb = (userId_3, date_1, ...args_3) => __awaiter(v
     return freeBarberSlots;
 });
 const getTransactionsFromDb = (userId_4, ...args_4) => __awaiter(void 0, [userId_4, ...args_4], void 0, function* (userId, options = {}) {
+    var _a;
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
-    const searchQuery = options.searchTerm
-        ? {
-            OR: [
-                {
-                    user: {
-                        fullName: {
-                            contains: options.searchTerm,
+    const searchTerm = (_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim();
+    // Build booking-level search conditions (used inside booking where)
+    const bookingSearchOr = [];
+    if (searchTerm) {
+        bookingSearchOr.push({ user: { fullName: { contains: searchTerm, mode: 'insensitive' } } }, { user: { email: { contains: searchTerm, mode: 'insensitive' } } }, { user: { phoneNumber: { contains: searchTerm, mode: 'insensitive' } } }, { barber: { user: { fullName: { contains: searchTerm, mode: 'insensitive' } } } }, {
+            BookedServices: {
+                some: {
+                    service: {
+                        serviceName: {
+                            contains: searchTerm,
                             mode: 'insensitive',
                         },
                     },
                 },
-                {
-                    user: {
-                        email: {
-                            contains: options.searchTerm,
-                            mode: 'insensitive',
-                        },
-                    },
-                },
-                {
-                    user: {
-                        phoneNumber: {
-                            contains: options.searchTerm,
-                            mode: 'insensitive',
-                        },
-                    },
-                },
-                {
-                    barber: {
-                        user: {
-                            fullName: {
-                                contains: options.searchTerm,
-                                mode: 'insensitive',
-                            },
-                        },
-                    },
-                },
-                {
-                    BookedServices: {
-                        some: {
-                            service: {
-                                serviceName: {
-                                    contains: options.searchTerm,
-                                    mode: 'insensitive',
-                                },
-                            },
-                        },
-                    },
-                },
-                // Removed invalid payment status search by 'contains' since status is an enum
-            ],
-        }
-        : {};
-    // Only fetch payments with status 'COMPLETED' and join booking for saloonOwnerId
+            },
+        });
+    }
+    // Main where clause (payments that belong to bookings for this salon owner)
     const whereClause = {
         status: { in: [client_1.PaymentStatus.COMPLETED, client_1.PaymentStatus.REFUNDED] },
-        booking: Object.assign({ saloonOwnerId: userId }, (searchQuery.OR
-            ? {
-                OR: searchQuery.OR.map((searchCondition) => {
-                    // Move booking-related search fields inside booking
-                    if (searchCondition.user ||
-                        searchCondition.barber ||
-                        searchCondition.BookedServices) {
-                        return searchCondition;
-                    }
-                    return undefined;
-                }).filter(Boolean),
-            }
-            : {})),
-        // Removed invalid payment status search by 'contains' since status is an enum
+        booking: Object.assign({ saloonOwnerId: userId }, (bookingSearchOr.length ? { AND: [{ OR: bookingSearchOr }] } : {})),
     };
-    const [result, total] = yield Promise.all([
+    // Fetch payments (do NOT select booking.user relation — only scalar booking.userId)
+    const [payments, total] = yield Promise.all([
         prisma_1.default.payment.findMany({
             where: whereClause,
             skip,
             take: limit,
-            orderBy: {
-                [sortBy]: sortOrder,
-            },
+            orderBy: { [sortBy]: sortOrder },
             include: {
                 booking: {
-                    include: {
-                        user: {
-                            select: {
-                                id: true,
-                                fullName: true,
-                                image: true,
-                                email: true,
-                                phoneNumber: true,
-                            },
-                        },
+                    select: {
+                        id: true,
+                        userId: true, // scalar only
+                        totalPrice: true,
+                        date: true,
+                        startTime: true,
+                        endTime: true,
+                        status: true,
+                        // booking -> barber -> user is safe to include (barber.user is actual barber record)
                         barber: {
                             select: {
                                 user: {
@@ -634,43 +664,105 @@ const getTransactionsFromDb = (userId_4, ...args_4) => __awaiter(void 0, [userId
                                 },
                             },
                         },
+                        queueSlot: {
+                            select: { id: true, position: true },
+                            orderBy: { position: 'asc' },
+                        },
                     },
                 },
             },
         }),
-        prisma_1.default.payment.count({
-            where: whereClause,
-        }),
+        prisma_1.default.payment.count({ where: whereClause }),
     ]);
-    const transactions = result.map(payment => {
-        const booking = payment.booking;
+    // Collect unique userIds referenced by bookings
+    const userIds = Array.from(new Set(payments.map(p => { var _a; return (_a = p.booking) === null || _a === void 0 ? void 0 : _a.userId; }).filter(Boolean)));
+    // Fetch registered users for those ids
+    const filteredUserIds = userIds.filter((id) => typeof id === 'string');
+    const registeredUsers = filteredUserIds.length
+        ? yield prisma_1.default.user.findMany({
+            where: { id: { in: filteredUserIds } },
+            select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+        })
+        : [];
+    const regMap = registeredUsers.reduce((acc, u) => {
+        acc[u.id] = u;
+        return acc;
+    }, {});
+    // Find remaining ids that are not registered users -> non-registered users
+    const nonRegisteredIds = userIds.filter((id) => id !== undefined && !regMap[id]);
+    const nonRegisteredUsers = nonRegisteredIds.length
+        ? yield prisma_1.default.nonRegisteredUser.findMany({
+            where: { id: { in: nonRegisteredIds } },
+            select: { id: true, fullName: true, email: true, phone: true },
+        })
+        : [];
+    const nonRegMap = nonRegisteredUsers.reduce((acc, nr) => {
+        acc[nr.id] = nr;
+        return acc;
+    }, {});
+    // Map payments to transaction DTO
+    const transactions = payments.map(payment => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5;
+        const b = payment.booking;
+        const userInfo = (b === null || b === void 0 ? void 0 : b.userId)
+            ? regMap[b.userId]
+                ? {
+                    id: regMap[b.userId].id,
+                    fullName: regMap[b.userId].fullName,
+                    image: (_a = regMap[b.userId].image) !== null && _a !== void 0 ? _a : null,
+                    email: (_b = regMap[b.userId].email) !== null && _b !== void 0 ? _b : null,
+                    phoneNumber: (_c = regMap[b.userId].phoneNumber) !== null && _c !== void 0 ? _c : null,
+                }
+                : nonRegMap[b.userId]
+                    ? {
+                        id: nonRegMap[b.userId].id,
+                        fullName: nonRegMap[b.userId].fullName,
+                        image: null,
+                        email: (_d = nonRegMap[b.userId].email) !== null && _d !== void 0 ? _d : null,
+                        phoneNumber: (_e = nonRegMap[b.userId].phone) !== null && _e !== void 0 ? _e : null,
+                    }
+                    : {
+                        id: b.userId,
+                        fullName: 'Unknown',
+                        image: null,
+                        email: null,
+                        phoneNumber: null,
+                    }
+            : {
+                id: null,
+                fullName: null,
+                image: null,
+                email: null,
+                phoneNumber: null,
+            };
         return {
             paymentId: payment.id,
-            bookingId: booking === null || booking === void 0 ? void 0 : booking.id,
-            customerId: booking === null || booking === void 0 ? void 0 : booking.user.id,
-            customerName: booking === null || booking === void 0 ? void 0 : booking.user.fullName,
-            customerImage: booking === null || booking === void 0 ? void 0 : booking.user.image,
-            customEmail: booking === null || booking === void 0 ? void 0 : booking.user.email,
-            customerPhone: booking === null || booking === void 0 ? void 0 : booking.user.phoneNumber,
-            barberId: booking === null || booking === void 0 ? void 0 : booking.barber.user.id,
-            barberName: booking === null || booking === void 0 ? void 0 : booking.barber.user.fullName,
-            barberImage: booking === null || booking === void 0 ? void 0 : booking.barber.user.image,
-            barberEmail: booking === null || booking === void 0 ? void 0 : booking.barber.user.email,
-            barberPhone: booking === null || booking === void 0 ? void 0 : booking.barber.user.phoneNumber,
-            totalPrice: booking === null || booking === void 0 ? void 0 : booking.totalPrice,
-            bookingDate: booking === null || booking === void 0 ? void 0 : booking.date,
-            startTime: booking === null || booking === void 0 ? void 0 : booking.startTime,
-            endTime: booking === null || booking === void 0 ? void 0 : booking.endTime,
+            bookingId: (_f = b === null || b === void 0 ? void 0 : b.id) !== null && _f !== void 0 ? _f : null,
+            customerId: userInfo.id,
+            customerName: userInfo.fullName,
+            customerImage: userInfo.image,
+            customerEmail: userInfo.email,
+            customerPhone: userInfo.phoneNumber,
+            barberId: (_j = (_h = (_g = b === null || b === void 0 ? void 0 : b.barber) === null || _g === void 0 ? void 0 : _g.user) === null || _h === void 0 ? void 0 : _h.id) !== null && _j !== void 0 ? _j : null,
+            barberName: (_m = (_l = (_k = b === null || b === void 0 ? void 0 : b.barber) === null || _k === void 0 ? void 0 : _k.user) === null || _l === void 0 ? void 0 : _l.fullName) !== null && _m !== void 0 ? _m : null,
+            barberImage: (_q = (_p = (_o = b === null || b === void 0 ? void 0 : b.barber) === null || _o === void 0 ? void 0 : _o.user) === null || _p === void 0 ? void 0 : _p.image) !== null && _q !== void 0 ? _q : null,
+            barberEmail: (_t = (_s = (_r = b === null || b === void 0 ? void 0 : b.barber) === null || _r === void 0 ? void 0 : _r.user) === null || _s === void 0 ? void 0 : _s.email) !== null && _t !== void 0 ? _t : null,
+            barberPhone: (_w = (_v = (_u = b === null || b === void 0 ? void 0 : b.barber) === null || _u === void 0 ? void 0 : _u.user) === null || _v === void 0 ? void 0 : _v.phoneNumber) !== null && _w !== void 0 ? _w : null,
+            totalPrice: (_x = b === null || b === void 0 ? void 0 : b.totalPrice) !== null && _x !== void 0 ? _x : null,
+            bookingDate: (_y = b === null || b === void 0 ? void 0 : b.date) !== null && _y !== void 0 ? _y : null,
+            startTime: (_z = b === null || b === void 0 ? void 0 : b.startTime) !== null && _z !== void 0 ? _z : null,
+            endTime: (_0 = b === null || b === void 0 ? void 0 : b.endTime) !== null && _0 !== void 0 ? _0 : null,
             paymentStatus: payment.status,
             paymentAmount: payment.paymentAmount,
             paymentDate: payment.createdAt,
-            status: booking === null || booking === void 0 ? void 0 : booking.status,
-            // services: booking?.BookedServices.map(service => ({
-            //   serviceId: service.service.id,
-            //   serviceName: service.service.serviceName,
-            //   price: service.service.price,
-            //   availableTo: service.service.availableTo,
-            // })) || [],
+            bookingStatus: (_1 = b === null || b === void 0 ? void 0 : b.status) !== null && _1 !== void 0 ? _1 : null,
+            services: ((_2 = b === null || b === void 0 ? void 0 : b.BookedServices) === null || _2 === void 0 ? void 0 : _2.map(s => ({
+                serviceId: s.service.id,
+                serviceName: s.service.serviceName,
+                price: s.service.price,
+                availableTo: s.service.availableTo,
+            }))) || [],
+            queuePosition: (_5 = (_4 = (_3 = b === null || b === void 0 ? void 0 : b.queueSlot) === null || _3 === void 0 ? void 0 : _3[0]) === null || _4 === void 0 ? void 0 : _4.position) !== null && _5 !== void 0 ? _5 : null,
         };
     });
     return (0, pagination_1.formatPaginationResponse)(transactions, total, page, limit);
@@ -837,25 +929,30 @@ const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
     if (!utcDateTime || !userId) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Missing required fields');
     }
-    const appointmentDateTime = luxon_1.DateTime.fromISO(utcDateTime).toUTC();
+    // Parse incoming UTC ISO string
+    const appointmentDateTime = luxon_1.DateTime.fromISO(utcDateTime, { zone: 'utc' });
     if (!appointmentDateTime.isValid) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid date or time format');
     }
-    // Find bookings that overlap with the requested time
+    const appointmentJSDate = appointmentDateTime.toJSDate();
+    // Find bookings that contain the given instant (start <= t <= end)
     const bookings = yield prisma_1.default.booking.findMany({
         where: {
             saloonOwnerId: userId,
-            startDateTime: {
-                lte: appointmentDateTime.toJSDate(),
-            },
-            endDateTime: {
-                gte: appointmentDateTime.toJSDate(),
-            },
-            status: {
-                in: [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED],
-            },
+            startDateTime: { lte: appointmentJSDate },
+            endDateTime: { gte: appointmentJSDate },
+            status: { in: [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED] },
         },
-        include: {
+        // Note: we only select booking.userId (scalar) to avoid Prisma inconsistent-result errors
+        select: {
+            id: true,
+            userId: true, // scalar id (could point to User or non-registered user)
+            date: true,
+            startTime: true,
+            endTime: true,
+            status: true,
+            totalPrice: true,
+            // Barber and its user: keep as-is (barber.user should exist)
             barber: {
                 select: {
                     userId: true,
@@ -866,17 +963,9 @@ const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
                             image: true,
                             phoneNumber: true,
                             address: true,
+                            email: true,
                         },
                     },
-                },
-            },
-            user: {
-                select: {
-                    id: true,
-                    fullName: true,
-                    image: true,
-                    email: true,
-                    phoneNumber: true,
                 },
             },
             BookedServices: {
@@ -893,33 +982,107 @@ const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
             },
         },
     });
-    // Map bookings to include barber and booking details
-    const scheduledBarbers = bookings.map(booking => ({
-        barberId: booking.barber.userId,
-        barberName: booking.barber.user.fullName,
-        barberImage: booking.barber.user.image,
-        barberPhone: booking.barber.user.phoneNumber,
-        barberAddress: booking.barber.user.address,
-        bookingId: booking.id,
-        bookingDate: booking.date,
-        bookingStartTime: booking.startTime,
-        bookingEndTime: booking.endTime,
-        bookingStatus: booking.status,
-        customer: {
-            customerId: booking.user.id,
-            customerName: booking.user.fullName,
-            customerImage: booking.user.image,
-            customerEmail: booking.user.email,
-            customerPhone: booking.user.phoneNumber,
-        },
-        services: booking.BookedServices.map(service => ({
-            serviceId: service.service.id,
-            serviceName: service.service.serviceName,
-            price: service.service.price,
-            availableTo: service.service.availableTo,
-        })),
-        totalPrice: booking.totalPrice,
-    }));
+    if (!bookings || bookings.length === 0)
+        return [];
+    // Collect unique customer ids referenced by bookings
+    const customerIds = Array.from(new Set(bookings.map(b => b.userId).filter(Boolean)));
+    // Fetch registered users for these ids
+    const registeredUsers = customerIds.length > 0
+        ? yield prisma_1.default.user.findMany({
+            where: { id: { in: customerIds } },
+            select: {
+                id: true,
+                fullName: true,
+                image: true,
+                email: true,
+                phoneNumber: true,
+            },
+        })
+        : [];
+    const regUserMap = registeredUsers.reduce((acc, u) => {
+        acc[u.id] = u;
+        return acc;
+    }, {});
+    // Find ids not present in registered users → treat them as non-registered
+    const nonRegisteredIds = customerIds.filter(id => !regUserMap[id]);
+    const nonRegisteredUsers = nonRegisteredIds.length > 0
+        ? yield prisma_1.default.nonRegisteredUser.findMany({
+            where: { id: { in: nonRegisteredIds } },
+            select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phone: true,
+            },
+        })
+        : [];
+    const nonRegMap = nonRegisteredUsers.reduce((acc, n) => {
+        acc[n.id] = n;
+        return acc;
+    }, {});
+    // Map bookings into the scheduledBarbers shape and resolve customer info
+    const scheduledBarbers = bookings.map(b => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
+        // Resolve customer info (registered or non-registered)
+        let customer = {
+            customerId: null,
+            customerName: null,
+            customerImage: null,
+            customerEmail: null,
+            customerPhone: null,
+        };
+        if (b.userId) {
+            if (regUserMap[b.userId]) {
+                customer = {
+                    customerId: regUserMap[b.userId].id,
+                    customerName: regUserMap[b.userId].fullName,
+                    customerImage: (_a = regUserMap[b.userId].image) !== null && _a !== void 0 ? _a : null,
+                    customerEmail: (_b = regUserMap[b.userId].email) !== null && _b !== void 0 ? _b : null,
+                    customerPhone: (_c = regUserMap[b.userId].phoneNumber) !== null && _c !== void 0 ? _c : null,
+                };
+            }
+            else if (nonRegMap[b.userId]) {
+                customer = {
+                    customerId: nonRegMap[b.userId].id,
+                    customerName: nonRegMap[b.userId].fullName,
+                    customerImage: null,
+                    customerEmail: (_d = nonRegMap[b.userId].email) !== null && _d !== void 0 ? _d : null,
+                    customerPhone: (_e = nonRegMap[b.userId].phone) !== null && _e !== void 0 ? _e : null,
+                };
+            }
+            else {
+                // Fallback if neither table contains the id
+                customer = {
+                    customerId: b.userId,
+                    customerName: null,
+                    customerImage: null,
+                    customerEmail: null,
+                    customerPhone: null,
+                };
+            }
+        }
+        const barberUser = (_f = b.barber) === null || _f === void 0 ? void 0 : _f.user;
+        return {
+            barberId: (_h = (_g = b.barber) === null || _g === void 0 ? void 0 : _g.userId) !== null && _h !== void 0 ? _h : null,
+            barberName: (_j = barberUser === null || barberUser === void 0 ? void 0 : barberUser.fullName) !== null && _j !== void 0 ? _j : null,
+            barberImage: (_k = barberUser === null || barberUser === void 0 ? void 0 : barberUser.image) !== null && _k !== void 0 ? _k : null,
+            barberPhone: (_l = barberUser === null || barberUser === void 0 ? void 0 : barberUser.phoneNumber) !== null && _l !== void 0 ? _l : null,
+            barberAddress: (_m = barberUser === null || barberUser === void 0 ? void 0 : barberUser.address) !== null && _m !== void 0 ? _m : null,
+            bookingId: b.id,
+            bookingDate: b.date,
+            bookingStartTime: b.startTime,
+            bookingEndTime: b.endTime,
+            bookingStatus: b.status,
+            customer,
+            services: (_p = (_o = b.BookedServices) === null || _o === void 0 ? void 0 : _o.map(s => ({
+                serviceId: s.service.id,
+                serviceName: s.service.serviceName,
+                price: s.service.price,
+                availableTo: s.service.availableTo,
+            }))) !== null && _p !== void 0 ? _p : [],
+            totalPrice: b.totalPrice,
+        };
+    });
     return scheduledBarbers;
 });
 const updateSaloonQueueControlIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {

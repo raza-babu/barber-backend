@@ -36,6 +36,9 @@ const qrCode_routes_1 = require("../modules/qrCode/qrCode.routes");
 const follow_routes_1 = require("../modules/follow/follow.routes");
 const userSubscription_routes_1 = require("../modules/userSubscription/userSubscription.routes");
 const payment_routes_1 = require("../modules/payment/payment.routes");
+const loyaltyProgram_routes_1 = require("../modules/loyaltyProgram/loyaltyProgram.routes");
+const loyaltyScheme_routes_1 = require("../modules/loyaltyScheme/loyaltyScheme.routes");
+const nonRegisteredBooking_routes_1 = require("../modules/nonRegisteredBooking/nonRegisteredBooking.routes");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -173,6 +176,18 @@ const moduleRoutes = [
     {
         path: '/payments',
         route: payment_routes_1.PaymentRoutes,
+    },
+    {
+        path: '/loyalty-programs',
+        route: loyaltyProgram_routes_1.loyaltyProgramRoutes,
+    },
+    {
+        path: '/loyalty-schemes',
+        route: loyaltyScheme_routes_1.loyaltySchemeRoutes,
+    },
+    {
+        path: '/non-registered-bookings',
+        route: nonRegisteredBooking_routes_1.nonRegisteredBookingRoutes,
     },
 ];
 moduleRoutes.forEach(route => router.use(route.path, route.route));
