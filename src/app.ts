@@ -11,7 +11,7 @@ import { PaymentController } from "./app/modules/payment/payment.controller";
 const app: Application = express();
 
 app.use(logger);
-// app.use(loggerConsole);
+app.use(loggerConsole);
 
 // app.use(
 //   cors({

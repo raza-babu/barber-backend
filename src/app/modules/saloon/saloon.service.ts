@@ -335,61 +335,25 @@ const getCustomerBookingsFromDb = async (
   const searchQuery = options.searchTerm
     ? {
         OR: [
-          {
-            user: {
-              fullName: {
-                contains: options.searchTerm,
-                mode: 'insensitive' as const,
-              },
-            },
-          },
-          {
-            user: {
-              email: {
-                contains: options.searchTerm,
-                mode: 'insensitive' as const,
-              },
-            },
-          },
-          {
-            user: {
-              phoneNumber: {
-                contains: options.searchTerm,
-                mode: 'insensitive' as const,
-              },
-            },
-          },
-          {
-            barber: {
-              user: {
-                fullName: {
-                  contains: options.searchTerm,
-                  mode: 'insensitive' as const,
-                },
-              },
-            },
-          },
+          { user: { fullName: { contains: options.searchTerm, mode: 'insensitive' as const } } },
+          { user: { email: { contains: options.searchTerm, mode: 'insensitive' as const } } },
+          { user: { phoneNumber: { contains: options.searchTerm, mode: 'insensitive' as const } } },
+          { barber: { user: { fullName: { contains: options.searchTerm, mode: 'insensitive' as const } } } },
         ],
       }
     : {};
 
-  // Status filter, but always exclude PENDING and CONFIRMED
+  // Status filter: exclude PENDING and CONFIRMED by default
   const excludedStatuses = [BookingStatus.PENDING, BookingStatus.CONFIRMED];
   const excludedStatusStrings = excludedStatuses.map(s => s.toString());
   const statusFilter =
     options.status && Array.isArray(options.status)
-      ? {
-          status: {
-            in: (options.status as string[]).filter(
-              s => !excludedStatusStrings.includes(s),
-            ) as BookingStatus[],
-          },
-        }
+      ? { status: { in: (options.status as string[]).filter(s => !excludedStatusStrings.includes(s)) as BookingStatus[] } }
       : options.status
-        ? excludedStatusStrings.includes(options.status as string)
-          ? { status: { notIn: excludedStatuses } }
-          : { status: options.status as BookingStatus }
-        : { status: { notIn: excludedStatuses } };
+      ? excludedStatusStrings.includes(options.status as string)
+        ? { status: { notIn: excludedStatuses } }
+        : { status: options.status as BookingStatus }
+      : { status: { notIn: excludedStatuses } };
 
   const whereClause = {
     saloonOwnerId: userId,
@@ -397,24 +361,22 @@ const getCustomerBookingsFromDb = async (
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
 
+  // 1) Query bookings but do NOT include `user` relation directly (use userId scalar instead)
   const [result, total] = await Promise.all([
     prisma.booking.findMany({
       where: whereClause,
       skip,
       take: limit,
-      orderBy: {
-        [sortBy]: 'desc',
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            image: true,
-            email: true,
-            phoneNumber: true,
-          },
-        },
+      orderBy: { [sortBy]: sortOrder },
+      select: {
+        id: true,
+        userId: true, // scalar id (could refer to User OR NonRegisteredUser)
+        date: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        totalPrice: true,
+        // Barber info (barber.user is expected to exist)
         barber: {
           select: {
             user: {
@@ -442,39 +404,100 @@ const getCustomerBookingsFromDb = async (
         },
       },
     }),
-    prisma.booking.count({
-      where: whereClause,
-    }),
+    prisma.booking.count({ where: whereClause }),
   ]);
 
-  const bookings = result.map(booking => ({
-    bookingId: booking.id,
-    customerId: booking.user.id,
-    customerName: booking.user.fullName,
-    customerImage: booking.user.image,
-    customEmail: booking.user.email,
-    customerPhone: booking.user.phoneNumber,
-    barberId: booking.barber.user.id,
-    barberName: booking.barber.user.fullName,
-    barberImage: booking.barber.user.image,
-    barberEmail: booking.barber.user.email,
-    barberPhone: booking.barber.user.phoneNumber,
-    totalPrice: booking.totalPrice,
-    bookingDate: booking.date,
-    startTime: booking.startTime,
-    endTime: booking.endTime,
-    // paymentStatus: booking.paymentStatus,
-    status: booking.status,
-    services: booking.BookedServices.map(service => ({
-      serviceId: service.service.id,
-      serviceName: service.service.serviceName,
-      price: service.service.price,
-      availableTo: service.service.availableTo,
-    })),
-  }));
+  // 2) Collect unique customer ids from this page
+  const customerIds = Array.from(new Set(result.map(b => b.userId).filter(Boolean as any)));
+
+  // 3) Fetch registered users for these ids
+  const registeredUsers = customerIds.length > 0
+    ? await prisma.user.findMany({
+        where: { id: { in: customerIds } },
+        select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+      })
+    : [];
+
+  const regUserMap = registeredUsers.reduce<Record<string, any>>((acc, u) => {
+    acc[u.id] = u;
+    return acc;
+  }, {});
+
+  // 4) Identify ids not present in registered users → query non-registered users
+  const nonRegisteredIds = customerIds.filter(id => !regUserMap[id]);
+  const nonRegisteredUsers = nonRegisteredIds.length > 0
+    ? await prisma.nonRegisteredUser.findMany({
+        where: { id: { in: nonRegisteredIds } },
+        select: { id: true, fullName: true, email: true, phone: true },
+      })
+    : [];
+
+  const nonRegMap = nonRegisteredUsers.reduce<Record<string, any>>((acc, n) => {
+    acc[n.id] = n;
+    return acc;
+  }, {});
+
+  // 5) Map bookings and merge customer info (registered or non-registered)
+  const bookings = result.map(booking => {
+    // Resolve customer info
+    let customerId: string | null = null;
+    let customerName: string | null = null;
+    let customerImage: string | null = null;
+    let customerEmail: string | null = null;
+    let customerPhone: string | null = null;
+
+    if (booking.userId) {
+      if (regUserMap[booking.userId]) {
+        const u = regUserMap[booking.userId];
+        customerId = u.id;
+        customerName = u.fullName;
+        customerImage = u.image ?? null;
+        customerEmail = u.email ?? null;
+        customerPhone = u.phoneNumber ?? null;
+      } else if (nonRegMap[booking.userId]) {
+        const n = nonRegMap[booking.userId];
+        customerId = n.id;
+        customerName = n.fullName;
+        customerImage = null;
+        customerEmail = n.email ?? null;
+        customerPhone = n.phone ?? null;
+      } else {
+        customerId = booking.userId;
+        customerName = 'Unknown Customer';
+      }
+    }
+
+    const barberUser = booking.barber?.user;
+
+    return {
+      bookingId: booking.id,
+      customerId,
+      customerName,
+      customerImage,
+      customEmail: customerEmail,
+      customerPhone,
+      barberId: barberUser?.id ?? null,
+      barberName: barberUser?.fullName ?? null,
+      barberImage: barberUser?.image ?? null,
+      barberEmail: barberUser?.email ?? null,
+      barberPhone: barberUser?.phoneNumber ?? null,
+      totalPrice: booking.totalPrice,
+      bookingDate: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      status: booking.status,
+      services: booking.BookedServices.map(s => ({
+        serviceId: s.service.id,
+        serviceName: s.service.serviceName,
+        price: s.service.price,
+        availableTo: s.service.availableTo,
+      })),
+    };
+  });
 
   return formatPaginationResponse(bookings, total, page, limit);
 };
+
 
 const getRemainingBarbersToScheduleFromDb = async (
   userId: string,
@@ -713,104 +736,58 @@ const getTransactionsFromDb = async (
   options: ISearchAndFilterOptions = {},
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  const searchTerm = options.searchTerm?.trim();
 
-  const searchQuery = options.searchTerm
-    ? {
-        OR: [
-          {
-            user: {
-              fullName: {
-                contains: options.searchTerm,
+  // Build booking-level search conditions (used inside booking where)
+  const bookingSearchOr: any[] = [];
+  if (searchTerm) {
+    bookingSearchOr.push(
+      { user: { fullName: { contains: searchTerm, mode: 'insensitive' as const } } },
+      { user: { email: { contains: searchTerm, mode: 'insensitive' as const } } },
+      { user: { phoneNumber: { contains: searchTerm, mode: 'insensitive' as const } } },
+      { barber: { user: { fullName: { contains: searchTerm, mode: 'insensitive' as const } } } },
+      {
+        BookedServices: {
+          some: {
+            service: {
+              serviceName: {
+                contains: searchTerm,
                 mode: 'insensitive' as const,
               },
             },
           },
-          {
-            user: {
-              email: {
-                contains: options.searchTerm,
-                mode: 'insensitive' as const,
-              },
-            },
-          },
-          {
-            user: {
-              phoneNumber: {
-                contains: options.searchTerm,
-                mode: 'insensitive' as const,
-              },
-            },
-          },
-          {
-            barber: {
-              user: {
-                fullName: {
-                  contains: options.searchTerm,
-                  mode: 'insensitive' as const,
-                },
-              },
-            },
-          },
-          {
-            BookedServices: {
-              some: {
-                service: {
-                  serviceName: {
-                    contains: options.searchTerm,
-                    mode: 'insensitive' as const,
-                  },
-                },
-              },
-            },
-          },
-          // Removed invalid payment status search by 'contains' since status is an enum
-        ],
-      }
-    : {};
-  // Only fetch payments with status 'COMPLETED' and join booking for saloonOwnerId
-  const whereClause = {
+        },
+      },
+    );
+  }
+
+  // Main where clause (payments that belong to bookings for this salon owner)
+  const whereClause: any = {
     status: { in: [PaymentStatus.COMPLETED, PaymentStatus.REFUNDED] },
     booking: {
       saloonOwnerId: userId,
-      ...(searchQuery.OR
-        ? {
-            OR: searchQuery.OR.map((searchCondition: any) => {
-              // Move booking-related search fields inside booking
-              if (
-                searchCondition.user ||
-                searchCondition.barber ||
-                searchCondition.BookedServices
-              ) {
-                return searchCondition;
-              }
-              return undefined;
-            }).filter(Boolean),
-          }
-        : {}),
+      ...(bookingSearchOr.length ? { AND: [{ OR: bookingSearchOr }] } : {}),
     },
-    // Removed invalid payment status search by 'contains' since status is an enum
   };
 
-  const [result, total] = await Promise.all([
+  // Fetch payments (do NOT select booking.user relation — only scalar booking.userId)
+  const [payments, total] = await Promise.all([
     prisma.payment.findMany({
       where: whereClause,
       skip,
       take: limit,
-      orderBy: {
-        [sortBy]: sortOrder,
-      },
+      orderBy: { [sortBy]: sortOrder },
       include: {
         booking: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                fullName: true,
-                image: true,
-                email: true,
-                phoneNumber: true,
-              },
-            },
+          select: {
+            id: true,
+            userId: true, // scalar only
+            totalPrice: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            status: true,
+            // booking -> barber -> user is safe to include (barber.user is actual barber record)
             barber: {
               select: {
                 user: {
@@ -836,49 +813,120 @@ const getTransactionsFromDb = async (
                 },
               },
             },
+            queueSlot: {
+              select: { id: true, position: true },
+              orderBy: { position: 'asc' },
+            },
           },
         },
       },
     }),
-    prisma.payment.count({
-      where: whereClause,
-    }),
+    prisma.payment.count({ where: whereClause }),
   ]);
 
-  const transactions = result.map(payment => {
-    const booking = payment.booking;
+  // Collect unique userIds referenced by bookings
+  const userIds = Array.from(
+    new Set(payments.map(p => p.booking?.userId).filter(Boolean as any)),
+  );
+
+  // Fetch registered users for those ids
+  const filteredUserIds = userIds.filter((id): id is string => typeof id === 'string');
+  const registeredUsers = filteredUserIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: filteredUserIds } },
+        select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+      })
+    : [];
+
+  const regMap = registeredUsers.reduce<Record<string, any>>((acc, u) => {
+    acc[u.id] = u;
+    return acc;
+  }, {});
+
+  // Find remaining ids that are not registered users -> non-registered users
+  const nonRegisteredIds = userIds.filter((id): id is string => id !== undefined && !regMap[id]);
+  const nonRegisteredUsers = nonRegisteredIds.length
+    ? await prisma.nonRegisteredUser.findMany({
+        where: { id: { in: nonRegisteredIds } },
+        select: { id: true, fullName: true, email: true, phone: true },
+      })
+    : [];
+
+  const nonRegMap = nonRegisteredUsers.reduce<Record<string, any>>((acc, nr) => {
+    acc[nr.id] = nr;
+    return acc;
+  }, {});
+
+  // Map payments to transaction DTO
+  const transactions = payments.map(payment => {
+    const b = payment.booking;
+    const userInfo = b?.userId
+      ? regMap[b.userId]
+        ? {
+            id: regMap[b.userId].id,
+            fullName: regMap[b.userId].fullName,
+            image: regMap[b.userId].image ?? null,
+            email: regMap[b.userId].email ?? null,
+            phoneNumber: regMap[b.userId].phoneNumber ?? null,
+          }
+        : nonRegMap[b.userId]
+        ? {
+            id: nonRegMap[b.userId].id,
+            fullName: nonRegMap[b.userId].fullName,
+            image: null,
+            email: nonRegMap[b.userId].email ?? null,
+            phoneNumber: nonRegMap[b.userId].phone ?? null,
+          }
+        : {
+            id: b.userId,
+            fullName: 'Unknown',
+            image: null,
+            email: null,
+            phoneNumber: null,
+          }
+      : {
+          id: null,
+          fullName: null,
+          image: null,
+          email: null,
+          phoneNumber: null,
+        };
+
     return {
       paymentId: payment.id,
-      bookingId: booking?.id,
-      customerId: booking?.user.id,
-      customerName: booking?.user.fullName,
-      customerImage: booking?.user.image,
-      customEmail: booking?.user.email,
-      customerPhone: booking?.user.phoneNumber,
-      barberId: booking?.barber.user.id,
-      barberName: booking?.barber.user.fullName,
-      barberImage: booking?.barber.user.image,
-      barberEmail: booking?.barber.user.email,
-      barberPhone: booking?.barber.user.phoneNumber,
-      totalPrice: booking?.totalPrice,
-      bookingDate: booking?.date,
-      startTime: booking?.startTime,
-      endTime: booking?.endTime,
+      bookingId: b?.id ?? null,
+      customerId: userInfo.id,
+      customerName: userInfo.fullName,
+      customerImage: userInfo.image,
+      customerEmail: userInfo.email,
+      customerPhone: userInfo.phoneNumber,
+      barberId: b?.barber?.user?.id ?? null,
+      barberName: b?.barber?.user?.fullName ?? null,
+      barberImage: b?.barber?.user?.image ?? null,
+      barberEmail: b?.barber?.user?.email ?? null,
+      barberPhone: b?.barber?.user?.phoneNumber ?? null,
+      totalPrice: b?.totalPrice ?? null,
+      bookingDate: b?.date ?? null,
+      startTime: b?.startTime ?? null,
+      endTime: b?.endTime ?? null,
       paymentStatus: payment.status,
       paymentAmount: payment.paymentAmount,
       paymentDate: payment.createdAt,
-      status: booking?.status,
-      // services: booking?.BookedServices.map(service => ({
-      //   serviceId: service.service.id,
-      //   serviceName: service.service.serviceName,
-      //   price: service.service.price,
-      //   availableTo: service.service.availableTo,
-      // })) || [],
+      bookingStatus: b?.status ?? null,
+      services:
+        b?.BookedServices?.map(s => ({
+          serviceId: s.service.id,
+          serviceName: s.service.serviceName,
+          price: s.service.price,
+          availableTo: s.service.availableTo,
+        })) || [],
+      queuePosition: b?.queueSlot?.[0]?.position ?? null,
     };
   });
 
   return formatPaginationResponse(transactions, total, page, limit);
 };
+
 
 const getSaloonListFromDb = async (userId: string) => {
   const result = await prisma.saloonOwner.findMany();
@@ -1071,36 +1119,44 @@ const terminateBarberIntoDb = async (
   });
 };
 
+
+
 const getScheduledBarbersFromDb = async (
   userId: string,
   data: {
-    utcDateTime: string; // ISO string
+    utcDateTime: string; // ISO string in UTC
   },
 ) => {
   const { utcDateTime } = data;
   if (!utcDateTime || !userId) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Missing required fields');
   }
-  const appointmentDateTime = DateTime.fromISO(utcDateTime).toUTC();
+
+  // Parse incoming UTC ISO string
+  const appointmentDateTime = DateTime.fromISO(utcDateTime, { zone: 'utc' });
   if (!appointmentDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
   }
+  const appointmentJSDate = appointmentDateTime.toJSDate();
 
-  // Find bookings that overlap with the requested time
+  // Find bookings that contain the given instant (start <= t <= end)
   const bookings = await prisma.booking.findMany({
     where: {
       saloonOwnerId: userId,
-      startDateTime: {
-        lte: appointmentDateTime.toJSDate(),
-      },
-      endDateTime: {
-        gte: appointmentDateTime.toJSDate(),
-      },
-      status: {
-        in: [BookingStatus.PENDING, BookingStatus.CONFIRMED],
-      },
+      startDateTime: { lte: appointmentJSDate },
+      endDateTime: { gte: appointmentJSDate },
+      status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
     },
-    include: {
+    // Note: we only select booking.userId (scalar) to avoid Prisma inconsistent-result errors
+    select: {
+      id: true,
+      userId: true, // scalar id (could point to User or non-registered user)
+      date: true,
+      startTime: true,
+      endTime: true,
+      status: true,
+      totalPrice: true,
+      // Barber and its user: keep as-is (barber.user should exist)
       barber: {
         select: {
           userId: true,
@@ -1111,17 +1167,9 @@ const getScheduledBarbersFromDb = async (
               image: true,
               phoneNumber: true,
               address: true,
+              email: true,
             },
           },
-        },
-      },
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          image: true,
-          email: true,
-          phoneNumber: true,
         },
       },
       BookedServices: {
@@ -1139,36 +1187,122 @@ const getScheduledBarbersFromDb = async (
     },
   });
 
-  // Map bookings to include barber and booking details
-  const scheduledBarbers = bookings.map(booking => ({
-    barberId: booking.barber.userId,
-    barberName: booking.barber.user.fullName,
-    barberImage: booking.barber.user.image,
-    barberPhone: booking.barber.user.phoneNumber,
-    barberAddress: booking.barber.user.address,
-    bookingId: booking.id,
-    bookingDate: booking.date,
-    bookingStartTime: booking.startTime,
-    bookingEndTime: booking.endTime,
-    bookingStatus: booking.status,
-    customer: {
-      customerId: booking.user.id,
-      customerName: booking.user.fullName,
-      customerImage: booking.user.image,
-      customerEmail: booking.user.email,
-      customerPhone: booking.user.phoneNumber,
-    },
-    services: booking.BookedServices.map(service => ({
-      serviceId: service.service.id,
-      serviceName: service.service.serviceName,
-      price: service.service.price,
-      availableTo: service.service.availableTo,
-    })),
-    totalPrice: booking.totalPrice,
-  }));
+  if (!bookings || bookings.length === 0) return [];
+
+  // Collect unique customer ids referenced by bookings
+  const customerIds = Array.from(
+    new Set(bookings.map(b => b.userId).filter(Boolean as any)),
+  );
+
+  // Fetch registered users for these ids
+  const registeredUsers =
+    customerIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: customerIds } },
+          select: {
+            id: true,
+            fullName: true,
+            image: true,
+            email: true,
+            phoneNumber: true,
+          },
+        })
+      : [];
+
+  const regUserMap = registeredUsers.reduce<Record<string, any>>((acc, u) => {
+    acc[u.id] = u;
+    return acc;
+  }, {});
+
+  // Find ids not present in registered users → treat them as non-registered
+  const nonRegisteredIds = customerIds.filter(id => !regUserMap[id]);
+
+  const nonRegisteredUsers =
+    nonRegisteredIds.length > 0
+      ? await prisma.nonRegisteredUser.findMany({
+          where: { id: { in: nonRegisteredIds } },
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+          },
+        })
+      : [];
+
+  const nonRegMap = nonRegisteredUsers.reduce<Record<string, any>>((acc, n) => {
+    acc[n.id] = n;
+    return acc;
+  }, {});
+
+  // Map bookings into the scheduledBarbers shape and resolve customer info
+  const scheduledBarbers = bookings.map(b => {
+    // Resolve customer info (registered or non-registered)
+    let customer = {
+      customerId: null as string | null,
+      customerName: null,
+      customerImage: null,
+      customerEmail: null,
+      customerPhone: null,
+    };
+
+    if (b.userId) {
+      if (regUserMap[b.userId]) {
+        customer = {
+          customerId: regUserMap[b.userId].id,
+          customerName: regUserMap[b.userId].fullName,
+          customerImage: regUserMap[b.userId].image ?? null,
+          customerEmail: regUserMap[b.userId].email ?? null,
+          customerPhone: regUserMap[b.userId].phoneNumber ?? null,
+        };
+      } else if (nonRegMap[b.userId]) {
+        customer = {
+          customerId: nonRegMap[b.userId].id,
+          customerName: nonRegMap[b.userId].fullName,
+          customerImage: null,
+          customerEmail: nonRegMap[b.userId].email ?? null,
+          customerPhone: nonRegMap[b.userId].phone ?? null,
+        };
+      } else {
+        // Fallback if neither table contains the id
+        customer = {
+          customerId: b.userId,
+          customerName: null,
+          customerImage: null,
+          customerEmail: null,
+          customerPhone: null,
+        };
+      }
+    }
+
+    const barberUser = b.barber?.user;
+
+    return {
+      barberId: b.barber?.userId ?? null,
+      barberName: barberUser?.fullName ?? null,
+      barberImage: barberUser?.image ?? null,
+      barberPhone: barberUser?.phoneNumber ?? null,
+      barberAddress: barberUser?.address ?? null,
+      bookingId: b.id,
+      bookingDate: b.date,
+      bookingStartTime: b.startTime,
+      bookingEndTime: b.endTime,
+      bookingStatus: b.status,
+      customer,
+      services:
+        b.BookedServices?.map(s => ({
+          serviceId: s.service.id,
+          serviceName: s.service.serviceName,
+          price: s.service.price,
+          availableTo: s.service.availableTo,
+        })) ?? [],
+      totalPrice: b.totalPrice,
+    };
+  });
 
   return scheduledBarbers;
 };
+
 
 const updateSaloonQueueControlIntoDb = async (
   userId: string,
