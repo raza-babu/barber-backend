@@ -85,7 +85,7 @@ const registerUserIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functi
         }
     }));
     // return login;
-    const otp = Math.floor(100000 + Math.random() * 900000);
+    const otp = Math.floor(1000 + Math.random() * 9000);
     const otpExpiresAt = new Date();
     otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
     const otpExpiresAtString = otpExpiresAt.toISOString();
@@ -134,7 +134,7 @@ const resendUserVerificationEmail = (email) => __awaiter(void 0, void 0, void 0,
     if (!userData) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
-    const otp = Math.floor(100000 + Math.random() * 900000);
+    const otp = Math.floor(1000 + Math.random() * 9000);
     const otpExpiresAt = new Date();
     otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
     const otpExpiresAtString = otpExpiresAt.toISOString();
@@ -417,7 +417,7 @@ const forgotPassword = (payload) => __awaiter(void 0, void 0, void 0, function* 
     if (!userData) {
         throw new AppError_1.default(http_status_1.default.CONFLICT, 'User not found!');
     }
-    const otp = Math.floor(100000 + Math.random() * 900000);
+    const otp = Math.floor(1000 + Math.random() * 9000);
     const otpExpiresAt = new Date();
     otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
     const otpExpiresAtString = otpExpiresAt.toISOString();
@@ -469,7 +469,7 @@ const resendOtpIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function*
     if (!userData) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
-    const otp = Math.floor(100000 + Math.random() * 900000);
+    const otp = Math.floor(1000 + Math.random() * 9000);
     const otpExpiresAt = new Date();
     otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
     const otpExpiresAtString = otpExpiresAt.toISOString();

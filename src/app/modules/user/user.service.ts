@@ -52,7 +52,7 @@ const registerUserIntoDB = async (payload: any) => {
   });
 
   // return login;
-  const otp = Math.floor(100000 + Math.random() * 900000);
+  const otp = Math.floor(1000 + Math.random() * 9000);
   const otpExpiresAt = new Date();
   otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
   const otpExpiresAtString = otpExpiresAt.toISOString();
@@ -112,7 +112,7 @@ const resendUserVerificationEmail = async (email: string) => {
   if (!userData) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
-  const otp = Math.floor(100000 + Math.random() * 900000);
+  const otp = Math.floor(1000 + Math.random() * 9000);
   const otpExpiresAt = new Date();
   otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
   const otpExpiresAtString = otpExpiresAt.toISOString();
@@ -478,7 +478,7 @@ const forgotPassword = async (payload: { email: string }) => {
     throw new AppError(httpStatus.CONFLICT, 'User not found!');
   }
 
-  const otp = Math.floor(100000 + Math.random() * 900000);
+  const otp = Math.floor(1000 + Math.random() * 9000);
   const otpExpiresAt = new Date();
   otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
   const otpExpiresAtString = otpExpiresAt.toISOString();
@@ -542,7 +542,7 @@ const resendOtpIntoDB = async (payload: any) => {
   if (!userData) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
-  const otp = Math.floor(100000 + Math.random() * 900000);
+  const otp = Math.floor(1000 + Math.random() * 9000);
   const otpExpiresAt = new Date();
   otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
   const otpExpiresAtString = otpExpiresAt.toISOString();
