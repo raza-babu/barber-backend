@@ -11,6 +11,7 @@ const user_controller_1 = require("../user/user.controller");
 const user_validation_1 = require("../user/user.validation");
 const multipleFile_1 = require("../../utils/multipleFile");
 const parseBody_1 = require("../../middlewares/parseBody");
+const client_1 = require("@prisma/client");
 const router = express_1.default.Router();
 router.post('/register', (0, validateRequest_1.default)(user_validation_1.UserValidations.registerUser), user_controller_1.UserControllers.registerUser);
 router.post('/register/saloon-owner', multipleFile_1.multerUploadMultiple.fields([
@@ -28,6 +29,8 @@ router.put('/update/barber', multipleFile_1.multerUploadMultiple.fields([
 ]), parseBody_1.parseBody, (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateBarber), user_controller_1.UserControllers.updateBarber);
 router.put('/verify-otp', (0, validateRequest_1.default)(user_validation_1.UserValidations.verifyOtpSchema), user_controller_1.UserControllers.verifyOtp);
 router.get('/me', (0, auth_1.default)(), user_controller_1.UserControllers.getMyProfile);
+router.get('/saloon-owner-profile', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), user_controller_1.UserControllers.getSaloonOwnerProfile);
+router.get('/barber-profile', (0, auth_1.default)(client_1.UserRoleEnum.BARBER), user_controller_1.UserControllers.getBarberProfile);
 router.put('/update-profile', (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateProfileSchema), user_controller_1.UserControllers.updateMyProfile);
 router.post('/resend-verification-email', (0, validateRequest_1.default)(user_validation_1.UserValidations.forgetPasswordSchema), user_controller_1.UserControllers.resendUserVerificationEmail);
 router.put('/change-password', (0, auth_1.default)(), user_controller_1.UserControllers.changePassword);

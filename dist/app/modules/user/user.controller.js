@@ -131,6 +131,24 @@ const getMyProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
         data: result,
     });
 }));
+const getSaloonOwnerProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield user_service_1.UserServices.getSaloonOwnerProfileFromDB(user.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        message: 'Saloon owner profile retrieved successfully',
+        data: result,
+    });
+}));
+const getBarberProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield user_service_1.UserServices.getBarberProfileFromDB(user.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        message: 'Barber profile retrieved successfully',
+        data: result,
+    });
+}));
 const updateMyProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield user_service_1.UserServices.updateMyProfileIntoDB(user.id, req.body);
@@ -233,6 +251,8 @@ exports.UserControllers = {
     updateSaloonOwner,
     updateBarber,
     getMyProfile,
+    getSaloonOwnerProfile,
+    getBarberProfile,
     updateMyProfile,
     changePassword,
     verifyOtpForgotPassword,

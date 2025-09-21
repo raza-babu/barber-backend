@@ -360,6 +360,26 @@ const getMyProfileFromDB = async (id: string) => {
   return Profile;
 };
 
+const getSaloonOwnerProfileFromDB = async (userId: string) => {
+  const profile = await prisma.saloonOwner.findUniqueOrThrow({
+    where: { 
+      userId: userId,
+    },  
+  }
+  );
+  return profile;
+};
+
+const getBarberProfileFromDB = async (userId: string) => {
+  const profile = await prisma.barber.findUniqueOrThrow({
+    where: { 
+      userId: userId,
+    },  
+  }
+  );
+  return profile;
+};
+
 const updateMyProfileIntoDB = async (id: string, payload: any) => {
   const userData = payload;
 
@@ -981,6 +1001,8 @@ export const UserServices = {
   updateSaloonOwnerIntoDB,
   updateBarberIntoDB,
   getMyProfileFromDB,
+  getSaloonOwnerProfileFromDB,
+  getBarberProfileFromDB,
   updateMyProfileIntoDB,
   updateUserRoleStatusIntoDB,
   changePassword,

@@ -186,6 +186,30 @@ const getMyProfile = catchAsync(async (req, res) => {
   });
 });
 
+const getSaloonOwnerProfile = catchAsync(async (req, res) => {
+  const user = req.user as any;
+
+  const result = await UserServices.getSaloonOwnerProfileFromDB(user.id);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'Saloon owner profile retrieved successfully',
+    data: result,
+  });
+});
+
+const getBarberProfile = catchAsync(async (req, res) => {
+  const user = req.user as any;
+
+  const result = await UserServices.getBarberProfileFromDB(user.id);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'Barber profile retrieved successfully',
+    data: result,
+  });
+});
+
 const updateMyProfile = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await UserServices.updateMyProfileIntoDB(user.id, req.body);
@@ -312,6 +336,8 @@ export const UserControllers = {
   updateSaloonOwner,
   updateBarber,
   getMyProfile,
+  getSaloonOwnerProfile,
+  getBarberProfile,
   updateMyProfile,
   changePassword,
   verifyOtpForgotPassword,

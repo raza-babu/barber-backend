@@ -5,6 +5,7 @@ import { UserControllers } from '../user/user.controller';
 import { UserValidations } from '../user/user.validation';
 import { multerUploadMultiple } from '../../utils/multipleFile';
 import { parseBody } from '../../middlewares/parseBody';
+import { UserRoleEnum } from '@prisma/client';
 const router = express.Router();
 
 router.post(
@@ -57,6 +58,17 @@ router.put(
 );
 
 router.get('/me', auth(), UserControllers.getMyProfile);
+router.get(
+  '/saloon-owner-profile',
+  auth(UserRoleEnum.SALOON_OWNER),
+  UserControllers.getSaloonOwnerProfile,
+);
+
+router.get(
+  '/barber-profile',
+  auth(UserRoleEnum.BARBER),
+  UserControllers.getBarberProfile,
+);
 
 router.put(
   '/update-profile',

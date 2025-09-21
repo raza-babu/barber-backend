@@ -335,6 +335,22 @@ const getMyProfileFromDB = (id) => __awaiter(void 0, void 0, void 0, function* (
     });
     return Profile;
 });
+const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const profile = yield prisma_1.default.saloonOwner.findUniqueOrThrow({
+        where: {
+            userId: userId,
+        },
+    });
+    return profile;
+});
+const getBarberProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const profile = yield prisma_1.default.barber.findUniqueOrThrow({
+        where: {
+            userId: userId,
+        },
+    });
+    return profile;
+});
 const updateMyProfileIntoDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const userData = payload;
     if (userData.isQueueEnabled) {
@@ -801,6 +817,8 @@ exports.UserServices = {
     updateSaloonOwnerIntoDB,
     updateBarberIntoDB,
     getMyProfileFromDB,
+    getSaloonOwnerProfileFromDB,
+    getBarberProfileFromDB,
     updateMyProfileIntoDB,
     updateUserRoleStatusIntoDB,
     changePassword,
