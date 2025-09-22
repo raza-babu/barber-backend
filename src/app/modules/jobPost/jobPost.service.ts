@@ -21,108 +21,82 @@ const createJobPostIntoDb = async (
   subscriptionPlan: string,
   data: any,
 ) => {
-  // Free plan allows only 1 active job post per year. Please upgrade your subscription to create more job posts.
+  const lastYear = new Date();
+  lastYear.setFullYear(lastYear.getFullYear() - 1);
+
+  let limit = 0;
+
   if (subscriptionPlan === SubscriptionPlanStatus.FREE) {
-    const existingJobPosts = await prisma.jobPost.findMany({
-      where: {
-        userId: userId,
-        createdAt: {
-          gte: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
-        },
-        isActive: true,
-      },
-    });
-
-    if (existingJobPosts.length >= 1) {
-      throw new AppError(
-        httpStatus.FORBIDDEN,
-        'Free plan allows only 1 active job post per year. Please upgrade your subscription to create more job posts.',
-      );
-    }
+    limit = 1;
   } else if (subscriptionPlan === SubscriptionPlanStatus.BASIC_PREMIUM) {
-    // Basic plan allows only 3 active job posts per year. Please upgrade your subscription to create more job posts.
-    const existingJobPosts = await prisma.jobPost.findMany({
+    limit = 3;
+  } else if (subscriptionPlan === SubscriptionPlanStatus.PRO_PREMIUM) {
+    limit = Infinity; // no restriction
+  }
+
+  if (limit > 0) {
+    const existingJobPosts = await prisma.jobPost.count({
       where: {
-        userId: userId,
-        createdAt: {
-          gte: new Date(new Date().setFullYear(new Date().getFullYear() - 1)),
-        },
+        userId,
+        createdAt: { gte: lastYear },
         isActive: true,
       },
     });
 
-    if (existingJobPosts.length >= 3) {
+    if (existingJobPosts >= limit) {
       throw new AppError(
         httpStatus.FORBIDDEN,
-        'Basic plan allows only 3 active job posts per year. Please upgrade your subscription to create more job posts.',
+        `${subscriptionPlan} allows only ${limit} active job post(s) per year. Please upgrade your subscription to create more job posts.`,
       );
     }
-
-
-    // If the plan is PRO_PREMIUM no restrictions apply
   }
-  
-  if (subscriptionPlan === SubscriptionPlanStatus.PRO_PREMIUM ||
-    subscriptionPlan === SubscriptionPlanStatus.BASIC_PREMIUM) {
-    // No restrictions
-    const shopDetails = await prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-      include: {
-        SaloonOwner: {
-          select: {
-            userId: true,
-            shopLogo: true,
-            shopName: true,
-          },
+
+  // fetch shop details
+  const shopDetails = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      SaloonOwner: {
+        select: {
+          userId: true,
+          shopLogo: true,
+          shopName: true,
         },
       },
+    },
+  });
+
+  if (!shopDetails || !shopDetails.SaloonOwner) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Shop not found');
+  }
+
+  return await prisma.$transaction(async tx => {
+    const result = await tx.jobPost.create({
+      data: {
+        ...data,
+        userId,
+        saloonOwnerId: shopDetails.SaloonOwner[0]?.userId,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        datePosted: new Date(data.datePosted),
+        shopName: shopDetails.SaloonOwner[0]?.shopName,
+        shopLogo: shopDetails.SaloonOwner[0]?.shopLogo,
+      },
     });
-    if (!shopDetails) {
-      throw new AppError(httpStatus.NOT_FOUND, 'Shop not found');
+
+    if (!result) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Job post not created');
     }
-  
 
-    return await prisma.$transaction(async tx => {
-      const result = await tx.jobPost.create({
-        data: {
-          ...data,
-          userId: userId,
-          saloonOwnerId: shopDetails.SaloonOwner[0]?.userId as string,
-          startDate: new Date(data.startDate),
-          endDate: new Date(data.endDate),
-          datePosted: new Date(data.datePosted),
-          shopName: shopDetails.SaloonOwner[0]?.shopName as string,
-          shopLogo: shopDetails.SaloonOwner[0]?.shopLogo as string,
-        },
-      });
-      if (!result) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'jobPost not created');
-      }
-
-      await tx.saloonOwner.update({
-        where: {
-          userId: userId,
-        },
-        data: {
-          jobPostCount: {
-            increment: 1,
-          },
-        }
-      
-      });
-    
-
-      
-      return result;
-    
+    await tx.saloonOwner.update({
+      where: { userId },
+      data: {
+        jobPostCount: { increment: 1 },
+      },
     });
-  
-  
-  }
-};
 
+    return result;
+  });
+};
 
 
 const getJobPostListFromDb = async (options: ISearchAndFilterOptions) => {
@@ -233,6 +207,117 @@ const getJobPostListFromDb = async (options: ISearchAndFilterOptions) => {
   return formatPaginationResponse(jobPosts, total, page, limit);
 };
 
+const getMyJobPostsListFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Build search query
+  const searchQuery = options.searchTerm
+    ? {
+        OR: [
+          {
+            // title: {
+            //   contains: options.searchTerm,
+            //   mode: 'insensitive' as const,
+            // },
+          },
+          {
+            description: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            shopName: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            location: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+        ],
+      }
+    : {};
+
+  // Build filter query
+  const filterQuery: any = {
+    userId: userId,
+    isActive:
+      options.isActive !== undefined ? options.isActive === 'true' : undefined,
+  };
+
+  // Add experience filter if provided
+  if (options.experienceRequired !== undefined) {
+    filterQuery.experienceRequired = {
+      gte: Number(options.experienceRequired),
+    };
+  }
+
+  // Build salary range filter
+  const salaryRangeQuery = buildNumericRangeQuery(
+    'salary',
+    options.salaryMin ? Number(options.salaryMin) : undefined,
+    options.salaryMax ? Number(options.salaryMax) : undefined,
+  );
+
+  // Build date range query
+  const dateRangeQuery =
+    options.startDate || options.endDate
+      ? {
+          datePosted: {
+            ...(options.startDate && { gte: new Date(options.startDate) }),
+            ...(options.endDate && { lte: new Date(options.endDate) }),
+          },
+        }
+      : {};
+
+  // Combine all queries
+  const whereClause = {
+    ...filterQuery,
+    ...salaryRangeQuery,
+    ...dateRangeQuery,
+    ...(Object.keys(searchQuery).length > 0 && searchQuery),
+  };
+
+  const [jobPosts, total] = await Promise.all([
+    prisma.jobPost.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        id: true,
+        // title: true,
+        description: true,
+        salary: true,
+        // location: true,
+        // experienceRequired: true,
+        hourlyRate: true,
+        isActive: true,
+        datePosted: true,
+        startDate: true,
+        endDate: true,
+        shopName: true,
+        shopLogo: true,
+        saloonOwnerId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.jobPost.count({
+      where: whereClause,
+    }),
+  ]);
+
+  return formatPaginationResponse(jobPosts, total, page, limit);
+}
+
+
 const getJobPostByIdFromDb = async (userId: string, jobPostId: string) => {
   const result = await prisma.jobPost.findUnique({
     where: {
@@ -333,6 +418,7 @@ const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
 export const jobPostService = {
   createJobPostIntoDb,
   getJobPostListFromDb,
+  getMyJobPostsListFromDb,
   getJobPostByIdFromDb,
   updateJobPostIntoDb,
   toggleJobPostActiveIntoDb,

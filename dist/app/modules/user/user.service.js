@@ -329,6 +329,7 @@ const getMyProfileFromDB = (id) => __awaiter(void 0, void 0, void 0, function* (
             followerCount: true,
             followingCount: true,
             image: true,
+            gender: true,
             createdAt: true,
             updatedAt: true,
         },

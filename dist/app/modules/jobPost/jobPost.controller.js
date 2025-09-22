@@ -53,6 +53,30 @@ const getJobPostList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
         meta: result.meta,
     });
 }));
+const getMyJobPostsList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const filters = (0, pickValidFields_1.pickValidFields)(req.query, [
+        'page',
+        'limit',
+        'sortBy',
+        'sortOrder',
+        'searchTerm',
+        'isActive',
+        'salaryMin',
+        'salaryMax',
+        'experienceRequired',
+        'startDate',
+        'endDate',
+    ]);
+    const result = yield jobPost_service_1.jobPostService.getMyJobPostsListFromDb(user.id, filters);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'My JobPost list retrieved successfully',
+        data: result.data,
+        meta: result.meta,
+    });
+}));
 const getJobPostById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield jobPost_service_1.jobPostService.getJobPostByIdFromDb(user.id, req.params.id);
@@ -96,6 +120,7 @@ const deleteJobPost = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
 exports.jobPostController = {
     createJobPost,
     getJobPostList,
+    getMyJobPostsList,
     getJobPostById,
     updateJobPost,
     toggleJobPostActive,

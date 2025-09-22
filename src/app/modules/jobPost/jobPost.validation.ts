@@ -26,7 +26,6 @@ const createJobPostSchema = z.object({
       .string({
         invalid_type_error: 'Start date must be a valid ISO string!',
       })
-      // .datetime()
       .optional(),
     endDate: z
       .string({

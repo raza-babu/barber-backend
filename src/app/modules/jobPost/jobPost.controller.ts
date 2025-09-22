@@ -42,6 +42,32 @@ const getJobPostList = catchAsync(async (req, res) => {
   });
 });
 
+const getMyJobPostsList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'isActive',
+    'salaryMin',
+    'salaryMax',
+    'experienceRequired',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await jobPostService.getMyJobPostsListFromDb(user.id, filters);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'My JobPost list retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 const getJobPostById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await jobPostService.getJobPostByIdFromDb(user.id, req.params.id);
@@ -89,6 +115,7 @@ const deleteJobPost = catchAsync(async (req, res) => {
 export const jobPostController = {
   createJobPost,
   getJobPostList,
+  getMyJobPostsList,
   getJobPostById,
   updateJobPost,
   toggleJobPostActive,

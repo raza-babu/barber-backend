@@ -22,15 +22,21 @@ router.post(
   jobPostController.createJobPost,
 );
 
+// router.get(
+//   '/',
+//   auth(
+//     UserRoleEnum.ADMIN,
+//     UserRoleEnum.SUPER_ADMIN,
+//     UserRoleEnum.SALOON_OWNER,
+//     UserRoleEnum.BARBER,
+//   ),
+//   jobPostController.getJobPostList,
+// );
+
 router.get(
   '/',
-  auth(
-    UserRoleEnum.ADMIN,
-    UserRoleEnum.SUPER_ADMIN,
-    UserRoleEnum.SALOON_OWNER,
-    UserRoleEnum.BARBER,
-  ),
-  jobPostController.getJobPostList,
+  auth(UserRoleEnum.SALOON_OWNER),
+  jobPostController.getMyJobPostsList,
 );
 
 router.get(

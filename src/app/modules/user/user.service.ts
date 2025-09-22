@@ -352,6 +352,7 @@ const getMyProfileFromDB = async (id: string) => {
       followerCount: true,
       followingCount: true,
       image: true,
+      gender: true,
       createdAt: true,
       updatedAt: true,
     },
