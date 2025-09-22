@@ -40,7 +40,7 @@ router.patch(
 );
 
 
-router.put(
+router.patch(
   '/update/barber',
   multerUploadMultiple.fields([
     { name: 'portfolioImages', maxCount: 5 },

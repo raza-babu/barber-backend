@@ -24,7 +24,7 @@ router.patch('/update/saloon-owner', multipleFile_1.multerUploadMultiple.fields(
     { name: 'shop_images', maxCount: 5 },
     { name: 'shop_videos', maxCount: 2 },
 ]), parseBody_1.parseBody, (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateSaloonOwner), user_controller_1.UserControllers.updateSaloonOwner);
-router.put('/update/barber', multipleFile_1.multerUploadMultiple.fields([
+router.patch('/update/barber', multipleFile_1.multerUploadMultiple.fields([
     { name: 'portfolioImages', maxCount: 5 },
 ]), parseBody_1.parseBody, (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateBarber), user_controller_1.UserControllers.updateBarber);
 router.put('/verify-otp', (0, validateRequest_1.default)(user_validation_1.UserValidations.verifyOtpSchema), user_controller_1.UserControllers.verifyOtp);
