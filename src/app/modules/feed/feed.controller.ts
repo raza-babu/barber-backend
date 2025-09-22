@@ -50,6 +50,17 @@ const getFeedList = catchAsync(async (req, res) => {
   });
 });
 
+const getMyFeeds = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await feedService.getMyFeedsFromDb(user.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'My feeds retrieved successfully',
+    data: result,
+  });
+});
+
 const getFeedById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await feedService.getFeedByIdFromDb(req.params.id);
@@ -116,6 +127,7 @@ const deleteFeed = catchAsync(async (req, res) => {
 export const feedController = {
   createFeed,
   getFeedList,
+  getMyFeeds,
   getFeedById,
   updateFeed,
   deleteFeed,

@@ -21,6 +21,8 @@ router.post(
 
 router.get('/', auth(), feedController.getFeedList);
 
+router.get('/my-feeds', auth(), feedController.getMyFeeds);
+
 router.get('/:id', auth(), feedController.getFeedById);
 
 router.patch(

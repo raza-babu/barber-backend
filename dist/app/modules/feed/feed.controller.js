@@ -50,6 +50,16 @@ const getFeedList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
         data: result,
     });
 }));
+const getMyFeeds = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield feed_service_1.feedService.getMyFeedsFromDb(user.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'My feeds retrieved successfully',
+        data: result,
+    });
+}));
 const getFeedById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield feed_service_1.feedService.getFeedByIdFromDb(req.params.id);
@@ -97,6 +107,7 @@ const deleteFeed = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, voi
 exports.feedController = {
     createFeed,
     getFeedList,
+    getMyFeeds,
     getFeedById,
     updateFeed,
     deleteFeed,

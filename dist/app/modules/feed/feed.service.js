@@ -102,6 +102,70 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
             : null,
     }));
 });
+const getMyFeedsFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!userId) {
+        throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'User not authenticated');
+    }
+    const result = yield prisma_1.default.feed.findMany({
+        where: {
+            userId: userId,
+        },
+        select: {
+            id: true,
+            favoriteCount: true,
+            caption: true,
+            images: true,
+            user: {
+                select: {
+                    id: true,
+                    fullName: true,
+                    image: true,
+                    SaloonOwner: {
+                        select: {
+                            userId: true,
+                            registrationNumber: true,
+                            shopName: true,
+                            shopAddress: true,
+                            shopImages: true,
+                            shopVideo: true,
+                            shopLogo: true,
+                            avgRating: true,
+                            ratingCount: true,
+                        },
+                    },
+                },
+            },
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    if (result.length === 0) {
+        return [];
+    }
+    return result.map(feed => ({
+        id: feed.id,
+        userId: feed.user.id,
+        userName: feed.user.fullName,
+        userImage: feed.user.image,
+        caption: feed.caption,
+        images: feed.images,
+        favoriteCount: feed.favoriteCount,
+        saloonOwner: feed.user.SaloonOwner && feed.user.SaloonOwner.length > 0
+            ? {
+                userId: feed.user.SaloonOwner[0].userId,
+                shopName: feed.user.SaloonOwner[0].shopName,
+                registration: feed.user.SaloonOwner[0].registrationNumber,
+                shopAddress: feed.user.SaloonOwner[0].shopAddress,
+                shopImages: feed.user.SaloonOwner[0].shopImages,
+                shopVideo: feed.user.SaloonOwner[0].shopVideo,
+                shopLogo: feed.user.SaloonOwner[0].shopLogo,
+                avgRating: feed.user.SaloonOwner[0].avgRating,
+                ratingCount: feed.user.SaloonOwner[0].ratingCount,
+            }
+            : null,
+    }));
+});
 const getFeedByIdFromDb = (feedId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.feed.findUnique({
         where: {
@@ -196,6 +260,7 @@ const deleteFeedItemFromDb = (userId, feedId) => __awaiter(void 0, void 0, void 
 exports.feedService = {
     createFeedIntoDb,
     getFeedListFromDb,
+    getMyFeedsFromDb,
     getFeedByIdFromDb,
     updateFeedIntoDb,
     deleteFeedItemFromDb,
