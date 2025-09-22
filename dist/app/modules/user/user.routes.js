@@ -31,7 +31,7 @@ router.put('/verify-otp', (0, validateRequest_1.default)(user_validation_1.UserV
 router.get('/me', (0, auth_1.default)(), user_controller_1.UserControllers.getMyProfile);
 router.get('/saloon-owner-profile', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), user_controller_1.UserControllers.getSaloonOwnerProfile);
 router.get('/barber-profile', (0, auth_1.default)(client_1.UserRoleEnum.BARBER), user_controller_1.UserControllers.getBarberProfile);
-router.put('/update-profile', (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateProfileSchema), user_controller_1.UserControllers.updateMyProfile);
+router.patch('/update-profile', (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateProfileSchema), user_controller_1.UserControllers.updateMyProfile);
 router.post('/resend-verification-email', (0, validateRequest_1.default)(user_validation_1.UserValidations.forgetPasswordSchema), user_controller_1.UserControllers.resendUserVerificationEmail);
 router.put('/change-password', (0, auth_1.default)(), user_controller_1.UserControllers.changePassword);
 router.post('/forgot-password', (0, validateRequest_1.default)(user_validation_1.UserValidations.forgetPasswordSchema), user_controller_1.UserControllers.forgotPassword);

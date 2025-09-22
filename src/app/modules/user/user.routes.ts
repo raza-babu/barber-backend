@@ -70,7 +70,7 @@ router.get(
   UserControllers.getBarberProfile,
 );
 
-router.put(
+router.patch(
   '/update-profile',
   auth(),
   validateRequest(UserValidations.updateProfileSchema),
