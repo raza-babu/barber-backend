@@ -398,6 +398,192 @@ const deleteJobApplicationsItemFromDb = async (
   return deletedItem;
 };
 
+
+const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  
+  // Build base where clause for user access
+  const baseWhereClause = {
+    userId: userId,
+  };
+
+  // Build search and filter queries
+  const searchAndFilterQuery = buildCompleteQuery(
+    {
+      searchTerm: options.searchTerm,
+      searchFields: ['barber.user.fullName', 'barber.user.email', 'jobPost.description'],
+    },
+    {
+      status: options.status,
+      jobPostId: options.jobPostId,
+    },
+    {
+      startDate: options.startDate,
+      endDate: options.endDate,
+      dateField: 'createdAt',
+    }
+  );
+
+  // Since Prisma doesn't handle nested search well, we'll handle it manually
+  let whereClause: any = { ...baseWhereClause };
+
+  // Add simple filters
+  if (options.status) {
+    whereClause.status = options.status;
+  }
+  if (options.jobPostId) {
+    whereClause.jobPostId = options.jobPostId;
+  } 
+  // Add date range filter
+  if (options.startDate || options.endDate) {
+    whereClause.createdAt = {};
+    if (options.startDate) {
+      whereClause.createdAt.gte = new Date(options.startDate);
+    }
+    if (options.endDate) {
+      whereClause.createdAt.lte = new Date(options.endDate);
+    }
+  }
+
+  // Handle search across related fields
+  if (options.searchTerm) {
+    whereClause.OR = [
+      ...whereClause.OR,
+      {
+        barber: {
+          user: {
+            fullName: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+        },
+      },
+      {
+        barber: {
+          user: {
+            email: {
+              contains: options.searchTerm,
+              mode: 'insensitive' as const,
+            },
+          },
+        },
+      },
+      {
+        jobPost: {
+          description: {
+            contains: options.searchTerm,
+            mode: 'insensitive' as const,
+          },
+        },
+      },
+    ];
+  }
+
+  const [jobApplications, total] = await Promise.all([
+    prisma.jobApplication.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      include: {
+        barber: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phoneNumber: true,
+                image: true,
+              },
+            },
+          },
+        },
+        jobPost: {
+          select: {
+            id: true,
+            // title: true,
+            description: true,
+            hourlyRate: true,
+            startDate: true,
+            endDate: true,
+            datePosted: true,
+            shopName: true,
+          },
+        },
+      },
+    }),
+    prisma.jobApplication.count({
+      where: whereClause,
+    }),
+  ]);
+
+  // Transform the data
+  const transformedData = jobApplications.map(app => ({
+    id: app.id,
+    status: app.status,
+    createdAt: app.createdAt,
+    updatedAt: app.updatedAt,
+    barber: app.barber?.user,
+    jobPost: app.jobPost,
+  }));
+
+  return formatPaginationResponse(transformedData, total, page, limit);
+}
+
+const getJobApplicationsByIdForBarberFromDb = async (
+  userId: string,
+  jobApplicationsId: string,
+) => {
+  const result = await prisma.jobApplication.findFirst({
+    where: {
+      id: jobApplicationsId,
+      userId: userId,
+    },
+    include: {
+      barber: {
+        select: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phoneNumber: true,
+              image: true,
+            },
+          },
+        },
+      },
+      jobPost: {
+        select: {
+          id: true,
+          // title: true,
+          description: true,
+          hourlyRate: true,
+          startDate: true,
+          endDate: true,
+          datePosted: true,
+          shopName: true,
+        },
+      },
+    },
+  });
+  if (!result) {
+    return {message: 'Job application not found'  };
+  }
+  return {
+    id: result.id,
+    status: result.status,
+    createdAt: result.createdAt,
+    updatedAt: result.updatedAt,
+    barber: result.barber?.user,
+    jobPost: result.jobPost,
+  };
+}
+
 export const jobApplicationsService = {
   createJobApplicationsIntoDb,
   getJobApplicationsListFromDb,
@@ -405,4 +591,6 @@ export const jobApplicationsService = {
   getHiredBarbersListFromDb,
   updateJobApplicationsIntoDb,
   deleteJobApplicationsItemFromDb,
+  getMyJobApplicationsListFromDb,
+  getJobApplicationsByIdForBarberFromDb,
 };

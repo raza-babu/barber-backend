@@ -64,6 +64,28 @@ const getJobApplicationsList = (0, catchAsync_1.default)((req, res) => __awaiter
         });
     }
 }));
+const getMyJobApplicationsList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const filters = (0, pickValidFields_1.pickValidFields)(req.query, [
+        'page',
+        'limit',
+        'sortBy',
+        'sortOrder',
+        'searchTerm',
+        'status',
+        'jobPostId',
+        'startDate',
+        'endDate',
+    ]);
+    const result = yield jobApplications_service_1.jobApplicationsService.getMyJobApplicationsListFromDb(user.id, filters);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'JobApplications list retrieved successfully',
+        data: result.data,
+        meta: result.meta,
+    });
+}));
 const getJobApplicationsById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const subscriptionPlanName = user.subscriptionPlan;
@@ -120,6 +142,16 @@ const getHiredBarbersList = (0, catchAsync_1.default)((req, res) => __awaiter(vo
         });
     }
 }));
+const getMyJobApplicationsById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield jobApplications_service_1.jobApplicationsService.getJobApplicationsByIdForBarberFromDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'JobApplications details retrieved successfully',
+        data: result,
+    });
+}));
 const updateJobApplications = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const subscriptionPlanName = user.subscriptionPlan;
@@ -170,6 +202,8 @@ exports.jobApplicationsController = {
     createJobApplications,
     getJobApplicationsList,
     getJobApplicationsById,
+    getMyJobApplicationsList,
+    getMyJobApplicationsById,
     getHiredBarbersList,
     updateJobApplications,
     deleteJobApplications,

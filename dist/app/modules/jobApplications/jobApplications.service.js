@@ -362,6 +362,178 @@ const deleteJobApplicationsItemFromDb = (userId, jobApplicationsId) => __awaiter
     }
     return deletedItem;
 });
+const getMyJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, void 0, void 0, function* () {
+    const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
+    // Build base where clause for user access
+    const baseWhereClause = {
+        userId: userId,
+    };
+    // Build search and filter queries
+    const searchAndFilterQuery = (0, searchFilter_1.buildCompleteQuery)({
+        searchTerm: options.searchTerm,
+        searchFields: ['barber.user.fullName', 'barber.user.email', 'jobPost.description'],
+    }, {
+        status: options.status,
+        jobPostId: options.jobPostId,
+    }, {
+        startDate: options.startDate,
+        endDate: options.endDate,
+        dateField: 'createdAt',
+    });
+    // Since Prisma doesn't handle nested search well, we'll handle it manually
+    let whereClause = Object.assign({}, baseWhereClause);
+    // Add simple filters
+    if (options.status) {
+        whereClause.status = options.status;
+    }
+    if (options.jobPostId) {
+        whereClause.jobPostId = options.jobPostId;
+    }
+    // Add date range filter
+    if (options.startDate || options.endDate) {
+        whereClause.createdAt = {};
+        if (options.startDate) {
+            whereClause.createdAt.gte = new Date(options.startDate);
+        }
+        if (options.endDate) {
+            whereClause.createdAt.lte = new Date(options.endDate);
+        }
+    }
+    // Handle search across related fields
+    if (options.searchTerm) {
+        whereClause.OR = [
+            ...whereClause.OR,
+            {
+                barber: {
+                    user: {
+                        fullName: {
+                            contains: options.searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+            },
+            {
+                barber: {
+                    user: {
+                        email: {
+                            contains: options.searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+            },
+            {
+                jobPost: {
+                    description: {
+                        contains: options.searchTerm,
+                        mode: 'insensitive',
+                    },
+                },
+            },
+        ];
+    }
+    const [jobApplications, total] = yield Promise.all([
+        prisma_1.default.jobApplication.findMany({
+            where: whereClause,
+            skip,
+            take: limit,
+            orderBy: {
+                [sortBy]: sortOrder,
+            },
+            include: {
+                barber: {
+                    select: {
+                        user: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                email: true,
+                                phoneNumber: true,
+                                image: true,
+                            },
+                        },
+                    },
+                },
+                jobPost: {
+                    select: {
+                        id: true,
+                        // title: true,
+                        description: true,
+                        hourlyRate: true,
+                        startDate: true,
+                        endDate: true,
+                        datePosted: true,
+                        shopName: true,
+                    },
+                },
+            },
+        }),
+        prisma_1.default.jobApplication.count({
+            where: whereClause,
+        }),
+    ]);
+    // Transform the data
+    const transformedData = jobApplications.map(app => {
+        var _a;
+        return ({
+            id: app.id,
+            status: app.status,
+            createdAt: app.createdAt,
+            updatedAt: app.updatedAt,
+            barber: (_a = app.barber) === null || _a === void 0 ? void 0 : _a.user,
+            jobPost: app.jobPost,
+        });
+    });
+    return (0, pagination_1.formatPaginationResponse)(transformedData, total, page, limit);
+});
+const getJobApplicationsByIdForBarberFromDb = (userId, jobApplicationsId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _b;
+    const result = yield prisma_1.default.jobApplication.findFirst({
+        where: {
+            id: jobApplicationsId,
+            userId: userId,
+        },
+        include: {
+            barber: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            phoneNumber: true,
+                            image: true,
+                        },
+                    },
+                },
+            },
+            jobPost: {
+                select: {
+                    id: true,
+                    // title: true,
+                    description: true,
+                    hourlyRate: true,
+                    startDate: true,
+                    endDate: true,
+                    datePosted: true,
+                    shopName: true,
+                },
+            },
+        },
+    });
+    if (!result) {
+        return { message: 'Job application not found' };
+    }
+    return {
+        id: result.id,
+        status: result.status,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+        barber: (_b = result.barber) === null || _b === void 0 ? void 0 : _b.user,
+        jobPost: result.jobPost,
+    };
+});
 exports.jobApplicationsService = {
     createJobApplicationsIntoDb,
     getJobApplicationsListFromDb,
@@ -369,4 +541,6 @@ exports.jobApplicationsService = {
     getHiredBarbersListFromDb,
     updateJobApplicationsIntoDb,
     deleteJobApplicationsItemFromDb,
+    getMyJobApplicationsListFromDb,
+    getJobApplicationsByIdForBarberFromDb,
 };

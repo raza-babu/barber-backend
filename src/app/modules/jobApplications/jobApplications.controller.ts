@@ -63,6 +63,34 @@ const getJobApplicationsList = catchAsync(async (req, res) => {
   }
 });
 
+const getMyJobApplicationsList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'jobPostId',
+    'startDate',
+    'endDate',
+  ]);
+  const result = await jobApplicationsService.getMyJobApplicationsListFromDb(
+    user.id,
+    filters,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'JobApplications list retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+}); 
+
+
+
 const getJobApplicationsById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const subscriptionPlanName = user.subscriptionPlan;
@@ -138,6 +166,20 @@ const getHiredBarbersList = catchAsync(async (req, res) => {
   }
 });
 
+const getMyJobApplicationsById = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await jobApplicationsService.getJobApplicationsByIdForBarberFromDb(
+    user.id,
+    req.params.id,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'JobApplications details retrieved successfully',
+    data: result,
+  });
+});
+
 const updateJobApplications = catchAsync(async (req, res) => {
   const user = req.user as any;
   const subscriptionPlanName = user.subscriptionPlan;
@@ -207,6 +249,8 @@ export const jobApplicationsController = {
   createJobApplications,
   getJobApplicationsList,
   getJobApplicationsById,
+  getMyJobApplicationsList,
+  getMyJobApplicationsById,
   getHiredBarbersList,
   updateJobApplications,
   deleteJobApplications,

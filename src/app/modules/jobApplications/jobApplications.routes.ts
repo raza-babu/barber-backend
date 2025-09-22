@@ -17,9 +17,15 @@ router.post(
 
 router.get(
   '/',
-  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
+  auth(UserRoleEnum.SALOON_OWNER),
   checkSubscriptionForSalonOwners(),
   jobApplicationsController.getJobApplicationsList,
+);
+
+router.get(
+  '/my-applications',
+  auth(UserRoleEnum.BARBER),
+  jobApplicationsController.getMyJobApplicationsList,
 );
 
 router.get(
@@ -27,6 +33,12 @@ router.get(
   auth(UserRoleEnum.SALOON_OWNER),
   checkSubscriptionForSalonOwners(),
   jobApplicationsController.getHiredBarbersList,
+);
+
+router.get(
+  '/my-applications/:id',
+  auth(UserRoleEnum.BARBER),
+  jobApplicationsController.getMyJobApplicationsById,
 );
 
 router.get(
