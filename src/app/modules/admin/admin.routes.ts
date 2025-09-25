@@ -27,6 +27,14 @@ router.get(
   ),
   adminController.getSaloonList,
 );
+router.get(
+  '/new-saloons',
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.SALOON_OWNER,
+  ),
+  adminController.getNewSaloonList,
+);
 
 router.get(
   '/saloon/:id',

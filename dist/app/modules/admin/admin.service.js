@@ -93,6 +93,57 @@ const getSaloonFromDb = (userId, options) => __awaiter(void 0, void 0, void 0, f
     });
     return (0, pagination_1.formatPaginationResponse)(flattenedSaloons, total, page, limit);
 });
+const getNewSaloonFromDb = (userId, options) => __awaiter(void 0, void 0, void 0, function* () {
+    const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
+    // Only fetch SaloonOwners where isVerified is false
+    const whereClause = Object.assign({ isVerified: false }, (options.startDate || options.endDate
+        ? {
+            createdAt: Object.assign(Object.assign({}, (options.startDate ? { gte: options.startDate } : {})), (options.endDate ? { lte: options.endDate } : {})),
+        }
+        : {}));
+    const [saloons, total] = yield Promise.all([
+        prisma_1.default.saloonOwner.findMany({
+            where: whereClause,
+            skip,
+            take: limit,
+            orderBy: {
+                [sortBy]: sortOrder,
+            },
+            select: {
+                userId: true,
+                isVerified: true,
+                shopAddress: true,
+                shopName: true,
+                registrationNumber: true,
+                shopLogo: true,
+                shopImages: true,
+                shopVideo: true,
+                ratingCount: true,
+                avgRating: true,
+                createdAt: true,
+                user: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        phoneNumber: true,
+                        status: true,
+                        createdAt: true,
+                    },
+                },
+            },
+        }),
+        prisma_1.default.saloonOwner.count({
+            where: whereClause,
+        }),
+    ]);
+    // Flatten the response so that user fields and SaloonOwner fields are at the top level
+    const flattenedSaloons = saloons.map(saloon => {
+        const { user } = saloon, ownerFields = __rest(saloon, ["user"]);
+        return Object.assign(Object.assign(Object.assign({}, ownerFields), user), { shopPhoneNumber: user.phoneNumber, ratingCount: ownerFields.ratingCount || 0, avgRating: ownerFields.avgRating || 0 });
+    });
+    return (0, pagination_1.formatPaginationResponse)(flattenedSaloons, total, page, limit);
+});
 const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d, _e;
     const result = yield prisma_1.default.user.findUnique({
@@ -182,9 +233,10 @@ const getSaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0,
         account = yield stripe.accounts.retrieve(result.stripeAccountId);
         const bankAccount = (_b = (_a = account === null || account === void 0 ? void 0 : account.external_accounts) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.find((acc) => acc.object === 'bank_account');
         bankName = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.bank_name) || null;
-        accountHolderName = ((_c = account === null || account === void 0 ? void 0 : account.individual) === null || _c === void 0 ? void 0 : _c.first_name) && ((_d = account === null || account === void 0 ? void 0 : account.individual) === null || _d === void 0 ? void 0 : _d.last_name)
-            ? `${account.individual.first_name} ${account.individual.last_name}`
-            : null;
+        accountHolderName =
+            ((_c = account === null || account === void 0 ? void 0 : account.individual) === null || _c === void 0 ? void 0 : _c.first_name) && ((_d = account === null || account === void 0 ? void 0 : account.individual) === null || _d === void 0 ? void 0 : _d.last_name)
+                ? `${account.individual.first_name} ${account.individual.last_name}`
+                : null;
         branchCity = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.bank_name) || null;
         branchCode = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.routing_number) || null;
         accountNumber = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.last4) ? `****${bankAccount.last4}` : null;
@@ -389,9 +441,10 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
         account = yield stripe.accounts.retrieve(result.stripeAccountId);
         const bankAccount = (_g = (_f = account === null || account === void 0 ? void 0 : account.external_accounts) === null || _f === void 0 ? void 0 : _f.data) === null || _g === void 0 ? void 0 : _g.find((acc) => acc.object === 'bank_account');
         bankName = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.bank_name) || null;
-        accountHolderName = ((_h = account === null || account === void 0 ? void 0 : account.individual) === null || _h === void 0 ? void 0 : _h.first_name) && ((_j = account === null || account === void 0 ? void 0 : account.individual) === null || _j === void 0 ? void 0 : _j.last_name)
-            ? `${account.individual.first_name} ${account.individual.last_name}`
-            : null;
+        accountHolderName =
+            ((_h = account === null || account === void 0 ? void 0 : account.individual) === null || _h === void 0 ? void 0 : _h.first_name) && ((_j = account === null || account === void 0 ? void 0 : account.individual) === null || _j === void 0 ? void 0 : _j.last_name)
+                ? `${account.individual.first_name} ${account.individual.last_name}`
+                : null;
         branchCity = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.bank_name) || null;
         branchCode = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.routing_number) || null;
         accountNumber = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.last4) ? `****${bankAccount.last4}` : null;
@@ -420,7 +473,7 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
             accountNumber,
             branchCity,
             branchCode,
-        }
+        },
     };
 });
 const blockBarberByIdIntoDb = (userId, barberId, data) => __awaiter(void 0, void 0, void 0, function* () {
@@ -737,6 +790,7 @@ const getSubscribersListFromDb = (userId, options) => __awaiter(void 0, void 0, 
 });
 exports.adminService = {
     getSaloonFromDb,
+    getNewSaloonFromDb,
     getSaloonByIdFromDb,
     blockSaloonByIdIntoDb,
     getBarbersListFromDb,

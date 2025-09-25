@@ -29,6 +29,31 @@ const getSaloonList = catchAsync(async (req, res) => {
   });
 });
 
+const getNewSaloonList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'isVerified',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await adminService.getNewSaloonFromDb(user.id, filters);
+  
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'New Saloon list retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 const getSaloonById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await adminService.getSaloonByIdFromDb(user.id, req.params.id);
@@ -180,6 +205,7 @@ const getSubscribersList = catchAsync(async (req, res) => {
 
 export const adminController = {
   getSaloonList,
+  getNewSaloonList,
   getSaloonById,
   blockSaloonById,
   getBarbersList,

@@ -1,5 +1,10 @@
 import prisma from '../../utils/prisma';
-import { BookingStatus, PaymentStatus, UserRoleEnum, UserStatus } from '@prisma/client';
+import {
+  BookingStatus,
+  PaymentStatus,
+  UserRoleEnum,
+  UserStatus,
+} from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import {
@@ -98,6 +103,77 @@ const getSaloonFromDb = async (
   return formatPaginationResponse(flattenedSaloons, total, page, limit);
 };
 
+const getNewSaloonFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Only fetch SaloonOwners where isVerified is false
+  const whereClause = {
+    isVerified: false,
+    ...(options.startDate || options.endDate
+      ? {
+          createdAt: {
+            ...(options.startDate ? { gte: options.startDate } : {}),
+            ...(options.endDate ? { lte: options.endDate } : {}),
+          },
+        }
+      : {}),
+  };
+
+  const [saloons, total] = await Promise.all([
+    prisma.saloonOwner.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        userId: true,
+        isVerified: true,
+        shopAddress: true,
+        shopName: true,
+        registrationNumber: true,
+        shopLogo: true,
+        shopImages: true,
+        shopVideo: true,
+        ratingCount: true,
+        avgRating: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    }),
+    prisma.saloonOwner.count({
+      where: whereClause,
+    }),
+  ]);
+
+  // Flatten the response so that user fields and SaloonOwner fields are at the top level
+  const flattenedSaloons = saloons.map(saloon => {
+    const { user, ...ownerFields } = saloon;
+    return {
+      ...ownerFields,
+      ...user,
+      shopPhoneNumber: user.phoneNumber,
+      ratingCount: ownerFields.ratingCount || 0,
+      avgRating: ownerFields.avgRating || 0,
+    };
+  });
+
+  return formatPaginationResponse(flattenedSaloons, total, page, limit);
+};
+
 const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
   const result = await prisma.user.findUnique({
     where: {
@@ -175,51 +251,53 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     ? result.SaloonOwner[0]
     : result.SaloonOwner;
 
-    //get bank details from the stripe
-    const stripe = require('stripe')(config.stripe.stripe_secret_key);
-    let account = null;
-    let bankName = null;
-    let accountHolderName = null;
-    let branchCity = null;
-    let branchCode = null;
-    let accountNumber = null;
+  //get bank details from the stripe
+  const stripe = require('stripe')(config.stripe.stripe_secret_key);
+  let account = null;
+  let bankName = null;
+  let accountHolderName = null;
+  let branchCity = null;
+  let branchCode = null;
+  let accountNumber = null;
 
-    if (saloonOwner?.isVerified && result.stripeAccountId) {
-      account = await stripe.accounts.retrieve(result.stripeAccountId);
+  if (saloonOwner?.isVerified && result.stripeAccountId) {
+    account = await stripe.accounts.retrieve(result.stripeAccountId);
 
-      // Stripe external_accounts may contain bank details
-      interface StripeBankAccount {
-        object: string;
-        bank_name?: string;
-        routing_number?: string;
-        last4?: string;
-        [key: string]: any;
-      }
+    // Stripe external_accounts may contain bank details
+    interface StripeBankAccount {
+      object: string;
+      bank_name?: string;
+      routing_number?: string;
+      last4?: string;
+      [key: string]: any;
+    }
 
-      interface StripeExternalAccounts {
-        data?: StripeBankAccount[];
-        [key: string]: any;
-      }
+    interface StripeExternalAccounts {
+      data?: StripeBankAccount[];
+      [key: string]: any;
+    }
 
-      interface StripeAccount {
-        external_accounts?: StripeExternalAccounts;
-        [key: string]: any;
-      }
+    interface StripeAccount {
+      external_accounts?: StripeExternalAccounts;
+      [key: string]: any;
+    }
 
-      const bankAccount: StripeBankAccount | undefined = (account as StripeAccount)?.external_accounts?.data?.find(
-        (acc: StripeBankAccount) => acc.object === 'bank_account'
-      );
-      bankName = bankAccount?.bank_name || null;
-      accountHolderName = account?.individual?.first_name && account?.individual?.last_name
+    const bankAccount: StripeBankAccount | undefined = (
+      account as StripeAccount
+    )?.external_accounts?.data?.find(
+      (acc: StripeBankAccount) => acc.object === 'bank_account',
+    );
+    bankName = bankAccount?.bank_name || null;
+    accountHolderName =
+      account?.individual?.first_name && account?.individual?.last_name
         ? `${account.individual.first_name} ${account.individual.last_name}`
         : null;
 
-      branchCity = bankAccount?.bank_name || null;
-      branchCode = bankAccount?.routing_number || null;
-      accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
-    }
-    
-      
+    branchCity = bankAccount?.bank_name || null;
+    branchCode = bankAccount?.routing_number || null;
+    accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+  }
+
   return {
     saloonOwnerIdd: result.id,
     fullName: result.fullName,
@@ -302,7 +380,6 @@ const blockSaloonByIdIntoDb = async (saloonOwnerId: string, data: any) => {
       'User status not updated for the saloon owner',
     );
   }
-
 
   return result;
 };
@@ -436,48 +513,51 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
   }
 
   //get bank details from the stripe
-    const stripe = require('stripe')(config.stripe.stripe_secret_key);
-    let account = null;
-    let bankName = null;
-    let accountHolderName = null;
-    let branchCity = null;
-    let branchCode = null;
-    let accountNumber = null;
+  const stripe = require('stripe')(config.stripe.stripe_secret_key);
+  let account = null;
+  let bankName = null;
+  let accountHolderName = null;
+  let branchCity = null;
+  let branchCode = null;
+  let accountNumber = null;
 
-    if (result.stripeAccountId) {
-      account = await stripe.accounts.retrieve(result.stripeAccountId);
+  if (result.stripeAccountId) {
+    account = await stripe.accounts.retrieve(result.stripeAccountId);
 
-      // Stripe external_accounts may contain bank details
-      interface StripeBankAccount {
-        object: string;
-        bank_name?: string;
-        routing_number?: string;
-        last4?: string;
-        [key: string]: any;
-      }
+    // Stripe external_accounts may contain bank details
+    interface StripeBankAccount {
+      object: string;
+      bank_name?: string;
+      routing_number?: string;
+      last4?: string;
+      [key: string]: any;
+    }
 
-      interface StripeExternalAccounts {
-        data?: StripeBankAccount[];
-        [key: string]: any;
-      }
+    interface StripeExternalAccounts {
+      data?: StripeBankAccount[];
+      [key: string]: any;
+    }
 
-      interface StripeAccount {
-        external_accounts?: StripeExternalAccounts;
-        [key: string]: any;
-      }
+    interface StripeAccount {
+      external_accounts?: StripeExternalAccounts;
+      [key: string]: any;
+    }
 
-      const bankAccount: StripeBankAccount | undefined = (account as StripeAccount)?.external_accounts?.data?.find(
-        (acc: StripeBankAccount) => acc.object === 'bank_account'
-      );
-      bankName = bankAccount?.bank_name || null;
-      accountHolderName = account?.individual?.first_name && account?.individual?.last_name
+    const bankAccount: StripeBankAccount | undefined = (
+      account as StripeAccount
+    )?.external_accounts?.data?.find(
+      (acc: StripeBankAccount) => acc.object === 'bank_account',
+    );
+    bankName = bankAccount?.bank_name || null;
+    accountHolderName =
+      account?.individual?.first_name && account?.individual?.last_name
         ? `${account.individual.first_name} ${account.individual.last_name}`
         : null;
 
-      branchCity = bankAccount?.bank_name || null;
-      branchCode = bankAccount?.routing_number || null;
-      accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
-    }
+    branchCity = bankAccount?.bank_name || null;
+    branchCode = bankAccount?.routing_number || null;
+    accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+  }
 
   return {
     barberIdd: result.id,
@@ -497,13 +577,13 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
     shopVideo: result.Barber?.saloonOwner?.shopVideo || null,
     ratingCount: result.Barber?.ratingCount || 0,
     avgRating: result.Barber?.avgRating || 0,
-     bankDetails: {
+    bankDetails: {
       bankName,
       accountHolderName,
       accountNumber,
       branchCity,
       branchCode,
-    }
+    },
   };
 };
 
@@ -680,7 +760,7 @@ const getAdminDashboardFromDb = async (userId: string) => {
     where: {
       status: 'COMPLETED',
     },
-  }); 
+  });
 
   const earningGrowth = await prisma.payment.groupBy({
     by: ['createdAt'],
@@ -695,7 +775,6 @@ const getAdminDashboardFromDb = async (userId: string) => {
     },
     orderBy: { createdAt: 'asc' },
   });
-
 
   const userGrowth = await prisma.user.groupBy({
     by: ['createdAt', 'role'],
@@ -741,7 +820,7 @@ const getAdminDashboardFromDb = async (userId: string) => {
   earningGrowth.forEach(item => {
     const date = new Date(item.createdAt);
     const idx = months.findIndex(
-      m => m.year === date.getFullYear() && m.month === date.getMonth()
+      m => m.year === date.getFullYear() && m.month === date.getMonth(),
     );
     if (idx !== -1) {
       months[idx].total += item._sum.paymentAmount || 0;
@@ -749,7 +828,8 @@ const getAdminDashboardFromDb = async (userId: string) => {
   });
 
   // Prepare user growth per month with month name
-  const userGrowthByMonth: { month: string; role: string; count: number }[] = [];
+  const userGrowthByMonth: { month: string; role: string; count: number }[] =
+    [];
   months.forEach(month => {
     ['SALOON_OWNER', 'BARBER', 'CUSTOMER'].forEach(role => {
       const count = userGrowth
@@ -757,7 +837,7 @@ const getAdminDashboardFromDb = async (userId: string) => {
           item =>
             item.role === role &&
             item.createdAt.getFullYear() === month.year &&
-            item.createdAt.getMonth() === month.month
+            item.createdAt.getMonth() === month.month,
         )
         .reduce((sum, item) => sum + item._count.id, 0);
       userGrowthByMonth.push({
@@ -815,7 +895,7 @@ const getSubscribersListFromDb = async (
         UserSubscription: {
           some: {
             paymentStatus: PaymentStatus.COMPLETED, // Active subscription
-            endDate: { gte: new Date() },          // Not expired
+            endDate: { gte: new Date() }, // Not expired
           },
         },
       },
@@ -894,9 +974,9 @@ const getSubscribersListFromDb = async (
   return formatPaginationResponse(flattenedSubscribers, total, page, limit);
 };
 
-
 export const adminService = {
   getSaloonFromDb,
+  getNewSaloonFromDb,
   getSaloonByIdFromDb,
   blockSaloonByIdIntoDb,
   getBarbersListFromDb,

@@ -40,6 +40,28 @@ const getSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
         meta: result.meta,
     });
 }));
+const getNewSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const filters = (0, pickValidFields_1.pickValidFields)(req.query, [
+        'page',
+        'limit',
+        'sortBy',
+        'sortOrder',
+        'searchTerm',
+        'status',
+        'isVerified',
+        'startDate',
+        'endDate',
+    ]);
+    const result = yield admin_service_1.adminService.getNewSaloonFromDb(user.id, filters);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'New Saloon list retrieved successfully',
+        data: result.data,
+        meta: result.meta,
+    });
+}));
 const getSaloonById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield admin_service_1.adminService.getSaloonByIdFromDb(user.id, req.params.id);
@@ -175,6 +197,7 @@ const getSubscribersList = (0, catchAsync_1.default)((req, res) => __awaiter(voi
 }));
 exports.adminController = {
     getSaloonList,
+    getNewSaloonList,
     getSaloonById,
     blockSaloonById,
     getBarbersList,
