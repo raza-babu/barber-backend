@@ -730,7 +730,7 @@ model Payment {
   paymentAmount        Float
   bookingId            String?       @db.ObjectId
   paymentDate          DateTime      @default(now())
-  amountProvider       String
+  amountProvider       String?
   amountReceiver       String?
   invoiceId            String?
   status               PaymentStatus @default(PENDING)

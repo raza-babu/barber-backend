@@ -72,14 +72,32 @@ const getAvailableBarbers = catchAsync(async (req, res) => {
 
 const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.getAvailableBarbersForWalkingInFromDb(
+  const saloonId = req.params.saloonId ;
+  const result = await bookingService.getAllBarbersForQueueFromDb(
     user.id,
-    req.body
+    saloonId,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Available barbers for walking-in retrieved successfully',
+    data: result,
+  });
+});
+
+const getAvailableABarberForWalkingIn = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const saloonId = req.params.saloonId ;
+  const barberId = req.params.barberId ;
+  const result = await bookingService.getAvailableABarberForWalkingInFromDb(
+    user.id,
+    saloonId,
+    barberId,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Available barber for walking-in retrieved successfully',
     data: result,
   });
 });
@@ -137,6 +155,20 @@ const updateBookingStatus = catchAsync(async (req, res) => {
   });
 });
 
+const cancelBooking = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await bookingService.cancelBookingIntoDb(
+    user.id,
+    req.params.id,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Booking cancelled successfully',
+    data: result,
+  });
+});
+
 const deleteBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await bookingService.deleteBookingItemFromDb(
@@ -168,10 +200,12 @@ export const bookingController = {
   getBookingListForSalonOwner,
   getBookingByIdForSalonOwner,
   getAvailableBarbersForWalkingIn,
+  getAvailableABarberForWalkingIn,
   getAvailableBarbers,
   getBookingById,
   updateBooking,
   updateBookingStatus,
+  cancelBooking,
   deleteBooking,
   getLoyaltySchemesForACustomer,
 };

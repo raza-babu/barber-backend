@@ -24,7 +24,7 @@ const createBarberScheduleIntoDb = async (saloonOwnerId: string, data: any) => {
 
   // Delete old schedules for this barber first
   await prisma.barberSchedule.deleteMany({
-    where: { saloonOwnerId },
+    where: { saloonOwnerId, barberId: barberId },
   });
 
   // Create new schedules

@@ -25,6 +25,17 @@ const getQrCodeList = catchAsync(async (req, res) => {
   });
 });
 
+const verifyQrCode = catchAsync(async (req, res) => {
+  const code = req.params.code;
+  const result = await qrCodeService.verifyQrCodeInDb(code);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'QrCode verification successful',
+    data: result,
+  });
+});
+
 const getQrCodeById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await qrCodeService.getQrCodeByIdFromDb(user.id, req.params.id);
@@ -61,6 +72,7 @@ const deleteQrCode = catchAsync(async (req, res) => {
 export const qrCodeController = {
   createQrCode,
   getQrCodeList,
+  verifyQrCode,
   getQrCodeById,
   updateQrCode,
   deleteQrCode,

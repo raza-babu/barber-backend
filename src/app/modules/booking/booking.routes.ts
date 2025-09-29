@@ -35,10 +35,16 @@ router.get(
 );
 
 router.get(
-  '/walking-in/barbers',
+  '/walking-in/barbers/:saloonId',
   auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.CUSTOMER),
-  validateRequest(bookingValidation.walkingInBarbersSchema),
+  // validateRequest(bookingValidation.walkingInBarbersSchema),
   bookingController.getAvailableBarbersForWalkingIn,
+);
+router.get(
+  '/walking-in/barbers/:saloonId/:barberId',
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.CUSTOMER),
+  // validateRequest(bookingValidation.walkingInBarbersSchema),
+  bookingController.getAvailableABarberForWalkingIn,
 );
 
 router.get(
@@ -65,6 +71,12 @@ router.put(
   auth(UserRoleEnum.SALOON_OWNER),
   validateRequest(bookingValidation.updateBookingStatusSchema),
   bookingController.updateBookingStatus,
+);
+
+router.patch(
+  '/cancel-booking/:id',
+  auth(UserRoleEnum.CUSTOMER),
+  bookingController.cancelBooking,
 );
 
 router.delete(

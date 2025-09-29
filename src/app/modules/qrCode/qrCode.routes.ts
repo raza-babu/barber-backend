@@ -21,6 +21,11 @@ router.get(
 );
 
 router.get(
+  '/verify/:code',
+  qrCodeController.verifyQrCode,
+);
+
+router.get(
   '/:id',
   auth(UserRoleEnum.SALOON_OWNER),
   qrCodeController.getQrCodeById,

@@ -41,6 +41,18 @@ const getQrCodeListFromDb = async (userId: string) => {
   return result;
 };
 
+const verifyQrCodeInDb = async (code: string) => {
+  const result = await prisma.qrCode.findUnique({
+    where: {
+      code: code,
+    },
+  });
+  if (!result) {
+    return { message: 'QR Code is invalid' };
+  }
+  return result ;
+};
+
 const getQrCodeByIdFromDb = async (userId: string, qrCodeId: string) => {
   const result = await prisma.qrCode.findUnique({
     where: {
@@ -91,6 +103,7 @@ const deleteQrCodeItemFromDb = async (userId: string, qrCodeId: string) => {
 export const qrCodeService = {
   createQrCodeIntoDb,
   getQrCodeListFromDb,
+  verifyQrCodeInDb,
   getQrCodeByIdFromDb,
   updateQrCodeIntoDb,
   deleteQrCodeItemFromDb,
