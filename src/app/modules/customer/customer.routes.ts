@@ -19,6 +19,11 @@ router.get(
   auth(UserRoleEnum.CUSTOMER),
   customerController.getAllSaloonList,
 );
+router.get(
+  '/all-saloons/:id',
+  auth(UserRoleEnum.CUSTOMER, UserRoleEnum.BARBER),
+  customerController.getASaloonById,
+);
 
 router.get(
   '/saloon-services/:id',

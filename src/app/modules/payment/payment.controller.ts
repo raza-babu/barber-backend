@@ -12,7 +12,7 @@ import { PaymentStatus, SubscriptionPlanStatus } from '@prisma/client';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
-  apiVersion: '2025-07-30.basil',
+  apiVersion: '2025-08-27.basil',
 });
 
 const createAccount = catchAsync(async (req: Request, res: Response) => {
@@ -515,12 +515,12 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
       const subscriptionId = invoice.subscription as string;
       const billingReason = invoice.billing_reason;
 
-      console.log('Invoice paid:', {
-        invoiceId,
-        subscriptionId,
-        paymentIntentId,
-        billingReason,
-      });
+      // console.log('Invoice paid:', {
+      //   invoiceId,
+      //   subscriptionId,
+      //   paymentIntentId,
+      //   billingReason,
+      // });
 
       if (!subscriptionId) {
         console.log('No subscription associated with this invoice');

@@ -15,7 +15,7 @@ import {
 } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
-const createBookingIntoDb = async (userId: string, data: any) => {
+const createBookingIntoDb1 = async (userId: string, data: any) => {
   const {
     barberId,
     saloonOwnerId,
@@ -486,7 +486,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const createBookingIntoDb1 = async (userId: string, data: any) => {
+const createBookingIntoDb = async (userId: string, data: any) => {
   const {
     barberId,
     saloonOwnerId,
