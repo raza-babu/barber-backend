@@ -23,7 +23,7 @@ const stripe_1 = __importDefault(require("stripe"));
 // import { notificationService } from '../Notification/Notification.service';
 // Initialize Stripe with your secret API key
 const stripe = new stripe_1.default(config_1.default.stripe.stripe_secret_key, {
-    apiVersion: '2025-07-30.basil',
+    apiVersion: '2025-08-27.basil',
 });
 // Step 1: Create a Customer and Save the Card
 const saveCardWithCustomerInfoIntoStripe = (user, payload) => __awaiter(void 0, void 0, void 0, function* () {

@@ -13,7 +13,7 @@ import Stripe from 'stripe';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
-  apiVersion: '2025-07-30.basil',
+  apiVersion: '2025-08-27.basil',
 });
 
 interface UserWithOptionalPassword extends Omit<User, 'password'> {

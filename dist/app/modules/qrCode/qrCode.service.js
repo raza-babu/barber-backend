@@ -48,6 +48,17 @@ const getQrCodeListFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
     }
     return result;
 });
+const verifyQrCodeInDb = (code) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield prisma_1.default.qrCode.findUnique({
+        where: {
+            code: code,
+        },
+    });
+    if (!result) {
+        return { message: 'QR Code is invalid' };
+    }
+    return result;
+});
 const getQrCodeByIdFromDb = (userId, qrCodeId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.qrCode.findUnique({
         where: {
@@ -88,6 +99,7 @@ const deleteQrCodeItemFromDb = (userId, qrCodeId) => __awaiter(void 0, void 0, v
 exports.qrCodeService = {
     createQrCodeIntoDb,
     getQrCodeListFromDb,
+    verifyQrCodeInDb,
     getQrCodeByIdFromDb,
     updateQrCodeIntoDb,
     deleteQrCodeItemFromDb,

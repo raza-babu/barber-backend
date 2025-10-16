@@ -35,7 +35,7 @@ const createBarberScheduleIntoDb = (saloonOwnerId, data) => __awaiter(void 0, vo
     }));
     // Delete old schedules for this barber first
     yield prisma_1.default.barberSchedule.deleteMany({
-        where: { saloonOwnerId },
+        where: { saloonOwnerId, barberId: barberId },
     });
     // Create new schedules
     const result = yield prisma_1.default.barberSchedule.createMany({

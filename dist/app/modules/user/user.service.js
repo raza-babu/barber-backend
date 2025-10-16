@@ -59,7 +59,7 @@ const client_2 = require("@prisma/client");
 const stripe_1 = __importDefault(require("stripe"));
 // Initialize Stripe with your secret API key
 const stripe = new stripe_1.default(config_1.default.stripe.stripe_secret_key, {
-    apiVersion: '2025-07-30.basil',
+    apiVersion: '2025-08-27.basil',
 });
 const registerUserIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     if (payload.email) {

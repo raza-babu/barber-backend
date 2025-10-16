@@ -23,7 +23,7 @@ const stripe_1 = __importDefault(require("stripe"));
 const client_1 = require("@prisma/client");
 // Initialize Stripe with your secret API key
 const stripe = new stripe_1.default(config_1.default.stripe.stripe_secret_key, {
-    apiVersion: '2025-07-30.basil',
+    apiVersion: '2025-08-27.basil',
 });
 const createAccount = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
@@ -429,12 +429,12 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
             const paymentIntentId = invoice.payment_intent;
             const subscriptionId = invoice.subscription;
             const billingReason = invoice.billing_reason;
-            console.log('Invoice paid:', {
-                invoiceId,
-                subscriptionId,
-                paymentIntentId,
-                billingReason,
-            });
+            // console.log('Invoice paid:', {
+            //   invoiceId,
+            //   subscriptionId,
+            //   paymentIntentId,
+            //   billingReason,
+            // });
             if (!subscriptionId) {
                 console.log('No subscription associated with this invoice');
                 break;

@@ -76,11 +76,24 @@ const getAvailableBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(vo
 }));
 const getAvailableBarbersForWalkingIn = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield booking_service_1.bookingService.getAvailableBarbersForWalkingInFromDb(user.id, req.body);
+    const saloonId = req.params.saloonId;
+    const result = yield booking_service_1.bookingService.getAllBarbersForQueueFromDb(user.id, saloonId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
         message: 'Available barbers for walking-in retrieved successfully',
+        data: result,
+    });
+}));
+const getAvailableABarberForWalkingIn = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const saloonId = req.params.saloonId;
+    const barberId = req.params.barberId;
+    const result = yield booking_service_1.bookingService.getAvailableABarberForWalkingInFromDb(user.id, saloonId, barberId);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Available barber for walking-in retrieved successfully',
         data: result,
     });
 }));
@@ -124,6 +137,16 @@ const updateBookingStatus = (0, catchAsync_1.default)((req, res) => __awaiter(vo
         data: result,
     });
 }));
+const cancelBooking = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield booking_service_1.bookingService.cancelBookingIntoDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Booking cancelled successfully',
+        data: result,
+    });
+}));
 const deleteBooking = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield booking_service_1.bookingService.deleteBookingItemFromDb(user.id, req.params.id);
@@ -150,10 +173,12 @@ exports.bookingController = {
     getBookingListForSalonOwner,
     getBookingByIdForSalonOwner,
     getAvailableBarbersForWalkingIn,
+    getAvailableABarberForWalkingIn,
     getAvailableBarbers,
     getBookingById,
     updateBooking,
     updateBookingStatus,
+    cancelBooking,
     deleteBooking,
     getLoyaltySchemesForACustomer,
 };

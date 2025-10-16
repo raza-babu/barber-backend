@@ -37,6 +37,16 @@ const getQrCodeList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
         data: result,
     });
 }));
+const verifyQrCode = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const code = req.params.code;
+    const result = yield qrCode_service_1.qrCodeService.verifyQrCodeInDb(code);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'QrCode verification successful',
+        data: result,
+    });
+}));
 const getQrCodeById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield qrCode_service_1.qrCodeService.getQrCodeByIdFromDb(user.id, req.params.id);
@@ -70,6 +80,7 @@ const deleteQrCode = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 exports.qrCodeController = {
     createQrCode,
     getQrCodeList,
+    verifyQrCode,
     getQrCodeById,
     updateQrCode,
     deleteQrCode,

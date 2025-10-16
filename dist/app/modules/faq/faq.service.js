@@ -17,6 +17,14 @@ const prisma_1 = __importDefault(require("../../utils/prisma"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const createFaqIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const findExisting = yield prisma_1.default.faq.findFirst({
+        where: {
+            question: data.question,
+        },
+    });
+    if (findExisting) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Faq already exists');
+    }
     const result = yield prisma_1.default.faq.create({
         data: Object.assign(Object.assign({}, data), { userId: userId }),
     });
