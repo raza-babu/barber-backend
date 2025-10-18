@@ -71,6 +71,12 @@ router.get(
   saloonController.getFreeBarbersOnADate,
 );
 
+router.get(
+  '/all-saloons/:id',
+  auth(UserRoleEnum.CUSTOMER, UserRoleEnum.BARBER),
+  saloonController.getASaloonById,
+);
+
 router.patch(
   '/terminate-barber',
   auth(UserRoleEnum.SALOON_OWNER),

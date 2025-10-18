@@ -25,16 +25,7 @@ const getAllSaloonList = catchAsync(async (req, res) => {
   });
 });
 
-const getASaloonById = catchAsync(async (req, res) => {
-  const user = req.user as any;
-  const result = await customerService.getASaloonByIdFromDb(req.params.id);
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: 'Saloon details retrieved successfully',
-    data: result,
-  });
-});
+
 
 const getSaloonAllServicesList = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -83,7 +74,6 @@ const deleteCustomer = catchAsync(async (req, res) => {
 export const customerController = {
   createCustomer,
   getAllSaloonList,
-  getASaloonById,
   getSaloonAllServicesList,
   getCustomerById,
   updateCustomer,

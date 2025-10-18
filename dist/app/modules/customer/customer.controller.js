@@ -37,16 +37,6 @@ const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 
         data: result,
     });
 }));
-const getASaloonById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const user = req.user;
-    const result = yield customer_service_1.customerService.getASaloonByIdFromDb(req.params.id);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'Saloon details retrieved successfully',
-        data: result,
-    });
-}));
 const getSaloonAllServicesList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield customer_service_1.customerService.getSaloonAllServicesListFromDb(req.params.id);
@@ -90,7 +80,6 @@ const deleteCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 exports.customerController = {
     createCustomer,
     getAllSaloonList,
-    getASaloonById,
     getSaloonAllServicesList,
     getCustomerById,
     updateCustomer,

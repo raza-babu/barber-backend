@@ -22,6 +22,7 @@ router.get(
 
 router.get(
   '/verify/:code',
+  auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER),
   qrCodeController.verifyQrCode,
 );
 

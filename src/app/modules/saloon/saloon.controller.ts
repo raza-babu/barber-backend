@@ -183,6 +183,17 @@ const getFreeBarbersOnADate = catchAsync(async (req, res) => {
   });
 });
 
+const getASaloonById = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await saloonService.getASaloonByIdFromDb(req.params.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Saloon details retrieved successfully',
+    data: result,
+  });
+});
+
 const updateSaloonQueueControl = catchAsync(async (req, res) => {
   const user = req.user as any;
   const subscriptionPlanName = user.subscriptionPlan;
@@ -237,6 +248,7 @@ export const saloonController = {
   getAllBarbers,
   getRemainingBarbersToSchedule,
   getFreeBarbersOnADate,
+  getASaloonById,
   terminateBarber,
   getScheduledBarbers,
   updateSaloonQueueControl,

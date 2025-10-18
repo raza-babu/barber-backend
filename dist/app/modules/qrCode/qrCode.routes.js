@@ -13,7 +13,7 @@ const client_1 = require("@prisma/client");
 const router = express_1.default.Router();
 router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(qrCode_validation_1.qrCodeValidation.createQrCodeSchema), qrCode_controller_1.qrCodeController.createQrCode);
 router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), qrCode_controller_1.qrCodeController.getQrCodeList);
-router.get('/verify/:code', qrCode_controller_1.qrCodeController.verifyQrCode);
+router.get('/verify/:code', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER), qrCode_controller_1.qrCodeController.verifyQrCode);
 router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), qrCode_controller_1.qrCodeController.getQrCodeById);
 router.patch('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(qrCode_validation_1.qrCodeValidation.updateQrCodeSchema), qrCode_controller_1.qrCodeController.updateQrCode);
 router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), qrCode_controller_1.qrCodeController.deleteQrCode);

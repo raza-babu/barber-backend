@@ -26,6 +26,7 @@ router.get('/barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), 
 router.get('/remaining-barbers-to-schedule', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), saloon_controller_1.saloonController.getRemainingBarbersToSchedule);
 router.get('/scheduled-barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), saloon_controller_1.saloonController.getScheduledBarbers);
 router.get('/free-barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), saloon_controller_1.saloonController.getFreeBarbersOnADate);
+router.get('/all-saloons/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.BARBER), saloon_controller_1.saloonController.getASaloonById);
 router.patch('/terminate-barber', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), saloon_controller_1.saloonController.terminateBarber);
 router.patch('/queue-control', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(saloon_validation_1.saloonValidation.updateQueueSchema), saloon_controller_1.saloonController.updateSaloonQueueControl);
 router.delete('/:id', (0, auth_1.default)(), saloon_controller_1.saloonController.deleteSaloon);

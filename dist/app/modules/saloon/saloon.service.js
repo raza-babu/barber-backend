@@ -924,6 +924,94 @@ const terminateBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0
         return terminationRecord;
     }));
 });
+const getASaloonByIdFromDb = (saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _b;
+    const result = yield prisma_1.default.saloonOwner.findUnique({
+        where: {
+            userId: saloonOwnerId,
+        },
+        select: {
+            id: true,
+            userId: true,
+            shopName: true,
+            shopAddress: true,
+            shopImages: true,
+            isVerified: true,
+            shopLogo: true,
+            shopVideo: true,
+            registrationNumber: true,
+            latitude: true,
+            longitude: true,
+            createdAt: true,
+            updatedAt: true,
+            user: {
+                select: {
+                    Service: {
+                        select: {
+                            id: true,
+                            serviceName: true,
+                            price: true,
+                            duration: true,
+                            isActive: true,
+                        },
+                    },
+                },
+            },
+            Barber: {
+                select: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                            phoneNumber: true,
+                            image: true,
+                        },
+                    },
+                    saloonOwnerId: true,
+                    experienceYears: true,
+                    bio: true,
+                    portfolio: true,
+                },
+            },
+        },
+    });
+    if (!result) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon not found');
+    }
+    //flatten the salon information
+    return {
+        id: result.id,
+        userId: result.userId,
+        shopName: result.shopName,
+        shopAddress: result.shopAddress,
+        shopImages: result.shopImages,
+        isVerified: result.isVerified,
+        shopLogo: result.shopLogo,
+        shopVideo: result.shopVideo,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+        services: (_b = result.user) === null || _b === void 0 ? void 0 : _b.Service.map(service => ({
+            id: service.id,
+            serviceName: service.serviceName,
+            price: service.price,
+            duration: service.duration,
+            isActive: service.isActive,
+        })),
+        barbers: result.Barber.map(barber => ({
+            id: barber.user.id,
+            fullName: barber.user.fullName,
+            email: barber.user.email,
+            phoneNumber: barber.user.phoneNumber,
+            image: barber.user.image,
+            experienceYears: barber.experienceYears,
+            bio: barber.bio,
+            portfolio: barber.portfolio,
+        })),
+    };
+});
 const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const { utcDateTime } = data;
     if (!utcDateTime || !userId) {
@@ -1120,6 +1208,7 @@ exports.saloonService = {
     getSaloonListFromDb,
     getAllBarbersFromDb,
     terminateBarberIntoDb,
+    getASaloonByIdFromDb,
     getFreeBarbersOnADateFromDb,
     getScheduledBarbersFromDb,
     updateSaloonQueueControlIntoDb,
