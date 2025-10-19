@@ -185,7 +185,7 @@ const getFreeBarbersOnADate = catchAsync(async (req, res) => {
 
 const getASaloonById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await saloonService.getASaloonByIdFromDb(req.params.id);
+  const result = await saloonService.getASaloonByIdFromDb(user.id, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

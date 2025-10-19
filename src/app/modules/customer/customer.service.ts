@@ -1,9 +1,6 @@
-import { SaloonOwner } from './../../../../node_modules/.prisma/client/index.d';
 import prisma from '../../utils/prisma';
-import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { get } from 'node:http';
 
 const createCustomerIntoDb = async (userId: string, data: any) => {
   const result = await prisma.saloonOwner.create({

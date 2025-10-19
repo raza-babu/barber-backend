@@ -20,6 +20,7 @@ const createBarberScheduleIntoDb = async (saloonOwnerId: string, data: any) => {
     openingTime: schedule.openingTime,
     closingTime: schedule.closingTime,
     isActive: schedule.isActive,
+    type: data.type,
   }));
 
   // Delete old schedules for this barber first

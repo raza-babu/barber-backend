@@ -35,6 +35,7 @@ import { PaymentRoutes } from '../modules/payment/payment.routes';
 import { loyaltyProgramRoutes } from '../modules/loyaltyProgram/loyaltyProgram.routes';
 import { loyaltySchemeRoutes } from '../modules/loyaltyScheme/loyaltyScheme.routes';
 import { nonRegisteredBookingRoutes } from '../modules/nonRegisteredBooking/nonRegisteredBooking.routes';
+import { barberRoutes } from '../modules/barber/barber.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -185,6 +186,10 @@ const moduleRoutes = [
   {
     path: '/non-registered-bookings',
     route: nonRegisteredBookingRoutes,
+  },
+  {
+    path: '/barbers',
+    route: barberRoutes,
   },
 ];
 

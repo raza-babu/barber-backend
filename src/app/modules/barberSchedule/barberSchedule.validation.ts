@@ -89,6 +89,9 @@ const createBarberScheduleSchema = z.object({
         const names = days.map(d => d.dayName.toLowerCase());
         return new Set(names).size === 7;
       }, 'Must have all days of the week'),
+      type: z.enum(['BOOKING', 'QUEUE'], {
+        required_error: 'Schedule type is required!',
+      }),
   }),
 });
 

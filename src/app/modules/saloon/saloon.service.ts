@@ -1119,7 +1119,7 @@ const terminateBarberIntoDb = async (
   });
 };
 
-const getASaloonByIdFromDb = async (saloonOwnerId: string) => {
+const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
   const result = await prisma.saloonOwner.findUnique({
     where: {
       userId: saloonOwnerId,
@@ -1174,6 +1174,14 @@ const getASaloonByIdFromDb = async (saloonOwnerId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
   }
 
+  // check following or not
+  const isFollowing = await prisma.follow.findFirst({
+    where: {
+      userId: userId,
+      followingId: saloonOwnerId,
+    },
+  });
+
   //flatten the salon information
   return {
     id: result.id,
@@ -1205,6 +1213,7 @@ const getASaloonByIdFromDb = async (saloonOwnerId: string) => {
       bio: barber.bio,
       portfolio: barber.portfolio,
     })),
+    isFollowing: isFollowing ? true : false,
   };
 };
 

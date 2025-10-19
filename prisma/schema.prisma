@@ -101,6 +101,11 @@ enum RoomType {
 }
 
 
+enum ScheduleType {
+  BOOKING
+  QUEUE
+}
+
 enum SubscriptionPlanStatus {
   FREE
   BASIC_PREMIUM
@@ -328,6 +333,7 @@ model BarberSchedule {
   openingTime     String // e.g., "09:00"
   closingTime     String // e.g., "17:00"
   isActive        Boolean  @default(true)
+  type            ScheduleType @default(BOOKING) // BOOKING or QUEUE
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
