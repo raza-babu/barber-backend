@@ -17,7 +17,7 @@ router.post(
 
 router.get(
   '/',
-  auth(UserRoleEnum.SALOON_OWNER),
+  auth(UserRoleEnum.BARBER),
   checkSubscriptionForSalonOwners(),
   jobApplicationsController.getJobApplicationsList,
 );

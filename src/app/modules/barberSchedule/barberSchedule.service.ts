@@ -53,6 +53,7 @@ const getBarberScheduleListFromDb = async (userId: string,) => {
       openingTime: true,
       closingTime: true,
       isActive: true,
+      type: true,
       // openingDateTime: true,
       // closingDateTime: true,
     },
@@ -67,6 +68,7 @@ const getBarberScheduleListFromDb = async (userId: string,) => {
     dayName: schedule.dayName,
     time: `${schedule.openingTime} - ${schedule.closingTime}`,
     isActive: schedule.isActive,
+    type: schedule.type,
     // openingDateTime: schedule.openingDateTime,
     // closingDateTime: schedule.closingDateTime,
   }));
@@ -86,6 +88,7 @@ const getBarberScheduleByIdFromDb = async (userId: string, barberScheduleId: str
       openingTime: true,
       closingTime: true,
       isActive: true,
+      type: true,
       // openingDateTime: true,
       // closingDateTime: true,
     },
@@ -100,6 +103,7 @@ const getBarberScheduleByIdFromDb = async (userId: string, barberScheduleId: str
     dayName: schedule.dayName,
     time: `${schedule.openingTime} - ${schedule.closingTime}`,   
     isActive: schedule.isActive,
+    type: schedule.type,
     // openingDateTime: schedule.openingDateTime,
     // closingDateTime: schedule.closingDateTime,
   }));
@@ -110,11 +114,19 @@ const updateBarberScheduleIntoDb = async (
   barberScheduleId: string,
   data: any,
 ) => {
-  const result = await prisma.barberSchedule.update({
+  // ensure the schedule exists and belongs to the saloon owner
+  const existing = await prisma.barberSchedule.findFirst({
     where: {
       id: barberScheduleId,
       saloonOwnerId: userId,
     },
+  });
+  if (!existing) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'barberScheduleId, not found');
+  }
+
+  const result = await prisma.barberSchedule.update({
+    where: { id: barberScheduleId },
     data: {
       ...data,
     },
@@ -130,9 +142,7 @@ const updateBarberScheduleIntoDb = async (
       // closingDateTime: true,
     },
   });
-  if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'barberScheduleId, not updated');
-  }
+
   return {
     id: result.id,
     saloonOwnerId: result.saloonOwnerId,
