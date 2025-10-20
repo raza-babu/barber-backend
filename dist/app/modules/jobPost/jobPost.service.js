@@ -53,6 +53,7 @@ const createJobPostIntoDb = (userId, subscriptionPlan, data) => __awaiter(void 0
                     userId: true,
                     shopLogo: true,
                     shopName: true,
+                    shopAddress: true,
                 },
             },
         },
@@ -61,9 +62,9 @@ const createJobPostIntoDb = (userId, subscriptionPlan, data) => __awaiter(void 0
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Shop not found');
     }
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a, _b, _c;
+        var _a, _b, _c, _d;
         const result = yield tx.jobPost.create({
-            data: Object.assign(Object.assign({}, data), { userId, saloonOwnerId: (_a = shopDetails.SaloonOwner[0]) === null || _a === void 0 ? void 0 : _a.userId, startDate: new Date(data.startDate), endDate: new Date(data.endDate), datePosted: new Date(data.datePosted), shopName: (_b = shopDetails.SaloonOwner[0]) === null || _b === void 0 ? void 0 : _b.shopName, shopLogo: (_c = shopDetails.SaloonOwner[0]) === null || _c === void 0 ? void 0 : _c.shopLogo }),
+            data: Object.assign(Object.assign({}, data), { userId, saloonOwnerId: (_a = shopDetails.SaloonOwner[0]) === null || _a === void 0 ? void 0 : _a.userId, startDate: new Date(data.startDate), endDate: new Date(data.endDate), datePosted: new Date(data.datePosted), shopName: (_b = shopDetails.SaloonOwner[0]) === null || _b === void 0 ? void 0 : _b.shopName, shopLogo: (_c = shopDetails.SaloonOwner[0]) === null || _c === void 0 ? void 0 : _c.shopLogo, shopAddress: (_d = shopDetails.SaloonOwner[0]) === null || _d === void 0 ? void 0 : _d.shopAddress }),
         });
         if (!result) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Job post not created');
@@ -151,6 +152,7 @@ const getJobPostListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
                 endDate: true,
                 shopName: true,
                 shopLogo: true,
+                shopAddress: true,
                 saloonOwnerId: true,
                 createdAt: true,
                 updatedAt: true,

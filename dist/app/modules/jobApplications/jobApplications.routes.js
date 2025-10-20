@@ -17,7 +17,7 @@ router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, che
 router.get('/my-applications', (0, auth_1.default)(client_1.UserRoleEnum.BARBER), jobApplications_controller_1.jobApplicationsController.getMyJobApplicationsList);
 router.get('/hired-barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), jobApplications_controller_1.jobApplicationsController.getHiredBarbersList);
 router.get('/my-applications/:id', (0, auth_1.default)(client_1.UserRoleEnum.BARBER), jobApplications_controller_1.jobApplicationsController.getMyJobApplicationsById);
-router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), (0, checkSubscriptionForSalonOwners_1.default)(), jobApplications_controller_1.jobApplicationsController.getJobApplicationsById);
+router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), jobApplications_controller_1.jobApplicationsController.getJobApplicationsById);
 router.patch('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(jobApplications_validation_1.jobApplicationsValidation.updateJobApplicationSchema), jobApplications_controller_1.jobApplicationsController.updateJobApplications);
 router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), jobApplications_controller_1.jobApplicationsController.deleteJobApplications);
 exports.jobApplicationsRoutes = router;

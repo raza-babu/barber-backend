@@ -25,26 +25,27 @@ router.post(
 router.get(
   '/',
   auth(
-    UserRoleEnum.ADMIN,
-    UserRoleEnum.SUPER_ADMIN,
-    UserRoleEnum.SALOON_OWNER,
+    // UserRoleEnum.ADMIN,
+    // UserRoleEnum.SUPER_ADMIN,
+    // UserRoleEnum.SALOON_OWNER,
     UserRoleEnum.BARBER,
   ),
   jobPostController.getJobPostList,
 );
 
 router.get(
-  '/salon-owners/posts',
+  '/salon-owners',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   jobPostController.getMyJobPostsList,
 );
 
 router.get(
   '/:id',
   auth(
-    UserRoleEnum.ADMIN,
-    UserRoleEnum.SUPER_ADMIN,
-    UserRoleEnum.SALOON_OWNER,
+    // UserRoleEnum.ADMIN,
+    // UserRoleEnum.SUPER_ADMIN,
+    // UserRoleEnum.SALOON_OWNER,
     UserRoleEnum.BARBER,
   ),
   jobPostController.getJobPostById,

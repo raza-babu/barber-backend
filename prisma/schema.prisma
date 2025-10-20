@@ -323,19 +323,19 @@ model BarberRealTimeStatus {
 
 
 model BarberSchedule {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  saloonOwnerId   String   @db.ObjectId
-  barberId        String   @db.ObjectId
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId   String       @db.ObjectId
+  barberId        String       @db.ObjectId
   dayOfWeek       Int // 0 (Sunday) to 6 (Saturday)
   dayName         String? // e.g., "Monday"
   openingDateTime DateTime // e.g., "09:00"
   closingDateTime DateTime // e.g., "17:00"
   openingTime     String // e.g., "09:00"
   closingTime     String // e.g., "17:00"
-  isActive        Boolean  @default(true)
+  isActive        Boolean      @default(true)
   type            ScheduleType @default(BOOKING) // BOOKING or QUEUE
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   // Relationships
   barber Barber @relation(fields: [barberId], references: [userId])
@@ -581,6 +581,7 @@ model JobPost {
   shopName      String
   shopLogo      String
   description   String
+  shopAddress   String?
   hourlyRate    Float?
   salary        Float?
   startDate     DateTime?

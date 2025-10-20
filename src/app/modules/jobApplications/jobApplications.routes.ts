@@ -43,7 +43,7 @@ router.get(
 
 router.get(
   '/:id',
-  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
+  auth(UserRoleEnum.SALOON_OWNER),
   checkSubscriptionForSalonOwners(),
   jobApplicationsController.getJobApplicationsById,
 );

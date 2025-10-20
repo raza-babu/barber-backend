@@ -411,7 +411,7 @@ const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAn
   const searchAndFilterQuery = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
-      searchFields: ['barber.user.fullName', 'barber.user.email', 'jobPost.description'],
+      searchFields: ['barber.user.fullName', 'barber.user.email', 'jobPost.description', 'jobPost.status' ],
     },
     {
       status: options.status,
@@ -425,7 +425,7 @@ const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAn
   );
 
   // Since Prisma doesn't handle nested search well, we'll handle it manually
-  let whereClause: any = { ...baseWhereClause };
+  let whereClause: any = { ...baseWhereClause, ...searchAndFilterQuery };
 
   // Add simple filters
   if (options.status) {
@@ -512,6 +512,7 @@ const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAn
             endDate: true,
             datePosted: true,
             shopName: true,
+            shopAddress: true,
           },
         },
       },
@@ -567,6 +568,7 @@ const getJobApplicationsByIdForBarberFromDb = async (
           endDate: true,
           datePosted: true,
           shopName: true,
+          shopAddress: true,
         },
       },
     },

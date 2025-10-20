@@ -60,6 +60,7 @@ const createJobPostIntoDb = async (
           userId: true,
           shopLogo: true,
           shopName: true,
+          shopAddress: true,
         },
       },
     },
@@ -80,6 +81,7 @@ const createJobPostIntoDb = async (
         datePosted: new Date(data.datePosted),
         shopName: shopDetails.SaloonOwner[0]?.shopName,
         shopLogo: shopDetails.SaloonOwner[0]?.shopLogo,
+        shopAddress: shopDetails.SaloonOwner[0]?.shopAddress,
       },
     });
 
@@ -194,6 +196,7 @@ const getJobPostListFromDb = async (options: ISearchAndFilterOptions) => {
         endDate: true,
         shopName: true,
         shopLogo: true,
+        shopAddress: true,
         saloonOwnerId: true,
         createdAt: true,
         updatedAt: true,

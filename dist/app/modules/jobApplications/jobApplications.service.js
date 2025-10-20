@@ -371,7 +371,7 @@ const getMyJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, vo
     // Build search and filter queries
     const searchAndFilterQuery = (0, searchFilter_1.buildCompleteQuery)({
         searchTerm: options.searchTerm,
-        searchFields: ['barber.user.fullName', 'barber.user.email', 'jobPost.description'],
+        searchFields: ['barber.user.fullName', 'barber.user.email', 'jobPost.description', 'jobPost.status'],
     }, {
         status: options.status,
         jobPostId: options.jobPostId,
@@ -381,7 +381,7 @@ const getMyJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, vo
         dateField: 'createdAt',
     });
     // Since Prisma doesn't handle nested search well, we'll handle it manually
-    let whereClause = Object.assign({}, baseWhereClause);
+    let whereClause = Object.assign(Object.assign({}, baseWhereClause), searchAndFilterQuery);
     // Add simple filters
     if (options.status) {
         whereClause.status = options.status;
@@ -465,6 +465,7 @@ const getMyJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, vo
                         endDate: true,
                         datePosted: true,
                         shopName: true,
+                        shopAddress: true,
                     },
                 },
             },
@@ -518,6 +519,7 @@ const getJobApplicationsByIdForBarberFromDb = (userId, jobApplicationsId) => __a
                     endDate: true,
                     datePosted: true,
                     shopName: true,
+                    shopAddress: true,
                 },
             },
         },

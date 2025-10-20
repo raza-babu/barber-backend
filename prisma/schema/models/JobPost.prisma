@@ -5,6 +5,7 @@ model JobPost {
   shopName      String
   shopLogo      String
   description   String
+  shopAddress   String?
   hourlyRate    Float?
   salary        Float?
   startDate     DateTime?
