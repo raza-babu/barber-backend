@@ -18,17 +18,8 @@ router.post('/',
 // ]),
 // parseBody,
 (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(jobPost_validation_1.jobPostValidation.createJobPostSchema), jobPost_controller_1.jobPostController.createJobPost);
-// router.get(
-//   '/',
-//   auth(
-//     UserRoleEnum.ADMIN,
-//     UserRoleEnum.SUPER_ADMIN,
-//     UserRoleEnum.SALOON_OWNER,
-//     UserRoleEnum.BARBER,
-//   ),
-//   jobPostController.getJobPostList,
-// );
-router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), jobPost_controller_1.jobPostController.getMyJobPostsList);
+router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), jobPost_controller_1.jobPostController.getJobPostList);
+router.get('/salon-owners/posts', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), jobPost_controller_1.jobPostController.getMyJobPostsList);
 router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), jobPost_controller_1.jobPostController.getJobPostById);
 router.patch('/:id', 
 // multerUploadMultiple.fields([

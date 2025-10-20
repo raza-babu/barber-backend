@@ -924,7 +924,7 @@ const terminateBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0
         return terminationRecord;
     }));
 });
-const getASaloonByIdFromDb = (saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
+const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
     var _b;
     const result = yield prisma_1.default.saloonOwner.findUnique({
         where: {
@@ -979,6 +979,13 @@ const getASaloonByIdFromDb = (saloonOwnerId) => __awaiter(void 0, void 0, void 0
     if (!result) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon not found');
     }
+    // check following or not
+    const isFollowing = yield prisma_1.default.follow.findFirst({
+        where: {
+            userId: userId,
+            followingId: saloonOwnerId,
+        },
+    });
     //flatten the salon information
     return {
         id: result.id,
@@ -1010,6 +1017,7 @@ const getASaloonByIdFromDb = (saloonOwnerId) => __awaiter(void 0, void 0, void 0
             bio: barber.bio,
             portfolio: barber.portfolio,
         })),
+        isFollowing: isFollowing ? true : false,
     };
 });
 const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {

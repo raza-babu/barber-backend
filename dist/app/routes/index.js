@@ -39,6 +39,7 @@ const payment_routes_1 = require("../modules/payment/payment.routes");
 const loyaltyProgram_routes_1 = require("../modules/loyaltyProgram/loyaltyProgram.routes");
 const loyaltyScheme_routes_1 = require("../modules/loyaltyScheme/loyaltyScheme.routes");
 const nonRegisteredBooking_routes_1 = require("../modules/nonRegisteredBooking/nonRegisteredBooking.routes");
+const barber_routes_1 = require("../modules/barber/barber.routes");
 const router = express_1.default.Router();
 const moduleRoutes = [
     {
@@ -188,6 +189,10 @@ const moduleRoutes = [
     {
         path: '/non-registered-bookings',
         route: nonRegisteredBooking_routes_1.nonRegisteredBookingRoutes,
+    },
+    {
+        path: '/barbers',
+        route: barber_routes_1.barberRoutes,
     },
 ];
 moduleRoutes.forEach(route => router.use(route.path, route.route));

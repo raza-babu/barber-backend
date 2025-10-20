@@ -32,6 +32,7 @@ const createBarberScheduleIntoDb = (saloonOwnerId, data) => __awaiter(void 0, vo
         openingTime: schedule.openingTime,
         closingTime: schedule.closingTime,
         isActive: schedule.isActive,
+        type: data.type,
     }));
     // Delete old schedules for this barber first
     yield prisma_1.default.barberSchedule.deleteMany({
@@ -56,6 +57,7 @@ const getBarberScheduleListFromDb = (userId) => __awaiter(void 0, void 0, void 0
             openingTime: true,
             closingTime: true,
             isActive: true,
+            type: true,
             // openingDateTime: true,
             // closingDateTime: true,
         },
@@ -70,6 +72,7 @@ const getBarberScheduleListFromDb = (userId) => __awaiter(void 0, void 0, void 0
         dayName: schedule.dayName,
         time: `${schedule.openingTime} - ${schedule.closingTime}`,
         isActive: schedule.isActive,
+        type: schedule.type,
         // openingDateTime: schedule.openingDateTime,
         // closingDateTime: schedule.closingDateTime,
     }));
@@ -88,6 +91,7 @@ const getBarberScheduleByIdFromDb = (userId, barberScheduleId) => __awaiter(void
             openingTime: true,
             closingTime: true,
             isActive: true,
+            type: true,
             // openingDateTime: true,
             // closingDateTime: true,
         },
@@ -102,16 +106,24 @@ const getBarberScheduleByIdFromDb = (userId, barberScheduleId) => __awaiter(void
         dayName: schedule.dayName,
         time: `${schedule.openingTime} - ${schedule.closingTime}`,
         isActive: schedule.isActive,
+        type: schedule.type,
         // openingDateTime: schedule.openingDateTime,
         // closingDateTime: schedule.closingDateTime,
     }));
 });
 const updateBarberScheduleIntoDb = (userId, barberScheduleId, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield prisma_1.default.barberSchedule.update({
+    // ensure the schedule exists and belongs to the saloon owner
+    const existing = yield prisma_1.default.barberSchedule.findFirst({
         where: {
             id: barberScheduleId,
             saloonOwnerId: userId,
         },
+    });
+    if (!existing) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'barberScheduleId, not found');
+    }
+    const result = yield prisma_1.default.barberSchedule.update({
+        where: { id: barberScheduleId },
         data: Object.assign({}, data),
         select: {
             id: true,
@@ -125,9 +137,6 @@ const updateBarberScheduleIntoDb = (userId, barberScheduleId, data) => __awaiter
             // closingDateTime: true,
         },
     });
-    if (!result) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'barberScheduleId, not updated');
-    }
     return {
         id: result.id,
         saloonOwnerId: result.saloonOwnerId,
