@@ -32,7 +32,7 @@ const getJobPostList = catchAsync(async (req, res) => {
     'endDate',
   ]);
   
-  const result = await jobPostService.getJobPostListFromDb(filters);
+  const result = await jobPostService.getJobPostListFromDb(filters, user.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

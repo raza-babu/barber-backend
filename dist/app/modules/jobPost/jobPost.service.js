@@ -78,18 +78,12 @@ const createJobPostIntoDb = (userId, subscriptionPlan, data) => __awaiter(void 0
         return result;
     }));
 });
-const getJobPostListFromDb = (options) => __awaiter(void 0, void 0, void 0, function* () {
+const getJobPostListFromDb = (options, barberId) => __awaiter(void 0, void 0, void 0, function* () {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
     // Build search query
     const searchQuery = options.searchTerm
         ? {
             OR: [
-                {
-                // title: {
-                //   contains: options.searchTerm,
-                //   mode: 'insensitive' as const,
-                // },
-                },
                 {
                     description: {
                         contains: options.searchTerm,
@@ -131,6 +125,16 @@ const getJobPostListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
         : {};
     // Combine all queries
     const whereClause = Object.assign(Object.assign(Object.assign(Object.assign({}, filterQuery), salaryRangeQuery), dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
+    // Exclude job posts the barber already applied to (if barberId provided)
+    // Assumes a relation field "JobApplication" on jobPost and that each application has a "userId" field.
+    // Adjust field names ("JobApplication" / "userId") to match your Prisma schema if different.
+    if (barberId) {
+        whereClause.NOT = {
+            JobApplication: {
+                some: { userId: barberId },
+            },
+        };
+    }
     const [jobPosts, total] = yield Promise.all([
         prisma_1.default.jobPost.findMany({
             where: whereClause,
