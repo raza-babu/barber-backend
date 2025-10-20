@@ -34,7 +34,7 @@ router.get(
 );
 
 router.get(
-  '/',
+  '/salon-owners/posts',
   auth(UserRoleEnum.SALOON_OWNER),
   jobPostController.getMyJobPostsList,
 );
