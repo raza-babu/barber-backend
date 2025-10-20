@@ -3,6 +3,7 @@ import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { barberController } from './barber.controller';
 import { barberValidation } from './barber.validation';
+import { UserRoleEnum } from '@prisma/client';
 
 const router = express.Router();
 
@@ -14,6 +15,12 @@ router.post(
 );
 
 router.get('/', auth(), barberController.getBarberList);
+
+router.get(
+  '/my-schedule/:dayName',
+  auth(UserRoleEnum.BARBER),
+  barberController.getMySchedule,
+);
 
 router.get('/:id', auth(), barberController.getBarberById);
 

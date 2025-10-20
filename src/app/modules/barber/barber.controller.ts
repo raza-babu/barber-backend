@@ -14,6 +14,17 @@ const createBarber = catchAsync(async (req, res) => {
   });
 });
 
+const getMySchedule = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await barberService.getMyScheduleFromDb(user.id, req.params.dayName);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'BarberSchedule details retrieved successfully',
+    data: result,
+  });
+});
+
 const getBarberList = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await barberService.getBarberListFromDb(user.id);
@@ -60,6 +71,7 @@ const deleteBarber = catchAsync(async (req, res) => {
 
 export const barberController = {
   createBarber,
+  getMySchedule,
   getBarberList,
   getBarberById,
   updateBarber,

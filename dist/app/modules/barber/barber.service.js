@@ -25,6 +25,45 @@ const createBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, f
     }
     return result;
 });
+const getMyScheduleFromDb = (userId, dayName) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield prisma_1.default.barberSchedule.findFirst({
+        where: {
+            barberId: userId,
+            dayName: dayName,
+        },
+        select: {
+            id: true,
+            saloonOwnerId: true,
+            barberId: true,
+            dayName: true,
+            openingTime: true,
+            closingTime: true,
+            isActive: true,
+            type: true,
+            // openingDateTime: true,
+            // closingDateTime: true,
+        },
+    });
+    if (!result) {
+        return [];
+    }
+    let weekend = false;
+    if (result.isActive === false) {
+        weekend = true;
+    }
+    return {
+        id: result.id,
+        saloonOwnerId: result.saloonOwnerId,
+        barberId: result.barberId,
+        dayName: result.dayName,
+        time: `${result.openingTime} - ${result.closingTime}`,
+        isActive: result.isActive,
+        type: result.type,
+        weekend: weekend,
+        // openingDateTime: result.openingDateTime,
+        // closingDateTime: result.closingDateTime,
+    };
+});
 const getBarberListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.barber.findMany();
     if (result.length === 0) {
@@ -87,6 +126,7 @@ const deleteBarberItemFromDb = (userId, barberId) => __awaiter(void 0, void 0, v
 });
 exports.barberService = {
     createBarberIntoDb,
+    getMyScheduleFromDb,
     getBarberListFromDb,
     getBarberByIdFromDb,
     updateBarberIntoDb,

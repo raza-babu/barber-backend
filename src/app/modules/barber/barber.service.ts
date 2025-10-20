@@ -15,6 +15,47 @@ const createBarberIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
+const getMyScheduleFromDb = async (userId: string, dayName: string) => {
+  const result = await prisma.barberSchedule.findFirst({
+    where: {
+      barberId: userId,
+      dayName: dayName,
+    },
+    select: {
+      id: true,
+      saloonOwnerId: true,
+      barberId: true,
+      dayName: true,
+      openingTime: true,
+      closingTime: true,
+      isActive: true,
+      type: true,
+      // openingDateTime: true,
+      // closingDateTime: true,
+    },
+  });
+  if (!result) {
+    return []
+  }
+  let weekend = false;
+  if(result.isActive === false){
+    weekend = true;
+  }
+
+  return {
+    id: result.id,
+    saloonOwnerId: result.saloonOwnerId,
+    barberId: result.barberId,
+    dayName: result.dayName,
+    time: `${result.openingTime} - ${result.closingTime}`,   
+    isActive: result.isActive,
+    type: result.type,
+    weekend: weekend,
+    // openingDateTime: result.openingDateTime,
+    // closingDateTime: result.closingDateTime,
+  }
+};
+
 const getBarberListFromDb = async (userId: string) => {
   const result = await prisma.barber.findMany();
   if (result.length === 0) {
@@ -92,6 +133,7 @@ const deleteBarberItemFromDb = async (userId: string, barberId: string) => {
 
 export const barberService = {
   createBarberIntoDb,
+  getMyScheduleFromDb,
   getBarberListFromDb,
   getBarberByIdFromDb,
   updateBarberIntoDb,
