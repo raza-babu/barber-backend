@@ -24,6 +24,20 @@ const createFavoriteFeedIntoDb = async (
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'favoriteFeed not created');
   }
+
+  // Update favorite count in Feed table
+  await prisma.feed.update({
+    where: {
+      id: data.feedId,
+    },
+    data: {
+      favoriteCount: {
+        increment: 1,
+      },
+    },
+  });
+
+
   return result;
 };
 
@@ -169,17 +183,40 @@ const updateFavoriteFeedIntoDb = async (
 
 const deleteFavoriteFeedItemFromDb = async (
   userId: string,
-  favoriteFeedId: string,
+  feedId: string,
 ) => {
-  const deletedItem = await prisma.favoriteFeed.delete({
+  // Get count of favoriteFeed items to be deleted
+  const favoriteFeedCount = await prisma.favoriteFeed.count({
     where: {
-      id: favoriteFeedId,
+      feedId: feedId,
       userId: userId,
     },
   });
-  if (!deletedItem) {
+
+  const deletedItem = await prisma.favoriteFeed.deleteMany({
+    where: {
+      feedId: feedId,
+      userId: userId,
+    },
+  });
+  if (!deletedItem || deletedItem.count === 0) {
     throw new AppError(httpStatus.BAD_REQUEST, 'favoriteFeedId, not deleted');
   }
+
+  // Update favorite count in Feed table
+  await prisma.feed.update({
+    where: {
+      id: feedId,
+      favoriteCount: {
+        gte: favoriteFeedCount,
+      },
+    },
+    data: {
+      favoriteCount: {
+        decrement: favoriteFeedCount,
+      },
+    },
+  });
 
   return deletedItem;
 };

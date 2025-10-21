@@ -26,16 +26,6 @@ const createFeedIntoDb = async (userId: string, data: any) => {
 };
 
 const getFeedListFromDb = async (userId: string) => {
-  // if(userId) {
-  //   const user = await prisma.user.findUnique({
-  //     where: {
-  //       id: userId,
-  //     },
-  //   });
-  //   if(user?.role !== UserRoleEnum.CUSTOMER) {
-  //     throw new AppError(httpStatus.FORBIDDEN, 'Only customers can view the feed');
-  //   }
-  // }
 
   const result = await prisma.feed.findMany({
     select: {
@@ -72,6 +62,18 @@ const getFeedListFromDb = async (userId: string) => {
   if (result.length === 0) {
     return [];
   }
+  // check the post is favorite by the user or not
+  const favorites = await prisma.favoriteFeed.findMany({
+    where: {
+      userId: userId,
+      feedId: {
+        in: result.map(feed => feed.id),
+      },
+    },
+  });
+  const favoriteFeedIds = favorites.map((fav: { feedId: string }) => fav.feedId);
+
+
   return result.map(feed => ({
     id: feed.id,
     userId: feed.user.id,
@@ -80,6 +82,7 @@ const getFeedListFromDb = async (userId: string) => {
     caption: feed.caption,
     images: feed.images,
     favoriteCount: feed.favoriteCount,
+    isFavorite: favoriteFeedIds.includes(feed.id),
     saloonOwner:
       feed.user.SaloonOwner && feed.user.SaloonOwner.length > 0
         ? {
