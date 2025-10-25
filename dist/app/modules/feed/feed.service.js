@@ -35,16 +35,6 @@ const createFeedIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, fun
     return result;
 });
 const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    // if(userId) {
-    //   const user = await prisma.user.findUnique({
-    //     where: {
-    //       id: userId,
-    //     },
-    //   });
-    //   if(user?.role !== UserRoleEnum.CUSTOMER) {
-    //     throw new AppError(httpStatus.FORBIDDEN, 'Only customers can view the feed');
-    //   }
-    // }
     const result = yield prisma_1.default.feed.findMany({
         select: {
             id: true,
@@ -79,6 +69,16 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
     if (result.length === 0) {
         return [];
     }
+    // check the post is favorite by the user or not
+    const favorites = yield prisma_1.default.favoriteFeed.findMany({
+        where: {
+            userId: userId,
+            feedId: {
+                in: result.map(feed => feed.id),
+            },
+        },
+    });
+    const favoriteFeedIds = favorites.map((fav) => fav.feedId);
     return result.map(feed => ({
         id: feed.id,
         userId: feed.user.id,
@@ -87,6 +87,7 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
         caption: feed.caption,
         images: feed.images,
         favoriteCount: feed.favoriteCount,
+        isFavorite: favoriteFeedIds.includes(feed.id),
         saloonOwner: feed.user.SaloonOwner && feed.user.SaloonOwner.length > 0
             ? {
                 userId: feed.user.SaloonOwner[0].userId,

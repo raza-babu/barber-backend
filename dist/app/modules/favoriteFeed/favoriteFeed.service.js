@@ -35,6 +35,17 @@ const createFavoriteFeedIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
     if (!result) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'favoriteFeed not created');
     }
+    // Update favorite count in Feed table
+    yield prisma_1.default.feed.update({
+        where: {
+            id: data.feedId,
+        },
+        data: {
+            favoriteCount: {
+                increment: 1,
+            },
+        },
+    });
     return result;
 });
 const getFavoriteFeedListFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, options = {}) {
@@ -147,16 +158,37 @@ const updateFavoriteFeedIntoDb = (userId, favoriteFeedId, data) => __awaiter(voi
     }
     return result;
 });
-const deleteFavoriteFeedItemFromDb = (userId, favoriteFeedId) => __awaiter(void 0, void 0, void 0, function* () {
-    const deletedItem = yield prisma_1.default.favoriteFeed.delete({
+const deleteFavoriteFeedItemFromDb = (userId, feedId) => __awaiter(void 0, void 0, void 0, function* () {
+    // Get count of favoriteFeed items to be deleted
+    const favoriteFeedCount = yield prisma_1.default.favoriteFeed.count({
         where: {
-            id: favoriteFeedId,
+            feedId: feedId,
             userId: userId,
         },
     });
-    if (!deletedItem) {
+    const deletedItem = yield prisma_1.default.favoriteFeed.deleteMany({
+        where: {
+            feedId: feedId,
+            userId: userId,
+        },
+    });
+    if (!deletedItem || deletedItem.count === 0) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'favoriteFeedId, not deleted');
     }
+    // Update favorite count in Feed table
+    yield prisma_1.default.feed.update({
+        where: {
+            id: feedId,
+            favoriteCount: {
+                gte: favoriteFeedCount,
+            },
+        },
+        data: {
+            favoriteCount: {
+                decrement: favoriteFeedCount,
+            },
+        },
+    });
     return deletedItem;
 });
 exports.favoriteFeedService = {

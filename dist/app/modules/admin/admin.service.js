@@ -609,7 +609,7 @@ const getAdminDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, fu
             paymentAmount: true,
         },
         where: {
-            status: 'COMPLETED',
+            status: client_1.PaymentStatus.COMPLETED,
         },
     });
     const earningGrowth = yield prisma_1.default.payment.groupBy({

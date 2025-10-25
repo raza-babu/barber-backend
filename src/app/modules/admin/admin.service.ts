@@ -758,7 +758,7 @@ const getAdminDashboardFromDb = async (userId: string) => {
       paymentAmount: true,
     },
     where: {
-      status: 'COMPLETED',
+      status: PaymentStatus.COMPLETED,
     },
   });
 
