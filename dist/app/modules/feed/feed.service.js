@@ -87,7 +87,7 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
         caption: feed.caption,
         images: feed.images,
         favoriteCount: feed.favoriteCount,
-        isFavorite: favoriteFeedIds.includes(feed.id),
+        isFavorite: !!userId && favoriteFeedIds.includes(feed.id),
         saloonOwner: feed.user.SaloonOwner && feed.user.SaloonOwner.length > 0
             ? {
                 userId: feed.user.SaloonOwner[0].userId,
