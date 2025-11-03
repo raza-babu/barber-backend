@@ -210,9 +210,9 @@ const updateFollowIntoDb = async (
 };
 
 const deleteFollowingFromDb = async (userId: string, followId: string) => {
-  const follow = await prisma.follow.findUnique({
+  const follow = await prisma.follow.findFirst({
     where: {
-      id: followId,
+      followingId: followId,
       userId: userId,
     },
   });
@@ -232,9 +232,9 @@ const deleteFollowingFromDb = async (userId: string, followId: string) => {
 
   try {
     const result = await prisma.$transaction(async tx => {
-      const deletedItem = await tx.follow.delete({
+      const deletedItem = await tx.follow.deleteMany({
         where: {
-          id: followId,
+          followingId: followId,
           userId: userId,
         },
       });

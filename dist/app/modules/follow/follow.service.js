@@ -195,9 +195,9 @@ const updateFollowIntoDb = (userId, followId, data) => __awaiter(void 0, void 0,
     return result;
 });
 const deleteFollowingFromDb = (userId, followId) => __awaiter(void 0, void 0, void 0, function* () {
-    const follow = yield prisma_1.default.follow.findUnique({
+    const follow = yield prisma_1.default.follow.findFirst({
         where: {
-            id: followId,
+            followingId: followId,
             userId: userId,
         },
     });
@@ -215,9 +215,9 @@ const deleteFollowingFromDb = (userId, followId) => __awaiter(void 0, void 0, vo
     }
     try {
         const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-            const deletedItem = yield tx.follow.delete({
+            const deletedItem = yield tx.follow.deleteMany({
                 where: {
-                    id: followId,
+                    followingId: followId,
                     userId: userId,
                 },
             });
