@@ -17,9 +17,15 @@ router.post(
 router.get('/', auth(), barberController.getBarberList);
 
 router.get(
-  '/my-schedule/:dayName',
+  '/my-schedule',
   auth(UserRoleEnum.BARBER),
   barberController.getMySchedule,
+);
+
+router.get(
+  '/my-bookings',
+  auth(UserRoleEnum.BARBER),
+  barberController.getMyBookings,
 );
 
 router.get('/:id', auth(), barberController.getBarberById);

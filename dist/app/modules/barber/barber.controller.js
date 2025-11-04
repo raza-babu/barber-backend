@@ -37,6 +37,16 @@ const getMySchedule = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
         data: result,
     });
 }));
+const getMyBookings = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield barber_service_1.barberService.getMyBookingsFromDb(user.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Barber bookings retrieved successfully',
+        data: result,
+    });
+}));
 const getBarberList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield barber_service_1.barberService.getBarberListFromDb(user.id);
@@ -82,6 +92,7 @@ exports.barberController = {
     getMySchedule,
     getBarberList,
     getBarberById,
+    getMyBookings,
     updateBarber,
     deleteBarber,
 };

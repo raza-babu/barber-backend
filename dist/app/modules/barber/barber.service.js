@@ -16,6 +16,7 @@ exports.barberService = void 0;
 const prisma_1 = __importDefault(require("../../utils/prisma"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
+const client_1 = require("@prisma/client");
 const createBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.barber.create({
         data: Object.assign(Object.assign({}, data), { userId: userId }),
@@ -26,10 +27,10 @@ const createBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, f
     return result;
 });
 const getMyScheduleFromDb = (userId, dayName) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield prisma_1.default.barberSchedule.findFirst({
+    const result = yield prisma_1.default.barberSchedule.findMany({
         where: {
             barberId: userId,
-            dayName: dayName,
+            // dayName: dayName,
         },
         select: {
             id: true,
@@ -47,22 +48,93 @@ const getMyScheduleFromDb = (userId, dayName) => __awaiter(void 0, void 0, void 
     if (!result) {
         return [];
     }
-    let weekend = false;
-    if (result.isActive === false) {
-        weekend = true;
+    return result.map(item => {
+        const weekend = item.isActive === false;
+        return {
+            id: item.id,
+            saloonOwnerId: item.saloonOwnerId,
+            barberId: item.barberId,
+            dayName: item.dayName,
+            time: item.isActive
+                ? `${item.openingTime} - ${item.closingTime}`
+                : 'Closed',
+            isActive: item.isActive,
+            type: item.type,
+            weekend,
+            // openingDateTime: item.openingDateTime,
+            // closingDateTime: item.closingDateTime,
+        };
+    });
+});
+const getMyBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield prisma_1.default.booking.findMany({
+        where: {
+            barberId: userId,
+            status: client_1.BookingStatus.CONFIRMED,
+        },
+        select: {
+            id: true,
+            userId: true,
+            saloonOwnerId: true,
+            barberId: true,
+            date: true,
+            startDateTime: true,
+            endDateTime: true,
+            status: true,
+            totalPrice: true,
+            createdAt: true,
+            user: {
+                select: {
+                    fullName: true,
+                    email: true,
+                    phoneNumber: true,
+                    image: true,
+                },
+            },
+            BookedServices: {
+                select: {
+                    service: {
+                        select: {
+                            id: true,
+                            serviceName: true,
+                            availableTo: true,
+                            price: true,
+                            duration: true,
+                        },
+                    },
+                },
+            },
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    if (result.length === 0) {
+        return { message: 'No bookings found' };
     }
-    return {
-        id: result.id,
-        saloonOwnerId: result.saloonOwnerId,
-        barberId: result.barberId,
-        dayName: result.dayName,
-        time: `${result.openingTime} - ${result.closingTime}`,
-        isActive: result.isActive,
-        type: result.type,
-        weekend: weekend,
-        // openingDateTime: result.openingDateTime,
-        // closingDateTime: result.closingDateTime,
-    };
+    return result.map(booking => ({
+        bookingId: booking.id,
+        userId: booking.userId,
+        saloonOwnerId: booking.saloonOwnerId,
+        barberId: booking.barberId,
+        date: booking.date,
+        startDateTime: booking.startDateTime,
+        endDateTime: booking.endDateTime,
+        status: booking.status,
+        totalPrice: booking.totalPrice,
+        createdAt: booking.createdAt,
+        userFullName: booking.user.fullName,
+        userEmail: booking.user.email,
+        userPhoneNumber: booking.user.phoneNumber,
+        userImage: booking.user.image,
+        bookedServices: booking.BookedServices.map(bs => ({
+            id: bs.service.id,
+            serviceName: bs.service.serviceName,
+            availableTo: bs.service.availableTo,
+            price: bs.service.price,
+            duration: bs.service.duration,
+        })),
+    }));
 });
 const getBarberListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.barber.findMany();
@@ -83,9 +155,9 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
                     email: true,
                     phoneNumber: true,
                     image: true,
-                }
-            }
-        }
+                },
+            },
+        },
     });
     // check following or not
     const isFollowing = yield prisma_1.default.follow.findFirst({
@@ -128,6 +200,7 @@ exports.barberService = {
     createBarberIntoDb,
     getMyScheduleFromDb,
     getBarberListFromDb,
+    getMyBookingsFromDb,
     getBarberByIdFromDb,
     updateBarberIntoDb,
     deleteBarberItemFromDb,
