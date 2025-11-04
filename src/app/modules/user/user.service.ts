@@ -740,8 +740,6 @@ const verifyOtpForgotPasswordInDB = async (bodyData: {
   return { message: 'OTP verified successfully!' };
 };
 
-
-
 // Define a type for the payload to improve type safety
 interface SocialLoginPayload {
   fullName: string;

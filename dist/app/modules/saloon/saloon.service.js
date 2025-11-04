@@ -925,7 +925,7 @@ const terminateBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0
     }));
 });
 const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _b;
+    var _b, _c, _d, _e;
     const result = yield prisma_1.default.saloonOwner.findUnique({
         where: {
             userId: saloonOwnerId,
@@ -951,6 +951,10 @@ const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0
             updatedAt: true,
             user: {
                 select: {
+                    phoneNumber: true,
+                    email: true,
+                    fullName: true,
+                    dateOfBirth: true,
                     Service: {
                         select: {
                             id: true,
@@ -995,6 +999,9 @@ const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0
     return {
         id: result.id,
         userId: result.userId,
+        shopOwnerName: (_b = result.user) === null || _b === void 0 ? void 0 : _b.fullName,
+        shopOwnerEmail: (_c = result.user) === null || _c === void 0 ? void 0 : _c.email,
+        shopOwnerPhone: (_d = result.user) === null || _d === void 0 ? void 0 : _d.phoneNumber,
         shopName: result.shopName,
         shopBio: result.shopBio,
         shopAddress: result.shopAddress,
@@ -1011,7 +1018,7 @@ const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0
         longitude: result.longitude,
         createdAt: result.createdAt,
         updatedAt: result.updatedAt,
-        services: (_b = result.user) === null || _b === void 0 ? void 0 : _b.Service.map(service => ({
+        services: (_e = result.user) === null || _e === void 0 ? void 0 : _e.Service.map(service => ({
             id: service.id,
             serviceName: service.serviceName,
             price: service.price,

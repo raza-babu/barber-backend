@@ -1145,6 +1145,10 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       updatedAt: true,
       user: {
         select: {
+          phoneNumber: true,
+          email: true,
+          fullName: true,
+          dateOfBirth: true,
           Service: {
             select: {
               id: true,
@@ -1191,6 +1195,9 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
   return {
     id: result.id,
     userId: result.userId,
+    shopOwnerName: result.user?.fullName,
+    shopOwnerEmail: result.user?.email,
+    shopOwnerPhone: result.user?.phoneNumber,
     shopName: result.shopName,
     shopBio: result.shopBio,
     shopAddress: result.shopAddress,
