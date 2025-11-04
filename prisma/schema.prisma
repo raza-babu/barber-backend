@@ -948,6 +948,7 @@ model SaloonOwner {
   shopName           String
   registrationNumber String   @unique
   shopAddress        String
+  shopBio            String?
   latitude           Float?
   longitude          Float?
   shopLogo           String?
@@ -979,7 +980,7 @@ model SaloonOwner {
   JobApplication    JobApplication[]
   Support           Support[]
   Review            Review[]
-  LoyaltyPointLog    LoyaltyPointLog[]
+  LoyaltyPointLog   LoyaltyPointLog[]
 
   @@map("saloon_owners")
 }

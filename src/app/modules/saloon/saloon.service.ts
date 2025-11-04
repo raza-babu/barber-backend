@@ -1128,7 +1128,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       id: true,
       userId: true,
       shopName: true,
-      
+      shopBio: true,
       shopAddress: true,
       shopImages: true,
       isVerified: true,
@@ -1192,6 +1192,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     id: result.id,
     userId: result.userId,
     shopName: result.shopName,
+    shopBio: result.shopBio,
     shopAddress: result.shopAddress,
     shopImages: result.shopImages,
     isVerified: result.isVerified,

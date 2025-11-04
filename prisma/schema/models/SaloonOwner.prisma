@@ -4,6 +4,7 @@ model SaloonOwner {
   shopName           String
   registrationNumber String   @unique
   shopAddress        String
+  shopBio            String?
   latitude           Float?
   longitude          Float?
   shopLogo           String?
