@@ -205,6 +205,12 @@ const updateSaloonOwner = z.object({
       })
       .optional(),
 
+      shopBio: z
+      .string({
+        required_error: 'Shop bio is required!',
+      })
+      .optional(),
+
     registrationNumber: z
       .string({
         required_error: 'Registration number is required!',

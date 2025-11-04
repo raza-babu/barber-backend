@@ -189,6 +189,11 @@ const updateSaloonOwner = zod_1.default.object({
             required_error: 'Shop name is required!',
         })
             .optional(),
+        shopBio: zod_1.default
+            .string({
+            required_error: 'Shop bio is required!',
+        })
+            .optional(),
         registrationNumber: zod_1.default
             .string({
             required_error: 'Registration number is required!',
