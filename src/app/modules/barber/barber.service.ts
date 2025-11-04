@@ -61,7 +61,10 @@ const getMyBookingsFromDb = async (userId: string) => {
   const result = await prisma.booking.findMany({
     where: {
       barberId: userId,
-      status: BookingStatus.CONFIRMED,
+      OR: [
+        { status: BookingStatus.CONFIRMED },
+        { status: BookingStatus.COMPLETED },
+      ] 
     },
     select: {
       id: true,

@@ -70,7 +70,10 @@ const getMyBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
     const result = yield prisma_1.default.booking.findMany({
         where: {
             barberId: userId,
-            status: client_1.BookingStatus.CONFIRMED,
+            OR: [
+                { status: client_1.BookingStatus.CONFIRMED },
+                { status: client_1.BookingStatus.COMPLETED },
+            ]
         },
         select: {
             id: true,
