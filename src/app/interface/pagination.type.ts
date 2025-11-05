@@ -1,3 +1,4 @@
+import { date } from 'zod';
 export interface IPaginationOptions {
   page?: number;
   limit?: number;
@@ -46,4 +47,6 @@ export interface ISearchAndFilterOptions extends IPaginationOptions {
   priceMin?: string;
   priceMax?: string;
   jobPostId?: string;
+  date?: string | Date;
+  appointmentAt?: string | Date;
 }

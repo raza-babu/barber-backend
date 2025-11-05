@@ -1,3 +1,4 @@
+import { date } from 'zod';
 import prisma from '../../utils/prisma';
 import {
   BookingStatus,
@@ -996,7 +997,6 @@ const getAllBarbersForQueueFromDb = async (userId: string, saloonOwnerId: string
   return { barbers: results.filter(r => r !== null) };
 };
 
-
 const getAvailableBarbersForWalkingInFromDb = async (
   userId: string,
   saloonOwnerId: string,
@@ -1422,10 +1422,26 @@ const getBookingListForSalonOwnerFromDb = async (
 
   const allowedStatuses = [BookingStatus.CONFIRMED, BookingStatus.PENDING];
 
+  const date = options.date
+    ? (() => {
+        // appointmentAt is stored as UTC; build local-day range then convert to UTC bounds
+        const localStart = DateTime.fromISO(String(options.date), { zone: 'local' }).startOf('day');
+        const localEnd = localStart.plus({ days: 1 });
+        return {
+          appointmentAt: {
+            gte: localStart.toUTC().toJSDate(),
+            lt: localEnd.toUTC().toJSDate(),
+          },
+        };
+      })()
+    : {};
+  
+
   const whereClause: any = {
     saloonOwnerId: userId,
     status: { in: allowedStatuses },
     ...searchClause,
+    ...date
   };
 
   // 1) fetch bookings; NOTE: do NOT select the `user` relation here to avoid Prisma's "required relation returned null" problem.

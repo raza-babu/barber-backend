@@ -51,6 +51,8 @@ const getCustomerBookings = (0, catchAsync_1.default)((req, res) => __awaiter(vo
         'startDate',
         'endDate',
         'status',
+        'date',
+        'appointmentAt',
     ]);
     const result = yield saloon_service_1.saloonService.getCustomerBookingsFromDb(user.id, filters);
     (0, sendResponse_1.default)(res, {

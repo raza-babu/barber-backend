@@ -50,6 +50,8 @@ const getBookingListForSalonOwner = (0, catchAsync_1.default)((req, res) => __aw
         'startDate',
         'endDate',
         'status',
+        'appointmentAt',
+        'date',
     ]);
     const result = yield booking_service_1.bookingService.getBookingListForSalonOwnerFromDb(user.id, filters);
     (0, sendResponse_1.default)(res, {

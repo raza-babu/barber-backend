@@ -370,6 +370,7 @@ const getCustomerBookingsFromDb = async (
         ? { status: { notIn: excludedStatuses } }
         : { status: options.status as BookingStatus }
       : { status: { notIn: excludedStatuses } };
+ 
 
   const whereClause = {
     saloonOwnerId: userId,

@@ -39,6 +39,8 @@ const getCustomerBookings = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
     'status',
+    'date',
+    'appointmentAt',
   ]);
   const result = await saloonService.getCustomerBookingsFromDb(
     user.id,

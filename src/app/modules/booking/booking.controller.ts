@@ -38,6 +38,8 @@ const getBookingListForSalonOwner = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
     'status',
+    'appointmentAt',
+    'date',
   ]);
   const result = await bookingService.getBookingListForSalonOwnerFromDb(
     user.id,

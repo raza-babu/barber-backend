@@ -1179,7 +1179,20 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
         }
         : {};
     const allowedStatuses = [client_1.BookingStatus.CONFIRMED, client_1.BookingStatus.PENDING];
-    const whereClause = Object.assign({ saloonOwnerId: userId, status: { in: allowedStatuses } }, searchClause);
+    const date = options.date
+        ? (() => {
+            // appointmentAt is stored as UTC; build local-day range then convert to UTC bounds
+            const localStart = luxon_1.DateTime.fromISO(String(options.date), { zone: 'local' }).startOf('day');
+            const localEnd = localStart.plus({ days: 1 });
+            return {
+                appointmentAt: {
+                    gte: localStart.toUTC().toJSDate(),
+                    lt: localEnd.toUTC().toJSDate(),
+                },
+            };
+        })()
+        : {};
+    const whereClause = Object.assign(Object.assign({ saloonOwnerId: userId, status: { in: allowedStatuses } }, searchClause), date);
     // 1) fetch bookings; NOTE: do NOT select the `user` relation here to avoid Prisma's "required relation returned null" problem.
     const [bookings, total] = yield Promise.all([
         prisma_1.default.booking.findMany({
