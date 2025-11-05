@@ -183,6 +183,16 @@ const getBarberDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, f
             status: client_1.BookingStatus.PENDING,
         },
     });
+    const jobPostCount = yield prisma_1.default.jobPost.count({
+        where: {
+            saloonOwnerId: userId,
+        },
+    });
+    const totalJobApplicants = yield prisma_1.default.jobApplication.count({
+        where: {
+            saloonOwnerId: userId,
+        },
+    });
     // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
     const startDate = luxon_1.DateTime.now()
         .minus({ months: 11 })
@@ -248,6 +258,8 @@ const getBarberDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, f
         totalEarnings: totalEarnings._sum.totalPrice || 0,
         totalBarbers: barberCount,
         totalBookings: bookingCount,
+        totalJobPosts: jobPostCount,
+        totalJobApplicants: totalJobApplicants,
         earningGrowth: Object.entries(monthlyEarnings).map(([month, amount]) => ({
             month,
             amount,

@@ -244,6 +244,20 @@ const getBarberDashboardFromDb = async (userId: string) => {
       status: BookingStatus.PENDING,
     },
   });
+
+  const jobPostCount = await prisma.jobPost.count({
+    where: {
+      saloonOwnerId: userId,
+    },
+  });
+
+  const totalJobApplicants = await prisma.jobApplication.count({
+    where: {
+      saloonOwnerId: userId,
+    },
+  });
+
+
   // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
   const startDate = DateTime.now()
     .minus({ months: 11 })
@@ -314,6 +328,8 @@ const getBarberDashboardFromDb = async (userId: string) => {
     totalEarnings: totalEarnings._sum.totalPrice || 0,
     totalBarbers: barberCount,
     totalBookings: bookingCount,
+    totalJobPosts: jobPostCount,
+    totalJobApplicants: totalJobApplicants,
     earningGrowth: Object.entries(monthlyEarnings).map(([month, amount]) => ({
       month,
       amount,
