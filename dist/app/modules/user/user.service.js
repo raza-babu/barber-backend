@@ -337,12 +337,40 @@ const getMyProfileFromDB = (id) => __awaiter(void 0, void 0, void 0, function* (
     return Profile;
 });
 const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    const profile = yield prisma_1.default.saloonOwner.findUniqueOrThrow({
+    const profile = yield prisma_1.default.saloonOwner.findUnique({
         where: {
             userId: userId,
         },
     });
-    return profile;
+    if (!profile) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon owner profile not found');
+    }
+    // get the hired barbers for the saloon owner
+    const hiredBarbers = yield prisma_1.default.barber.findMany({
+        where: {
+            saloonOwnerId: profile.userId,
+        },
+        select: {
+            user: {
+                select: {
+                    id: true,
+                    fullName: true,
+                    image: true,
+                },
+            },
+        },
+    });
+    // services offered by saloon owner
+    const services = yield prisma_1.default.service.findMany({
+        where: {
+            saloonOwnerId: profile.userId,
+        },
+        select: {
+            id: true,
+            serviceName: true,
+        },
+    });
+    return Object.assign(Object.assign({}, profile), { hiredBarbers: hiredBarbers.map(barber => barber.user), services: services });
 });
 const getBarberProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const profile = yield prisma_1.default.barber.findUniqueOrThrow({
@@ -631,7 +659,8 @@ const verifyOtpForgotPasswordInDB = (bodyData) => __awaiter(void 0, void 0, void
 const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     var _b, _c, _d, _e, _f, _g, _h, _j;
     // Prevent creating an ADMIN via social sign-up
-    if (payload.role === client_1.UserRoleEnum.ADMIN || payload.role === client_1.UserRoleEnum.SUPER_ADMIN) {
+    if (payload.role === client_1.UserRoleEnum.ADMIN ||
+        payload.role === client_1.UserRoleEnum.SUPER_ADMIN) {
         throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Admin accounts cannot be created via social sign-up.');
     }
     // Find existing user by email
@@ -719,7 +748,8 @@ const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
         isNewUser = true;
     }
     // Update FCM token if provided (for both new and existing users)
-    if (payload.fcmToken && !isNewUser) { // Skip for new users if already set during create
+    if (payload.fcmToken && !isNewUser) {
+        // Skip for new users if already set during create
         yield prisma_1.default.user.update({
             where: { id: userRecord.id },
             data: { fcmToken: payload.fcmToken },

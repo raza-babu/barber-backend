@@ -362,22 +362,55 @@ const getMyProfileFromDB = async (id: string) => {
 };
 
 const getSaloonOwnerProfileFromDB = async (userId: string) => {
-  const profile = await prisma.saloonOwner.findUniqueOrThrow({
-    where: { 
+  const profile = await prisma.saloonOwner.findUnique({
+    where: {
       userId: userId,
-    },  
+    },
+  });
+  if (!profile) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner profile not found');
   }
-  );
-  return profile;
+
+  // get the hired barbers for the saloon owner
+  const hiredBarbers = await prisma.barber.findMany({
+    where: {
+      saloonOwnerId: profile.userId,
+    },
+    select: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          image: true,
+        },
+      },
+    },
+  });
+
+  // services offered by saloon owner
+  const services = await prisma.service.findMany({
+    where: {
+      saloonOwnerId: profile.userId,
+    },
+    select: {
+      id: true,
+      serviceName: true,
+    },
+  });
+
+  return {
+    ...profile,
+    hiredBarbers: hiredBarbers.map(barber => barber.user),
+    services: services,
+  };
 };
 
 const getBarberProfileFromDB = async (userId: string) => {
   const profile = await prisma.barber.findUniqueOrThrow({
-    where: { 
+    where: {
       userId: userId,
-    },  
-  }
-  );
+    },
+  });
   return profile;
 };
 
@@ -753,7 +786,10 @@ interface SocialLoginPayload {
 
 const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
   // Prevent creating an ADMIN via social sign-up
-  if (payload.role === UserRoleEnum.ADMIN || payload.role === UserRoleEnum.SUPER_ADMIN) {
+  if (
+    payload.role === UserRoleEnum.ADMIN ||
+    payload.role === UserRoleEnum.SUPER_ADMIN
+  ) {
     throw new AppError(
       httpStatus.FORBIDDEN,
       'Admin accounts cannot be created via social sign-up.',
@@ -762,7 +798,7 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
 
   // Find existing user by email
   let userRecord = await prisma.user.findUnique({
-    where: { email: payload.email, role: payload.role},
+    where: { email: payload.email, role: payload.role },
     select: {
       id: true,
       fullName: true,
@@ -802,7 +838,7 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
       const saloon = await prisma.saloonOwner.findFirst({
         where: { userId: userRecord.id },
       });
-      
+
       if (saloon?.isVerified === false) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
@@ -816,7 +852,7 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
     //   const barber = await prisma.barber.findFirst({
     //     where: { userId: userRecord.id },
     //   });
-      
+
     //   if (barber?.isVerified === false) {
     //     throw new AppError(
     //       httpStatus.BAD_REQUEST,
@@ -842,7 +878,8 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
         fcmToken: payload.fcmToken ?? null,
         phoneNumber: payload.phoneNumber ?? null,
         address: payload.address ?? null,
-        isProfileComplete: payload.role === UserRoleEnum.CUSTOMER ? true : false, // Auto-complete profile for CUSTOMER
+        isProfileComplete:
+          payload.role === UserRoleEnum.CUSTOMER ? true : false, // Auto-complete profile for CUSTOMER
       },
       select: {
         id: true,
@@ -856,7 +893,6 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
         subscriptionPlan: true,
       },
     });
-    
 
     // Use created data with defaults (avoid re-fetch)
     userRecord = {
@@ -873,7 +909,8 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
   }
 
   // Update FCM token if provided (for both new and existing users)
-  if (payload.fcmToken && !isNewUser) { // Skip for new users if already set during create
+  if (payload.fcmToken && !isNewUser) {
+    // Skip for new users if already set during create
     await prisma.user.update({
       where: { id: userRecord.id },
       data: { fcmToken: payload.fcmToken },
@@ -882,7 +919,7 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
 
   // Helper to build tokens
   const buildTokensForUser = async (
-    user: typeof userRecord
+    user: typeof userRecord,
   ): Promise<{ accessToken: string; refreshToken: string }> => {
     const accessToken = await generateToken(
       {
@@ -906,7 +943,8 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
     return { accessToken, refreshToken: refreshTokenValue };
   };
 
-  const { accessToken, refreshToken: refreshTokenValue } = await buildTokensForUser(userRecord);
+  const { accessToken, refreshToken: refreshTokenValue } =
+    await buildTokensForUser(userRecord);
 
   // Prepare response based on role
   const response: any = {
