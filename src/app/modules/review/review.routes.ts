@@ -14,9 +14,10 @@ router.post(
   reviewController.createReview,
 );
 
+router.get('/', auth(), reviewController.getReviewListForBarber);
+
 router.get('/saloon/:id', auth(), reviewController.getReviewListForSaloon);
 
-router.get('/barber', auth(), reviewController.getReviewListForBarber);
 
 router.patch(
   '/:id',

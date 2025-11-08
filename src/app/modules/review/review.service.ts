@@ -96,11 +96,10 @@ const createReviewIntoDb = async (userId: string, data: any) => {
 
 const getReviewListForSaloonFromDb = async (
   userId: string,
-  saloonOwnerId: string,
 ) => {
   const result = await prisma.review.findMany({
     where: {
-      saloonOwnerId: saloonOwnerId,
+      saloonOwnerId: userId,
     },
     select: {
       id: true,
@@ -111,32 +110,9 @@ const getReviewListForSaloonFromDb = async (
       rating: true,
       comment: true,
       createdAt: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-  if (result.length === 0) {
-    return [];
-  }
-  return result;
-};
-
-const getReviewListForBarberFromDb = async (
-  userId: string,
-  // barberId: string,
-) => {
-  const result = await prisma.review.findMany({
-    where: {
-      barberId: userId,
-    },
-    select: {
-      userId: true,
-      rating: true,
-      comment: true,
-      createdAt: true,
       saloonOwner: {
         select: {
+          userId : true,
           shopName: true,
           shopAddress: true,
           shopLogo: true,
@@ -151,14 +127,68 @@ const getReviewListForBarberFromDb = async (
     return [];
   }
   return result.map(review => ({
+    id: review.id,
     customerId: review.userId,
     rating: review.rating,
     comment: review.comment,
-    createdAt: review.createdAt,
-    barberId: userId,
+    barberId: review.barberId,
+    saloonOwnerId: review.saloonOwnerId,
     saloonName: review.saloonOwner?.shopName || 'Unknown Saloon',
     saloonAddress: review.saloonOwner?.shopAddress || 'Unknown Address',
     saloonLogo: review.saloonOwner?.shopLogo || null,
+    bookingId: review.bookingId,
+    createdAt: review.createdAt,
+  }));
+};
+
+const getReviewListForBarberFromDb = async (
+  userId: string,
+  // barberId: string,
+) => {
+  const result = await prisma.review.findMany({
+    where: {
+      OR: [
+        { barberId: userId },
+        { saloonOwnerId: userId },
+      ],
+    },
+    select: {
+      id: true,
+      barberId: true,
+      saloonOwnerId: true,
+      bookingId: true,
+      userId: true,
+      rating: true,
+      comment: true,
+      createdAt: true,
+      saloonOwner: {
+        select: {
+          userId : true,
+          shopName: true,
+          shopAddress: true,
+          shopLogo: true,
+        }
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+  if (result.length === 0) {
+    return [];
+  }
+  return result.map(review => ({
+    id: review.id,
+    customerId: review.userId,
+    rating: review.rating,
+    comment: review.comment,
+    barberId: userId,
+    saloonOwnerId: review.saloonOwner?.userId || null,
+    saloonName: review.saloonOwner?.shopName || 'Unknown Saloon',
+    saloonAddress: review.saloonOwner?.shopAddress || 'Unknown Address',
+    saloonLogo: review.saloonOwner?.shopLogo || null,
+    bookingId: review.bookingId,
+    createdAt: review.createdAt,
   }));
 };
 

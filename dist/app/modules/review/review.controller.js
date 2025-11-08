@@ -17,6 +17,7 @@ const http_status_1 = __importDefault(require("http-status"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const review_service_1 = require("./review.service");
+const client_1 = require("@prisma/client");
 const createReview = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield review_service_1.reviewService.createReviewIntoDb(user.id, req.body);
@@ -29,7 +30,7 @@ const createReview = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 }));
 const getReviewListForSaloon = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield review_service_1.reviewService.getReviewListForSaloonFromDb(user.id, req.params.id);
+    const result = yield review_service_1.reviewService.getReviewListForSaloonFromDb(user.id);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -39,13 +40,25 @@ const getReviewListForSaloon = (0, catchAsync_1.default)((req, res) => __awaiter
 }));
 const getReviewListForBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield review_service_1.reviewService.getReviewListForBarberFromDb(user.id);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'Review list for barber retrieved successfully',
-        data: result,
-    });
+    const userRole = user.role;
+    if (userRole === client_1.UserRoleEnum.BARBER) {
+        const result = yield review_service_1.reviewService.getReviewListForBarberFromDb(user.id);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Review list for barber retrieved successfully',
+            data: result,
+        });
+    }
+    else {
+        const result = yield review_service_1.reviewService.getReviewListForSaloonFromDb(user.id);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Review list for barber retrieved successfully',
+            data: result,
+        });
+    }
 }));
 const getReviewById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
