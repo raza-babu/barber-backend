@@ -183,6 +183,13 @@ const getBarberDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, f
             status: client_1.BookingStatus.PENDING,
         },
     });
+    const queueBooking = yield prisma_1.default.booking.count({
+        where: {
+            saloonOwnerId: userId,
+            // type: 'QUEUE',
+            status: client_1.BookingStatus.PENDING,
+        },
+    });
     const jobPostCount = yield prisma_1.default.jobPost.count({
         where: {
             saloonOwnerId: userId,
@@ -260,6 +267,7 @@ const getBarberDashboardFromDb = (userId) => __awaiter(void 0, void 0, void 0, f
         totalBookings: bookingCount,
         totalJobPosts: jobPostCount,
         totalJobApplicants: totalJobApplicants,
+        totalQueuedBookings: queueBooking || 0,
         earningGrowth: Object.entries(monthlyEarnings).map(([month, amount]) => ({
             month,
             amount,

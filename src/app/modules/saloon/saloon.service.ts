@@ -245,6 +245,14 @@ const getBarberDashboardFromDb = async (userId: string) => {
     },
   });
 
+  const queueBooking = await prisma.booking.count({
+    where: {
+      saloonOwnerId: userId,
+      // type: 'QUEUE',
+      status: BookingStatus.PENDING,
+    },
+  });
+
   const jobPostCount = await prisma.jobPost.count({
     where: {
       saloonOwnerId: userId,
@@ -330,6 +338,7 @@ const getBarberDashboardFromDb = async (userId: string) => {
     totalBookings: bookingCount,
     totalJobPosts: jobPostCount,
     totalJobApplicants: totalJobApplicants,
+    totalQueuedBookings: queueBooking || 0,
     earningGrowth: Object.entries(monthlyEarnings).map(([month, amount]) => ({
       month,
       amount,
