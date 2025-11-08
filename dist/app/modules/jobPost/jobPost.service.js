@@ -135,7 +135,7 @@ const getJobPostListFromDb = (options, barberId) => __awaiter(void 0, void 0, vo
         }
         : {};
     // Combine all queries
-    const whereClause = Object.assign(Object.assign(Object.assign(Object.assign({}, filterQuery), salaryRangeQuery), dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
+    const whereClause = Object.assign(Object.assign(Object.assign(Object.assign({ isActive: true }, filterQuery), salaryRangeQuery), dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
     // Exclude job posts the barber already applied to (if barberId provided)
     // Assumes a relation field "JobApplication" on jobPost and that each application has a "userId" field.
     // Adjust field names ("JobApplication" / "userId") to match your Prisma schema if different.
