@@ -787,7 +787,7 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId) => __awaiter(void 0,
     });
     // Only barbers with schedules
     const barberIdsWithSchedule = yield prisma_1.default.barberSchedule.findMany({
-        where: { barber: { saloonOwnerId: saloonOwnerId } },
+        where: { barber: { saloonOwnerId: saloonOwnerId }, type: client_1.ScheduleType.QUEUE },
         select: { barberId: true },
         distinct: ['barberId'],
     });

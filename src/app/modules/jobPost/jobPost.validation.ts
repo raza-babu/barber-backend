@@ -17,11 +17,7 @@ const createJobPostSchema = z.object({
       .number({
         invalid_type_error: 'Hourly rate must be a number!',
       }),
-    salary: z
-      .number({
-        invalid_type_error: 'Salary must be a number!',
-      })
-      .optional(),
+  
     startDate: z
       .string({
         invalid_type_error: 'Start date must be a valid ISO string!',
@@ -44,22 +40,22 @@ const createJobPostSchema = z.object({
 });
 const updateJobPostSchema = z.object({
   body: z.object({
-    shopName: z.string().optional(),
-    shopLogo: z.string().optional(),
     description: z.string().optional(),
     hourlyRate: z.number().optional(),
-    salary: z.number().optional(),
     startDate: z
-      .string()
-      .datetime()
+      .string({
+        invalid_type_error: 'Date posted must be a valid ISO string!',
+      })    
       .optional(),
     endDate: z
-      .string()
-      .datetime()
+      .string({
+        invalid_type_error: 'Date posted must be a valid ISO string!',
+      })     
       .optional(),
     datePosted: z
-      .string()
-      .datetime()
+      .string({
+        invalid_type_error: 'Date posted must be a valid ISO string!',
+      })
       .optional(),
     isActive: z.boolean().optional(),
   }),

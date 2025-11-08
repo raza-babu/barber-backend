@@ -4,6 +4,7 @@ import {
   BookingStatus,
   PaymentStatus,
   QueueStatus,
+  ScheduleType,
   UserRoleEnum,
   UserStatus,
 } from '@prisma/client';
@@ -953,7 +954,7 @@ const getAllBarbersForQueueFromDb = async (userId: string, saloonOwnerId: string
 
   // Only barbers with schedules
   const barberIdsWithSchedule = await prisma.barberSchedule.findMany({
-    where: { barber: { saloonOwnerId: saloonOwnerId } },
+    where: { barber: { saloonOwnerId: saloonOwnerId }, type: ScheduleType.QUEUE },
     select: { barberId: true },
     distinct: ['barberId'],
   });
