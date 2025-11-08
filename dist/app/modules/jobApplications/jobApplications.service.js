@@ -142,6 +142,13 @@ const getJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, void
                         endDate: true,
                         datePosted: true,
                         shopName: true,
+                        saloonOwner: {
+                            select: {
+                                shopAddress: true,
+                                ratingCount: true,
+                                avgRating: true,
+                            },
+                        }
                     },
                 },
             },
@@ -152,14 +159,25 @@ const getJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, void
     ]);
     // Transform the data
     const transformedData = jobApplications.map(app => {
-        var _a;
+        var _a, _b, _c, _d;
         return ({
             id: app.id,
             status: app.status,
             createdAt: app.createdAt,
             updatedAt: app.updatedAt,
             barber: (_a = app.barber) === null || _a === void 0 ? void 0 : _a.user,
-            jobPost: app.jobPost,
+            jobPost: app.jobPost ? {
+                id: app.jobPost.id,
+                description: app.jobPost.description,
+                hourlyRate: app.jobPost.hourlyRate,
+                startDate: app.jobPost.startDate,
+                endDate: app.jobPost.endDate,
+                datePosted: app.jobPost.datePosted,
+                shopName: app.jobPost.shopName,
+                shopAddress: (_b = app.jobPost.saloonOwner) === null || _b === void 0 ? void 0 : _b.shopAddress,
+                saloonOwnerRatingCount: (_c = app.jobPost.saloonOwner) === null || _c === void 0 ? void 0 : _c.ratingCount,
+                saloonOwnerAvgRating: (_d = app.jobPost.saloonOwner) === null || _d === void 0 ? void 0 : _d.avgRating,
+            } : null,
         });
     });
     return (0, pagination_1.formatPaginationResponse)(transformedData, total, page, limit);

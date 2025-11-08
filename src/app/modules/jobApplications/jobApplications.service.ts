@@ -146,6 +146,13 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
             endDate: true,
             datePosted: true,
             shopName: true,
+            saloonOwner: {
+              select: {
+                shopAddress: true,
+                ratingCount : true,
+                avgRating : true,
+              },
+            }
           },
         },
       },
@@ -162,7 +169,18 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
     createdAt: app.createdAt,
     updatedAt: app.updatedAt,
     barber: app.barber?.user,
-    jobPost: app.jobPost,
+    jobPost: app.jobPost ? {
+      id: app.jobPost.id,
+      description: app.jobPost.description,
+      hourlyRate: app.jobPost.hourlyRate,
+      startDate: app.jobPost.startDate,
+      endDate: app.jobPost.endDate,
+      datePosted: app.jobPost.datePosted,
+      shopName: app.jobPost.shopName,
+      shopAddress: app.jobPost.saloonOwner?.shopAddress,
+      saloonOwnerRatingCount: app.jobPost.saloonOwner?.ratingCount,
+      saloonOwnerAvgRating: app.jobPost.saloonOwner?.avgRating,
+    } : null,
   }));
 
   return formatPaginationResponse(transformedData, total, page, limit);

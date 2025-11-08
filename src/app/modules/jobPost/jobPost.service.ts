@@ -195,7 +195,7 @@ const getJobPostListFromDb = async (
         id: true,
         // title: true,
         description: true,
-        salary: true,
+        // salary: true,
         // location: true,
         // experienceRequired: true,
         isActive: true,
@@ -206,6 +206,13 @@ const getJobPostListFromDb = async (
         shopLogo: true,
         shopAddress: true,
         saloonOwnerId: true,
+        saloonOwner: {
+          select: {
+            shopAddress: true,
+            ratingCount : true,
+            avgRating : true,
+          },
+        },
         createdAt: true,
         updatedAt: true,
       },
@@ -215,7 +222,19 @@ const getJobPostListFromDb = async (
     }),
   ]);
 
-  return formatPaginationResponse(jobPosts, total, page, limit);
+  // flatten saloonOwner details into main object
+  const jobPostsWithSaloonDetails = jobPosts.map(jobPost => {
+    const { saloonOwner, ...rest } = jobPost;
+    return {
+      ...rest,
+      shopAddress: saloonOwner?.shopAddress,
+      saloonOwnerRatingCount: saloonOwner?.ratingCount,
+      saloonOwnerAvgRating: saloonOwner?.avgRating,
+    };
+  });
+
+
+  return formatPaginationResponse(jobPostsWithSaloonDetails, total, page, limit);
 };
 
 const getMyJobPostsListFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
@@ -305,7 +324,7 @@ const getMyJobPostsListFromDb = async (userId: string, options: ISearchAndFilter
         id: true,
         // title: true,
         description: true,
-        salary: true,
+        // salary: true,
         // location: true,
         // experienceRequired: true,
         hourlyRate: true,

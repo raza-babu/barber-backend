@@ -8,6 +8,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -147,7 +158,7 @@ const getJobPostListFromDb = (options, barberId) => __awaiter(void 0, void 0, vo
                 id: true,
                 // title: true,
                 description: true,
-                salary: true,
+                // salary: true,
                 // location: true,
                 // experienceRequired: true,
                 isActive: true,
@@ -158,6 +169,13 @@ const getJobPostListFromDb = (options, barberId) => __awaiter(void 0, void 0, vo
                 shopLogo: true,
                 shopAddress: true,
                 saloonOwnerId: true,
+                saloonOwner: {
+                    select: {
+                        shopAddress: true,
+                        ratingCount: true,
+                        avgRating: true,
+                    },
+                },
                 createdAt: true,
                 updatedAt: true,
             },
@@ -166,7 +184,12 @@ const getJobPostListFromDb = (options, barberId) => __awaiter(void 0, void 0, vo
             where: whereClause,
         }),
     ]);
-    return (0, pagination_1.formatPaginationResponse)(jobPosts, total, page, limit);
+    // flatten saloonOwner details into main object
+    const jobPostsWithSaloonDetails = jobPosts.map(jobPost => {
+        const { saloonOwner } = jobPost, rest = __rest(jobPost, ["saloonOwner"]);
+        return Object.assign(Object.assign({}, rest), { shopAddress: saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.shopAddress, saloonOwnerRatingCount: saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.ratingCount, saloonOwnerAvgRating: saloonOwner === null || saloonOwner === void 0 ? void 0 : saloonOwner.avgRating });
+    });
+    return (0, pagination_1.formatPaginationResponse)(jobPostsWithSaloonDetails, total, page, limit);
 });
 const getMyJobPostsListFromDb = (userId, options) => __awaiter(void 0, void 0, void 0, function* () {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
@@ -234,7 +257,7 @@ const getMyJobPostsListFromDb = (userId, options) => __awaiter(void 0, void 0, v
                 id: true,
                 // title: true,
                 description: true,
-                salary: true,
+                // salary: true,
                 // location: true,
                 // experienceRequired: true,
                 hourlyRate: true,
