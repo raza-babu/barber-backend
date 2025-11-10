@@ -15,13 +15,13 @@ model User {
   gender               String?
   otp                  Int?
   otpExpiry            DateTime?
-  plateForm            PlatFormType?          
+  plateForm            PlatFormType?
   fcmToken             String?
   fcmTokenEx           String?
-  stripeCustomerId     String?                
+  stripeCustomerId     String?
   stripeAccountUrl     String?
-  stripeAccountId      String?                
-  stripeSubscriptionId String?                
+  stripeAccountId      String?
+  stripeSubscriptionId String?
   onBoarding           Boolean                @default(false)
   subscriptionPlan     SubscriptionPlanStatus @default(FREE)
   isSubscribed         Boolean                @default(false)
@@ -79,7 +79,7 @@ model User {
   Lunch               Lunch[]
   TerminateBarber     TerminateBarber[]
   Payment             Payment[]
-  LoyaltyScheme        LoyaltyScheme[]
+  LoyaltyScheme       LoyaltyScheme[]
 
   @@map("users")
 }

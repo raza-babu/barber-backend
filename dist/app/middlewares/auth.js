@@ -31,7 +31,7 @@ const auth = (...roles) => {
                 throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'Invalid token purpose!');
             }
             // Check user exists with admin relations
-            const user = yield prisma_1.default.user.findUniqueOrThrow({
+            const user = yield prisma_1.default.user.findUnique({
                 where: { id: verifyUserToken.id },
                 include: {
                     Admin: {

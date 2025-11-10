@@ -66,7 +66,7 @@ const getAdsById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, voi
     });
 }));
 const updateAds = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _b;
+    var _a;
     const user = req.user;
     const { files, body } = req;
     const fileGroups = files;
@@ -74,7 +74,7 @@ const updateAds = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void
     const existingImages = body.existingImages || [];
     // Upload new images
     let newUploads = [];
-    if ((_b = fileGroups.images) === null || _b === void 0 ? void 0 : _b.length) {
+    if ((_a = fileGroups.images) === null || _a === void 0 ? void 0 : _a.length) {
         newUploads = yield Promise.all(fileGroups.images.map(file => (0, multipleFile_1.uploadFileToSpace)(file, "ads-images")));
     }
     // Final images = existing kept + new uploads

@@ -13,6 +13,9 @@ const createBookingSchema = zod_1.z.object({
         notes: zod_1.z.string().optional(),
         loyaltySchemeId: zod_1.z.string().optional(),
         isInQueue: zod_1.z.boolean().optional(),
+        bookingType: zod_1.z.enum(['BOOKING', 'QUEUE'], {
+            required_error: 'Booking type is required',
+        }),
     }),
 });
 const updateBookingSchema = zod_1.z.object({
@@ -29,6 +32,9 @@ const updateBookingSchema = zod_1.z.object({
         barberName: zod_1.z.string().optional(),
         barberImage: zod_1.z.string().optional(),
         loyaltySchemeId: zod_1.z.string().optional(),
+        bookingType: zod_1.z.enum(['BOOKING', 'QUEUE'], {
+            required_error: 'Booking type is required',
+        }).optional(),
     }),
     params: zod_1.z.object({
         id: zod_1.z.string().min(1, 'Booking ID is required').optional(), // ID of the booking to update

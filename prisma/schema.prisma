@@ -20,6 +20,11 @@ enum BookingStatus {
 }
 
 
+enum BookingType {
+  BOOKING
+  QUEUE
+}
+
 enum JobApplicationStatus {
   PENDING
   ONGOING
@@ -373,6 +378,7 @@ model Booking {
   queueSlotId     String?       @db.ObjectId
   appointmentAt   DateTime
   status          BookingStatus @default(PENDING)
+  bookingType     BookingType   @default(BOOKING)
   totalPrice      Float
   date            DateTime
   startDateTime   DateTime?
@@ -385,18 +391,16 @@ model Booking {
   barberImage     String?
   loyaltyUsed     Boolean       @default(false)
   loyaltySchemeId String?       @db.ObjectId
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   // Relationships
-  user          User           @relation(fields: [userId], references: [id])
-  barber        Barber         @relation(fields: [barberId], references: [userId])
+  user              User                @relation(fields: [userId], references: [id])
+  barber            Barber              @relation(fields: [barberId], references: [userId])
   // service     Service     @relation(fields: [serviceId], references: [id])
-  saloonOwner   SaloonOwner    @relation(fields: [saloonOwnerId], references: [userId])
-  loyaltyScheme LoyaltyScheme? @relation(fields: [loyaltySchemeId], references: [id])
-  queueSlot     QueueSlot[]
-
+  saloonOwner       SaloonOwner         @relation(fields: [saloonOwnerId], references: [userId])
+  loyaltyScheme     LoyaltyScheme?      @relation(fields: [loyaltySchemeId], references: [id])
+  queueSlot         QueueSlot[]
   LoyaltyRedemption LoyaltyRedemption[]
   BookedServices    BookedServices[]
   Review            Review[]
@@ -768,7 +772,7 @@ model PrivacyPolicy {
 
 model QrCode {
   id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  saloonOwnerId String     @db.ObjectId
+  saloonOwnerId String     @db.ObjectId @unique
   code          String     @unique
   type          QRCodeType @default(SALOON_REGISTRATION)
   isActive      Boolean    @default(true)
@@ -1143,13 +1147,13 @@ model User {
   gender               String?
   otp                  Int?
   otpExpiry            DateTime?
-  plateForm            PlatFormType?          
+  plateForm            PlatFormType?
   fcmToken             String?
   fcmTokenEx           String?
-  stripeCustomerId     String?                
+  stripeCustomerId     String?
   stripeAccountUrl     String?
-  stripeAccountId      String?                
-  stripeSubscriptionId String?                
+  stripeAccountId      String?
+  stripeSubscriptionId String?
   onBoarding           Boolean                @default(false)
   subscriptionPlan     SubscriptionPlanStatus @default(FREE)
   isSubscribed         Boolean                @default(false)
@@ -1207,7 +1211,7 @@ model User {
   Lunch               Lunch[]
   TerminateBarber     TerminateBarber[]
   Payment             Payment[]
-  LoyaltyScheme        LoyaltyScheme[]
+  LoyaltyScheme       LoyaltyScheme[]
 
   @@map("users")
 }

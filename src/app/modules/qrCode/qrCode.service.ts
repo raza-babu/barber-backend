@@ -4,14 +4,21 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 
 const createQrCodeIntoDb = async (userId: string, data: any) => {
-  const existingQrCode = await prisma.qrCode.findFirst({
+  const existingQrCode = await prisma.qrCode.findUnique({
     where: {
-      code: data.code,
+      // code: data.code,
       saloonOwnerId: userId,
     },
   });
   if (existingQrCode) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'QR Code already exists');
+    if (existingQrCode.code === data.code) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'QR Code already exists');
+    } else {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'A QR Code for this Saloon Owner already exists. Please delete the existing one before creating a new QR Code.',
+      );
+    }
   }
 
   const result = await prisma.qrCode.create({
@@ -50,7 +57,7 @@ const verifyQrCodeInDb = async (code: string) => {
   if (!result) {
     return { message: 'QR Code is invalid' };
   }
-  return result ;
+  return result;
 };
 
 const getQrCodeByIdFromDb = async (userId: string, qrCodeId: string) => {

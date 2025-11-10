@@ -361,7 +361,7 @@ const updateNonRegisteredBookingIntoDb = (userId, data) => __awaiter(void 0, voi
         return booking; // no-op
     }
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        var _c;
+        var _a;
         // Re-fetch inside transaction to avoid stale reads
         const bookingTx = yield tx.booking.findUnique({
             where: { id: bookingId },
@@ -471,7 +471,7 @@ const updateNonRegisteredBookingIntoDb = (userId, data) => __awaiter(void 0, voi
             if (queueSlot) {
                 yield tx.queueSlot.update({
                     where: { id: queueSlot.id },
-                    data: { completedAt: (_c = bookingTx.endDateTime) !== null && _c !== void 0 ? _c : new Date() },
+                    data: { completedAt: (_a = bookingTx.endDateTime) !== null && _a !== void 0 ? _a : new Date() },
                 });
             }
             // 2) delete barberRealTimeStatus (release barber)

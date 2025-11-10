@@ -1,6 +1,6 @@
 model QrCode {
   id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  saloonOwnerId String     @db.ObjectId
+  saloonOwnerId String     @db.ObjectId @unique
   code          String     @unique
   type          QRCodeType @default(SALOON_REGISTRATION)
   isActive      Boolean    @default(true)

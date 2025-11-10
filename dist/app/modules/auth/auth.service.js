@@ -15,13 +15,23 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -45,11 +55,14 @@ const prisma_1 = __importDefault(require("../../utils/prisma"));
 const verifyToken_1 = require("../../utils/verifyToken");
 const client_1 = require("@prisma/client");
 const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const userData = yield prisma_1.default.user.findUniqueOrThrow({
+    const userData = yield prisma_1.default.user.findUnique({
         where: {
             email: payload.email,
         },
     });
+    if (!userData) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found');
+    }
     if (userData.password === null) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Password is not set');
     }
@@ -155,7 +168,7 @@ const refreshTokenFromDB = (refreshedToken) => __awaiter(void 0, void 0, void 0,
     if (!decoded) {
         throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'Invalid refresh token');
     }
-    const userData = yield prisma_1.default.user.findUniqueOrThrow({
+    const userData = yield prisma_1.default.user.findUnique({
         where: {
             id: decoded.id,
             status: client_1.UserStatus.ACTIVE,

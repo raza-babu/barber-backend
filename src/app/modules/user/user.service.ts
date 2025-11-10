@@ -337,7 +337,7 @@ const updateBarberIntoDB = async (userId: string, payload: any) => {
 };
 
 const getMyProfileFromDB = async (id: string) => {
-  const Profile = await prisma.user.findUniqueOrThrow({
+  const Profile = await prisma.user.findUnique({
     where: {
       id: id,
     },
@@ -406,7 +406,7 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
 };
 
 const getBarberProfileFromDB = async (userId: string) => {
-  const profile = await prisma.barber.findUniqueOrThrow({
+  const profile = await prisma.barber.findUnique({
     where: {
       userId: userId,
     },
@@ -436,7 +436,7 @@ const updateMyProfileIntoDB = async (id: string, payload: any) => {
   });
 
   // Fetch and return the updated user
-  const updatedUser = await prisma.user.findUniqueOrThrow({
+  const updatedUser = await prisma.user.findUnique({
     where: { id },
     select: {
       id: true,
@@ -447,6 +447,9 @@ const updateMyProfileIntoDB = async (id: string, payload: any) => {
       gender: true,
     },
   });
+  if (!updatedUser) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'User not updated!');
+  }
 
   // const userWithOptionalPassword = updatedUser as UserWithOptionalPassword;
   // delete userWithOptionalPassword.password;
@@ -472,13 +475,16 @@ const changePassword = async (
     newPassword: string;
   },
 ) => {
-  const userData = await prisma.user.findUniqueOrThrow({
+  const userData = await prisma.user.findUnique({
     where: {
       id: userId,
       email: user.email,
       status: UserStatus.ACTIVE,
     },
   });
+  if (!userData) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
+  }
 
   if (userData.password === null) {
     throw new AppError(httpStatus.CONFLICT, 'Password not set for this user');

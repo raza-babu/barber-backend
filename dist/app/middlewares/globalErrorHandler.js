@@ -77,6 +77,15 @@ const globalErrorHandler = (err, req, res, next) => {
             stack: err.stack,
         };
     }
+    else if (err instanceof jsonwebtoken_1.JsonWebTokenError) {
+        // Handle JWT token verification errors (including invalid signature)
+        statusCode = 401;
+        message = err.message;
+        errorDetails = {
+            name: err.name,
+            stack: err.stack,
+        };
+    }
     else if (err instanceof AppError_1.default) {
         // Handle custom AppError
         statusCode = err.statusCode;

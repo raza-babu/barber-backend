@@ -39,7 +39,7 @@ const auth = (...roles: string[]) => {
       }
 
       // Check user exists with admin relations
-      const user = await prisma.user.findUniqueOrThrow({
+      const user = await prisma.user.findUnique({
         where: { id: verifyUserToken.id },
         include: {
           Admin: {

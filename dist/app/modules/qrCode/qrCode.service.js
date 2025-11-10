@@ -17,14 +17,19 @@ const prisma_1 = __importDefault(require("../../utils/prisma"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const createQrCodeIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const existingQrCode = yield prisma_1.default.qrCode.findFirst({
+    const existingQrCode = yield prisma_1.default.qrCode.findUnique({
         where: {
-            code: data.code,
+            // code: data.code,
             saloonOwnerId: userId,
         },
     });
     if (existingQrCode) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'QR Code already exists');
+        if (existingQrCode.code === data.code) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'QR Code already exists');
+        }
+        else {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'A QR Code for this Saloon Owner already exists. Please delete the existing one before creating a new QR Code.');
+        }
     }
     const result = yield prisma_1.default.qrCode.create({
         data: Object.assign(Object.assign({}, data), { saloonOwnerId: userId }),

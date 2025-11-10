@@ -4,9 +4,24 @@ import catchAsync from '../../utils/catchAsync';
 import { bookingService } from './booking.service';
 import { bookingValidation } from './booking.validation';
 import { pickValidFields } from '../../utils/pickValidFields';
+import { BookingType, ScheduleType } from '@prisma/client';
+import AppError from '../../errors/AppError';
 
 const createBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
+  if(req.body.bookingType === undefined){
+    throw new AppError(httpStatus.BAD_REQUEST, 'Booking type is required');
+  }
+  console.log('Booking Type:', req.body.bookingType);
+  if (req.body.bookingType === BookingType.QUEUE) {
+    const result = await bookingService.createQueueBookingIntoDb(user.id, req.body);
+    return sendResponse(res, {
+      statusCode: httpStatus.CREATED,
+      success: true,
+      message: 'Queue booking created successfully',
+      data: result,
+    });
+  }
   const result = await bookingService.createBookingIntoDb(user.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
@@ -74,10 +89,14 @@ const getAvailableBarbers = catchAsync(async (req, res) => {
 
 const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const saloonId = req.params.saloonId ;
+  const saloonId = req.params.saloonId;
+  const type = req.params.type as ScheduleType;
+  const date = req.query.date as string;
   const result = await bookingService.getAllBarbersForQueueFromDb(
     user.id,
     saloonId,
+    type,
+    date,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -91,10 +110,12 @@ const getAvailableABarberForWalkingIn = catchAsync(async (req, res) => {
   const user = req.user as any;
   const saloonId = req.params.saloonId ;
   const barberId = req.params.barberId ;
+  const date = req.query.date as string;
   const result = await bookingService.getAvailableABarberForWalkingInFromDb(
     user.id,
     saloonId,
     barberId,
+    date,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

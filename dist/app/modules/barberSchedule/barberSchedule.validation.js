@@ -46,6 +46,9 @@ const singleBarberScheduleBaseSchema = zod_1.z.object({
         .string()
         .regex(timeRange12hRegex, 'Time must be in format "hh:mm AM - hh:mm PM"'),
     isActive: zod_1.z.boolean(),
+    type: zod_1.z.enum(['BOOKING', 'QUEUE'], {
+        required_error: 'Schedule type is required!',
+    }),
 });
 const singleBarberScheduleSchema = singleBarberScheduleBaseSchema.transform(data => {
     const { openingUTC, closingUTC, openingTime, closingTime } = convertToUTC(data.time);
@@ -57,6 +60,7 @@ const singleBarberScheduleSchema = singleBarberScheduleBaseSchema.transform(data
         openingTime,
         closingTime,
         isActive: data.isActive,
+        type: data.type
     };
 });
 // Main schema for Postman input

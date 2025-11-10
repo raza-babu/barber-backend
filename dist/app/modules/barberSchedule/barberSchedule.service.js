@@ -133,6 +133,7 @@ const updateBarberScheduleIntoDb = (userId, barberScheduleId, data) => __awaiter
             openingTime: true,
             closingTime: true,
             isActive: true,
+            type: true
             // openingDateTime: true,
             // closingDateTime: true,
         },
@@ -144,6 +145,7 @@ const updateBarberScheduleIntoDb = (userId, barberScheduleId, data) => __awaiter
         dayName: result.dayName,
         time: `${result.openingTime} - ${result.closingTime}`,
         isActive: result.isActive,
+        type: result.type,
         // openingDateTime: result.openingDateTime,
         // closingDateTime: result.closingDateTime,
     };

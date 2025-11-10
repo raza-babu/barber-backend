@@ -19,8 +19,23 @@ const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const booking_service_1 = require("./booking.service");
 const booking_validation_1 = require("./booking.validation");
 const pickValidFields_1 = require("../../utils/pickValidFields");
+const client_1 = require("@prisma/client");
+const AppError_1 = __importDefault(require("../../errors/AppError"));
 const createBooking = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
+    if (req.body.bookingType === undefined) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking type is required');
+    }
+    console.log('Booking Type:', req.body.bookingType);
+    if (req.body.bookingType === client_1.BookingType.QUEUE) {
+        const result = yield booking_service_1.bookingService.createQueueBookingIntoDb(user.id, req.body);
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.CREATED,
+            success: true,
+            message: 'Queue booking created successfully',
+            data: result,
+        });
+    }
     const result = yield booking_service_1.bookingService.createBookingIntoDb(user.id, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
@@ -79,7 +94,9 @@ const getAvailableBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(vo
 const getAvailableBarbersForWalkingIn = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const saloonId = req.params.saloonId;
-    const result = yield booking_service_1.bookingService.getAllBarbersForQueueFromDb(user.id, saloonId);
+    const type = req.params.type;
+    const date = req.query.date;
+    const result = yield booking_service_1.bookingService.getAllBarbersForQueueFromDb(user.id, saloonId, type, date);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -91,7 +108,8 @@ const getAvailableABarberForWalkingIn = (0, catchAsync_1.default)((req, res) => 
     const user = req.user;
     const saloonId = req.params.saloonId;
     const barberId = req.params.barberId;
-    const result = yield booking_service_1.bookingService.getAvailableABarberForWalkingInFromDb(user.id, saloonId, barberId);
+    const date = req.query.date;
+    const result = yield booking_service_1.bookingService.getAvailableABarberForWalkingInFromDb(user.id, saloonId, barberId, date);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

@@ -19,7 +19,7 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const luxon_1 = require("luxon");
 const pagination_1 = require("../../utils/pagination");
-const createBookingIntoDb1 = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const { barberId, saloonOwnerId, appointmentAt, date, services, notes, isInQueue, loyaltySchemeId, } = data;
     const saloonStatus = yield prisma_1.default.saloonOwner.findUnique({
         where: { userId: saloonOwnerId, isVerified: true },
@@ -36,11 +36,14 @@ const createBookingIntoDb1 = (userId, data) => __awaiter(void 0, void 0, void 0,
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Salon owner not found');
     }
     // 2. Convert date and time to UTC DateTime
-    // check the date is not in the past
+    // Enforce that the provided date MUST be today's date (local)
     const dateObj = luxon_1.DateTime.fromISO(date, { zone: 'local' });
-    const today = luxon_1.DateTime.now().startOf('day');
-    if (dateObj < today) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date cannot be in the past');
+    if (!dateObj.isValid) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid date format');
+    }
+    const todayISO = luxon_1.DateTime.now().setZone('local').toISODate();
+    if (dateObj.toISODate() !== todayISO) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date must be the current date');
     }
     // Combine date and appointmentAt (e.g., "2025-08-20" + "11:00 AM")
     const localDateTime = luxon_1.DateTime.fromFormat(`${date} ${appointmentAt}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
@@ -48,11 +51,6 @@ const createBookingIntoDb1 = (userId, data) => __awaiter(void 0, void 0, void 0,
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid date or time format');
     }
     const utcDateTime = localDateTime.toUTC().toJSDate();
-    // check the date is grater then 3 weeks from now
-    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 3 });
-    if (localDateTime > threeWeeksFromNow) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking cannot be made more than 3 weeks in advance');
-    }
     // 3. Calculate total price using service model
     const serviceRecords = yield prisma_1.default.service.findMany({
         where: { id: { in: services } },
@@ -263,6 +261,7 @@ const createBookingIntoDb1 = (userId, data) => __awaiter(void 0, void 0, void 0,
                 appointmentAt: utcDateTime,
                 date: new Date(date),
                 notes,
+                bookingType: client_1.BookingType.QUEUE,
                 isInQueue: !!(saloonOwner.isQueueEnabled && isInQueue),
                 totalPrice: price,
                 startDateTime: utcDateTime,
@@ -511,7 +510,8 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                 appointmentAt: utcDateTime,
                 date: new Date(date),
                 notes: notes !== null && notes !== void 0 ? notes : null,
-                isInQueue: false, // queue handled separately
+                bookingType: client_1.BookingType.BOOKING,
+                isInQueue: false,
                 totalPrice: totalPrice,
                 startDateTime: bookingStart,
                 endDateTime: bookingEnd,
@@ -764,9 +764,14 @@ const getBookingByIdFromDb = (userId, bookingId) => __awaiter(void 0, void 0, vo
         status: result.status || null,
     };
 });
-const getAllBarbersForQueueFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
-    // Always use today's date
-    const date = luxon_1.DateTime.now().startOf('day');
+const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) => __awaiter(void 0, void 0, void 0, function* () {
+    let date;
+    if (specificDate) {
+        date = luxon_1.DateTime.fromISO(specificDate, { zone: 'local' }).startOf('day');
+    }
+    else {
+        date = luxon_1.DateTime.now().startOf('day');
+    }
     // Check if salon is closed
     const salon = yield prisma_1.default.saloonOwner.findUnique({
         where: { userId: saloonOwnerId },
@@ -774,11 +779,15 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId) => __awaiter(void 0,
     });
     if (!salon)
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Salon not found');
-    const holiday = yield prisma_1.default.saloonHoliday.findFirst({
-        where: { userId: salon.userId, date: date.toJSDate() },
-    });
-    if (holiday)
-        return { message: 'Salon is closed on this date' };
+    // Convert the local calendar date to a UTC-midnight Date so it matches DB entries stored at 00:00 UTC
+    // const holidayDateUtc = DateTime.fromObject(
+    //   { year: date.year, month: date.month, day: date.day },
+    //   { zone: 'utc' },
+    // ).toJSDate();
+    // const holiday = await prisma.saloonHoliday.findFirst({
+    //   where: { userId: salon.userId, date: holidayDateUtc },
+    // });
+    // if (holiday) return { message: 'Salon is closed on this date' };
     let barbers = yield prisma_1.default.barber.findMany({
         where: { saloonOwnerId: saloonOwnerId },
         include: {
@@ -787,7 +796,10 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId) => __awaiter(void 0,
     });
     // Only barbers with schedules
     const barberIdsWithSchedule = yield prisma_1.default.barberSchedule.findMany({
-        where: { barber: { saloonOwnerId: saloonOwnerId }, type: client_1.ScheduleType.QUEUE },
+        where: {
+            barber: { saloonOwnerId: saloonOwnerId },
+            type: type === client_1.ScheduleType.QUEUE ? client_1.ScheduleType.QUEUE : client_1.ScheduleType.BOOKING,
+        },
         select: { barberId: true },
         distinct: ['barberId'],
     });
@@ -800,7 +812,7 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId) => __awaiter(void 0,
     const results = yield Promise.all(barbers.map((barber) => __awaiter(void 0, void 0, void 0, function* () {
         // Skip if day off
         const dayOff = yield prisma_1.default.barberDayOff.findFirst({
-            where: { barberId: barber.userId, date: date.toJSDate() },
+            where: { barberId: barber.userId, date: date.toUTC().toJSDate() },
         });
         if (dayOff)
             return null;
@@ -825,27 +837,38 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId) => __awaiter(void 0,
     })));
     return { barbers: results.filter(r => r !== null) };
 });
-const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
-    // Always use today's date
-    const date = luxon_1.DateTime.now().startOf('day');
+const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDate) => __awaiter(void 0, void 0, void 0, function* () {
+    // Always use today's date or provided specificDate (local)
+    let date;
+    if (specificDate) {
+        date = luxon_1.DateTime.fromISO(specificDate, { zone: 'local' }).startOf('day');
+    }
+    else {
+        date = luxon_1.DateTime.now().startOf('day');
+    }
+    // Use the local-day JS Date bounds (do not force to UTC here) so queries match local-day expectations
     const startOfDay = date.toJSDate();
     const endOfDay = date.endOf('day').toJSDate();
     // Check if salon is closed
     const salon = yield prisma_1.default.saloonOwner.findUnique({
         where: { userId: saloonOwnerId },
-        select: { userId: true, isQueueEnabled: true },
+        select: {
+            userId: true,
+            isQueueEnabled: true,
+            user: {
+                select: {
+                    Queue: { select: { id: true } },
+                },
+            },
+        },
     });
     if (!salon)
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Salon not found');
-    const holiday = yield prisma_1.default.saloonHoliday.findFirst({
-        where: { userId: salon.userId, date: date.toJSDate() },
-    });
-    if (holiday)
-        return { message: 'Salon is closed on this date' };
     let barbers = yield prisma_1.default.barber.findMany({
         where: { saloonOwnerId: saloonOwnerId },
         include: {
             user: { select: { id: true, fullName: true, status: true } },
+            Queue: { select: { id: true } },
         },
     });
     // Only barbers with schedules
@@ -861,6 +884,7 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId) => __await
     }
     barbers = filteredBarbers;
     const results = yield Promise.all(barbers.map((barber) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a;
         // Skip if day off
         const dayOff = yield prisma_1.default.barberDayOff.findFirst({
             where: { barberId: barber.userId, date: date.toJSDate() },
@@ -874,10 +898,11 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId) => __await
                 dayName: date.toFormat('cccc').toLowerCase(),
             },
         });
-        // Get bookings
+        // Get bookings (fixed status filter -> use 'in' array)
         const bookings = yield prisma_1.default.booking.findMany({
             where: {
                 barberId: barber.userId,
+                status: { in: [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED] },
                 startDateTime: { gte: startOfDay },
                 endDateTime: { lte: endOfDay },
             },
@@ -893,89 +918,154 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId) => __await
             },
             orderBy: { startDateTime: 'asc' },
         });
-        // Build booking ranges
-        const bookingRanges = bookings.map(b => ({
-            start: luxon_1.DateTime.fromJSDate(b.startDateTime).toISO(),
-            end: luxon_1.DateTime.fromJSDate(b.endDateTime).toISO(),
-        }));
-        // Estimate wait time = sum of current bookings lengths
+        // Estimate wait time = sum of current bookings lengths (use local zone consistently)
         const estimatedWaitTime = bookings.reduce((sum, b) => {
-            return (sum +
-                luxon_1.DateTime.fromJSDate(b.endDateTime).diff(luxon_1.DateTime.fromJSDate(b.startDateTime), 'minutes').minutes);
+            const start = luxon_1.DateTime.fromJSDate(b.startDateTime).setZone('local');
+            const end = luxon_1.DateTime.fromJSDate(b.endDateTime).setZone('local');
+            return sum + end.diff(start, 'minutes').minutes;
         }, 0);
-        // Queue info if enabled
-        let queueInfo = null;
-        let queueOrder = null;
+        // Default queue info (always return an object)
+        let queueInfo = {
+            queueId: null,
+            currentPosition: null,
+            totalInQueue: 0,
+            estimatedWaitTime: 0,
+            queueOrder: null,
+        };
+        const currentDate = new Date();
+        currentDate.setUTCHours(0, 0, 0, 0);
         if (salon.isQueueEnabled) {
             const queue = yield prisma_1.default.queue.findFirst({
                 where: {
                     barberId: barber.userId,
                     saloonOwnerId: saloonOwnerId,
-                    date: date.toJSDate(),
+                    date: currentDate,
                 },
                 select: {
                     id: true,
                     currentPosition: true,
-                    queueSlots: {
-                        select: {
-                            id: true,
-                            customerId: true,
-                            position: true,
-                            startedAt: true,
-                            bookingId: true,
-                        },
-                        orderBy: { position: 'asc' },
-                    },
                 },
             });
             if (queue) {
-                // Find the current user's slot and how many are ahead
-                const sortedSlots = queue.queueSlots.sort((a, b) => a.position - b.position);
-                const mySlotIndex = sortedSlots.findIndex(slot => slot.customerId === userId);
-                queueOrder = mySlotIndex >= 0 ? mySlotIndex : null;
+                // Fetch slots separately to ensure ordering and presence
+                const slots = yield prisma_1.default.queueSlot.findMany({
+                    where: { queueId: queue.id },
+                    orderBy: { position: 'asc' },
+                    select: {
+                        id: true,
+                        customerId: true,
+                        position: true,
+                        startedAt: true,
+                        bookingId: true,
+                    },
+                });
+                const mySlotIndex = slots.findIndex(slot => slot.customerId === userId);
+                // Positions are 1-based; set queueOrder accordingly
+                const queueOrder = mySlotIndex >= 0 ? mySlotIndex + 1 : null;
                 queueInfo = {
                     queueId: queue.id,
-                    currentPosition: queue.currentPosition,
-                    totalInQueue: queue.queueSlots.length,
+                    currentPosition: (_a = queue.currentPosition) !== null && _a !== void 0 ? _a : null,
+                    totalInQueue: slots.length,
                     estimatedWaitTime,
-                    queueOrder, // how many people before this user
+                    queueOrder,
                 };
             }
             else {
-                queueInfo = { totalInQueue: 0, estimatedWaitTime: 0, queueOrder: null };
+                // keep default queueInfo but include estimated wait
+                queueInfo.estimatedWaitTime = estimatedWaitTime;
             }
+        }
+        else {
+            // if queue not enabled, still provide estimatedWaitTime
+            queueInfo.estimatedWaitTime = estimatedWaitTime;
         }
         // Calculate free slots based on schedule and bookings
         let freeSlots = [];
         if (schedule) {
-            // Build an array of busy intervals (sorted)
+            // Opening and closing times as DateTime in local zone
+            const opening = luxon_1.DateTime.fromFormat(`${date.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+            const closing = luxon_1.DateTime.fromFormat(`${date.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+            // Build an array of busy intervals (sorted) — convert and clamp to [opening, closing]
             const busyIntervals = bookings
-                .map(b => ({
-                start: luxon_1.DateTime.fromJSDate(b.startDateTime),
-                end: luxon_1.DateTime.fromJSDate(b.endDateTime),
-            }))
+                .map(b => {
+                // Prefer stored startTime/endTime (local strings) when available because they reflect local schedule
+                let s;
+                let e;
+                if (b.startTime) {
+                    s = luxon_1.DateTime.fromFormat(`${date.toFormat('yyyy-MM-dd')} ${b.startTime}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+                }
+                else {
+                    s = luxon_1.DateTime.fromJSDate(b.startDateTime).setZone('local');
+                }
+                if (b.endTime) {
+                    e = luxon_1.DateTime.fromFormat(`${date.toFormat('yyyy-MM-dd')} ${b.endTime}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+                }
+                else if (b.endDateTime) {
+                    e = luxon_1.DateTime.fromJSDate(b.endDateTime).setZone('local');
+                }
+                else {
+                    // fallback: compute end using services duration sum
+                    const totalTime = b.BookedServices.reduce((sum, bs) => { var _a; return sum + (((_a = bs.service) === null || _a === void 0 ? void 0 : _a.duration) || 0); }, 0);
+                    e = s.plus({ minutes: totalTime });
+                }
+                // If parsing failed, skip this booking
+                if (!s.isValid || !e.isValid)
+                    return null;
+                // clamp to opening/closing so any booking that spills outside working hours doesn't expand freeSlots beyond closing
+                const startClamped = s < opening ? opening : s;
+                const endClamped = e > closing ? closing : e;
+                return { start: startClamped, end: endClamped };
+            })
+                .filter((interval) => !!interval && interval.end > interval.start)
                 .sort((a, b) => a.start.toMillis() - b.start.toMillis());
-            // Opening and closing times as DateTime
-            const opening = luxon_1.DateTime.fromFormat(`${date.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`, 'yyyy-MM-dd hh:mm a');
-            const closing = luxon_1.DateTime.fromFormat(`${date.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`, 'yyyy-MM-dd hh:mm a');
-            let lastEnd = opening;
-            for (const interval of busyIntervals) {
-                if (interval.start > lastEnd) {
+            // If no busy intervals, entire working window is free
+            if (busyIntervals.length === 0) {
+                // Only provide free slot if opening < closing
+                if (opening < closing) {
                     freeSlots.push({
-                        start: lastEnd.toFormat('hh:mm a'),
-                        end: interval.start.toFormat('hh:mm a'),
+                        start: opening.toFormat('hh:mm a'),
+                        end: closing.toFormat('hh:mm a'),
                     });
                 }
-                if (interval.end > lastEnd) {
-                    lastEnd = interval.end;
-                }
             }
-            // Free slot after last booking until closing
-            if (lastEnd < closing) {
-                freeSlots.push({
-                    start: lastEnd.toFormat('hh:mm a'),
-                    end: closing.toFormat('hh:mm a'),
-                });
+            else {
+                // Merge overlapping busy intervals first
+                const merged = [];
+                for (const iv of busyIntervals) {
+                    if (merged.length === 0) {
+                        merged.push({ start: iv.start, end: iv.end });
+                    }
+                    else {
+                        const last = merged[merged.length - 1];
+                        if (iv.start <= last.end) {
+                            // overlap or contiguous -> extend end if needed
+                            last.end = iv.end > last.end ? iv.end : last.end;
+                        }
+                        else {
+                            merged.push({ start: iv.start, end: iv.end });
+                        }
+                    }
+                }
+                // Generate free slots between opening and closing using merged busy intervals
+                let cursor = opening;
+                for (const iv of merged) {
+                    if (iv.start > cursor) {
+                        freeSlots.push({
+                            start: cursor.toFormat('hh:mm a'),
+                            end: iv.start.toFormat('hh:mm a'),
+                        });
+                    }
+                    // move cursor forward
+                    if (iv.end > cursor)
+                        cursor = iv.end;
+                }
+                // After last busy interval until closing
+                if (cursor < closing) {
+                    freeSlots.push({
+                        start: cursor.toFormat('hh:mm a'),
+                        end: closing.toFormat('hh:mm a'),
+                    });
+                }
             }
         }
         return {
@@ -985,20 +1075,25 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId) => __await
             schedule: schedule
                 ? { start: schedule.openingTime, end: schedule.closingTime }
                 : null,
-            bookings: bookings.map(b => ({
-                startTime: luxon_1.DateTime.fromJSDate(b.startDateTime).toFormat('hh:mm a'),
-                endTime: luxon_1.DateTime.fromJSDate(b.endDateTime).toFormat('hh:mm a'),
-                services: b.BookedServices.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; }),
-                totalTime: b.BookedServices.reduce((sum, bs) => { var _a; return sum + (((_a = bs.service) === null || _a === void 0 ? void 0 : _a.duration) || 0); }, 0),
-            })),
+            bookings: bookings.map(b => {
+                var _a, _b;
+                return ({
+                    // Prefer the stored startTime/endTime strings (they reflect the intended local times);
+                    // fall back to formatting the Date if the string is not present.
+                    startTime: (_a = b.startTime) !== null && _a !== void 0 ? _a : luxon_1.DateTime.fromJSDate(b.startDateTime).setZone('local').toFormat('hh:mm a'),
+                    endTime: (_b = b.endTime) !== null && _b !== void 0 ? _b : luxon_1.DateTime.fromJSDate(b.endDateTime).setZone('local').toFormat('hh:mm a'),
+                    services: b.BookedServices.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; }),
+                    totalTime: b.BookedServices.reduce((sum, bs) => { var _a; return sum + (((_a = bs.service) === null || _a === void 0 ? void 0 : _a.duration) || 0); }, 0),
+                });
+            }),
             freeSlots,
             queue: queueInfo,
         };
     })));
     return results.filter(Boolean);
 });
-const getAvailableABarberForWalkingInFromDb = (userId, saloonOwnerId, barberId) => __awaiter(void 0, void 0, void 0, function* () {
-    const allBarbers = yield getAvailableBarbersForWalkingInFromDb(userId, saloonOwnerId);
+const getAvailableABarberForWalkingInFromDb = (userId, saloonOwnerId, barberId, date) => __awaiter(void 0, void 0, void 0, function* () {
+    const allBarbers = yield getAvailableBarbersForWalkingInFromDb(userId, saloonOwnerId, date);
     if (allBarbers && Array.isArray(allBarbers)) {
         const barber = allBarbers.find(b => b && b.barberId === barberId);
         if (!barber) {
@@ -1141,9 +1236,9 @@ const getAvailableBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
 });
 // getBookingListForSalonOwnerFromDb (fixed)
 const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, options = {}) {
-    var _h;
+    var _a;
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
-    const searchTerm = (_h = options.searchTerm) === null || _h === void 0 ? void 0 : _h.trim();
+    const searchTerm = (_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim();
     const searchClause = searchTerm
         ? {
             OR: [
@@ -1182,7 +1277,9 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
     const date = options.date
         ? (() => {
             // appointmentAt is stored as UTC; build local-day range then convert to UTC bounds
-            const localStart = luxon_1.DateTime.fromISO(String(options.date), { zone: 'local' }).startOf('day');
+            const localStart = luxon_1.DateTime.fromISO(String(options.date), {
+                zone: 'local',
+            }).startOf('day');
             const localEnd = localStart.plus({ days: 1 });
             return {
                 appointmentAt: {
@@ -1332,7 +1429,7 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
     };
 });
 const getBookingByIdFromDbForSalon = (userId, bookingId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _j, _k, _l, _m, _o, _p;
+    var _a, _b, _c, _d, _e, _f;
     const result = yield prisma_1.default.booking.findUnique({
         where: {
             id: bookingId,
@@ -1419,13 +1516,13 @@ const getBookingByIdFromDbForSalon = (userId, bookingId) => __awaiter(void 0, vo
         saloonOwnerId: result.saloonOwnerId,
         totalPrice: result.totalPrice,
         notes: result.notes,
-        customerName: ((_j = result.user) === null || _j === void 0 ? void 0 : _j.fullName) || null,
-        customerEmail: ((_k = result.user) === null || _k === void 0 ? void 0 : _k.email) || null,
-        customerContact: ((_l = result.user) === null || _l === void 0 ? void 0 : _l.phoneNumber) || null,
+        customerName: ((_a = result.user) === null || _a === void 0 ? void 0 : _a.fullName) || null,
+        customerEmail: ((_b = result.user) === null || _b === void 0 ? void 0 : _b.email) || null,
+        customerContact: ((_c = result.user) === null || _c === void 0 ? void 0 : _c.phoneNumber) || null,
         date: result.date,
         time: result.startTime,
-        serviceNames: ((_m = result.BookedServices) === null || _m === void 0 ? void 0 : _m.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
-        barberName: ((_p = (_o = result.barber) === null || _o === void 0 ? void 0 : _o.user) === null || _p === void 0 ? void 0 : _p.fullName) || null,
+        serviceNames: ((_d = result.BookedServices) === null || _d === void 0 ? void 0 : _d.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
+        barberName: ((_f = (_e = result.barber) === null || _e === void 0 ? void 0 : _e.user) === null || _f === void 0 ? void 0 : _f.fullName) || null,
         status: result.status || null,
     };
 });
@@ -1480,7 +1577,7 @@ const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
     }
     // Transaction to update booking, queueSlot, and barberRealTimeStatus
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        var _q;
+        var _a;
         // 1. Update booking
         const updatedBooking = yield tx.booking.update({
             where: {
@@ -1511,7 +1608,7 @@ const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
             // Fetch all slots again, ordered by startedAt
             const queueSlots = yield tx.queueSlot.findMany({
                 where: {
-                    queueId: (_q = existingBooking.queueSlot[0]) === null || _q === void 0 ? void 0 : _q.queueId,
+                    queueId: (_a = existingBooking.queueSlot[0]) === null || _a === void 0 ? void 0 : _a.queueId,
                 },
                 orderBy: { startedAt: 'asc' },
             });
@@ -1658,9 +1755,13 @@ const cancelBookingIntoDb = (userId, bookingId) => __awaiter(void 0, void 0, voi
     if (!booking) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Booking not found');
     }
-    if (![client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED].includes(booking.status)) {
+    if (![
+        client_1.BookingStatus.PENDING,
+        client_1.BookingStatus.CONFIRMED,
+    ].includes(booking.status)) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only bookings in PENDING or CONFIRMED status can be canceled');
     }
+    console.log('Canceling booking with ID:', booking);
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         // 1. Update booking status to CANCELED
         const updatedBooking = yield tx.booking.update({
@@ -1678,10 +1779,10 @@ const cancelBookingIntoDb = (userId, bookingId) => __awaiter(void 0, void 0, voi
         // 2. Delete associated queueSlot if exists
         if (booking.queueSlot && booking.queueSlot.length > 0) {
             // Delete the queueSlot for this booking
-            yield tx.queueSlot.deleteMany({
-                where: { bookingId: bookingId },
-            });
-            // Get the queueSlot to find the queueId
+            // await tx.queueSlot.deleteMany({
+            //   where: { bookingId: bookingId },
+            // });
+            // Read the slot first so we still have its queueId after deletion
             const slot = yield tx.queueSlot.findUnique({
                 where: { id: booking.queueSlot[0].id },
             });
@@ -1698,11 +1799,17 @@ const cancelBookingIntoDb = (userId, bookingId) => __awaiter(void 0, void 0, voi
                         data: { position: i + 1 },
                     });
                 }
+                console.log('Reassigned queue slot positions after deletion', slots);
+                // Now delete the queueSlot(s) for this booking
+                yield tx.queueSlot.deleteMany({
+                    where: { bookingId: bookingId },
+                });
                 // If no slots remain, delete the queue
                 if (slots.length === 0) {
                     yield tx.queue.delete({
                         where: { id: slot.queueId },
                     });
+                    console.log('Queue deleted as no slots remain');
                 }
                 else {
                     // Otherwise, update currentPosition to slots.length
@@ -1756,6 +1863,7 @@ const getLoyaltySchemesForCustomerFromDb = (userId, saloonOwnerId) => __awaiter(
     };
 });
 exports.bookingService = {
+    createQueueBookingIntoDb,
     createBookingIntoDb,
     getBookingListFromDb,
     getBookingListForSalonOwnerFromDb,

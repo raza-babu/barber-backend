@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const app_1 = __importDefault(require("./app"));
 const DB_1 = __importDefault(require("./app/DB"));
 const config_1 = __importDefault(require("./config"));
+// import { setupWebSocket } from './app/utils/websocket';
 const socketio_1 = require("./app/utils/socketio");
 const port = config_1.default.port || 5000;
 function main() {

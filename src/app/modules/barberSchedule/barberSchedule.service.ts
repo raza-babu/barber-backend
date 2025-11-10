@@ -138,6 +138,7 @@ const updateBarberScheduleIntoDb = async (
       openingTime: true,
       closingTime: true,
       isActive: true,
+      type: true
       // openingDateTime: true,
       // closingDateTime: true,
     },
@@ -150,6 +151,7 @@ const updateBarberScheduleIntoDb = async (
     dayName: result.dayName,
     time: `${result.openingTime} - ${result.closingTime}`,
     isActive: result.isActive,
+    type: result.type,
     // openingDateTime: result.openingDateTime,
     // closingDateTime: result.closingDateTime,
   };
