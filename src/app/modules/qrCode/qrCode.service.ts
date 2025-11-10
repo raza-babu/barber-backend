@@ -55,7 +55,7 @@ const verifyQrCodeInDb = async (code: string) => {
     },
   });
   if (!result) {
-    return { message: 'QR Code is invalid' };
+    return {message: 'QR Code is invalid' };
   }
   return result;
 };

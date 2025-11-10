@@ -49,6 +49,9 @@ const loginUserFromDB = async (payload: {
     );
   }
 
+  // track QR code presence for saloon owners without mutating the Prisma user object
+  let hasQrCode = false;
+
   if (userData.role === UserRoleEnum.SALOON_OWNER) {
     const saloon = await prisma.saloonOwner.findFirst({
       where: {
@@ -62,11 +65,15 @@ const loginUserFromDB = async (payload: {
             subscriptionPlan: true,
           },
         },
+        QrCode: {
+          select: { code: true },
+        }
       },
     });
     userData.isSubscribed = saloon?.user.isSubscribed || false;
     userData.subscriptionEnd = saloon?.user.subscriptionEnd || null;
     userData.subscriptionPlan = saloon?.user.subscriptionPlan || 'FREE';
+    hasQrCode = !!(saloon?.QrCode && saloon.QrCode.length > 0);
 
     if (saloon?.isVerified === false) {
       throw new AppError(
@@ -157,12 +164,13 @@ const loginUserFromDB = async (payload: {
       functions: adminAccessFunctions,
     }),
     ...(userData.role === UserRoleEnum.SALOON_OWNER && {
+    ...(userData.role === UserRoleEnum.SALOON_OWNER && {
       isSubscribed: userData.isSubscribed,
       subscriptionEnd: userData.subscriptionEnd,
       subscriptionPlan: userData.subscriptionPlan,
       onBoarding: userData.onBoarding,
+      qrCode: hasQrCode,
     }),
-    ...(userData.role === UserRoleEnum.BARBER && {
       onBoarding: userData.onBoarding,
     }),
   };

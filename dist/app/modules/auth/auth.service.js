@@ -77,6 +77,8 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
     if (userData.status === client_1.UserStatus.BLOCKED) {
         throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account is blocked. Please contact support.');
     }
+    // track QR code presence for saloon owners without mutating the Prisma user object
+    let hasQrCode = false;
     if (userData.role === client_1.UserRoleEnum.SALOON_OWNER) {
         const saloon = yield prisma_1.default.saloonOwner.findFirst({
             where: {
@@ -90,11 +92,15 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
                         subscriptionPlan: true,
                     },
                 },
+                QrCode: {
+                    select: { code: true },
+                }
             },
         });
         userData.isSubscribed = (saloon === null || saloon === void 0 ? void 0 : saloon.user.isSubscribed) || false;
         userData.subscriptionEnd = (saloon === null || saloon === void 0 ? void 0 : saloon.user.subscriptionEnd) || null;
         userData.subscriptionPlan = (saloon === null || saloon === void 0 ? void 0 : saloon.user.subscriptionPlan) || 'FREE';
+        hasQrCode = !!((saloon === null || saloon === void 0 ? void 0 : saloon.QrCode) && saloon.QrCode.length > 0);
         if ((saloon === null || saloon === void 0 ? void 0 : saloon.isVerified) === false) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Your saloon is not verified yet. Please wait for verification.');
         }
@@ -149,16 +155,15 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
         email: userData.email,
         role: userData.role,
     }, config_1.default.jwt.refresh_secret, config_1.default.jwt.refresh_expires_in);
-    return Object.assign(Object.assign(Object.assign({ id: userData.id, name: userData.fullName, email: userData.email, role: userData.role, image: userData.image, accessToken: accessToken, refreshToken: refreshedToken }, (userData.role === client_1.UserRoleEnum.ADMIN && {
+    return Object.assign(Object.assign({ id: userData.id, name: userData.fullName, email: userData.email, role: userData.role, image: userData.image, accessToken: accessToken, refreshToken: refreshedToken }, (userData.role === client_1.UserRoleEnum.ADMIN && {
         functions: adminAccessFunctions,
-    })), (userData.role === client_1.UserRoleEnum.SALOON_OWNER && {
+    })), (userData.role === client_1.UserRoleEnum.SALOON_OWNER && Object.assign(Object.assign({}, (userData.role === client_1.UserRoleEnum.SALOON_OWNER && {
         isSubscribed: userData.isSubscribed,
         subscriptionEnd: userData.subscriptionEnd,
         subscriptionPlan: userData.subscriptionPlan,
         onBoarding: userData.onBoarding,
-    })), (userData.role === client_1.UserRoleEnum.BARBER && {
-        onBoarding: userData.onBoarding,
-    }));
+        qrCode: hasQrCode,
+    })), { onBoarding: userData.onBoarding })));
 });
 const refreshTokenFromDB = (refreshedToken) => __awaiter(void 0, void 0, void 0, function* () {
     if (!refreshedToken) {
