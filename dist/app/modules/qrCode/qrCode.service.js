@@ -23,21 +23,37 @@ const createQrCodeIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, f
             saloonOwnerId: userId,
         },
     });
+    // if (existingQrCode) {
+    //   if (existingQrCode.code === data.code) {
+    //     throw new AppError(httpStatus.BAD_REQUEST, 'QR Code already exists');
+    //   } else {
+    //     throw new AppError(
+    //       httpStatus.BAD_REQUEST,
+    //       'A QR Code for this Saloon Owner already exists. Please delete the existing one before creating a new QR Code.',
+    //     );
+    //   }
+    // }
     if (existingQrCode) {
-        if (existingQrCode.code === data.code) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'QR Code already exists');
+        const result = yield prisma_1.default.qrCode.update({
+            where: {
+                saloonOwnerId: userId,
+            },
+            data: Object.assign(Object.assign({}, data), { saloonOwnerId: userId }),
+        });
+        if (!result) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'qrCode not created');
         }
-        else {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'A QR Code for this Saloon Owner already exists. Please delete the existing one before creating a new QR Code.');
+        return result;
+    }
+    else {
+        const result = yield prisma_1.default.qrCode.create({
+            data: Object.assign(Object.assign({}, data), { saloonOwnerId: userId }),
+        });
+        if (!result) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'qrCode not created');
         }
+        return result;
     }
-    const result = yield prisma_1.default.qrCode.create({
-        data: Object.assign(Object.assign({}, data), { saloonOwnerId: userId }),
-    });
-    if (!result) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'qrCode not created');
-    }
-    return result;
 });
 const getQrCodeListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.qrCode.findMany({

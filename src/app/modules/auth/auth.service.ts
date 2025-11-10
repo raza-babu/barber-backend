@@ -133,7 +133,7 @@ const loginUserFromDB = async (payload: {
       subscriptionPlan: userData.subscriptionPlan,
     },
     config.jwt.access_secret as Secret,
-    config.jwt.access_expires_in as string,
+    config.jwt.access_expires_in as any,
   );
 
   const refreshedToken = await refreshToken(
@@ -143,7 +143,7 @@ const loginUserFromDB = async (payload: {
       role: userData.role,
     },
     config.jwt.refresh_secret as Secret,
-    config.jwt.refresh_expires_in as string,
+    config.jwt.refresh_expires_in as any,
   );
   return {
     id: userData.id,
@@ -267,7 +267,7 @@ const refreshTokenFromDB = async (refreshedToken: string) => {
       subscriptionPlan: userData.subscriptionPlan,
     },
     config.jwt.access_secret as Secret,
-    config.jwt.access_expires_in as string,
+    config.jwt.access_expires_in as any,
   );
 
   const newRefreshToken = await refreshToken(
@@ -277,7 +277,7 @@ const refreshTokenFromDB = async (refreshedToken: string) => {
       role: userData.role,
     },
     config.jwt.refresh_secret as Secret,
-    config.jwt.refresh_expires_in as string,
+    config.jwt.refresh_expires_in as any,
   );
 
   return {

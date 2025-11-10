@@ -1,6 +1,4 @@
-import { log } from 'node:console';
-import { query } from 'express';
-import { number, z } from 'zod';
+import {  z } from 'zod';
 
 const createBookingSchema = z.object({
   body: z.object({

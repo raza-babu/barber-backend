@@ -937,13 +937,13 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
         subscriptionPlan: user.subscriptionPlan ?? SubscriptionPlanStatus.FREE,
       },
       config.jwt.access_secret as Secret,
-      config.jwt.access_expires_in as string,
+      config.jwt.access_expires_in as any,
     );
 
     const refreshTokenValue = await refreshToken(
       { id: user.id, email: user.email, role: user.role },
       config.jwt.refresh_secret as Secret,
-      config.jwt.refresh_expires_in as string,
+      config.jwt.refresh_expires_in as any,
     );
 
     return { accessToken, refreshToken: refreshTokenValue };

@@ -10,27 +10,43 @@ const createQrCodeIntoDb = async (userId: string, data: any) => {
       saloonOwnerId: userId,
     },
   });
-  if (existingQrCode) {
-    if (existingQrCode.code === data.code) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'QR Code already exists');
-    } else {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'A QR Code for this Saloon Owner already exists. Please delete the existing one before creating a new QR Code.',
-      );
-    }
-  }
+  // if (existingQrCode) {
+  //   if (existingQrCode.code === data.code) {
+  //     throw new AppError(httpStatus.BAD_REQUEST, 'QR Code already exists');
+  //   } else {
+  //     throw new AppError(
+  //       httpStatus.BAD_REQUEST,
+  //       'A QR Code for this Saloon Owner already exists. Please delete the existing one before creating a new QR Code.',
+  //     );
+  //   }
+  // }
 
-  const result = await prisma.qrCode.create({
-    data: {
-      ...data,
-      saloonOwnerId: userId,
-    },
-  });
-  if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'qrCode not created');
+  if (existingQrCode) {
+    const result = await prisma.qrCode.update({
+      where: {
+        saloonOwnerId: userId,
+      },
+      data: {
+        ...data,
+        saloonOwnerId: userId,
+      },
+    });
+    if (!result) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'qrCode not created');
+    }
+    return result;
+  } else {
+    const result = await prisma.qrCode.create({
+      data: {
+        ...data,
+        saloonOwnerId: userId,
+      },
+    });
+    if (!result) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'qrCode not created');
+    }
+    return result;
   }
-  return result;
 };
 
 const getQrCodeListFromDb = async (userId: string) => {
