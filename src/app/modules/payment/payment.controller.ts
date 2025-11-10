@@ -88,6 +88,21 @@ const capturePaymentRequest = catchAsync(async (req: any, res: any) => {
   });
 });
 
+const cancelPaymentRequest = catchAsync(async (req: any, res: any) => {
+  const user = req.user as any;
+  const result = await StripeServices.cancelPaymentRequestToStripe(
+    user.id,
+    req.body,
+  );
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Cancel payment request successfully',
+    data: result,
+  });
+});
+
+
 // Save new card to existing customer
 const saveNewCardWithExistingCustomer = catchAsync(
   async (req: any, res: any) => {
@@ -854,6 +869,7 @@ export const PaymentController = {
   deleteCardFromCustomer,
   refundPaymentToCustomer,
   createPaymentIntent,
+  cancelPaymentRequest,
   getCustomerDetails,
   getAllCustomers,
   createAccount,

@@ -78,6 +78,16 @@ const capturePaymentRequest = (0, catchAsync_1.default)((req, res) => __awaiter(
         data: result,
     });
 }));
+const cancelPaymentRequest = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield payment_service_1.StripeServices.cancelPaymentRequestToStripe(user.id, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: 200,
+        success: true,
+        message: 'Cancel payment request successfully',
+        data: result,
+    });
+}));
 // Save new card to existing customer
 const saveNewCardWithExistingCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield payment_service_1.StripeServices.saveNewCardWithExistingCustomerIntoStripe(req.body);
@@ -718,6 +728,7 @@ exports.PaymentController = {
     deleteCardFromCustomer,
     refundPaymentToCustomer,
     createPaymentIntent,
+    cancelPaymentRequest,
     getCustomerDetails,
     getAllCustomers,
     createAccount,

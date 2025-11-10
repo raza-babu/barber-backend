@@ -19,6 +19,7 @@ router.post('/save-card', (0, auth_1.default)(), (0, validateRequest_1.default)(
 router.post('/authorize-payment', (0, auth_1.default)(), (0, validateRequest_1.default)(payment_validation_1.AuthorizedPaymentPayloadSchema), payment_controller_1.PaymentController.authorizedPaymentWithSaveCard);
 // Capture the payment request and deduct the amount
 router.post('/capture-payment', (0, auth_1.default)(), (0, validateRequest_1.default)(payment_validation_1.capturedPaymentPayloadSchema), payment_controller_1.PaymentController.capturePaymentRequest);
+router.post('/cancel-payment', (0, auth_1.default)(), (0, validateRequest_1.default)(payment_validation_1.cancelPaymentPayloadSchema), payment_controller_1.PaymentController.cancelPaymentRequest);
 // Save new card to existing customer
 router.post('/save-new-card', (0, validateRequest_1.default)(payment_validation_1.saveNewCardWithExistingCustomerPayloadSchema), payment_controller_1.PaymentController.saveNewCardWithExistingCustomer);
 // Get all save cards for customer

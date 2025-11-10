@@ -7,6 +7,7 @@ const router = express.Router();
 
 import {
   AuthorizedPaymentPayloadSchema,
+  cancelPaymentPayloadSchema,
   capturedPaymentPayloadSchema,
   refundPaymentPayloadSchema,
   saveNewCardWithExistingCustomerPayloadSchema,
@@ -41,6 +42,13 @@ router.post(
   auth(),
   validateRequest(capturedPaymentPayloadSchema),
   PaymentController.capturePaymentRequest,
+);
+
+router.post(
+  '/cancel-payment',
+  auth(),
+  validateRequest(cancelPaymentPayloadSchema),
+  PaymentController.cancelPaymentRequest,
 );
 
 // Save new card to existing customer

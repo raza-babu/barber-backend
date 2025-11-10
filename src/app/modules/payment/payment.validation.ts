@@ -42,6 +42,7 @@ export const capturedPaymentPayloadSchema = z.object({
   }),
 });
 
+
 export const saveNewCardWithExistingCustomerPayloadSchema = z.object({
   body: z.object({
     customerId: z.string({ required_error: 'Customer ID is required' }),
@@ -65,5 +66,11 @@ export const tipPayloadSchema = z.object({
     paymentMethodId: z.string({
       required_error: 'Payment Method ID is required',
     }),
+  }),
+});
+
+export const cancelPaymentPayloadSchema = z.object({
+  body: z.object({
+    bookingId: z.string({ required_error: 'booking ID is required' }),
   }),
 });
