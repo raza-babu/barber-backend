@@ -368,6 +368,15 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
                     image: true,
                 },
             },
+            BarberSchedule: {
+                select: {
+                    id: true,
+                    dayName: true,
+                    openingTime: true,
+                    closingTime: true,
+                    type: true,
+                },
+            }
         },
     });
     // services offered by saloon owner
@@ -380,7 +389,10 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
             serviceName: true,
         },
     });
-    return Object.assign(Object.assign({}, profile), { hiredBarbers: hiredBarbers.map(barber => barber.user), services: services });
+    return Object.assign(Object.assign({}, profile), { hiredBarbers: hiredBarbers.map(barber => {
+            var _a;
+            return (Object.assign(Object.assign({}, barber.user), { hasSchedule: !!(barber.BarberSchedule && barber.BarberSchedule.length > 0), scheduleCount: barber.BarberSchedule ? barber.BarberSchedule.length : 0, schedules: (_a = barber.BarberSchedule) !== null && _a !== void 0 ? _a : [] }));
+        }), services: services });
 });
 const getBarberProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const profile = yield prisma_1.default.barber.findUnique({

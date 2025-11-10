@@ -373,6 +373,98 @@ const capturePaymentRequestToStripe = (userId, payload) => __awaiter(void 0, voi
         }
     }));
 });
+const cancelPaymentRequestToStripe = (userId, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    const { bookingId } = payload;
+    return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        const findBooking = yield tx.booking.findUnique({
+            where: {
+                id: bookingId,
+                saloonOwnerId: userId,
+                status: client_1.BookingStatus.CONFIRMED,
+            },
+            include: {
+                saloonOwner: {
+                    include: {
+                        user: true,
+                    },
+                },
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        address: true,
+                        stripeCustomerId: true,
+                    },
+                },
+            },
+        });
+        if (!findBooking) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking not found');
+        }
+        const findPayment = yield tx.payment.findFirst({
+            where: {
+                bookingId: findBooking.id,
+                status: client_1.PaymentStatus.REQUIRES_CAPTURE,
+            },
+        });
+        if (!findPayment) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Payment record not found or already captured');
+        }
+        if (!findPayment.paymentIntentId) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Payment Intent ID not found');
+        }
+        const paymentIntent = yield stripe.paymentIntents.cancel(findPayment.paymentIntentId);
+        if (paymentIntent.status === 'canceled') {
+            // Update payment status to REFUNDED
+            yield tx.barberRealTimeStatus.deleteMany({
+                where: {
+                    barberId: findBooking.barberId,
+                    startDateTime: findBooking.startDateTime,
+                    endDateTime: findBooking.endDateTime,
+                },
+            });
+            // update queueSlot status to cancelled
+            yield tx.queueSlot.updateMany({
+                where: {
+                    bookingId: bookingId,
+                },
+                data: {
+                    status: client_1.QueueStatus.CANCELLED,
+                },
+            });
+            yield tx.queue.updateMany({
+                where: {
+                    barberId: findBooking.barberId,
+                    saloonOwnerId: findBooking.saloonOwnerId,
+                    date: findBooking.date,
+                },
+                data: {
+                    currentPosition: {
+                        decrement: 1,
+                    },
+                },
+            });
+            const updatePayment = yield tx.payment.updateMany({
+                where: {
+                    bookingId: findBooking.id,
+                    status: client_1.PaymentStatus.REQUIRES_CAPTURE,
+                },
+                data: { status: client_1.PaymentStatus.REFUNDED },
+            });
+            if (updatePayment.count === 0) {
+                throw new AppError_1.default(http_status_1.default.CONFLICT, 'Failed to update payment information');
+            }
+            const updateBooking = yield tx.booking.update({
+                where: { id: findBooking.id },
+                data: { status: client_1.BookingStatus.CANCELLED },
+            });
+            if (!updateBooking) {
+                throw new AppError_1.default(http_status_1.default.CONFLICT, 'Failed to update booking status');
+            }
+            return updateBooking;
+        }
+    }));
+});
 // New Route: Save a New Card for Existing Customer
 const saveNewCardWithExistingCustomerIntoStripe = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     // try {
@@ -679,6 +771,7 @@ exports.StripeServices = {
     createPaymentIntentService,
     getCustomerDetailsFromStripe,
     getAllCustomersFromStripe,
+    cancelPaymentRequestToStripe,
     createAccountIntoStripe,
     createNewAccountIntoStripe,
     tipPaymentToBarberService,

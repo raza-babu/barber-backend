@@ -384,6 +384,15 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
           image: true,
         },
       },
+      BarberSchedule: {
+        select: {
+          id: true,
+          dayName: true,
+          openingTime: true,
+          closingTime: true,
+          type: true,
+        },
+      }
     },
   });
 
@@ -398,9 +407,16 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
     },
   });
 
+  
+
   return {
     ...profile,
-    hiredBarbers: hiredBarbers.map(barber => barber.user),
+    hiredBarbers: hiredBarbers.map(barber => ({
+      ...barber.user,
+      hasSchedule: !!(barber.BarberSchedule && barber.BarberSchedule.length > 0),
+      scheduleCount: barber.BarberSchedule ? barber.BarberSchedule.length : 0,
+      schedules: barber.BarberSchedule ?? [],
+    })),
     services: services,
   };
 };

@@ -456,6 +456,115 @@ const capturePaymentRequestToStripe = async (
   });
 };
 
+const cancelPaymentRequestToStripe = async (
+  userId: string,
+  payload: {
+    bookingId: string;
+  },
+) => {
+  const { bookingId } = payload;
+  return await prisma.$transaction(async tx => {
+    const findBooking = await tx.booking.findUnique({
+      where: {
+        id: bookingId,
+        saloonOwnerId: userId,
+        status: BookingStatus.CONFIRMED,
+      },
+      include: {
+        saloonOwner: {
+          include: {
+            user: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            address: true,
+            stripeCustomerId: true,
+          },
+        },
+      },
+    });
+    if (!findBooking) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    }
+    const findPayment = await tx.payment.findFirst({
+      where: {
+        bookingId: findBooking.id,
+        status: PaymentStatus.REQUIRES_CAPTURE,
+      },
+    });
+    if (!findPayment) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Payment record not found or already captured',
+      );
+    }
+    if (!findPayment.paymentIntentId) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Payment Intent ID not found');
+    }
+    const paymentIntent = await stripe.paymentIntents.cancel(
+      findPayment.paymentIntentId!,
+    );
+    if (paymentIntent.status === 'canceled') {
+      // Update payment status to REFUNDED
+      await tx.barberRealTimeStatus.deleteMany({
+        where: {
+          barberId: findBooking.barberId,
+          startDateTime: findBooking.startDateTime!,
+          endDateTime: findBooking.endDateTime!,
+        },
+      });
+      // update queueSlot status to cancelled
+      await tx.queueSlot.updateMany({
+        where: {
+          bookingId: bookingId,
+        },
+        data: {
+          status: QueueStatus.CANCELLED,
+        },
+      });
+      await tx.queue.updateMany({
+        where: {
+          barberId: findBooking.barberId,
+          saloonOwnerId: findBooking.saloonOwnerId,
+          date: findBooking.date,
+        },
+        data: {
+          currentPosition: {
+            decrement: 1,
+          },
+        },
+      });
+      const updatePayment = await tx.payment.updateMany({
+        where: {
+          bookingId: findBooking.id,
+          status: PaymentStatus.REQUIRES_CAPTURE,
+        },
+        data: { status: PaymentStatus.REFUNDED },
+      });
+      if (updatePayment.count === 0) {
+        throw new AppError(
+          httpStatus.CONFLICT,
+          'Failed to update payment information',
+        );
+      }
+      const updateBooking = await tx.booking.update({
+        where: { id: findBooking.id },
+        data: { status: BookingStatus.CANCELLED },
+      });
+      if (!updateBooking) {
+        throw new AppError(
+          httpStatus.CONFLICT,
+          'Failed to update booking status',
+        );
+      }
+      return updateBooking;
+    }
+  });
+};
+
 // New Route: Save a New Card for Existing Customer
 const saveNewCardWithExistingCustomerIntoStripe = async (payload: {
   customerId: string;
@@ -707,10 +816,14 @@ const tipPaymentToBarberService = async (
     paymentMethodId: string;
   },
 ) => {
-  const { bookingId, barberAmount, saloonOwnerAmount, paymentMethodId } = payload;
+  const { bookingId, barberAmount, saloonOwnerAmount, paymentMethodId } =
+    payload;
 
   if (!isValidAmount(barberAmount) || !isValidAmount(saloonOwnerAmount)) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid amount. Amount must be positive with up to 2 decimals.');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Invalid amount. Amount must be positive with up to 2 decimals.',
+    );
   }
 
   return await prisma.$transaction(async tx => {
@@ -722,10 +835,20 @@ const tipPaymentToBarberService = async (
         user: { select: { id: true, stripeCustomerId: true } },
       },
     });
-    if (!booking) throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
-    if (!booking.user?.stripeCustomerId) throw new AppError(httpStatus.BAD_REQUEST, 'Customer has no Stripe ID');
-    if (!booking.saloonOwner.user?.stripeAccountId) throw new AppError(httpStatus.BAD_REQUEST, 'Saloon owner missing Stripe account ID');
-    if (!booking.barber.user?.stripeAccountId) throw new AppError(httpStatus.BAD_REQUEST, 'Barber missing Stripe account ID');
+    if (!booking)
+      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    if (!booking.user?.stripeCustomerId)
+      throw new AppError(httpStatus.BAD_REQUEST, 'Customer has no Stripe ID');
+    if (!booking.saloonOwner.user?.stripeAccountId)
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Saloon owner missing Stripe account ID',
+      );
+    if (!booking.barber.user?.stripeAccountId)
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Barber missing Stripe account ID',
+      );
 
     const totalAmount = barberAmount + saloonOwnerAmount;
     const serviceCharge = totalAmount * 0.001; // 0.1% service fee
@@ -794,7 +917,6 @@ const tipPaymentToBarberService = async (
   });
 };
 
-
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,
   authorizeAndSplitPayment,
@@ -806,6 +928,7 @@ export const StripeServices = {
   createPaymentIntentService,
   getCustomerDetailsFromStripe,
   getAllCustomersFromStripe,
+  cancelPaymentRequestToStripe,
   createAccountIntoStripe,
   createNewAccountIntoStripe,
   tipPaymentToBarberService,
