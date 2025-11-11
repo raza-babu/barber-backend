@@ -46,6 +46,27 @@ const getAllSaloonListFromDb = () => __awaiter(void 0, void 0, void 0, function*
     }
     return result;
 });
+// All saloons near get within a radius
+const getMyNearestSaloonListFromDb = (latitude, longitude, radiusInKm) => __awaiter(void 0, void 0, void 0, function* () {
+    const radius = radiusInKm || 10;
+    const query = `
+    SELECT 
+      *,
+      (
+        6371 * acos(
+          cos(radians(${latitude})) * cos(radians(latitude)) *
+          cos(radians(longitude) - radians(${longitude})) +
+          sin(radians(${latitude})) * sin(radians(latitude))
+        )
+      ) AS distance
+    FROM SaloonOwner
+    WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+    HAVING distance <= ${radius}
+    ORDER BY distance ASC;
+  `;
+    const result = yield prisma_1.default.$queryRawUnsafe(query);
+    return result;
+});
 const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.service.findMany({
         where: {
@@ -135,6 +156,7 @@ const deleteCustomerItemFromDb = (userId, customerId) => __awaiter(void 0, void 
 exports.customerService = {
     createCustomerIntoDb,
     getAllSaloonListFromDb,
+    getMyNearestSaloonListFromDb,
     getSaloonAllServicesListFromDb,
     getCustomerByIdFromDb,
     updateCustomerIntoDb,

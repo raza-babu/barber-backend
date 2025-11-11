@@ -37,6 +37,17 @@ const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 
         data: result,
     });
 }));
+const getMyNearestSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const { latitude, longitude, radius } = req.query;
+    const result = yield customer_service_1.customerService.getMyNearestSaloonListFromDb(Number(latitude), Number(longitude), Number(radius));
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Nearby saloons retrieved successfully',
+        data: result,
+    });
+}));
 const getSaloonAllServicesList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield customer_service_1.customerService.getSaloonAllServicesListFromDb(req.params.id);
@@ -80,6 +91,7 @@ const deleteCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 exports.customerController = {
     createCustomer,
     getAllSaloonList,
+    getMyNearestSaloonList,
     getSaloonAllServicesList,
     getCustomerById,
     updateCustomer,

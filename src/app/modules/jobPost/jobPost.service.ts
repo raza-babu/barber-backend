@@ -386,7 +386,8 @@ const updateJobPostIntoDb = async (
       userId: userId,
     },
     data: {
-      ...updateData,
+      hourlyRate: data.hourlyRate,
+      description: data.description,
       startDate: data.startDate ? new Date(data.startDate) : undefined,
       endDate: data.endDate ? new Date(data.endDate) : undefined,
     },

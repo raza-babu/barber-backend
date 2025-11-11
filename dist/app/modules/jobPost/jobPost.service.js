@@ -304,7 +304,12 @@ const updateJobPostIntoDb = (userId, jobPostId, data) => __awaiter(void 0, void 
             id: jobPostId,
             userId: userId,
         },
-        data: updateData,
+        data: {
+            hourlyRate: data.hourlyRate,
+            description: data.description,
+            startDate: data.startDate ? new Date(data.startDate) : undefined,
+            endDate: data.endDate ? new Date(data.endDate) : undefined,
+        },
     });
     if (!result) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'jobPostId, not updated');
