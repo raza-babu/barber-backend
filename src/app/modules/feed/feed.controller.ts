@@ -41,12 +41,19 @@ const createFeed = catchAsync(async (req, res) => {
 
 const getFeedList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await feedService.getFeedListFromDb(user.id);
+  const { page, limit } = req.query;
+  const result = await feedService.getFeedListFromDb(user.id, Number(page), Number(limit));
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Feed list retrieved successfully',
-    data: result,
+    data: result.items,
+    meta: {
+      page: result.meta.page,
+      limit: result.meta.limit,
+      total: result.meta.total,
+      totalPages: result.meta.totalPages,
+    } as any,
   });
 });
 

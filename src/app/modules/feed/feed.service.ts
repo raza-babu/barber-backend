@@ -25,57 +25,80 @@ const createFeedIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getFeedListFromDb = async (userId: string) => {
+// ...existing code...
+const getFeedListFromDb = async (
+  userId: string,
+  page: number | string = 1,
+  limit: number | string = 10,
+) => {
+  // Coerce and validate inputs so `take` is always a valid integer for Prisma
+  const take = Math.max(1, Math.min(100, Number(limit) || 10)); // cap limit (1..100)
+  const pageNum = Math.max(1, Number(page) || 1);
+  const skip = (pageNum - 1) * take;
 
-  const result = await prisma.feed.findMany({
-    select: {
-      id: true,
-      favoriteCount: true,
-      caption: true,
-      images: true,
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          image: true,
-          SaloonOwner: {
-            select: {
-              userId: true,
-              registrationNumber: true,
-              shopName: true,
-              shopAddress: true,
-              shopImages: true,
-              shopVideo: true,
-              shopLogo: true,
-              avgRating: true,
-              ratingCount: true,
+  // fetch page + total in a transaction
+  const [result, total] = await prisma.$transaction([
+    prisma.feed.findMany({
+      skip,
+      take,
+      select: {
+        id: true,
+        favoriteCount: true,
+        caption: true,
+        images: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            image: true,
+            SaloonOwner: {
+              select: {
+                userId: true,
+                registrationNumber: true,
+                shopName: true,
+                shopAddress: true,
+                shopImages: true,
+                shopVideo: true,
+                shopLogo: true,
+                avgRating: true,
+                ratingCount: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
+      orderBy: {
+        createdAt: 'desc',
+      },
+    }),
+    prisma.feed.count(),
+  ]);
 
   if (result.length === 0) {
-    return [];
-  }
-  // check the post is favorite by the user or not
-  const favorites = await prisma.favoriteFeed.findMany({
-    where: {
-      userId: userId,
-      feedId: {
-        in: result.map(feed => feed.id),
+    return {
+      items: [],
+      meta: {
+        total,
+        page: pageNum,
+        limit: take,
+        totalPages: Math.ceil(total / take),
       },
-    },
-  });
+    };
+  }
+
+  // favorites for returned feeds
+  const favorites = userId
+    ? await prisma.favoriteFeed.findMany({
+        where: {
+          userId: userId,
+          feedId: { in: result.map(feed => feed.id) },
+        },
+      })
+    : [];
+
   const favoriteFeedIds = favorites.map((fav: { feedId: string }) => fav.feedId);
-  console.log("Favorite Feed Ids:", favoriteFeedIds);
 
-
-  return result.map(feed => ({
+  const items = result.map(feed => ({
     id: feed.id,
     userId: feed.user.id,
     userName: feed.user.fullName,
@@ -83,7 +106,7 @@ const getFeedListFromDb = async (userId: string) => {
     caption: feed.caption,
     images: feed.images,
     favoriteCount: feed.favoriteCount,
-    isFavorite: favoriteFeedIds.includes(feed.id),
+    isFavorite: userId ? favoriteFeedIds.includes(feed.id) : false,
     saloonOwner:
       feed.user.SaloonOwner && feed.user.SaloonOwner.length > 0
         ? {
@@ -99,7 +122,19 @@ const getFeedListFromDb = async (userId: string) => {
           }
         : null,
   }));
-};
+
+  return {
+    items,
+    meta: {
+      total,
+      page: pageNum,
+      limit: take,
+      totalPages: Math.ceil(total / take),
+    },
+  };
+}
+
+// ...existing code...
 
 
 const getMyFeedsFromDb = async (userId: string) => {

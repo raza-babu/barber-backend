@@ -42,12 +42,19 @@ const createFeed = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, voi
 }));
 const getFeedList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield feed_service_1.feedService.getFeedListFromDb(user.id);
+    const { page, limit } = req.query;
+    const result = yield feed_service_1.feedService.getFeedListFromDb(user.id, Number(page), Number(limit));
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
         message: 'Feed list retrieved successfully',
-        data: result,
+        data: result.items,
+        meta: {
+            page: result.meta.page,
+            limit: result.meta.limit,
+            total: result.meta.total,
+            totalPages: result.meta.totalPages,
+        },
     });
 }));
 const getMyFeeds = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {

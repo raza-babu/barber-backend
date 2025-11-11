@@ -43,26 +43,25 @@ const getMyNearestSaloonListFromDb = async (
   longitude: number,
   radiusInKm: number,
 ) => {
-  const radius = radiusInKm || 10;
+  const radiusInMeters = (radiusInKm || 10) * 1000; // Mongo uses meters
 
-  const query = `
-    SELECT 
-      *,
-      (
-        6371 * acos(
-          cos(radians(${latitude})) * cos(radians(latitude)) *
-          cos(radians(longitude) - radians(${longitude})) +
-          sin(radians(${latitude})) * sin(radians(latitude))
-        )
-      ) AS distance
-    FROM SaloonOwner
-    WHERE latitude IS NOT NULL AND longitude IS NOT NULL
-    HAVING distance <= ${radius}
-    ORDER BY distance ASC;
-  `;
+  const saloons = await prisma.saloonOwner.aggregateRaw({
+    pipeline: [
+      {
+        $geoNear: {
+          near: { type: 'Point', coordinates: [longitude, latitude] },
+          distanceField: 'distance',
+          maxDistance: radiusInMeters,
+          spherical: true,
+        },
+      },
+      {
+        $sort: { distance: 1 },
+      },
+    ],
+  });
 
-  const result: any = await (prisma as any).$queryRawUnsafe(query);
-  return result;
+  return saloons;
 };
 
 

@@ -34,53 +34,71 @@ const createFeedIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, fun
     }
     return result;
 });
-const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield prisma_1.default.feed.findMany({
-        select: {
-            id: true,
-            favoriteCount: true,
-            caption: true,
-            images: true,
-            user: {
-                select: {
-                    id: true,
-                    fullName: true,
-                    image: true,
-                    SaloonOwner: {
-                        select: {
-                            userId: true,
-                            registrationNumber: true,
-                            shopName: true,
-                            shopAddress: true,
-                            shopImages: true,
-                            shopVideo: true,
-                            shopLogo: true,
-                            avgRating: true,
-                            ratingCount: true,
+// ...existing code...
+const getFeedListFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, page = 1, limit = 10) {
+    // Coerce and validate inputs so `take` is always a valid integer for Prisma
+    const take = Math.max(1, Math.min(100, Number(limit) || 10)); // cap limit (1..100)
+    const pageNum = Math.max(1, Number(page) || 1);
+    const skip = (pageNum - 1) * take;
+    // fetch page + total in a transaction
+    const [result, total] = yield prisma_1.default.$transaction([
+        prisma_1.default.feed.findMany({
+            skip,
+            take,
+            select: {
+                id: true,
+                favoriteCount: true,
+                caption: true,
+                images: true,
+                user: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        image: true,
+                        SaloonOwner: {
+                            select: {
+                                userId: true,
+                                registrationNumber: true,
+                                shopName: true,
+                                shopAddress: true,
+                                shopImages: true,
+                                shopVideo: true,
+                                shopLogo: true,
+                                avgRating: true,
+                                ratingCount: true,
+                            },
                         },
                     },
                 },
             },
-        },
-        orderBy: {
-            createdAt: 'desc',
-        },
-    });
-    if (result.length === 0) {
-        return [];
-    }
-    // check the post is favorite by the user or not
-    const favorites = yield prisma_1.default.favoriteFeed.findMany({
-        where: {
-            userId: userId,
-            feedId: {
-                in: result.map(feed => feed.id),
+            orderBy: {
+                createdAt: 'desc',
             },
-        },
-    });
+        }),
+        prisma_1.default.feed.count(),
+    ]);
+    if (result.length === 0) {
+        return {
+            items: [],
+            meta: {
+                total,
+                page: pageNum,
+                limit: take,
+                totalPages: Math.ceil(total / take),
+            },
+        };
+    }
+    // favorites for returned feeds
+    const favorites = userId
+        ? yield prisma_1.default.favoriteFeed.findMany({
+            where: {
+                userId: userId,
+                feedId: { in: result.map(feed => feed.id) },
+            },
+        })
+        : [];
     const favoriteFeedIds = favorites.map((fav) => fav.feedId);
-    console.log("Favorite Feed Ids:", favoriteFeedIds);
-    return result.map(feed => ({
+    const items = result.map(feed => ({
         id: feed.id,
         userId: feed.user.id,
         userName: feed.user.fullName,
@@ -88,7 +106,7 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
         caption: feed.caption,
         images: feed.images,
         favoriteCount: feed.favoriteCount,
-        isFavorite: favoriteFeedIds.includes(feed.id),
+        isFavorite: userId ? favoriteFeedIds.includes(feed.id) : false,
         saloonOwner: feed.user.SaloonOwner && feed.user.SaloonOwner.length > 0
             ? {
                 userId: feed.user.SaloonOwner[0].userId,
@@ -103,7 +121,17 @@ const getFeedListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function
             }
             : null,
     }));
+    return {
+        items,
+        meta: {
+            total,
+            page: pageNum,
+            limit: take,
+            totalPages: Math.ceil(total / take),
+        },
+    };
 });
+// ...existing code...
 const getMyFeedsFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     if (!userId) {
         throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'User not authenticated');
