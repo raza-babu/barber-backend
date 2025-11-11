@@ -407,8 +407,6 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
     },
   });
 
-  
-
   return {
     ...profile,
     hiredBarbers: hiredBarbers.map(barber => ({

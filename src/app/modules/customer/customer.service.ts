@@ -37,6 +37,34 @@ const getAllSaloonListFromDb = async () => {
   return result;
 };
 
+// All saloons near get within a radius
+const getMyNearestSaloonListFromDb = async (
+  latitude: number,
+  longitude: number,
+  radiusInKm: number,
+) => {
+  const radius = radiusInKm || 10;
+
+  const query = `
+    SELECT 
+      *,
+      (
+        6371 * acos(
+          cos(radians(${latitude})) * cos(radians(latitude)) *
+          cos(radians(longitude) - radians(${longitude})) +
+          sin(radians(${latitude})) * sin(radians(latitude))
+        )
+      ) AS distance
+    FROM SaloonOwner
+    WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+    HAVING distance <= ${radius}
+    ORDER BY distance ASC;
+  `;
+
+  const result: any = await (prisma as any).$queryRawUnsafe(query);
+  return result;
+};
+
 
 
 const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
@@ -138,6 +166,7 @@ const deleteCustomerItemFromDb = async (userId: string, customerId: string) => {
 export const customerService = {
   createCustomerIntoDb,
   getAllSaloonListFromDb,
+  getMyNearestSaloonListFromDb,
   getSaloonAllServicesListFromDb,
   getCustomerByIdFromDb,
   updateCustomerIntoDb,

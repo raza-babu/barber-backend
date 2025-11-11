@@ -25,7 +25,21 @@ const getAllSaloonList = catchAsync(async (req, res) => {
   });
 });
 
-
+const getMyNearestSaloonList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const { latitude, longitude, radius } = req.query;
+  const result = await customerService.getMyNearestSaloonListFromDb(
+    Number(latitude),
+    Number(longitude),
+    Number(radius)
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Nearby saloons retrieved successfully',
+    data: result,
+  });
+});
 
 const getSaloonAllServicesList = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -74,6 +88,7 @@ const deleteCustomer = catchAsync(async (req, res) => {
 export const customerController = {
   createCustomer,
   getAllSaloonList,
+  getMyNearestSaloonList,
   getSaloonAllServicesList,
   getCustomerById,
   updateCustomer,

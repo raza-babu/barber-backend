@@ -385,7 +385,11 @@ const updateJobPostIntoDb = async (
       id: jobPostId,
       userId: userId,
     },
-    data: updateData,
+    data: {
+      ...updateData,
+      startDate: data.startDate ? new Date(data.startDate) : undefined,
+      endDate: data.endDate ? new Date(data.endDate) : undefined,
+    },
   });
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'jobPostId, not updated');
