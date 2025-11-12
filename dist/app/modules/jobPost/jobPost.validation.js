@@ -40,7 +40,7 @@ const createJobPostSchema = zod_1.z.object({
 const updateJobPostSchema = zod_1.z.object({
     body: zod_1.z.object({
         description: zod_1.z.string().optional(),
-        hourlyRate: zod_1.z.number().min(1, 'Hourly rate must be at least 0!').optional(),
+        hourlyRate: zod_1.z.number().min(1, 'Hourly rate must be at least 1!').optional(),
         startDate: zod_1.z
             .string({
             invalid_type_error: 'Date posted must be a valid ISO string!',
