@@ -205,7 +205,7 @@ const updateSaloonOwner = z.object({
       })
       .optional(),
 
-      shopBio: z
+    shopBio: z
       .string({
         required_error: 'Shop bio is required!',
       })
@@ -243,17 +243,9 @@ const updateSaloonOwner = z.object({
       })
       .optional(),
 
-    qrCode: z.string().optional(),
-
     isVerified: z.boolean().optional(),
 
-    followerCount: z.number().int().nonnegative().default(0),
-
-    followingCount: z.number().int().nonnegative().default(0),
-
-    ratingCount: z.number().int().nonnegative().default(0),
-
-    avgRating: z.number().nonnegative().optional().default(0),
+    isQueueEnabled: z.boolean().optional(),
   }),
 });
 

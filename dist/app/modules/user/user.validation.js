@@ -220,12 +220,8 @@ const updateSaloonOwner = zod_1.default.object({
             invalid_type_error: 'Shop images must be an array of strings!',
         })
             .optional(),
-        qrCode: zod_1.default.string().optional(),
         isVerified: zod_1.default.boolean().optional(),
-        followerCount: zod_1.default.number().int().nonnegative().default(0),
-        followingCount: zod_1.default.number().int().nonnegative().default(0),
-        ratingCount: zod_1.default.number().int().nonnegative().default(0),
-        avgRating: zod_1.default.number().nonnegative().optional().default(0),
+        isQueueEnabled: zod_1.default.boolean().optional(),
     }),
 });
 const updateBarber = zod_1.default.object({
