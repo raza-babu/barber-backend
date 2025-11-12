@@ -382,6 +382,7 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
           id: true,
           fullName: true,
           image: true,
+          email: true,
         },
       },
       BarberSchedule: {
@@ -409,10 +410,13 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
 
   return {
     ...profile,
-    hiredBarbers: hiredBarbers.map(barber => ({
-      ...barber.user,
-      hasSchedule: !!(barber.BarberSchedule && barber.BarberSchedule.length > 0),
-      scheduleCount: barber.BarberSchedule ? barber.BarberSchedule.length : 0,
+    Barbers: hiredBarbers.map(barber => ({
+      id: barber.user?.id,
+      fullName: barber.user?.fullName ?? null,
+      email: barber.user?.email ?? null,
+      image: barber.user?.image ?? null,
+      hasSchedule: (barber.BarberSchedule ?? []).length > 0,
+      scheduleCount: (barber.BarberSchedule ?? []).length,
       schedules: barber.BarberSchedule ?? [],
     })),
     services: services,

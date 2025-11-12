@@ -366,6 +366,7 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
                     id: true,
                     fullName: true,
                     image: true,
+                    email: true,
                 },
             },
             BarberSchedule: {
@@ -389,9 +390,17 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
             serviceName: true,
         },
     });
-    return Object.assign(Object.assign({}, profile), { hiredBarbers: hiredBarbers.map(barber => {
-            var _a;
-            return (Object.assign(Object.assign({}, barber.user), { hasSchedule: !!(barber.BarberSchedule && barber.BarberSchedule.length > 0), scheduleCount: barber.BarberSchedule ? barber.BarberSchedule.length : 0, schedules: (_a = barber.BarberSchedule) !== null && _a !== void 0 ? _a : [] }));
+    return Object.assign(Object.assign({}, profile), { Barbers: hiredBarbers.map(barber => {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+            return ({
+                id: (_a = barber.user) === null || _a === void 0 ? void 0 : _a.id,
+                fullName: (_c = (_b = barber.user) === null || _b === void 0 ? void 0 : _b.fullName) !== null && _c !== void 0 ? _c : null,
+                email: (_e = (_d = barber.user) === null || _d === void 0 ? void 0 : _d.email) !== null && _e !== void 0 ? _e : null,
+                image: (_g = (_f = barber.user) === null || _f === void 0 ? void 0 : _f.image) !== null && _g !== void 0 ? _g : null,
+                hasSchedule: ((_h = barber.BarberSchedule) !== null && _h !== void 0 ? _h : []).length > 0,
+                scheduleCount: ((_j = barber.BarberSchedule) !== null && _j !== void 0 ? _j : []).length,
+                schedules: (_k = barber.BarberSchedule) !== null && _k !== void 0 ? _k : [],
+            });
         }), services: services });
 });
 const getBarberProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
