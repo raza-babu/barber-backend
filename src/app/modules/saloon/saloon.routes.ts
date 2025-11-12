@@ -73,7 +73,7 @@ router.get(
 
 router.get(
   '/all-saloons/:id',
-  auth(UserRoleEnum.CUSTOMER, UserRoleEnum.BARBER),
+  auth(UserRoleEnum.CUSTOMER, UserRoleEnum.BARBER, UserRoleEnum.SALOON_OWNER),
   saloonController.getASaloonById,
 );
 
