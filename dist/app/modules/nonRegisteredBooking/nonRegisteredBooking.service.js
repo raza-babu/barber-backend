@@ -99,6 +99,14 @@ data) => __awaiter(void 0, void 0, void 0, function* () {
         if (!barber) {
             throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Barber not found');
         }
+        // check the barber is for queue or appointment type
+        const barberForQueue = yield tx.barberSchedule.findFirst({
+            where: { barberId, saloonOwnerId: userId, isActive: true, type: client_1.ScheduleType.QUEUE },
+        });
+        if (!barberForQueue) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Barber not available for queue bookings');
+        }
+        // Check barber day off
         const barberDayOff = yield tx.barberDayOff.findFirst({
             where: {
                 saloonOwnerId: userId,
@@ -211,6 +219,7 @@ data) => __awaiter(void 0, void 0, void 0, function* () {
                 barberId,
                 saloonOwnerId: userId,
                 appointmentAt: utcDateTime,
+                bookingType: client_1.BookingType.QUEUE,
                 date: dateObj.toJSDate(),
                 notes: notes !== null && notes !== void 0 ? notes : null,
                 isInQueue: !!saloonStatus.isQueueEnabled,

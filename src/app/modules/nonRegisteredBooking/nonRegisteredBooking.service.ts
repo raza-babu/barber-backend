@@ -1,7 +1,9 @@
 import prisma from '../../utils/prisma';
 import {
   BookingStatus,
+  BookingType,
   PaymentStatus,
+  ScheduleType,
   UserRoleEnum,
   UserStatus,
 } from '@prisma/client';
@@ -126,6 +128,15 @@ const createNonRegisteredBookingIntoDb = async (
     if (!barber) {
       throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
     }
+    // check the barber is for queue or appointment type
+    const barberForQueue = await tx.barberSchedule.findFirst({
+      where: { barberId, saloonOwnerId: userId, isActive: true, type: ScheduleType.QUEUE },
+    });
+    if (!barberForQueue) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Barber not available for queue bookings');
+    }
+
+    // Check barber day off
 
     const barberDayOff = await tx.barberDayOff.findFirst({
       where: {
@@ -260,6 +271,7 @@ const createNonRegisteredBookingIntoDb = async (
         barberId,
         saloonOwnerId: userId,
         appointmentAt: utcDateTime,
+        bookingType: BookingType.QUEUE,
         date: dateObj.toJSDate(),
         notes: notes ?? null,
         isInQueue: !!saloonStatus.isQueueEnabled,
