@@ -245,7 +245,6 @@ const updateSaloonOwner = z.object({
 
     isVerified: z.boolean().optional(),
 
-    isQueueEnabled: z.boolean().optional(),
   }),
 });
 

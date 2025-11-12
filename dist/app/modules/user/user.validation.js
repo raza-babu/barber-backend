@@ -221,7 +221,6 @@ const updateSaloonOwner = zod_1.default.object({
         })
             .optional(),
         isVerified: zod_1.default.boolean().optional(),
-        isQueueEnabled: zod_1.default.boolean().optional(),
     }),
 });
 const updateBarber = zod_1.default.object({
