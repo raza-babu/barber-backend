@@ -167,6 +167,8 @@ const getJobPostListFromDb = async (
   // Combine all queries
   const whereClause: any = {
     isActive: true,
+    startDate: { lte: new Date() },
+    endDate: { gte: new Date() },
     ...filterQuery,
     ...salaryRangeQuery,
     ...dateRangeQuery,
