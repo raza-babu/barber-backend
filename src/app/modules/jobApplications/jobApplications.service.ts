@@ -334,10 +334,24 @@ const updateJobApplicationsIntoDb = async (
   jobApplicationsId: string,
   data: any,
 ) => {
+  const existingApplication = await prisma.jobApplication.findUnique({
+    where: {
+      id: jobApplicationsId,
+      saloonOwnerId: userId,
+      status: JobApplicationStatus.PENDING,
+    },
+  });
+  if (!existingApplication) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Only applications with status other than PENDING can be updated',
+    );
+  }
   const result = await prisma.jobApplication.update({
     where: {
       id: jobApplicationsId,
       saloonOwnerId: userId,
+      status: JobApplicationStatus.PENDING,
     },
     data: {
       ...data,

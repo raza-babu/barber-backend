@@ -319,10 +319,21 @@ const getHiredBarbersListFromDb = (userId, options) => __awaiter(void 0, void 0,
     return (0, pagination_1.formatPaginationResponse)(transformedData, total, page, limit);
 });
 const updateJobApplicationsIntoDb = (userId, jobApplicationsId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const existingApplication = yield prisma_1.default.jobApplication.findUnique({
+        where: {
+            id: jobApplicationsId,
+            saloonOwnerId: userId,
+            status: client_1.JobApplicationStatus.PENDING,
+        },
+    });
+    if (!existingApplication) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Only applications with status other than PENDING can be updated');
+    }
     const result = yield prisma_1.default.jobApplication.update({
         where: {
             id: jobApplicationsId,
             saloonOwnerId: userId,
+            status: client_1.JobApplicationStatus.PENDING,
         },
         data: Object.assign({}, data),
         include: {
