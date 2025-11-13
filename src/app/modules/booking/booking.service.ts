@@ -1004,7 +1004,8 @@ const getAllBarbersForQueueFromDb = async (
     }),
   );
 
-  return { barbers: results.filter(r => r !== null) };
+  return {isQueueEnabled: salon.isQueueEnabled, 
+    barbers: results.filter(r => r !== null) }
 };
 
 const getAvailableBarbersForWalkingInFromDb = async (

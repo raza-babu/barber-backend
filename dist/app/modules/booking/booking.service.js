@@ -836,7 +836,8 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) 
             },
         };
     })));
-    return { barbers: results.filter(r => r !== null) };
+    return { isQueueEnabled: salon.isQueueEnabled,
+        barbers: results.filter(r => r !== null) };
 });
 const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDate) => __awaiter(void 0, void 0, void 0, function* () {
     // Always use today's date or provided specificDate (local)
