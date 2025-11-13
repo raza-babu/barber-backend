@@ -1219,17 +1219,23 @@ const getScheduledBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
     });
     return scheduledBarbers;
 });
-const updateSaloonQueueControlIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+const updateSaloonQueueControlIntoDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    // Fetch current saloon record
+    const saloon = yield prisma_1.default.saloonOwner.findUnique({
+        where: { userId },
+        select: { id: true, isQueueEnabled: true },
+    });
+    if (!saloon) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon not found');
+    }
+    // Toggle the flag (coerce undefined/null to false)
+    const newValue = !Boolean(saloon.isQueueEnabled);
     const updatedSaloon = yield prisma_1.default.saloonOwner.update({
-        where: {
-            userId: userId,
-        },
-        data: {
-            isQueueEnabled: data.isQueueEnabled,
-        },
+        where: { userId },
+        data: { isQueueEnabled: newValue },
     });
     if (!updatedSaloon) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'saloonId, not updated');
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon queue control not updated');
     }
     return updatedSaloon;
 });

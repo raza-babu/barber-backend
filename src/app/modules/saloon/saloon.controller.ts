@@ -217,7 +217,7 @@ const updateSaloonQueueControl = catchAsync(async (req, res) => {
   ) {
     const result = await saloonService.updateSaloonQueueControlIntoDb(
       user.id,
-      req.body,
+      // req.body,
     );
     sendResponse(res, {
       statusCode: httpStatus.OK,

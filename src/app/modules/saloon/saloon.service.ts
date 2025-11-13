@@ -1444,22 +1444,27 @@ const getScheduledBarbersFromDb = async (
 };
 
 
-const updateSaloonQueueControlIntoDb = async (
-  userId: string,
-  data: {
-    isQueueEnabled: boolean;
-  },
-) => {
-  const updatedSaloon = await prisma.saloonOwner.update({
-    where: {
-      userId: userId,
-    },
-    data: {
-      isQueueEnabled: data.isQueueEnabled,
-    },
+const updateSaloonQueueControlIntoDb = async (userId: string) => {
+  // Fetch current saloon record
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { id: true, isQueueEnabled: true },
   });
+
+  if (!saloon) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
+  }
+
+  // Toggle the flag (coerce undefined/null to false)
+  const newValue = !Boolean(saloon.isQueueEnabled);
+
+  const updatedSaloon = await prisma.saloonOwner.update({
+    where: { userId },
+    data: { isQueueEnabled: newValue },
+  });
+
   if (!updatedSaloon) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'saloonId, not updated');
+    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon queue control not updated');
   }
 
   return updatedSaloon;

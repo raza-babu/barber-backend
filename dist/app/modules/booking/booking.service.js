@@ -791,7 +791,7 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) 
     let barbers = yield prisma_1.default.barber.findMany({
         where: { saloonOwnerId: saloonOwnerId },
         include: {
-            user: { select: { id: true, fullName: true, status: true } },
+            user: { select: { id: true, fullName: true, image: true, status: true } },
         },
     });
     // Only barbers with schedules
@@ -828,6 +828,7 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) 
         return {
             barberId: barber.user.id,
             name: barber.user.fullName,
+            image: barber.user.image,
             status: barber.user.status,
             schedule: {
                 start: schedule.openingTime,

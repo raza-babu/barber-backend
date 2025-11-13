@@ -88,7 +88,7 @@ router.patch(
   '/queue-control',
   auth(UserRoleEnum.SALOON_OWNER),
   checkSubscriptionForSalonOwners(),
-  validateRequest(saloonValidation.updateQueueSchema),
+  // validateRequest(saloonValidation.updateQueueSchema),
   saloonController.updateSaloonQueueControl,
 );
 

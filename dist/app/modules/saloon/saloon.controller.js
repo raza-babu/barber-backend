@@ -199,7 +199,7 @@ const updateSaloonQueueControl = (0, catchAsync_1.default)((req, res) => __await
     }
     if (subscriptionPlanName === client_1.SubscriptionPlanStatus.ADVANCED_PREMIUM ||
         client_1.SubscriptionPlanStatus.PRO_PREMIUM) {
-        const result = yield saloon_service_1.saloonService.updateSaloonQueueControlIntoDb(user.id, req.body);
+        const result = yield saloon_service_1.saloonService.updateSaloonQueueControlIntoDb(user.id);
         (0, sendResponse_1.default)(res, {
             statusCode: http_status_1.default.OK,
             success: true,
