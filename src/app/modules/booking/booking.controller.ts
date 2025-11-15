@@ -4,7 +4,7 @@ import catchAsync from '../../utils/catchAsync';
 import { bookingService } from './booking.service';
 import { bookingValidation } from './booking.validation';
 import { pickValidFields } from '../../utils/pickValidFields';
-import { BookingType, ScheduleType } from '@prisma/client';
+import { BookingType, ScheduleType, User, UserRoleEnum } from '@prisma/client';
 import AppError from '../../errors/AppError';
 
 const createBooking = catchAsync(async (req, res) => {
@@ -100,6 +100,7 @@ const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {
     saloonId,
     type,
     date,
+    user.role as UserRoleEnum,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

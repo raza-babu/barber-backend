@@ -4,6 +4,7 @@ import {
   BookingType,
   PaymentStatus,
   ScheduleType,
+  UserRoleEnum,
 } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
@@ -923,6 +924,7 @@ const getAllBarbersForQueueFromDb = async (
   saloonOwnerId: string,
   type: ScheduleType,
   specificDate?: string,
+  role?: string,
 ) => {
   let date;
   if (specificDate) {
@@ -938,9 +940,9 @@ const getAllBarbersForQueueFromDb = async (
   });
   if (!salon) throw new AppError(httpStatus.NOT_FOUND, 'Salon not found');
 
-  // if (salon.isQueueEnabled === false && type === ScheduleType.QUEUE) {
-  //   return { message: 'Queue system is not enabled for this salon' };
-  // }
+  if (role === UserRoleEnum.CUSTOMER && salon.isQueueEnabled === false && type === ScheduleType.QUEUE) {
+    return { message: 'Queue system is not enabled for this salon' };
+  }
 
   // Convert the local calendar date to a UTC-midnight Date so it matches DB entries stored at 00:00 UTC
   // const holidayDateUtc = DateTime.fromObject(

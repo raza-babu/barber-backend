@@ -764,7 +764,7 @@ const getBookingByIdFromDb = (userId, bookingId) => __awaiter(void 0, void 0, vo
         status: result.status || null,
     };
 });
-const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) => __awaiter(void 0, void 0, void 0, function* () {
+const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate, role) => __awaiter(void 0, void 0, void 0, function* () {
     let date;
     if (specificDate) {
         date = luxon_1.DateTime.fromISO(specificDate, { zone: 'local' }).startOf('day');
@@ -779,9 +779,9 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) 
     });
     if (!salon)
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Salon not found');
-    // if (salon.isQueueEnabled === false && type === ScheduleType.QUEUE) {
-    //   return { message: 'Queue system is not enabled for this salon' };
-    // }
+    if (role === client_1.UserRoleEnum.CUSTOMER && salon.isQueueEnabled === false && type === client_1.ScheduleType.QUEUE) {
+        return { message: 'Queue system is not enabled for this salon' };
+    }
     // Convert the local calendar date to a UTC-midnight Date so it matches DB entries stored at 00:00 UTC
     // const holidayDateUtc = DateTime.fromObject(
     //   { year: date.year, month: date.month, day: date.day },
