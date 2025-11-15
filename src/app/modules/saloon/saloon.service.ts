@@ -1461,6 +1461,7 @@ const updateSaloonQueueControlIntoDb = async (userId: string) => {
   const updatedSaloon = await prisma.saloonOwner.update({
     where: { userId },
     data: { isQueueEnabled: newValue },
+    select: { id: true, isQueueEnabled: true },
   });
 
   if (!updatedSaloon) {

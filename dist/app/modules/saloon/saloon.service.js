@@ -1233,6 +1233,7 @@ const updateSaloonQueueControlIntoDb = (userId) => __awaiter(void 0, void 0, voi
     const updatedSaloon = yield prisma_1.default.saloonOwner.update({
         where: { userId },
         data: { isQueueEnabled: newValue },
+        select: { id: true, isQueueEnabled: true },
     });
     if (!updatedSaloon) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon queue control not updated');
