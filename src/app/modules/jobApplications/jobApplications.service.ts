@@ -125,6 +125,8 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
       include: {
         barber: {
           select: {
+            ratingCount : true,
+            avgRating : true,
             user: {
               select: {
                 id: true,
@@ -132,6 +134,7 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
                 email: true,
                 phoneNumber: true,
                 image: true,
+                address: true,
               },
             },
           },
@@ -168,7 +171,16 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
     status: app.status,
     createdAt: app.createdAt,
     updatedAt: app.updatedAt,
-    barber: app.barber?.user,
+    barber: {
+      id: app.barber?.user.id,
+      fullName: app.barber?.user.fullName,
+      email: app.barber?.user.email,
+      phoneNumber: app.barber?.user.phoneNumber,
+      image: app.barber?.user.image,
+      address: app.barber?.user.address,
+      ratingCount: app.barber?.ratingCount,
+      avgRating: app.barber?.avgRating,
+    },
     jobPost: app.jobPost ? {
       id: app.jobPost.id,
       description: app.jobPost.description,

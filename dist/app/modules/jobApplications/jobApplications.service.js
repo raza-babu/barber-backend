@@ -121,6 +121,8 @@ const getJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, void
             include: {
                 barber: {
                     select: {
+                        ratingCount: true,
+                        avgRating: true,
                         user: {
                             select: {
                                 id: true,
@@ -128,6 +130,7 @@ const getJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, void
                                 email: true,
                                 phoneNumber: true,
                                 image: true,
+                                address: true,
                             },
                         },
                     },
@@ -159,13 +162,22 @@ const getJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, void
     ]);
     // Transform the data
     const transformedData = jobApplications.map(app => {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
         return ({
             id: app.id,
             status: app.status,
             createdAt: app.createdAt,
             updatedAt: app.updatedAt,
-            barber: (_a = app.barber) === null || _a === void 0 ? void 0 : _a.user,
+            barber: {
+                id: (_a = app.barber) === null || _a === void 0 ? void 0 : _a.user.id,
+                fullName: (_b = app.barber) === null || _b === void 0 ? void 0 : _b.user.fullName,
+                email: (_c = app.barber) === null || _c === void 0 ? void 0 : _c.user.email,
+                phoneNumber: (_d = app.barber) === null || _d === void 0 ? void 0 : _d.user.phoneNumber,
+                image: (_e = app.barber) === null || _e === void 0 ? void 0 : _e.user.image,
+                address: (_f = app.barber) === null || _f === void 0 ? void 0 : _f.user.address,
+                ratingCount: (_g = app.barber) === null || _g === void 0 ? void 0 : _g.ratingCount,
+                avgRating: (_h = app.barber) === null || _h === void 0 ? void 0 : _h.avgRating,
+            },
             jobPost: app.jobPost ? {
                 id: app.jobPost.id,
                 description: app.jobPost.description,
@@ -174,9 +186,9 @@ const getJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, void
                 endDate: app.jobPost.endDate,
                 datePosted: app.jobPost.datePosted,
                 shopName: app.jobPost.shopName,
-                shopAddress: (_b = app.jobPost.saloonOwner) === null || _b === void 0 ? void 0 : _b.shopAddress,
-                saloonOwnerRatingCount: (_c = app.jobPost.saloonOwner) === null || _c === void 0 ? void 0 : _c.ratingCount,
-                saloonOwnerAvgRating: (_d = app.jobPost.saloonOwner) === null || _d === void 0 ? void 0 : _d.avgRating,
+                shopAddress: (_j = app.jobPost.saloonOwner) === null || _j === void 0 ? void 0 : _j.shopAddress,
+                saloonOwnerRatingCount: (_k = app.jobPost.saloonOwner) === null || _k === void 0 ? void 0 : _k.ratingCount,
+                saloonOwnerAvgRating: (_l = app.jobPost.saloonOwner) === null || _l === void 0 ? void 0 : _l.avgRating,
             } : null,
         });
     });
