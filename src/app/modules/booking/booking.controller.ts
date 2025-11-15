@@ -91,6 +91,9 @@ const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {
   const user = req.user as any;
   const saloonId = req.params.saloonId;
   const type = req.params.type as ScheduleType;
+  if(type !== ScheduleType.BOOKING && type !== ScheduleType.QUEUE){
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid schedule type. It must be either BOOKING or QUEUE.');
+  }
   const date = req.query.date as string;
   const result = await bookingService.getAllBarbersForQueueFromDb(
     user.id,

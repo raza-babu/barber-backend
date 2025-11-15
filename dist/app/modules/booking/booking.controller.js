@@ -95,6 +95,9 @@ const getAvailableBarbersForWalkingIn = (0, catchAsync_1.default)((req, res) => 
     const user = req.user;
     const saloonId = req.params.saloonId;
     const type = req.params.type;
+    if (type !== client_1.ScheduleType.BOOKING && type !== client_1.ScheduleType.QUEUE) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid schedule type. It must be either BOOKING or QUEUE.');
+    }
     const date = req.query.date;
     const result = yield booking_service_1.bookingService.getAllBarbersForQueueFromDb(user.id, saloonId, type, date);
     (0, sendResponse_1.default)(res, {

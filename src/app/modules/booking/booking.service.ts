@@ -934,7 +934,7 @@ const getAllBarbersForQueueFromDb = async (
   // Check if salon is closed
   const salon = await prisma.saloonOwner.findUnique({
     where: { userId: saloonOwnerId },
-    select: { userId: true, isQueueEnabled: true },
+    select: { userId: true, isQueueEnabled: true, shopLogo: true },
   });
   if (!salon) throw new AppError(httpStatus.NOT_FOUND, 'Salon not found');
 
@@ -952,7 +952,7 @@ const getAllBarbersForQueueFromDb = async (
   let barbers = await prisma.barber.findMany({
     where: { saloonOwnerId: saloonOwnerId },
     include: {
-      user: { select: { id: true, fullName: true,image: true, status: true } },
+      user: { select: { id: true, fullName: true, image: true, status: true } },
     },
   });
 
@@ -991,21 +991,47 @@ const getAllBarbersForQueueFromDb = async (
 
       if (!schedule) return null;
 
-      return {
-        barberId: barber.user.id,
-        name: barber.user.fullName,
-        image: barber.user.image,
-        status: barber.user.status,
-        schedule: {
-          start: schedule.openingTime,
-          end: schedule.closingTime,
-        },
-      };
+      // find bookings only if type is QUEUE
+            let totalQueueLength = 0;
+            if (type === ScheduleType.QUEUE) {
+              // Get bookings (fixed status filter -> use 'in' array)
+              const bookings = await prisma.booking.findMany({
+                where: {
+                  barberId: barber.userId,
+                  bookingType: BookingType.QUEUE,
+                  status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+                  startDateTime: {
+                    gte: date.startOf('day').toJSDate(),
+                  },
+                  endDateTime: {
+                    lte: date.endOf('day').toJSDate(),
+                  },
+                },
+                orderBy: { startDateTime: 'asc' },
+              });
+              totalQueueLength = bookings.length;
+            }
+      
+      
+            return {
+              barberId: barber.user.id,
+              name: barber.user.fullName,
+              image: barber.user.image,
+              status: barber.user.status,
+              totalQueueLength: totalQueueLength || 0,
+              schedule: {
+                start: schedule.openingTime,
+                end: schedule.closingTime,
+              },
+            };
     }),
   );
 
-  return {isQueueEnabled: salon.isQueueEnabled, 
-    barbers: results.filter(r => r !== null) }
+  return {
+    isQueueEnabled: salon.isQueueEnabled,
+    shopLogo: salon.shopLogo || null,
+    barbers: results.filter(r => r !== null),
+  };
 };
 
 const getAvailableBarbersForWalkingInFromDb = async (
@@ -1030,6 +1056,7 @@ const getAvailableBarbersForWalkingInFromDb = async (
     select: {
       userId: true,
       isQueueEnabled: true,
+      shopLogo: true,
       user: {
         select: {
           Queue: { select: { id: true } },
@@ -1042,7 +1069,7 @@ const getAvailableBarbersForWalkingInFromDb = async (
   let barbers = await prisma.barber.findMany({
     where: { saloonOwnerId: saloonOwnerId },
     include: {
-      user: { select: { id: true, fullName: true, status: true } },
+      user: { select: { id: true, fullName: true,image: true, status: true } },
       Queue: { select: { id: true } },
     },
   });
@@ -1283,7 +1310,9 @@ const getAvailableBarbersForWalkingInFromDb = async (
       }
 
       return {
+        shopLogo: salon.shopLogo || null,
         barberId: barber.userId,
+        image: barber.user.image,
         name: barber.user.fullName,
         status: barber.user.status,
         schedule: schedule
@@ -1294,10 +1323,14 @@ const getAvailableBarbersForWalkingInFromDb = async (
           // fall back to formatting the Date if the string is not present.
           startTime:
             b.startTime ??
-            DateTime.fromJSDate(b.startDateTime!).setZone('local').toFormat('hh:mm a'),
+            DateTime.fromJSDate(b.startDateTime!)
+              .setZone('local')
+              .toFormat('hh:mm a'),
           endTime:
             b.endTime ??
-            DateTime.fromJSDate(b.endDateTime!).setZone('local').toFormat('hh:mm a'),
+            DateTime.fromJSDate(b.endDateTime!)
+              .setZone('local')
+              .toFormat('hh:mm a'),
           services: b.BookedServices.map(bs => bs.service?.serviceName),
           totalTime: b.BookedServices.reduce(
             (sum, bs) => sum + (bs.service?.duration || 0),
@@ -1322,7 +1355,7 @@ const getAvailableABarberForWalkingInFromDb = async (
   const allBarbers = await getAvailableBarbersForWalkingInFromDb(
     userId,
     saloonOwnerId,
-    date
+    date,
   );
   if (allBarbers && Array.isArray(allBarbers)) {
     const barber = allBarbers.find(b => b && b.barberId === barberId);

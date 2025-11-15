@@ -775,7 +775,7 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) 
     // Check if salon is closed
     const salon = yield prisma_1.default.saloonOwner.findUnique({
         where: { userId: saloonOwnerId },
-        select: { userId: true, isQueueEnabled: true },
+        select: { userId: true, isQueueEnabled: true, shopLogo: true },
     });
     if (!salon)
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Salon not found');
@@ -825,19 +825,43 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) 
         });
         if (!schedule)
             return null;
+        // find bookings only if type is QUEUE
+        let totalQueueLength = 0;
+        if (type === client_1.ScheduleType.QUEUE) {
+            // Get bookings (fixed status filter -> use 'in' array)
+            const bookings = yield prisma_1.default.booking.findMany({
+                where: {
+                    barberId: barber.userId,
+                    bookingType: client_1.BookingType.QUEUE,
+                    status: { in: [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED] },
+                    startDateTime: {
+                        gte: date.startOf('day').toJSDate(),
+                    },
+                    endDateTime: {
+                        lte: date.endOf('day').toJSDate(),
+                    },
+                },
+                orderBy: { startDateTime: 'asc' },
+            });
+            totalQueueLength = bookings.length;
+        }
         return {
             barberId: barber.user.id,
             name: barber.user.fullName,
             image: barber.user.image,
             status: barber.user.status,
+            totalQueueLength: totalQueueLength || 0,
             schedule: {
                 start: schedule.openingTime,
                 end: schedule.closingTime,
             },
         };
     })));
-    return { isQueueEnabled: salon.isQueueEnabled,
-        barbers: results.filter(r => r !== null) };
+    return {
+        isQueueEnabled: salon.isQueueEnabled,
+        shopLogo: salon.shopLogo || null,
+        barbers: results.filter(r => r !== null),
+    };
 });
 const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDate) => __awaiter(void 0, void 0, void 0, function* () {
     // Always use today's date or provided specificDate (local)
@@ -857,6 +881,7 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDa
         select: {
             userId: true,
             isQueueEnabled: true,
+            shopLogo: true,
             user: {
                 select: {
                     Queue: { select: { id: true } },
@@ -869,7 +894,7 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDa
     let barbers = yield prisma_1.default.barber.findMany({
         where: { saloonOwnerId: saloonOwnerId },
         include: {
-            user: { select: { id: true, fullName: true, status: true } },
+            user: { select: { id: true, fullName: true, image: true, status: true } },
             Queue: { select: { id: true } },
         },
     });
@@ -1071,7 +1096,9 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDa
             }
         }
         return {
+            shopLogo: salon.shopLogo || null,
             barberId: barber.userId,
+            image: barber.user.image,
             name: barber.user.fullName,
             status: barber.user.status,
             schedule: schedule
@@ -1082,8 +1109,12 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDa
                 return ({
                     // Prefer the stored startTime/endTime strings (they reflect the intended local times);
                     // fall back to formatting the Date if the string is not present.
-                    startTime: (_a = b.startTime) !== null && _a !== void 0 ? _a : luxon_1.DateTime.fromJSDate(b.startDateTime).setZone('local').toFormat('hh:mm a'),
-                    endTime: (_b = b.endTime) !== null && _b !== void 0 ? _b : luxon_1.DateTime.fromJSDate(b.endDateTime).setZone('local').toFormat('hh:mm a'),
+                    startTime: (_a = b.startTime) !== null && _a !== void 0 ? _a : luxon_1.DateTime.fromJSDate(b.startDateTime)
+                        .setZone('local')
+                        .toFormat('hh:mm a'),
+                    endTime: (_b = b.endTime) !== null && _b !== void 0 ? _b : luxon_1.DateTime.fromJSDate(b.endDateTime)
+                        .setZone('local')
+                        .toFormat('hh:mm a'),
                     services: b.BookedServices.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; }),
                     totalTime: b.BookedServices.reduce((sum, bs) => { var _a; return sum + (((_a = bs.service) === null || _a === void 0 ? void 0 : _a.duration) || 0); }, 0),
                 });
