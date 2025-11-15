@@ -779,9 +779,9 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate) 
     });
     if (!salon)
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Salon not found');
-    if (salon.isQueueEnabled === false && type === client_1.ScheduleType.QUEUE) {
-        return { message: 'Queue system is not enabled for this salon' };
-    }
+    // if (salon.isQueueEnabled === false && type === ScheduleType.QUEUE) {
+    //   return { message: 'Queue system is not enabled for this salon' };
+    // }
     // Convert the local calendar date to a UTC-midnight Date so it matches DB entries stored at 00:00 UTC
     // const holidayDateUtc = DateTime.fromObject(
     //   { year: date.year, month: date.month, day: date.day },
