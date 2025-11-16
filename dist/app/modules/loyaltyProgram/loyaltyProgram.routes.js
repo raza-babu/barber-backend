@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.loyaltyProgramRoutes = void 0;
+const client_1 = require("@prisma/client");
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const loyaltyProgram_controller_1 = require("./loyaltyProgram.controller");
+const loyaltyProgram_validation_1 = require("./loyaltyProgram.validation");
+const checkSubscriptionForSalonOwners_1 = __importDefault(require("../../middlewares/checkSubscriptionForSalonOwners"));
+const router = express_1.default.Router();
+router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(loyaltyProgram_validation_1.loyaltyProgramValidation.createSchema), loyaltyProgram_controller_1.loyaltyProgramController.createLoyaltyProgram);
+router.get('/', (0, auth_1.default)(), (0, checkSubscriptionForSalonOwners_1.default)(), loyaltyProgram_controller_1.loyaltyProgramController.getLoyaltyProgramList);
+router.get('/:id', (0, auth_1.default)(), (0, checkSubscriptionForSalonOwners_1.default)(), loyaltyProgram_controller_1.loyaltyProgramController.getLoyaltyProgramById);
+router.patch('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(loyaltyProgram_validation_1.loyaltyProgramValidation.updateSchema), loyaltyProgram_controller_1.loyaltyProgramController.updateLoyaltyProgram);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), loyaltyProgram_controller_1.loyaltyProgramController.deleteLoyaltyProgram);
+exports.loyaltyProgramRoutes = router;
