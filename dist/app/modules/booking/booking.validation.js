@@ -32,9 +32,11 @@ const updateBookingSchema = zod_1.z.object({
         barberName: zod_1.z.string().optional(),
         barberImage: zod_1.z.string().optional(),
         loyaltySchemeId: zod_1.z.string().optional(),
-        bookingType: zod_1.z.enum(['BOOKING', 'QUEUE'], {
+        bookingType: zod_1.z
+            .enum(['BOOKING', 'QUEUE'], {
             required_error: 'Booking type is required',
-        }).optional(),
+        })
+            .optional(),
     }),
     params: zod_1.z.object({
         id: zod_1.z.string().min(1, 'Booking ID is required').optional(), // ID of the booking to update
@@ -60,24 +62,33 @@ function convertToUTC(date, time) {
     return localDate.toISOString();
 }
 const availableBarbersSchema = zod_1.z.object({
-    query: zod_1.z.object({
+    query: zod_1.z
+        .object({
         saloonOwnerId: zod_1.z.string().min(1),
         date: zod_1.z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         time: zod_1.z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
             message: 'Time must be in hh:mm AM/PM format',
         }),
         totalServiceTime: zod_1.z.coerce.number().int().positive(),
-    }).transform(({ saloonOwnerId, date, time, totalServiceTime }) => ({
+        type: zod_1.z
+            .enum(['BOOKING', 'QUEUE'], {
+            required_error: 'Schedule type is required',
+        })
+            .optional(),
+    })
+        .transform(({ saloonOwnerId, date, time, totalServiceTime, type }) => ({
         saloonOwnerId,
         utcDateTime: convertToUTC(date, time),
+        date,
         totalServiceTime,
+        type,
     })),
 });
 const walkingInBarbersSchema = zod_1.z.object({
     body: zod_1.z.object({
         saloonOwnerId: zod_1.z.string().min(1),
         date: zod_1.z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    })
+    }),
 });
 exports.bookingValidation = {
     createBookingSchema,

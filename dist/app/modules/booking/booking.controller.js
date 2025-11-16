@@ -82,7 +82,15 @@ const getAvailableBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(vo
     const parsed = booking_validation_1.bookingValidation.availableBarbersSchema.parse({
         query: req.query,
     });
-    // console.log('Parsed query:', parsed.query);
+    if (parsed.query.type === client_1.BookingType.QUEUE) {
+        const result = yield booking_service_1.bookingService.getAvailableBarbersForQueueFromDb(user.id, parsed.query);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Available barbers retrieved successfully',
+            data: result,
+        });
+    }
     const result = yield booking_service_1.bookingService.getAvailableBarbersFromDb(user.id, parsed.query);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,

@@ -50,6 +50,11 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
     if (!localDateTime.isValid) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid date or time format');
     }
+    // appointmentAt cannot be in the past (local time)
+    const nowLocal = luxon_1.DateTime.now().setZone('local');
+    if (localDateTime < nowLocal) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Appointment time cannot be in the past');
+    }
     const utcDateTime = localDateTime.toUTC().toJSDate();
     // 3. Calculate total price using service model
     const serviceRecords = yield prisma_1.default.service.findMany({
@@ -1140,6 +1145,9 @@ const getAvailableABarberForWalkingInFromDb = (userId, saloonOwnerId, barberId, 
     return { message: 'No barbers available' };
 });
 const getAvailableBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    if (data.type === client_1.BookingType.QUEUE) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Use the queue-specific query to get available barbers for queue bookings');
+    }
     const date = new Date(data.utcDateTime);
     // date must be in the future
     if (date <= new Date()) {
@@ -1196,7 +1204,141 @@ const getAvailableBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
     });
     // if barber schedule is not added for the saloon owner, that barber should not be shown in the list
     const barberIdsWithSchedule = yield prisma_1.default.barberSchedule.findMany({
-        where: { barber: { saloonOwnerId: data.saloonOwnerId } },
+        where: { barber: { saloonOwnerId: data.saloonOwnerId }, type: data.type || client_1.BookingType.BOOKING },
+        select: { barberId: true },
+        distinct: ['barberId'],
+    });
+    const barberIdsSet = new Set(barberIdsWithSchedule.map(b => b.barberId));
+    const filteredBarbers = barbers.filter(b => barberIdsSet.has(b.userId));
+    if (filteredBarbers.length === 0) {
+        return { message: 'No barbers with schedules found for this salon' };
+    }
+    barbers = filteredBarbers;
+    // 3. Parallelize per-barber checks
+    const availableBarbers = yield Promise.all(barbers.map((barber) => __awaiter(void 0, void 0, void 0, function* () {
+        // 3a. Check day-off
+        const dayOff = yield prisma_1.default.barberDayOff.findFirst({
+            where: {
+                saloonOwnerId: data.saloonOwnerId,
+                barberId: barber.userId,
+                date: date,
+            },
+        });
+        if (dayOff)
+            return null;
+        // 3b. Check real-time availability (from cache/fast source)
+        // Assume a function checkBarberRealtimeAvailability(barberId, time) returns boolean
+        const isAvailableRealtime = yield prisma_1.default.barberRealTimeStatus.findMany({
+            where: {
+                barberId: barber.userId,
+                AND: [
+                    {
+                        startDateTime: {
+                            lte: date,
+                        },
+                    },
+                    {
+                        endDateTime: {
+                            gte: date,
+                        },
+                    },
+                ],
+            },
+        });
+        if (!isAvailableRealtime)
+            return { message: 'Barber is not available at this time' };
+        // 3c. Fetch schedule + bookings if still potentially available
+        const schedule = yield prisma_1.default.barberSchedule.findFirst({
+            where: {
+                barberId: barber.userId,
+                dayName: luxonDate.toFormat('cccc').toLowerCase(),
+            },
+        });
+        // if (!schedule) return { message: 'Barber schedule not found' };
+        const overlappingBooking = yield prisma_1.default.booking.findFirst({
+            where: {
+                barberId: barber.userId,
+                AND: [
+                    {
+                        startDateTime: {
+                            lte: date,
+                        },
+                    },
+                    {
+                        endDateTime: {
+                            gte: date,
+                        },
+                    },
+                ],
+            },
+        });
+        if (overlappingBooking)
+            return { message: 'No barber is not available for this time' };
+        return barber;
+    })));
+    return availableBarbers.filter(Boolean);
+});
+const getAvailableBarbersForQueueFromDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+    if (data.type === client_1.BookingType.BOOKING) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Use the booking-specific query to get available barbers for queue bookings');
+    }
+    const date = new Date(data.utcDateTime);
+    // date must be in the future
+    if (date <= new Date()) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date and time must be in the future');
+    }
+    // date must be within next 3 weeks
+    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 3 });
+    if (luxon_1.DateTime.fromJSDate(date) > threeWeeksFromNow) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date cannot be more than 3 weeks in the future');
+    }
+    const luxonDate = luxon_1.DateTime.fromJSDate(date);
+    // 1. Check if the salon is on holiday (global filter)
+    const salon = yield prisma_1.default.saloonOwner.findUnique({
+        where: { userId: data.saloonOwnerId },
+        select: {
+            userId: true,
+        },
+    });
+    if (!salon || !salon.userId) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Salon not found for user');
+    }
+    // const salonId = booking.salonId;
+    const salonHoliday = yield prisma_1.default.saloonHoliday.findFirst({
+        where: {
+            userId: salon.userId,
+            date: date,
+        },
+    });
+    if (salonHoliday) {
+        return { message: 'Salon is closed on this date' };
+    }
+    // 2. Get all barbers for the salon
+    // const barbers = await prisma.barber.findMany({
+    //   where: {
+    //     saloonOwnerId: data.salonId,
+    //   },
+    //   include: {
+    //     user: {
+    //       select: {
+    //         id: true,
+    //         fullName: true,
+    //         email: true,
+    //         phoneNumber: true,
+    //         status: true,
+    //       },
+    //     },
+    //   },
+    // });
+    let barbers = yield prisma_1.default.barber.findMany({
+        where: { saloonOwnerId: data.saloonOwnerId },
+        include: {
+            user: { select: { id: true, fullName: true, status: true } },
+        },
+    });
+    // if barber schedule is not added for the saloon owner, that barber should not be shown in the list
+    const barberIdsWithSchedule = yield prisma_1.default.barberSchedule.findMany({
+        where: { barber: { saloonOwnerId: data.saloonOwnerId }, type: client_1.BookingType.QUEUE },
         select: { barberId: true },
         distinct: ['barberId'],
     });
@@ -1905,6 +2047,7 @@ exports.bookingService = {
     getBookingListForSalonOwnerFromDb,
     getBookingByIdFromDbForSalon,
     getAllBarbersForQueueFromDb,
+    getAvailableBarbersForQueueFromDb,
     getAvailableBarbersForWalkingInFromDb,
     getAvailableABarberForWalkingInFromDb,
     getAvailableBarbersFromDb,

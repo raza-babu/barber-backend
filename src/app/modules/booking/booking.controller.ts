@@ -6,15 +6,19 @@ import { bookingValidation } from './booking.validation';
 import { pickValidFields } from '../../utils/pickValidFields';
 import { BookingType, ScheduleType, User, UserRoleEnum } from '@prisma/client';
 import AppError from '../../errors/AppError';
+import { date } from 'zod';
 
 const createBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
-  if(req.body.bookingType === undefined){
+  if (req.body.bookingType === undefined) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Booking type is required');
   }
   console.log('Booking Type:', req.body.bookingType);
   if (req.body.bookingType === BookingType.QUEUE) {
-    const result = await bookingService.createQueueBookingIntoDb(user.id, req.body);
+    const result = await bookingService.createQueueBookingIntoDb(
+      user.id,
+      req.body,
+    );
     return sendResponse(res, {
       statusCode: httpStatus.CREATED,
       success: true,
@@ -64,8 +68,8 @@ const getBookingListForSalonOwner = catchAsync(async (req, res) => {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Booking list for salon owner retrieved successfully',
-    data: result.data, 
-    meta: result.meta, 
+    data: result.data,
+    meta: result.meta,
   });
 });
 
@@ -74,7 +78,19 @@ const getAvailableBarbers = catchAsync(async (req, res) => {
   const parsed = bookingValidation.availableBarbersSchema.parse({
     query: req.query,
   });
-  // console.log('Parsed query:', parsed.query);
+
+  if (parsed.query.type === BookingType.QUEUE) {
+    const result = await bookingService.getAvailableBarbersForQueueFromDb(
+      user.id,
+      parsed.query,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Available barbers retrieved successfully',
+      data: result,
+    });
+  }
   const result = await bookingService.getAvailableBarbersFromDb(
     user.id,
     parsed.query,
@@ -91,8 +107,11 @@ const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {
   const user = req.user as any;
   const saloonId = req.params.saloonId;
   const type = req.params.type as ScheduleType;
-  if(type !== ScheduleType.BOOKING && type !== ScheduleType.QUEUE){
-    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid schedule type. It must be either BOOKING or QUEUE.');
+  if (type !== ScheduleType.BOOKING && type !== ScheduleType.QUEUE) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Invalid schedule type. It must be either BOOKING or QUEUE.',
+    );
   }
   const date = req.query.date as string;
   const result = await bookingService.getAllBarbersForQueueFromDb(
@@ -112,8 +131,8 @@ const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {
 
 const getAvailableABarberForWalkingIn = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const saloonId = req.params.saloonId ;
-  const barberId = req.params.barberId ;
+  const saloonId = req.params.saloonId;
+  const barberId = req.params.barberId;
   const date = req.query.date as string;
   const result = await bookingService.getAvailableABarberForWalkingInFromDb(
     user.id,
@@ -212,7 +231,10 @@ const deleteBooking = catchAsync(async (req, res) => {
 
 const getLoyaltySchemesForACustomer = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.getLoyaltySchemesForCustomerFromDb(user.id, req.params.id);
+  const result = await bookingService.getLoyaltySchemesForCustomerFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

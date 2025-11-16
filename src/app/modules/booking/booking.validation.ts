@@ -1,4 +1,5 @@
-import {  z } from 'zod';
+import { BookingType } from '@prisma/client';
+import { z } from 'zod';
 
 const createBookingSchema = z.object({
   body: z.object({
@@ -24,16 +25,18 @@ const updateBookingSchema = z.object({
     startDateTime: z.string().optional(), // e.g., "2025-08-20T11:00:00"
     endDateTime: z.string().optional(), // e.g., "2025-08-20T11:30:00"
     startTime: z.string().optional(), // e.g., "11:00 AM"
-    endTime: z.string().optional(),   // e.g., "11:30 AM"
+    endTime: z.string().optional(), // e.g., "11:30 AM"
     totalPrice: z.number().optional(),
     notes: z.string().optional(),
     isInQueue: z.boolean().optional(),
     barberName: z.string().optional(),
     barberImage: z.string().optional(),
     loyaltySchemeId: z.string().optional(),
-    bookingType: z.enum(['BOOKING', 'QUEUE'], {
-      required_error: 'Booking type is required',
-    }).optional(),
+    bookingType: z
+      .enum(['BOOKING', 'QUEUE'], {
+        required_error: 'Booking type is required',
+      })
+      .optional(),
   }),
   params: z.object({
     id: z.string().min(1, 'Booking ID is required').optional(), // ID of the booking to update
@@ -64,28 +67,35 @@ function convertToUTC(date: string, time: string): string {
 }
 
 const availableBarbersSchema = z.object({
- query: z.object({
-  saloonOwnerId: z.string().min(1),
-  date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  time: z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
-    message: 'Time must be in hh:mm AM/PM format',
-  }),
-  totalServiceTime: z.coerce.number().int().positive(),
-
-  }).transform(({ saloonOwnerId, date, time, totalServiceTime }) => ({
-    saloonOwnerId,
-    utcDateTime: convertToUTC(date, time),
-    totalServiceTime,
-  })),
+  query: z
+    .object({
+      saloonOwnerId: z.string().min(1),
+      date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      time: z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
+        message: 'Time must be in hh:mm AM/PM format',
+      }),
+      totalServiceTime: z.coerce.number().int().positive(),
+      type: z
+        .enum(['BOOKING', 'QUEUE'], {
+          required_error: 'Schedule type is required',
+        })
+        .optional(),
+    })
+    .transform(({ saloonOwnerId, date, time, totalServiceTime, type }) => ({
+      saloonOwnerId,
+      utcDateTime: convertToUTC(date, time),
+      date,
+      totalServiceTime,
+      type,
+    })),
 });
 
 const walkingInBarbersSchema = z.object({
   body: z.object({
-   saloonOwnerId: z.string().min(1),
-   date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  })
- });
-
+    saloonOwnerId: z.string().min(1),
+    date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }),
+});
 
 export const bookingValidation = {
   createBookingSchema,
