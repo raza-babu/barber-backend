@@ -90,6 +90,7 @@ const availableBarbersSchema = z.object({
     })),
 });
 
+
 const walkingInBarbersSchema = z.object({
   body: z.object({
     saloonOwnerId: z.string().min(1),
