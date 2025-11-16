@@ -1,8 +1,6 @@
 import prisma from '../../utils/prisma';
-import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { saloonHolidayService } from '../saloonHoliday/saloonHoliday.service';
 import { DateTime } from 'luxon';
 
 // Type for schedule input

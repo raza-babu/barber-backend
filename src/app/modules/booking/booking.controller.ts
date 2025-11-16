@@ -6,7 +6,6 @@ import { bookingValidation } from './booking.validation';
 import { pickValidFields } from '../../utils/pickValidFields';
 import { BookingType, ScheduleType, User, UserRoleEnum } from '@prisma/client';
 import AppError from '../../errors/AppError';
-import { date } from 'zod';
 
 const createBooking = catchAsync(async (req, res) => {
   const user = req.user as any;

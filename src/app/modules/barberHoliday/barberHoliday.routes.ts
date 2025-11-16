@@ -1,10 +1,10 @@
 import { User, UserRoleEnum } from '@prisma/client';
 import express from 'express';
-import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { barberHolidayController } from './barberHoliday.controller';
 import { barberHolidayValidation } from './barberHoliday.validation';
 import checkSubscriptionForSalonOwners from '../../middlewares/checkSubscriptionForSalonOwners';
+import  auth  from '../../middlewares/auth';
 
 const router = express.Router();
 

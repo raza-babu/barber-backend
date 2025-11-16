@@ -1,19 +1,16 @@
-import prisma from '../../utils/prisma';
 import {
   BookingStatus,
-  UserRoleEnum,
-  UserStatus,
   PaymentStatus,
 } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { start } from 'repl';
 import { DateTime } from 'luxon';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import {
   calculatePagination,
   formatPaginationResponse,
 } from '../../utils/pagination';
+import prisma from '../../utils/prisma';
 
 const manageBookingsIntoDb = async (
   userId: string,

@@ -2,7 +2,6 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus, BookingStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { database } from 'firebase-admin';
 
 const createReviewIntoDb = async (userId: string, data: any) => {
   return await prisma.$transaction(async (tx) => {

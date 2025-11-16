@@ -1,9 +1,7 @@
 import prisma from '../../utils/prisma';
-import { Prisma } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { messaging } from 'firebase-admin';
-import sendResponse from '../../utils/sendResponse';
 
 // Type definitions
 type HolidayInput = {

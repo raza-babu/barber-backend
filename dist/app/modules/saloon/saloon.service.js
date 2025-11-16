@@ -13,12 +13,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.saloonService = void 0;
-const prisma_1 = __importDefault(require("../../utils/prisma"));
 const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const luxon_1 = require("luxon");
 const pagination_1 = require("../../utils/pagination");
+const prisma_1 = __importDefault(require("../../utils/prisma"));
 const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         const booking = yield tx.booking.findUnique({
