@@ -1,4 +1,3 @@
-import { Reply } from './../../../../node_modules/.prisma/client/index.d';
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';

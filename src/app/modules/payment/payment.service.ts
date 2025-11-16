@@ -1,4 +1,3 @@
-import { Payment } from './../../../../node_modules/.prisma/client/index.d';
 import httpStatus from 'http-status';
 import config from '../../../config';
 import { isValidAmount } from '../../utils/isValidAmount';

@@ -1,4 +1,3 @@
-import { SaloonOwner } from './../../../../node_modules/.prisma/client/index.d';
 import { User, UserStatus, UserRoleEnum } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import httpStatus from 'http-status';

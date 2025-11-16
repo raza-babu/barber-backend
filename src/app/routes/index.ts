@@ -1,4 +1,3 @@
-import { LoyaltyProgram, LoyaltyScheme } from './../../../node_modules/.prisma/client/index.d';
 import express from 'express';
 import { UserRouters } from '../modules/user/user.routes';
 import { AuthRouters } from '../modules/auth/auth.routes';
