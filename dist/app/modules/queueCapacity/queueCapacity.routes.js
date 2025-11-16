@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.queueCapacityRoutes = void 0;
+const client_1 = require("@prisma/client");
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const queueCapacity_controller_1 = require("./queueCapacity.controller");
+const queueCapacity_validation_1 = require("./queueCapacity.validation");
+const checkSubscriptionForSalonOwners_1 = __importDefault(require("../../middlewares/checkSubscriptionForSalonOwners"));
+const router = express_1.default.Router();
+router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(queueCapacity_validation_1.queueCapacityValidation.createSchema), queueCapacity_controller_1.queueCapacityController.createQueueCapacity);
+router.get('/', (0, auth_1.default)(), queueCapacity_controller_1.queueCapacityController.getQueueCapacityList);
+router.get('/:id', (0, auth_1.default)(), queueCapacity_controller_1.queueCapacityController.getQueueCapacityById);
+router.patch('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), (0, validateRequest_1.default)(queueCapacity_validation_1.queueCapacityValidation.updateSchema), queueCapacity_controller_1.queueCapacityController.updateQueueCapacity);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, checkSubscriptionForSalonOwners_1.default)(), queueCapacity_controller_1.queueCapacityController.deleteQueueCapacity);
+exports.queueCapacityRoutes = router;

@@ -1,0 +1,24 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.userSubscriptionRoutes = void 0;
+const client_1 = require("@prisma/client");
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const userSubscription_controller_1 = require("./userSubscription.controller");
+const userSubscription_validation_1 = require("./userSubscription.validation");
+const checkPermissions_1 = require("../../middlewares/checkPermissions");
+const access_1 = require("../../utils/access");
+const router = express_1.default.Router();
+router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(userSubscription_validation_1.userSubscriptionValidation.createSchema), userSubscription_controller_1.userSubscriptionController.createUserSubscription);
+router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.PREMIUM_SUBSCRIBERS), userSubscription_controller_1.userSubscriptionController.getUserSubscriptionList);
+router.get('/own-plan', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), userSubscription_controller_1.userSubscriptionController.getUOwnerSubscriptionPlan);
+router.get('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.PREMIUM_SUBSCRIBERS), userSubscription_controller_1.userSubscriptionController.getUserSubscriptionById);
+router.put('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(userSubscription_validation_1.userSubscriptionValidation.updateSchema), userSubscription_controller_1.userSubscriptionController.updateUserSubscription);
+router.patch('/cancel-automatic-renewal/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), userSubscription_controller_1.userSubscriptionController.cancelAutomaticRenewal);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), userSubscription_controller_1.userSubscriptionController.deleteUserSubscription);
+router.delete('/admin/:id', (0, auth_1.default)(client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.ADMIN), (0, checkPermissions_1.checkPermissions)(access_1.UserAccessFunctionName.ALL || access_1.UserAccessFunctionName.PREMIUM_SUBSCRIBERS), userSubscription_controller_1.userSubscriptionController.deleteUserSubscriptionForCustomer);
+exports.userSubscriptionRoutes = router;

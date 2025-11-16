@@ -1,0 +1,22 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.groupRoutes = void 0;
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const group_controller_1 = require("./group.controller");
+const group_validation_1 = require("./group.validation");
+const parseBody_1 = require("../../middlewares/parseBody");
+const updateMulterUpload_1 = require("../../utils/updateMulterUpload");
+const multipleFile_1 = require("../../utils/multipleFile");
+const router = express_1.default.Router();
+router.post('/', multipleFile_1.multerUploadMultiple.single('groupImage'), parseBody_1.parseBody, (0, validateRequest_1.default)(group_validation_1.groupValidation.createSchema), (0, auth_1.default)(), group_controller_1.groupController.createGroup);
+router.get('/', (0, auth_1.default)(), group_controller_1.groupController.getGroupList);
+router.post('/image-to-link', multipleFile_1.multerUploadMultiple.single('chatImage'), (0, auth_1.default)(), group_controller_1.groupController.imageToLink);
+router.get('/:groupId', (0, auth_1.default)(), group_controller_1.groupController.getGroupById);
+router.put('/:groupId', updateMulterUpload_1.updateMulterUpload.single('groupImage'), parseBody_1.parseBody, (0, validateRequest_1.default)(group_validation_1.groupValidation.updateSchema), (0, auth_1.default)(), group_controller_1.groupController.updateGroup);
+router.delete('/:groupId', (0, auth_1.default)(), group_controller_1.groupController.deleteGroup);
+exports.groupRoutes = router;
