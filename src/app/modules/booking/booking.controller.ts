@@ -91,16 +91,18 @@ const getAvailableBarbers = catchAsync(async (req, res) => {
       data: result,
     });
   }
-  const result = await bookingService.getAvailableBarbersFromDb(
-    user.id,
-    parsed.query,
-  );
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: 'Available barbers retrieved successfully',
-    data: result,
-  });
+  if (parsed.query.type === BookingType.BOOKING) {
+    const result = await bookingService.getAvailableBarbersFromDb(
+      user.id,
+      parsed.query,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Available barbers retrieved successfully',
+      data: result,
+    });
+  }
 });
 
 const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {

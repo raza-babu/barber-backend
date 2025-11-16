@@ -1392,69 +1392,58 @@ const getAvailableBarbersFromDb = async (
     type?: BookingType;
   },
 ) => {
-  if(data.type === BookingType.QUEUE){
+  if (data.type === BookingType.QUEUE) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Use the queue-specific query to get available barbers for queue bookings',
     );
   }
-  const date = new Date(data.utcDateTime);
-  // date must be in the future
-  if (date <= new Date()) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Date and time must be in the future',
-    );
+
+  // Parse requested time as UTC instant and also as local for schedule comparisons
+  const requestedUtc = DateTime.fromISO(data.utcDateTime, { zone: 'utc' });
+  if (!requestedUtc.isValid) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid datetime format');
   }
-  // date must be within next 3 weeks
+  const nowUtc = DateTime.utc();
+  if (requestedUtc <= nowUtc) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Date and time must be in the future');
+  }
+
   const threeWeeksFromNow = DateTime.now().plus({ weeks: 3 });
-  if (DateTime.fromJSDate(date) > threeWeeksFromNow) {
+  if (requestedUtc > threeWeeksFromNow.toUTC()) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Date cannot be more than 3 weeks in the future',
     );
   }
 
-  const luxonDate = DateTime.fromJSDate(date);
-  // 1. Check if the salon is on holiday (global filter)
+  const requestedLocal = requestedUtc.setZone('local');
+  const requestedEndLocal = requestedLocal.plus({ minutes: data.totalServiceTime });
+  const requestedStartUtcDate = requestedUtc.toJSDate();
+  const requestedEndUtcDate = requestedUtc.plus({ minutes: data.totalServiceTime }).toJSDate();
+
+  // 1. Check salon holiday (use local-day)
   const salon = await prisma.saloonOwner.findUnique({
     where: { userId: data.saloonOwnerId },
-    select: {
-      userId: true,
-    },
+    select: { userId: true },
   });
   if (!salon || !salon.userId) {
     throw new AppError(httpStatus.NOT_FOUND, 'Salon not found for user');
   }
-  // const salonId = booking.salonId;
   const salonHoliday = await prisma.saloonHoliday.findFirst({
     where: {
       userId: salon.userId,
-      date: date,
+      date: DateTime.fromObject(
+        { year: requestedLocal.year, month: requestedLocal.month, day: requestedLocal.day },
+        { zone: 'local' },
+      ).toJSDate(),
     },
   });
   if (salonHoliday) {
     return { message: 'Salon is closed on this date' };
   }
 
-  // 2. Get all barbers for the salon
-  // const barbers = await prisma.barber.findMany({
-  //   where: {
-  //     saloonOwnerId: data.salonId,
-  //   },
-  //   include: {
-  //     user: {
-  //       select: {
-  //         id: true,
-  //         fullName: true,
-  //         email: true,
-  //         phoneNumber: true,
-  //         status: true,
-  //       },
-  //     },
-  //   },
-  // });
-
+  // 2. Get barbers with booking schedules for the salon
   let barbers = await prisma.barber.findMany({
     where: { saloonOwnerId: data.saloonOwnerId },
     include: {
@@ -1462,9 +1451,8 @@ const getAvailableBarbersFromDb = async (
     },
   });
 
-  // if barber schedule is not added for the saloon owner, that barber should not be shown in the list
   const barberIdsWithSchedule = await prisma.barberSchedule.findMany({
-    where: { barber: { saloonOwnerId: data.saloonOwnerId }, type: data.type || BookingType.BOOKING },
+    where: { barber: { saloonOwnerId: data.saloonOwnerId }, type: BookingType.BOOKING },
     select: { barberId: true },
     distinct: ['barberId'],
   });
@@ -1475,71 +1463,83 @@ const getAvailableBarbersFromDb = async (
   }
   barbers = filteredBarbers;
 
-  // 3. Parallelize per-barber checks
+  // 3. Per-barber checks
   const availableBarbers = await Promise.all(
     barbers.map(async barber => {
-      // 3a. Check day-off
+      // 3a. Day off (local-day)
       const dayOff = await prisma.barberDayOff.findFirst({
         where: {
           saloonOwnerId: data.saloonOwnerId,
           barberId: barber.userId,
-          date: date,
+          date: DateTime.fromObject(
+            { year: requestedLocal.year, month: requestedLocal.month, day: requestedLocal.day },
+            { zone: 'local' },
+          ).toJSDate(),
         },
       });
       if (dayOff) return null;
 
-      // 3b. Check real-time availability (from cache/fast source)
-      // Assume a function checkBarberRealtimeAvailability(barberId, time) returns boolean
-      const isAvailableRealtime = await prisma.barberRealTimeStatus.findMany({
+      // 3b. Real-time statuses overlapping the requested interval (use UTC instants)
+      const busyStatuses = await prisma.barberRealTimeStatus.findMany({
         where: {
           barberId: barber.userId,
           AND: [
-            {
-              startDateTime: {
-                lte: date,
-              },
-            },
-            {
-              endDateTime: {
-                gte: date,
-              },
-            },
+            { startDateTime: { lt: requestedEndUtcDate } },
+            { endDateTime: { gt: requestedStartUtcDate } },
           ],
         },
       });
-      if (!isAvailableRealtime)
-        return { message: 'Barber is not available at this time' };
+      if (busyStatuses.length > 0) return null;
 
-      // 3c. Fetch schedule + bookings if still potentially available
+      // 3c. Fetch schedule for requested local day (must be BOOKING schedule)
+      const dayName = requestedLocal.toFormat('cccc').toLowerCase();
       const schedule = await prisma.barberSchedule.findFirst({
         where: {
           barberId: barber.userId,
-          dayName: luxonDate.toFormat('cccc').toLowerCase(),
+          dayName,
+          type: BookingType.BOOKING,
+          isActive: true,
         },
       });
-      // if (!schedule) return { message: 'Barber schedule not found' };
+      if (!schedule) return null;
 
+      // Parse opening/closing into local DateTimes on requested day
+      const opening = DateTime.fromFormat(
+        `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'local' },
+      );
+      const closing = DateTime.fromFormat(
+        `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'local' },
+      );
+
+      if (!opening.isValid || !closing.isValid || opening >= closing) return null;
+
+      // Ensure the entire requested interval fits within opening..closing
+      if (requestedLocal < opening || requestedEndLocal > closing) {
+        return null;
+      }
+
+      // 3d. Overlapping bookings for the barber during requested interval (use UTC)
       const overlappingBooking = await prisma.booking.findFirst({
         where: {
           barberId: barber.userId,
           AND: [
-            {
-              startDateTime: {
-                lte: date,
-              },
-            },
-            {
-              endDateTime: {
-                gte: date,
-              },
-            },
+            { startDateTime: { lt: requestedEndUtcDate } },
+            { endDateTime: { gt: requestedStartUtcDate } },
           ],
         },
       });
-      if (overlappingBooking)
-        return { message: 'No barber is not available for this time' };
+      if (overlappingBooking) return null;
 
-      return barber;
+      // Barber is available
+      return {
+        barberId: barber.userId,
+        name: barber.user.fullName,
+        status: barber.user.status,
+      };
     }),
   );
 
@@ -1555,16 +1555,16 @@ const getAvailableBarbersForQueueFromDb = async (
     type?: BookingType;
   },
 ) => {
-
-  if(data.type === BookingType.BOOKING){
+  if (data.type === BookingType.BOOKING) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Use the booking-specific query to get available barbers for queue bookings',
     );
   }
-  const date = new Date(data.utcDateTime);
+
+  const dateObj = new Date(data.utcDateTime);
   // date must be in the future
-  if (date <= new Date()) {
+  if (dateObj <= new Date()) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Date and time must be in the future',
@@ -1572,29 +1572,35 @@ const getAvailableBarbersForQueueFromDb = async (
   }
   // date must be within next 3 weeks
   const threeWeeksFromNow = DateTime.now().plus({ weeks: 3 });
-  if (DateTime.fromJSDate(date) > threeWeeksFromNow) {
+  if (DateTime.fromJSDate(dateObj) > threeWeeksFromNow) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Date cannot be more than 3 weeks in the future',
     );
   }
 
-  const luxonDate = DateTime.fromJSDate(date);
+  // Convert requested time to local zone so we can compare with barber schedules (which are local)
+  const requestedLocal = DateTime.fromISO(data.utcDateTime, { zone: 'utc' }).setZone('local');
+  const requestedEndLocal = requestedLocal.plus({ minutes: data.totalServiceTime });
+
+  const luxonDate = requestedLocal; // reuse for dayName / schedule lookup
+
   // 1. Check if the salon is on holiday (global filter)
   const salon = await prisma.saloonOwner.findUnique({
     where: { userId: data.saloonOwnerId },
-    select: {
-      userId: true,
-    },
+    select: { userId: true },
   });
   if (!salon || !salon.userId) {
     throw new AppError(httpStatus.NOT_FOUND, 'Salon not found for user');
   }
-  // const salonId = booking.salonId;
   const salonHoliday = await prisma.saloonHoliday.findFirst({
     where: {
       userId: salon.userId,
-      date: date,
+      // compare dates using the same local-day logic: convert requestedLocal to a JS Date representing local day start in UTC
+      date: DateTime.fromObject(
+        { year: requestedLocal.year, month: requestedLocal.month, day: requestedLocal.day },
+        { zone: 'local' },
+      ).toJSDate(),
     },
   });
   if (salonHoliday) {
@@ -1602,23 +1608,6 @@ const getAvailableBarbersForQueueFromDb = async (
   }
 
   // 2. Get all barbers for the salon
-  // const barbers = await prisma.barber.findMany({
-  //   where: {
-  //     saloonOwnerId: data.salonId,
-  //   },
-  //   include: {
-  //     user: {
-  //       select: {
-  //         id: true,
-  //         fullName: true,
-  //         email: true,
-  //         phoneNumber: true,
-  //         status: true,
-  //       },
-  //     },
-  //   },
-  // });
-
   let barbers = await prisma.barber.findMany({
     where: { saloonOwnerId: data.saloonOwnerId },
     include: {
@@ -1626,7 +1615,7 @@ const getAvailableBarbersForQueueFromDb = async (
     },
   });
 
-  // if barber schedule is not added for the saloon owner, that barber should not be shown in the list
+  // Only barbers that have QUEUE schedules for this salon
   const barberIdsWithSchedule = await prisma.barberSchedule.findMany({
     where: { barber: { saloonOwnerId: data.saloonOwnerId }, type: BookingType.QUEUE },
     select: { barberId: true },
@@ -1642,68 +1631,83 @@ const getAvailableBarbersForQueueFromDb = async (
   // 3. Parallelize per-barber checks
   const availableBarbers = await Promise.all(
     barbers.map(async barber => {
-      // 3a. Check day-off
+      // 3a. Check day-off (use local-day)
       const dayOff = await prisma.barberDayOff.findFirst({
         where: {
           saloonOwnerId: data.saloonOwnerId,
           barberId: barber.userId,
-          date: date,
+          date: DateTime.fromObject(
+            { year: requestedLocal.year, month: requestedLocal.month, day: requestedLocal.day },
+            { zone: 'local' },
+          ).toJSDate(),
         },
       });
       if (dayOff) return null;
 
-      // 3b. Check real-time availability (from cache/fast source)
-      // Assume a function checkBarberRealtimeAvailability(barberId, time) returns boolean
-      const isAvailableRealtime = await prisma.barberRealTimeStatus.findMany({
+      // 3b. Check real-time statuses that overlap the requested UTC time
+      // If any record exists that overlaps requested UTC instant, barber is busy/unavailable
+      const overlappingStatuses = await prisma.barberRealTimeStatus.findMany({
         where: {
           barberId: barber.userId,
           AND: [
-            {
-              startDateTime: {
-                lte: date,
-              },
-            },
-            {
-              endDateTime: {
-                gte: date,
-              },
-            },
+            { startDateTime: { lt: requestedLocal.toUTC().toJSDate() } },
+            { endDateTime: { gt: requestedLocal.toUTC().toJSDate() } },
           ],
         },
       });
-      if (!isAvailableRealtime)
-        return { message: 'Barber is not available at this time' };
+      if (overlappingStatuses.length > 0) return null;
 
-      // 3c. Fetch schedule + bookings if still potentially available
+      // 3c. Fetch schedule for the day (local day)
+      const dayName = luxonDate.toFormat('cccc').toLowerCase();
       const schedule = await prisma.barberSchedule.findFirst({
         where: {
           barberId: barber.userId,
-          dayName: luxonDate.toFormat('cccc').toLowerCase(),
+          dayName,
+          type: BookingType.QUEUE,
+          isActive: true,
         },
       });
-      // if (!schedule) return { message: 'Barber schedule not found' };
+      if (!schedule) return null;
 
+      // Parse opening/closing into local DateTimes on the requested day
+      const opening = DateTime.fromFormat(
+        `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'local' },
+      );
+      const closing = DateTime.fromFormat(
+        `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'local' },
+      );
+
+      // If parsing failed or schedule window invalid, skip barber
+      if (!opening.isValid || !closing.isValid || opening >= closing) return null;
+
+      // 3d. Ensure requested start/end fall inside working hours (start >= opening AND end <= closing)
+      if (requestedLocal < opening || requestedEndLocal > closing) {
+        // requested slot doesn't fit into schedule
+        return null;
+      }
+
+      // 3e. Check overlapping bookings for this barber on the requested instant (UTC)
       const overlappingBooking = await prisma.booking.findFirst({
         where: {
           barberId: barber.userId,
           AND: [
-            {
-              startDateTime: {
-                lte: date,
-              },
-            },
-            {
-              endDateTime: {
-                gte: date,
-              },
-            },
+            { startDateTime: { lt: requestedLocal.toUTC().toJSDate() } },
+            { endDateTime: { gt: requestedLocal.toUTC().toJSDate() } },
           ],
         },
       });
-      if (overlappingBooking)
-        return { message: 'No barber is not available for this time' };
+      if (overlappingBooking) return null;
 
-      return barber;
+      // Barber passes all checks — return a simplified barber object
+      return {
+        barberId: barber.userId,
+        name: barber.user.fullName,
+        status: barber.user.status,
+      };
     }),
   );
 
