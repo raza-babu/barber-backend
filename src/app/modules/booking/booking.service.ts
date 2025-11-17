@@ -1573,6 +1573,7 @@ const getAvailableBarbersForQueueFromDb = async (
     );
   }
 
+
   const requestedUtc = DateTime.fromISO(data.utcDateTime, { zone: 'utc' });
   if (!requestedUtc.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid datetime');
@@ -1586,21 +1587,21 @@ const getAvailableBarbersForQueueFromDb = async (
     );
   }
 
-  // must be within next 3 weeks
   // Only allow queue queries for the current local date
-  // const requestedLocalDay = requestedUtc.setZone('local').toISODate();
-  // const todayLocalDay = DateTime.now().setZone('local').toISODate();
-  // if (requestedLocalDay !== todayLocalDay) {
-  //   throw new AppError(
-  //     httpStatus.BAD_REQUEST,
-  //     'Queue availability can only be queried for the current date',
-  //   );
-  // }
+  const requestedLocalDay = requestedUtc.setZone('local').toISODate();
+  const todayLocalDay = DateTime.now().setZone('local').toISODate();
+  if (requestedLocalDay !== todayLocalDay) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Queue availability can only be queried for the current date',
+    );
+  }
 
   // Convert to local zone and compute end times
   const requestedLocal = requestedUtc.setZone('local');
   const requestedEndLocal = requestedLocal.plus({ minutes: data.totalServiceTime });
   const requestedEndUtc = requestedUtc.plus({ minutes: data.totalServiceTime });
+
 
   // 1. Check salon & holiday using local-day
   const salon = await prisma.saloonOwner.findUnique({
@@ -1663,6 +1664,7 @@ const getAvailableBarbersForQueueFromDb = async (
       });
       if (dayOff) return null;
 
+
       // 3b. Fetch schedule for local day
       const dayName = requestedLocal.toFormat('cccc').toLowerCase();
       const schedule = await prisma.barberSchedule.findFirst({
@@ -1670,7 +1672,7 @@ const getAvailableBarbersForQueueFromDb = async (
           barberId: barber.userId,
           dayName,
           type: BookingType.QUEUE,
-          isActive: true,
+          isActive: false,
         },
       });
       if (!schedule) return null;

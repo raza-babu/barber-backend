@@ -431,7 +431,7 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
     });
     return (0, pagination_1.formatPaginationResponse)(bookings, total, page, limit);
 });
-const getRemainingBarbersToScheduleFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, options = {}) {
+const getRemainingBarbersToScheduleFromDb = (userId_2, ...args_2) => __awaiter(void 0, [userId_2, ...args_2], void 0, function* (userId, options = {}) {
     // First, get all hired barbers for this saloon owner
     const hiredBarbers = yield prisma_1.default.hiredBarber.findMany({
         where: {
@@ -485,7 +485,7 @@ const getRemainingBarbersToScheduleFromDb = (userId_1, ...args_1) => __awaiter(v
     }
     return remainingBarbers;
 });
-const getFreeBarbersOnADateFromDb = (userId_1, date_1, ...args_1) => __awaiter(void 0, [userId_1, date_1, ...args_1], void 0, function* (userId, date, options = {}) {
+const getFreeBarbersOnADateFromDb = (userId_3, date_1, ...args_3) => __awaiter(void 0, [userId_3, date_1, ...args_3], void 0, function* (userId, date, options = {}) {
     if (!date) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date is required');
     }
@@ -616,7 +616,7 @@ const getFreeBarbersOnADateFromDb = (userId_1, date_1, ...args_1) => __awaiter(v
     }
     return freeBarberSlots;
 });
-const getTransactionsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, options = {}) {
+const getTransactionsFromDb = (userId_4, ...args_4) => __awaiter(void 0, [userId_4, ...args_4], void 0, function* (userId, options = {}) {
     var _a;
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
     const searchTerm = (_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim();
@@ -794,7 +794,7 @@ const getSaloonListFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
     }
     return result;
 });
-const getAllBarbersFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, 
+const getAllBarbersFromDb = (userId_5, ...args_5) => __awaiter(void 0, [userId_5, ...args_5], void 0, function* (userId, 
 // saloonId: string,
 options = {}) {
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
@@ -945,7 +945,7 @@ const terminateBarberIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0
     }));
 });
 const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+    var _b, _c, _d, _e;
     const result = yield prisma_1.default.saloonOwner.findUnique({
         where: {
             userId: saloonOwnerId,
@@ -1019,9 +1019,9 @@ const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0
     return {
         id: result.id,
         userId: result.userId,
-        shopOwnerName: (_a = result.user) === null || _a === void 0 ? void 0 : _a.fullName,
-        shopOwnerEmail: (_b = result.user) === null || _b === void 0 ? void 0 : _b.email,
-        shopOwnerPhone: (_c = result.user) === null || _c === void 0 ? void 0 : _c.phoneNumber,
+        shopOwnerName: (_b = result.user) === null || _b === void 0 ? void 0 : _b.fullName,
+        shopOwnerEmail: (_c = result.user) === null || _c === void 0 ? void 0 : _c.email,
+        shopOwnerPhone: (_d = result.user) === null || _d === void 0 ? void 0 : _d.phoneNumber,
         shopName: result.shopName,
         shopBio: result.shopBio,
         shopAddress: result.shopAddress,
@@ -1038,7 +1038,7 @@ const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0
         longitude: result.longitude,
         createdAt: result.createdAt,
         updatedAt: result.updatedAt,
-        services: (_d = result.user) === null || _d === void 0 ? void 0 : _d.Service.map(service => ({
+        services: (_e = result.user) === null || _e === void 0 ? void 0 : _e.Service.map(service => ({
             id: service.id,
             serviceName: service.serviceName,
             price: service.price,

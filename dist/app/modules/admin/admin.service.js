@@ -388,7 +388,7 @@ const getBarbersListFromDb = (options) => __awaiter(void 0, void 0, void 0, func
     return (0, pagination_1.formatPaginationResponse)(flattenedBarbers, total, page, limit);
 });
 const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
+    var _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2;
     const result = yield prisma_1.default.user.findUnique({
         where: {
             id: barberId,
@@ -439,10 +439,10 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
     let accountNumber = null;
     if (result.stripeAccountId) {
         account = yield stripe.accounts.retrieve(result.stripeAccountId);
-        const bankAccount = (_b = (_a = account === null || account === void 0 ? void 0 : account.external_accounts) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.find((acc) => acc.object === 'bank_account');
+        const bankAccount = (_g = (_f = account === null || account === void 0 ? void 0 : account.external_accounts) === null || _f === void 0 ? void 0 : _f.data) === null || _g === void 0 ? void 0 : _g.find((acc) => acc.object === 'bank_account');
         bankName = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.bank_name) || null;
         accountHolderName =
-            ((_c = account === null || account === void 0 ? void 0 : account.individual) === null || _c === void 0 ? void 0 : _c.first_name) && ((_d = account === null || account === void 0 ? void 0 : account.individual) === null || _d === void 0 ? void 0 : _d.last_name)
+            ((_h = account === null || account === void 0 ? void 0 : account.individual) === null || _h === void 0 ? void 0 : _h.first_name) && ((_j = account === null || account === void 0 ? void 0 : account.individual) === null || _j === void 0 ? void 0 : _j.last_name)
                 ? `${account.individual.first_name} ${account.individual.last_name}`
                 : null;
         branchCity = (bankAccount === null || bankAccount === void 0 ? void 0 : bankAccount.bank_name) || null;
@@ -455,18 +455,18 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
         email: result.email,
         phoneNumber: result.phoneNumber,
         status: result.status,
-        portfolio: ((_e = result.Barber) === null || _e === void 0 ? void 0 : _e.portfolio) || [],
-        experienceYears: ((_f = result.Barber) === null || _f === void 0 ? void 0 : _f.experienceYears) || 0,
-        skills: ((_g = result.Barber) === null || _g === void 0 ? void 0 : _g.skills) || [],
-        bio: ((_h = result.Barber) === null || _h === void 0 ? void 0 : _h.bio) || '',
-        shopId: ((_k = (_j = result.Barber) === null || _j === void 0 ? void 0 : _j.saloonOwner) === null || _k === void 0 ? void 0 : _k.id) || null,
-        shopName: ((_m = (_l = result.Barber) === null || _l === void 0 ? void 0 : _l.saloonOwner) === null || _m === void 0 ? void 0 : _m.shopName) || null,
-        shopAddress: ((_p = (_o = result.Barber) === null || _o === void 0 ? void 0 : _o.saloonOwner) === null || _p === void 0 ? void 0 : _p.shopAddress) || null,
-        shopLogo: ((_r = (_q = result.Barber) === null || _q === void 0 ? void 0 : _q.saloonOwner) === null || _r === void 0 ? void 0 : _r.shopLogo) || null,
-        shopImages: ((_t = (_s = result.Barber) === null || _s === void 0 ? void 0 : _s.saloonOwner) === null || _t === void 0 ? void 0 : _t.shopImages) || [],
-        shopVideo: ((_v = (_u = result.Barber) === null || _u === void 0 ? void 0 : _u.saloonOwner) === null || _v === void 0 ? void 0 : _v.shopVideo) || null,
-        ratingCount: ((_w = result.Barber) === null || _w === void 0 ? void 0 : _w.ratingCount) || 0,
-        avgRating: ((_x = result.Barber) === null || _x === void 0 ? void 0 : _x.avgRating) || 0,
+        portfolio: ((_k = result.Barber) === null || _k === void 0 ? void 0 : _k.portfolio) || [],
+        experienceYears: ((_l = result.Barber) === null || _l === void 0 ? void 0 : _l.experienceYears) || 0,
+        skills: ((_m = result.Barber) === null || _m === void 0 ? void 0 : _m.skills) || [],
+        bio: ((_o = result.Barber) === null || _o === void 0 ? void 0 : _o.bio) || '',
+        shopId: ((_q = (_p = result.Barber) === null || _p === void 0 ? void 0 : _p.saloonOwner) === null || _q === void 0 ? void 0 : _q.id) || null,
+        shopName: ((_s = (_r = result.Barber) === null || _r === void 0 ? void 0 : _r.saloonOwner) === null || _s === void 0 ? void 0 : _s.shopName) || null,
+        shopAddress: ((_u = (_t = result.Barber) === null || _t === void 0 ? void 0 : _t.saloonOwner) === null || _u === void 0 ? void 0 : _u.shopAddress) || null,
+        shopLogo: ((_w = (_v = result.Barber) === null || _v === void 0 ? void 0 : _v.saloonOwner) === null || _w === void 0 ? void 0 : _w.shopLogo) || null,
+        shopImages: ((_y = (_x = result.Barber) === null || _x === void 0 ? void 0 : _x.saloonOwner) === null || _y === void 0 ? void 0 : _y.shopImages) || [],
+        shopVideo: ((_0 = (_z = result.Barber) === null || _z === void 0 ? void 0 : _z.saloonOwner) === null || _0 === void 0 ? void 0 : _0.shopVideo) || null,
+        ratingCount: ((_1 = result.Barber) === null || _1 === void 0 ? void 0 : _1.ratingCount) || 0,
+        avgRating: ((_2 = result.Barber) === null || _2 === void 0 ? void 0 : _2.avgRating) || 0,
         bankDetails: {
             bankName,
             accountHolderName,

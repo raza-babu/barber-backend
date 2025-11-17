@@ -919,7 +919,7 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDa
     }
     barbers = filteredBarbers;
     const results = yield Promise.all(barbers.map((barber) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
+        var _h;
         // Skip if day off
         const dayOff = yield prisma_1.default.barberDayOff.findFirst({
             where: { barberId: barber.userId, date: date.toJSDate() },
@@ -999,7 +999,7 @@ const getAvailableBarbersForWalkingInFromDb = (userId, saloonOwnerId, specificDa
                 const queueOrder = mySlotIndex >= 0 ? mySlotIndex + 1 : null;
                 queueInfo = {
                     queueId: queue.id,
-                    currentPosition: (_a = queue.currentPosition) !== null && _a !== void 0 ? _a : null,
+                    currentPosition: (_h = queue.currentPosition) !== null && _h !== void 0 ? _h : null,
                     totalInQueue: slots.length,
                     estimatedWaitTime,
                     queueOrder,
@@ -1283,16 +1283,12 @@ const getAvailableBarbersForQueueFromDb = (userId, data) => __awaiter(void 0, vo
     if (requestedUtc.toJSDate() <= new Date()) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date and time must be in the future');
     }
-    // must be within next 3 weeks
     // Only allow queue queries for the current local date
-    // const requestedLocalDay = requestedUtc.setZone('local').toISODate();
-    // const todayLocalDay = DateTime.now().setZone('local').toISODate();
-    // if (requestedLocalDay !== todayLocalDay) {
-    //   throw new AppError(
-    //     httpStatus.BAD_REQUEST,
-    //     'Queue availability can only be queried for the current date',
-    //   );
-    // }
+    const requestedLocalDay = requestedUtc.setZone('local').toISODate();
+    const todayLocalDay = luxon_1.DateTime.now().setZone('local').toISODate();
+    if (requestedLocalDay !== todayLocalDay) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Queue availability can only be queried for the current date');
+    }
     // Convert to local zone and compute end times
     const requestedLocal = requestedUtc.setZone('local');
     const requestedEndLocal = requestedLocal.plus({ minutes: data.totalServiceTime });
@@ -1354,7 +1350,7 @@ const getAvailableBarbersForQueueFromDb = (userId, data) => __awaiter(void 0, vo
                 barberId: barber.userId,
                 dayName,
                 type: client_1.BookingType.QUEUE,
-                isActive: true,
+                isActive: false,
             },
         });
         if (!schedule)
@@ -1400,9 +1396,9 @@ const getAvailableBarbersForQueueFromDb = (userId, data) => __awaiter(void 0, vo
 });
 // getBookingListForSalonOwnerFromDb (fixed)
 const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, options = {}) {
-    var _a;
+    var _j;
     const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
-    const searchTerm = (_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim();
+    const searchTerm = (_j = options.searchTerm) === null || _j === void 0 ? void 0 : _j.trim();
     const searchClause = searchTerm
         ? {
             OR: [
@@ -1593,7 +1589,7 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
     };
 });
 const getBookingByIdFromDbForSalon = (userId, bookingId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f;
+    var _k, _l, _m, _o, _p, _q;
     const result = yield prisma_1.default.booking.findUnique({
         where: {
             id: bookingId,
@@ -1680,13 +1676,13 @@ const getBookingByIdFromDbForSalon = (userId, bookingId) => __awaiter(void 0, vo
         saloonOwnerId: result.saloonOwnerId,
         totalPrice: result.totalPrice,
         notes: result.notes,
-        customerName: ((_a = result.user) === null || _a === void 0 ? void 0 : _a.fullName) || null,
-        customerEmail: ((_b = result.user) === null || _b === void 0 ? void 0 : _b.email) || null,
-        customerContact: ((_c = result.user) === null || _c === void 0 ? void 0 : _c.phoneNumber) || null,
+        customerName: ((_k = result.user) === null || _k === void 0 ? void 0 : _k.fullName) || null,
+        customerEmail: ((_l = result.user) === null || _l === void 0 ? void 0 : _l.email) || null,
+        customerContact: ((_m = result.user) === null || _m === void 0 ? void 0 : _m.phoneNumber) || null,
         date: result.date,
         time: result.startTime,
-        serviceNames: ((_d = result.BookedServices) === null || _d === void 0 ? void 0 : _d.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
-        barberName: ((_f = (_e = result.barber) === null || _e === void 0 ? void 0 : _e.user) === null || _f === void 0 ? void 0 : _f.fullName) || null,
+        serviceNames: ((_o = result.BookedServices) === null || _o === void 0 ? void 0 : _o.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
+        barberName: ((_q = (_p = result.barber) === null || _p === void 0 ? void 0 : _p.user) === null || _q === void 0 ? void 0 : _q.fullName) || null,
         status: result.status || null,
     };
 });
@@ -1741,7 +1737,7 @@ const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
     }
     // Transaction to update booking, queueSlot, and barberRealTimeStatus
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
+        var _r;
         // 1. Update booking
         const updatedBooking = yield tx.booking.update({
             where: {
@@ -1772,7 +1768,7 @@ const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
             // Fetch all slots again, ordered by startedAt
             const queueSlots = yield tx.queueSlot.findMany({
                 where: {
-                    queueId: (_a = existingBooking.queueSlot[0]) === null || _a === void 0 ? void 0 : _a.queueId,
+                    queueId: (_r = existingBooking.queueSlot[0]) === null || _r === void 0 ? void 0 : _r.queueId,
                 },
                 orderBy: { startedAt: 'asc' },
             });

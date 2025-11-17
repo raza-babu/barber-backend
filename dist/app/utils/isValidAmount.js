@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isValidAmount = isValidAmount;
+exports.isValidAmount = void 0;
 function isValidAmount(amount) {
     // Check if the value is a number and is finite
     if (typeof amount === 'number' && Number.isFinite(amount)) {
@@ -9,3 +9,4 @@ function isValidAmount(amount) {
     }
     return false;
 }
+exports.isValidAmount = isValidAmount;

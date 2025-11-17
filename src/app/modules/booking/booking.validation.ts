@@ -76,7 +76,7 @@ const availableBarbersSchema = z.object({
       totalServiceTime: z.coerce.number().int().positive(),
       type: z
         .enum(['BOOKING', 'QUEUE'], {
-          required_error: 'Schedule type is required',
+          required_error: 'Booking type is required',
         })
         .optional(),
     })

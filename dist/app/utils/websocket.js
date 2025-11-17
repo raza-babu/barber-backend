@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setupWebSocket = setupWebSocket;
+exports.setupWebSocket = void 0;
 const ws_1 = require("ws");
 const verifyToken_1 = require("./verifyToken");
 const config_1 = __importDefault(require("../../config"));
@@ -271,6 +271,7 @@ function setupWebSocket(server) {
     });
     return wss;
 }
+exports.setupWebSocket = setupWebSocket;
 function broadcastToAll(wss, message) {
     wss.clients.forEach(client => {
         if (client.readyState === ws_1.WebSocket.OPEN) {
