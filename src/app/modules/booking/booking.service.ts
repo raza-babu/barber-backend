@@ -1405,7 +1405,9 @@ const getAvailableBarbersFromDb = async (
   }
 
   // must be in the future
-  if (requestedUtc.toJSDate() <= new Date()) {
+  // Use Luxon UTC comparison to avoid server timezone differences (e.g. Vercel)
+  const nowUtc = DateTime.now().toUTC();
+  if (requestedUtc.toMillis() <= nowUtc.toMillis()) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Date and time must be in the future',
