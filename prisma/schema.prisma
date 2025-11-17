@@ -702,8 +702,8 @@ model NonRegisteredUser {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   saloonOwnerId String   @db.ObjectId
   fullName      String
-  email         String?  @unique
-  phone         String?  @unique
+  email         String? 
+  phone         String? 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

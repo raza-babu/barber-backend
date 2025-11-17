@@ -1419,7 +1419,6 @@ const getAvailableBarbersForWalkingInFromDb = async (
   specificDate?: string,
 ) => {
   // Always use today's date or provided specificDate (local)
-  console.log('Specific date:', specificDate);
   let date;
   if (specificDate) {
     date = DateTime.fromISO(specificDate!, { zone: 'local' }).startOf('day');

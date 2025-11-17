@@ -1,11 +1,11 @@
 import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
-import { bookingService } from './booking.service';
-import { bookingValidation } from './booking.validation';
 import { pickValidFields } from '../../utils/pickValidFields';
 import { BookingType, ScheduleType, User, UserRoleEnum } from '@prisma/client';
 import AppError from '../../errors/AppError';
+import { bookingValidation } from '../booking/booking.validation';
+import { bookingService } from '../booking/booking.service';
 
 const createBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
