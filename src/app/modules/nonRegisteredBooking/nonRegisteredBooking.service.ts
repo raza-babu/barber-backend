@@ -130,7 +130,7 @@ const createNonRegisteredBookingIntoDb = async (
     }
     // check the barber is for queue or appointment type
     const barberForQueue = await tx.barberSchedule.findFirst({
-      where: { barberId, saloonOwnerId: userId, isActive: true, type: ScheduleType.QUEUE },
+      where: { barberId, saloonOwnerId: userId, isActive: true, type: ScheduleType.BOOKING },
     });
     if (!barberForQueue) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Barber not available for queue bookings');
@@ -189,81 +189,83 @@ const createNonRegisteredBookingIntoDb = async (
     }
 
     // 5) Queue handling (if enabled)
-    let queue = null;
-    let queueSlot = null;
-    if (saloonStatus.isQueueEnabled) {
-      // clean up old queues (optional)
-      await tx.queue.deleteMany({
-        where: {
-          barberId,
-          saloonOwnerId: userId,
-          isActive: false,
-          date: { lt: new Date() },
-        },
-      });
+    // let queue = null;
+    // let queueSlot = null;
+    // if (saloonStatus.isQueueEnabled) {
+    //   // clean up old queues (optional)
+    //   await tx.queue.deleteMany({
+    //     where: {
+    //       barberId,
+    //       saloonOwnerId: userId,
+    //       isActive: false,
+    //       date: { lt: new Date() },
+    //     },
+    //   });
 
-      // find or create queue for this barber/date
-      queue = await tx.queue.findFirst({
-        where: {
-          barberId,
-          saloonOwnerId: userId,
-          date: dateObj.toJSDate(),
-        },
-      });
+    //   // find or create queue for this barber/date
+    //   queue = await tx.queue.findFirst({
+    //     where: {
+    //       barberId,
+    //       saloonOwnerId: userId,
+    //       date: dateObj.toJSDate(),
+    //     },
+    //   });
 
-      if (!queue) {
-        queue = await tx.queue.create({
-          data: {
-            barberId,
-            saloonOwnerId: userId,
-            date: dateObj.toJSDate(),
-            currentPosition: 1,
-          },
-        });
-      } else {
-        queue = await tx.queue.update({
-          where: { id: queue.id },
-          data: { currentPosition: queue.currentPosition + 1 },
-        });
-      }
+    //   if (!queue) {
+    //     queue = await tx.queue.create({
+    //       data: {
+    //         barberId,
+    //         saloonOwnerId: userId,
+    //         date: dateObj.toJSDate(),
+    //         currentPosition: 1,
+    //       },
+    //     });
+    //   } else {
+    //     queue = await tx.queue.update({
+    //       where: { id: queue.id },
+    //       data: { currentPosition: queue.currentPosition + 1 },
+    //     });
+    //   }
 
-      // existing slots ordered by startedAt
-      const existingSlots = await tx.queueSlot.findMany({
-        where: { queueId: queue.id },
-        orderBy: { startedAt: 'asc' },
-      });
+    //   // existing slots ordered by startedAt
+    //   const existingSlots = await tx.queueSlot.findMany({
+    //     where: { queueId: queue.id },
+    //     orderBy: { startedAt: 'asc' },
+    //   });
 
-      // compute insert position by comparing utcDateTime to existing startedAt times
-      let insertPosition = 1;
-      for (let i = 0; i < existingSlots.length; i++) {
-        const slot = existingSlots[i];
-        if (slot && slot.startedAt && utcDateTime > slot.startedAt) {
-          insertPosition = i + 2; // insert after this
-        } else {
-          break;
-        }
-      }
+    //   // compute insert position by comparing utcDateTime to existing startedAt times
+    //   let insertPosition = 1;
+    //   for (let i = 0; i < existingSlots.length; i++) {
+    //     const slot = existingSlots[i];
+    //     if (slot && slot.startedAt && utcDateTime > slot.startedAt) {
+    //       insertPosition = i + 2; // insert after this
+    //     } else {
+    //       break;
+    //     }
+    //   }
 
-      // shift later slots positions (iterate backwards)
-      for (let i = existingSlots.length - 1; i >= insertPosition - 1; i--) {
-        await tx.queueSlot.update({
-          where: { id: existingSlots[i].id },
-          data: { position: existingSlots[i].position + 1 },
-        });
-      }
+    //   // shift later slots positions (iterate backwards)
+    //   for (let i = existingSlots.length - 1; i >= insertPosition - 1; i--) {
+    //     await tx.queueSlot.update({
+    //       where: { id: existingSlots[i].id },
+    //       data: { position: existingSlots[i].position + 1 },
+    //     });
+    //   }
 
-      // create queue slot for non-registered customer (use nonRegisteredCustomer.id as customerId)
-      queueSlot = await tx.queueSlot.create({
-        data: {
-          queueId: queue.id,
-          customerId: nonRegisteredCustomer.id,
-          barberId,
-          position: insertPosition,
-          startedAt: utcDateTime,
-        },
-      });
-    }
+    //   // create queue slot for non-registered customer (use nonRegisteredCustomer.id as customerId)
+    //   queueSlot = await tx.queueSlot.create({
+    //     data: {
+    //       queueId: queue.id,
+    //       customerId: nonRegisteredCustomer.id,
+    //       barberId,
+    //       position: insertPosition,
+    //       startedAt: utcDateTime,
+    //     },
+    //   });
+    // }
 
+    
+    
     // 6) Create booking (userId points to nonRegisteredCustomer id here)
     const booking = await tx.booking.create({
       data: {
@@ -305,17 +307,17 @@ const createNonRegisteredBookingIntoDb = async (
     );
 
     // 8) Update queueSlot with booking reference and completedAt (if we created one)
-    if (queueSlot) {
-      await tx.queueSlot.update({
-        where: { id: queueSlot.id },
-        data: {
-          bookingId: booking.id,
-          completedAt: DateTime.fromJSDate(utcDateTime)
-            .plus({ minutes: totalDuration })
-            .toJSDate(),
-        },
-      });
-    }
+    // if (queueSlot) {
+    //   await tx.queueSlot.update({
+    //     where: { id: queueSlot.id },
+    //     data: {
+    //       bookingId: booking.id,
+    //       completedAt: DateTime.fromJSDate(utcDateTime)
+    //         .plus({ minutes: totalDuration })
+    //         .toJSDate(),
+    //     },
+    //   });
+    // }
 
     // 9) Barber schedule and real-time status checks (ensure barber works this day/time)
     const dayName = DateTime.fromJSDate(utcDateTime)
@@ -376,7 +378,7 @@ const createNonRegisteredBookingIntoDb = async (
       );
     }
 
-    // 11) Create barberRealTimeStatus to block the timeslot
+    // 11) Create barberRealTimeStatus to block the time slot
     await tx.barberRealTimeStatus.create({
       data: {
         barberId,
@@ -401,12 +403,12 @@ const createNonRegisteredBookingIntoDb = async (
     // Return compact response to the client
     return {
       booking,
-      queue: queue
-        ? { id: queue.id, currentPosition: queue.currentPosition }
-        : null,
-      queueSlot: queueSlot
-        ? { id: queueSlot.id, position: queueSlot.position }
-        : null,
+      // queue: queue
+      //   ? { id: queue.id, currentPosition: queue.currentPosition }
+      //   : null,
+      // queueSlot: queueSlot
+      //   ? { id: queueSlot.id, position: queueSlot.position }
+      //   : null,
       totalPrice,
     };
   });
