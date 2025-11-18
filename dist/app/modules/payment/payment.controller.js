@@ -160,7 +160,7 @@ const getAllCustomers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
     });
 }));
 const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g;
     const sig = req.headers['stripe-signature'];
     console.log(sig);
     if (!sig) {
@@ -190,7 +190,7 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                 console.log('Onboarding completed successfully for account:', account.id);
                 const user = yield prisma_1.default.user.update({
                     where: {
-                        id: (_b = account.metadata) === null || _b === void 0 ? void 0 : _b.userId,
+                        id: (_a = account.metadata) === null || _a === void 0 ? void 0 : _a.userId,
                         email: account.email,
                     },
                     data: {
@@ -208,7 +208,7 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                 if (user) {
                     yield prisma_1.default.user.update({
                         where: {
-                            id: (_c = account.metadata) === null || _c === void 0 ? void 0 : _c.userId,
+                            id: (_b = account.metadata) === null || _b === void 0 ? void 0 : _b.userId,
                         },
                         data: {
                             stripeAccountUrl: null,
@@ -233,10 +233,10 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                 const subscriptionOffer = yield prisma_1.default.subscriptionOffer.findFirst({
                     where: { stripePriceId: subscription.items.data[0].price.id },
                 });
-                planType = (_d = subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.planType) !== null && _d !== void 0 ? _d : client_1.SubscriptionPlanStatus.FREE;
+                planType = (_c = subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.planType) !== null && _c !== void 0 ? _c : client_1.SubscriptionPlanStatus.FREE;
             }
             // Get current_period_end from subscription items
-            const currentPeriodEnd = (_e = subscription.items.data[0]) === null || _e === void 0 ? void 0 : _e.current_period_end;
+            const currentPeriodEnd = (_d = subscription.items.data[0]) === null || _d === void 0 ? void 0 : _d.current_period_end;
             const subscriptionEndDate = currentPeriodEnd
                 ? new Date(currentPeriodEnd * 1000)
                 : new Date();
@@ -321,7 +321,7 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                 planType = (subscriptionOffer === null || subscriptionOffer === void 0 ? void 0 : subscriptionOffer.planType) || client_1.SubscriptionPlanStatus.FREE;
             }
             // Get current_period_end from subscription items
-            const currentPeriodEnd = (_f = subscription.items.data[0]) === null || _f === void 0 ? void 0 : _f.current_period_end;
+            const currentPeriodEnd = (_e = subscription.items.data[0]) === null || _e === void 0 ? void 0 : _e.current_period_end;
             const subscriptionEndDate = currentPeriodEnd
                 ? new Date(currentPeriodEnd * 1000)
                 : new Date();
@@ -456,7 +456,7 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                     // 1. Retrieve subscription to get new end date
                     const subscription = yield stripe.subscriptions.retrieve(subscriptionId);
                     // Get current_period_end from the first subscription item
-                    const currentPeriodEnd = (_g = subscription.items.data[0]) === null || _g === void 0 ? void 0 : _g.current_period_end;
+                    const currentPeriodEnd = (_f = subscription.items.data[0]) === null || _f === void 0 ? void 0 : _f.current_period_end;
                     if (!currentPeriodEnd) {
                         console.error('No current_period_end found in subscription items');
                         break;
@@ -550,7 +550,7 @@ const handleWebHook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                     console.log('Subscription update payment detected');
                     // Handle plan changes - update subscription details
                     const subscription = yield stripe.subscriptions.retrieve(subscriptionId);
-                    const currentPeriodEnd = (_h = subscription.items.data[0]) === null || _h === void 0 ? void 0 : _h.current_period_end;
+                    const currentPeriodEnd = (_g = subscription.items.data[0]) === null || _g === void 0 ? void 0 : _g.current_period_end;
                     if (currentPeriodEnd) {
                         const newEndDate = new Date(currentPeriodEnd * 1000);
                         yield prisma_1.default.userSubscription.updateMany({

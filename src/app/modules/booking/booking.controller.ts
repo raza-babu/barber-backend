@@ -13,7 +13,7 @@ const createBooking = catchAsync(async (req, res) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Booking type is required');
   }
   if (req.body.bookingType === BookingType.QUEUE) {
-    if(user.role === UserRoleEnum.SALOON_OWNER){
+    if (user.role === UserRoleEnum.SALOON_OWNER) {
       const result = await bookingService.createQueueBookingForSalonOwnerIntoDb(
         user.id,
         req.body,
@@ -146,18 +146,22 @@ const getAvailableABarberForWalkingIn = catchAsync(async (req, res) => {
   const saloonId = req.params.saloonId;
   const barberId = req.params.barberId;
   const date = req.query.date as string;
-  const result = await bookingService.getAvailableABarberForWalkingInFromDb(
-    user.id,
-    saloonId,
-    barberId,
-    date,
-  );
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: 'Available barber for walking-in retrieved successfully',
-    data: result,
-  });
+  const role = user.role as UserRoleEnum;
+    const result = await bookingService.getAvailableABarberForWalkingInFromDb(
+      user.id,
+      saloonId,
+      barberId,
+      date,
+      role
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Available barber for walking-in retrieved successfully',
+      data: result,
+    });
+  
+  
 });
 
 const getBookingByIdForSalonOwner = catchAsync(async (req, res) => {

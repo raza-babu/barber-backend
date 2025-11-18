@@ -56,9 +56,9 @@ const singleBarberScheduleBaseSchema = z.object({
     .string()
     .regex(timeRange12hRegex, 'Time must be in format "hh:mm AM - hh:mm PM"'),
   isActive: z.boolean(),
-  type: z.enum(['BOOKING', 'QUEUE'], {
-    required_error: 'Schedule type is required!',
-  }),
+  // type: z.enum(['BOOKING', 'QUEUE'], {
+  //   required_error: 'Schedule type is required!',
+  // }),
 });
 
 const singleBarberScheduleSchema = singleBarberScheduleBaseSchema.transform(
@@ -75,7 +75,6 @@ const singleBarberScheduleSchema = singleBarberScheduleBaseSchema.transform(
       openingTime,
       closingTime,
       isActive: data.isActive,
-      type: data.type
     };
   },
 );

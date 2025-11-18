@@ -682,7 +682,7 @@ const tipPaymentToBarberService = (userId, payload) => __awaiter(void 0, void 0,
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid amount. Amount must be positive with up to 2 decimals.');
     }
     return yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        var _j, _k, _l;
+        var _a, _b, _c;
         const booking = yield tx.booking.findUnique({
             where: { id: bookingId, status: client_1.BookingStatus.COMPLETED, userId },
             include: {
@@ -693,11 +693,11 @@ const tipPaymentToBarberService = (userId, payload) => __awaiter(void 0, void 0,
         });
         if (!booking)
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking not found');
-        if (!((_j = booking.user) === null || _j === void 0 ? void 0 : _j.stripeCustomerId))
+        if (!((_a = booking.user) === null || _a === void 0 ? void 0 : _a.stripeCustomerId))
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Customer has no Stripe ID');
-        if (!((_k = booking.saloonOwner.user) === null || _k === void 0 ? void 0 : _k.stripeAccountId))
+        if (!((_b = booking.saloonOwner.user) === null || _b === void 0 ? void 0 : _b.stripeAccountId))
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon owner missing Stripe account ID');
-        if (!((_l = booking.barber.user) === null || _l === void 0 ? void 0 : _l.stripeAccountId))
+        if (!((_c = booking.barber.user) === null || _c === void 0 ? void 0 : _c.stripeAccountId))
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Barber missing Stripe account ID');
         const totalAmount = barberAmount + saloonOwnerAmount;
         const serviceCharge = totalAmount * 0.001; // 0.1% service fee

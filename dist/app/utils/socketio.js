@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setupSocketIO = void 0;
+exports.setupSocketIO = setupSocketIO;
 const socket_io_1 = require("socket.io");
 const prisma_1 = __importDefault(require("./prisma"));
 const socketAuth_1 = require("../middlewares/socketAuth");
@@ -360,7 +360,7 @@ function setupSocketIO(server) {
                         },
                     });
                     const roomsWithUnreadMessages = yield Promise.all(rooms.map((room) => __awaiter(this, void 0, void 0, function* () {
-                        var _f, _g, _h, _j, _k;
+                        var _a, _b, _c, _d, _e;
                         const unReadMessagesCount = yield prisma_1.default.chat.count({
                             where: {
                                 roomId: room.id,
@@ -371,11 +371,11 @@ function setupSocketIO(server) {
                         return {
                             chat: room.chat[0],
                             unReadMessagesCount,
-                            senderName: ((_f = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _f === void 0 ? void 0 : _f.fullName) || null,
-                            senderImage: ((_g = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _g === void 0 ? void 0 : _g.image) || null,
-                            receiverName: ((_h = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _h === void 0 ? void 0 : _h.fullName) || null,
-                            receiverImage: ((_j = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _j === void 0 ? void 0 : _j.image) || null,
-                            lastMessageAt: ((_k = room.chat[0]) === null || _k === void 0 ? void 0 : _k.createdAt) || null,
+                            senderName: ((_a = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _a === void 0 ? void 0 : _a.fullName) || null,
+                            senderImage: ((_b = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _b === void 0 ? void 0 : _b.image) || null,
+                            receiverName: ((_c = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _c === void 0 ? void 0 : _c.fullName) || null,
+                            receiverImage: ((_d = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _d === void 0 ? void 0 : _d.image) || null,
+                            lastMessageAt: ((_e = room.chat[0]) === null || _e === void 0 ? void 0 : _e.createdAt) || null,
                             roomId: room.id,
                         };
                     })));
@@ -500,7 +500,7 @@ function setupSocketIO(server) {
                     // PRO_PREMIUM: no restriction
                 }
                 const roomsWithUnreadMessages = yield Promise.all(filteredRooms.map((room) => __awaiter(this, void 0, void 0, function* () {
-                    var _l, _m, _o, _p;
+                    var _a, _b, _c, _d;
                     const unReadMessagesCount = yield prisma_1.default.chat.count({
                         where: {
                             roomId: room.id,
@@ -513,10 +513,10 @@ function setupSocketIO(server) {
                     return {
                         chat: room.chat[0], // Always include latest chat
                         unReadMessagesCount,
-                        senderName: ((_l = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _l === void 0 ? void 0 : _l.fullName) || null,
-                        senderImage: ((_m = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _m === void 0 ? void 0 : _m.image) || null,
-                        receiverName: ((_o = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _o === void 0 ? void 0 : _o.fullName) || null,
-                        receiverImage: ((_p = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _p === void 0 ? void 0 : _p.image) || null,
+                        senderName: ((_a = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _a === void 0 ? void 0 : _a.fullName) || null,
+                        senderImage: ((_b = userInfos.find(userInfo => userInfo.id === room.receiverId)) === null || _b === void 0 ? void 0 : _b.image) || null,
+                        receiverName: ((_c = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _c === void 0 ? void 0 : _c.fullName) || null,
+                        receiverImage: ((_d = userInfos.find(userInfo => userInfo.id === room.senderId)) === null || _d === void 0 ? void 0 : _d.image) || null,
                         saloonOwnerSubscriptionPlan: user.role === client_1.UserRoleEnum.SALOON_OWNER
                             ? user.subscriptionPlan
                             : null,
@@ -536,4 +536,3 @@ function setupSocketIO(server) {
     }));
     return io;
 }
-exports.setupSocketIO = setupSocketIO;

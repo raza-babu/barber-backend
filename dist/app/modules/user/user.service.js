@@ -15,13 +15,23 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -684,7 +694,7 @@ const verifyOtpForgotPasswordInDB = (bodyData) => __awaiter(void 0, void 0, void
     return { message: 'OTP verified successfully!' };
 });
 const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
-    var _b, _c, _d, _e, _f, _g, _h, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     // Prevent creating an ADMIN via social sign-up
     if (payload.role === client_1.UserRoleEnum.ADMIN ||
         payload.role === client_1.UserRoleEnum.SUPER_ADMIN) {
@@ -750,12 +760,12 @@ const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
             data: {
                 fullName: payload.fullName,
                 email: payload.email,
-                image: (_b = payload.image) !== null && _b !== void 0 ? _b : null,
+                image: (_a = payload.image) !== null && _a !== void 0 ? _a : null,
                 role: userRole,
                 status: client_1.UserStatus.ACTIVE,
-                fcmToken: (_c = payload.fcmToken) !== null && _c !== void 0 ? _c : null,
-                phoneNumber: (_d = payload.phoneNumber) !== null && _d !== void 0 ? _d : null,
-                address: (_e = payload.address) !== null && _e !== void 0 ? _e : null,
+                fcmToken: (_b = payload.fcmToken) !== null && _b !== void 0 ? _b : null,
+                phoneNumber: (_c = payload.phoneNumber) !== null && _c !== void 0 ? _c : null,
+                address: (_d = payload.address) !== null && _d !== void 0 ? _d : null,
                 isProfileComplete: payload.role === client_1.UserRoleEnum.CUSTOMER ? true : false, // Auto-complete profile for CUSTOMER
             },
             select: {
@@ -771,7 +781,7 @@ const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
             },
         });
         // Use created data with defaults (avoid re-fetch)
-        userRecord = Object.assign(Object.assign({}, created), { status: client_1.UserStatus.ACTIVE, isProfileComplete: true, onBoarding: (_f = created.onBoarding) !== null && _f !== void 0 ? _f : false, isSubscribed: (_g = created.isSubscribed) !== null && _g !== void 0 ? _g : false, subscriptionEnd: (_h = created.subscriptionEnd) !== null && _h !== void 0 ? _h : null, subscriptionPlan: (_j = created.subscriptionPlan) !== null && _j !== void 0 ? _j : null });
+        userRecord = Object.assign(Object.assign({}, created), { status: client_1.UserStatus.ACTIVE, isProfileComplete: true, onBoarding: (_e = created.onBoarding) !== null && _e !== void 0 ? _e : false, isSubscribed: (_f = created.isSubscribed) !== null && _f !== void 0 ? _f : false, subscriptionEnd: (_g = created.subscriptionEnd) !== null && _g !== void 0 ? _g : null, subscriptionPlan: (_h = created.subscriptionPlan) !== null && _h !== void 0 ? _h : null });
         isNewUser = true;
     }
     // Update FCM token if provided (for both new and existing users)
@@ -784,14 +794,14 @@ const socialLoginIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
     }
     // Helper to build tokens
     const buildTokensForUser = (user) => __awaiter(void 0, void 0, void 0, function* () {
-        var _k;
+        var _a;
         const accessToken = yield (0, generateToken_1.generateToken)({
             id: user.id,
             email: user.email,
             role: user.role,
             purpose: 'access',
             functions: [],
-            subscriptionPlan: (_k = user.subscriptionPlan) !== null && _k !== void 0 ? _k : client_2.SubscriptionPlanStatus.FREE,
+            subscriptionPlan: (_a = user.subscriptionPlan) !== null && _a !== void 0 ? _a : client_2.SubscriptionPlanStatus.FREE,
         }, config_1.default.jwt.access_secret, config_1.default.jwt.access_expires_in);
         const refreshTokenValue = yield (0, generateToken_1.refreshToken)({ id: user.id, email: user.email, role: user.role }, config_1.default.jwt.refresh_secret, config_1.default.jwt.refresh_expires_in);
         return { accessToken, refreshToken: refreshTokenValue };

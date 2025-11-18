@@ -530,7 +530,7 @@ const getMyJobApplicationsListFromDb = (userId, options) => __awaiter(void 0, vo
     return (0, pagination_1.formatPaginationResponse)(transformedData, total, page, limit);
 });
 const getJobApplicationsByIdForBarberFromDb = (userId, jobApplicationsId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _b;
+    var _a;
     const result = yield prisma_1.default.jobApplication.findFirst({
         where: {
             id: jobApplicationsId,
@@ -573,7 +573,7 @@ const getJobApplicationsByIdForBarberFromDb = (userId, jobApplicationsId) => __a
         status: result.status,
         createdAt: result.createdAt,
         updatedAt: result.updatedAt,
-        barber: (_b = result.barber) === null || _b === void 0 ? void 0 : _b.user,
+        barber: (_a = result.barber) === null || _a === void 0 ? void 0 : _a.user,
         jobPost: result.jobPost,
     };
 });

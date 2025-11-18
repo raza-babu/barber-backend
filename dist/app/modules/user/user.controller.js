@@ -67,7 +67,7 @@ const registerSaloonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(vo
     });
 }));
 const updateSaloonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _d, _e, _f;
+    var _a, _b, _c;
     const user = req.user;
     const { files, body } = req;
     const uploads = {
@@ -76,16 +76,16 @@ const updateSaloonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(void
     };
     const fileGroups = files;
     // Upload shop logo (optional)
-    if ((_d = fileGroups.shop_logo) === null || _d === void 0 ? void 0 : _d[0]) {
+    if ((_a = fileGroups.shop_logo) === null || _a === void 0 ? void 0 : _a[0]) {
         uploads.shopLogo = yield (0, multipleFile_1.uploadFileToSpace)(fileGroups.shop_logo[0], 'saloon-logos');
     }
     // Upload shop images (optional)
-    if ((_e = fileGroups.shop_images) === null || _e === void 0 ? void 0 : _e.length) {
+    if ((_b = fileGroups.shop_images) === null || _b === void 0 ? void 0 : _b.length) {
         const imageUploads = yield Promise.all(fileGroups.shop_images.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'saloon-images')));
         uploads.shopImages.push(...imageUploads);
     }
     // Upload shop videos (optional)
-    if ((_f = fileGroups.shop_videos) === null || _f === void 0 ? void 0 : _f.length) {
+    if ((_c = fileGroups.shop_videos) === null || _c === void 0 ? void 0 : _c.length) {
         const videoUploads = yield Promise.all(fileGroups.shop_videos.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'saloon-videos')));
         uploads.shopVideos.push(...videoUploads);
     }
@@ -98,7 +98,7 @@ const updateSaloonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(void
     });
 }));
 const updateBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _g;
+    var _a;
     const user = req.user;
     const { files, body } = req;
     const uploads = {
@@ -110,7 +110,7 @@ const updateBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
     //   uploads.profileImage = await uploadFileToSpace(fileGroups.profileImage[0], 'barber-profile-images');
     // }
     // Upload portfolio images (optional)
-    if ((_g = fileGroups === null || fileGroups === void 0 ? void 0 : fileGroups.portfolioImages) === null || _g === void 0 ? void 0 : _g.length) {
+    if ((_a = fileGroups === null || fileGroups === void 0 ? void 0 : fileGroups.portfolioImages) === null || _a === void 0 ? void 0 : _a.length) {
         const uploadedImages = yield Promise.all(fileGroups.portfolioImages.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'barber-portfolio')));
         uploads.portfolioImages.push(...uploadedImages);
     }

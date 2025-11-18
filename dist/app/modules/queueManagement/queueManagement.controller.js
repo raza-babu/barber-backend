@@ -16,11 +16,11 @@ exports.bookingController = void 0;
 const http_status_1 = __importDefault(require("http-status"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
-const booking_service_1 = require("./booking.service");
-const booking_validation_1 = require("./booking.validation");
 const pickValidFields_1 = require("../../utils/pickValidFields");
 const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
+const booking_validation_1 = require("../booking/booking.validation");
+const booking_service_1 = require("../booking/booking.service");
 const createBooking = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     if (req.body.bookingType === undefined) {
@@ -130,8 +130,7 @@ const getAvailableABarberForWalkingIn = (0, catchAsync_1.default)((req, res) => 
     const saloonId = req.params.saloonId;
     const barberId = req.params.barberId;
     const date = req.query.date;
-    const role = user.role;
-    const result = yield booking_service_1.bookingService.getAvailableABarberForWalkingInFromDb(user.id, saloonId, barberId, date, role);
+    const result = yield booking_service_1.bookingService.getAvailableABarberForWalkingInFromDb(user.id, saloonId, barberId, date);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
