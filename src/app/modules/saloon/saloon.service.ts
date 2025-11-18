@@ -1216,8 +1216,10 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
 
   //flatten the salon information
   return {
+    isMe: userId === saloonOwnerId,
     id: result.id,
     userId: result.userId,
+    isSaloonOwner: true,
     shopOwnerName: result.user?.fullName,
     shopOwnerEmail: result.user?.email,
     shopOwnerPhone: result.user?.phoneNumber,

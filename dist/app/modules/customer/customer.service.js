@@ -116,8 +116,8 @@ const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void
         };
     });
 });
-const getCustomerByIdFromDb = (customerId) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield prisma_1.default.saloonOwner.findUnique({
+const getCustomerByIdFromDb = (userId, customerId) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield prisma_1.default.user.findUnique({
         where: {
             id: customerId,
         },
@@ -125,7 +125,14 @@ const getCustomerByIdFromDb = (customerId) => __awaiter(void 0, void 0, void 0, 
     if (!result) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'customer not found');
     }
-    return result;
+    return {
+        isMe: result.id === userId,
+        id: result.id,
+        fullName: result.fullName,
+        email: result.email,
+        phoneNumber: result.phoneNumber,
+        image: result.image,
+    };
 });
 const updateCustomerIntoDb = (userId, customerId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.saloonOwner.update({

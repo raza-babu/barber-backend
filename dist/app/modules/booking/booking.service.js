@@ -339,7 +339,8 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
             where: {
                 barberId: barberId,
                 dayName: dayName,
-                isActive: true,
+                isActive: false,
+                type: client_1.ScheduleType.QUEUE,
             },
         });
         if (!barberSchedule) {
@@ -482,7 +483,7 @@ const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter
             // skip null/undefined entries (safety for TypeScript)
             if (!b)
                 continue;
-            // b.freeSlots should be provided by getAvailableBarbersForWalkingInFromDb
+            // b.freeSlots should be provided by getAvailableBarbersForWalkingInFromDb1
             const slotStartStr = pickEarliestSlotForBarber(b.freeSlots, totalDuration);
             if (!slotStartStr)
                 continue;
@@ -499,18 +500,39 @@ const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter
             candidates.sort((x, y) => {
                 if (!x.slotStartDt || !y.slotStartDt)
                     return 0;
-                // use valueOf() which returns epoch milliseconds to avoid any type/tooling issues
                 return x.slotStartDt.valueOf() - y.slotStartDt.valueOf();
             });
             chosen = candidates[0].barber;
             chosenAppointmentAt = candidates[0].slotStartStr;
         }
         else {
-            // No barber had a fitting free slot — fallback to the previous strategy:
-            // pick the top sorted barber and use 'now' (rounded up) as appointment
-            chosen = sorted[0];
-            // set appointmentAt to now (rounded up to next minute) to represent immediate queue
-            chosenAppointmentAt = luxon_1.DateTime.now().setZone('local').toFormat('hh:mm a');
+            // Try to find a barber in sorted list that has at least one free slot starting now or in future.
+            const nowLocalForFallback = luxon_1.DateTime.now().setZone('local');
+            let found = null;
+            let pickedTime = undefined;
+            for (const b of sorted) {
+                if (!b || !b.freeSlots || b.freeSlots.length === 0)
+                    continue;
+                // find first free slot start that's not in the past
+                for (const slot of b.freeSlots) {
+                    const slotStart = luxon_1.DateTime.fromFormat(`${date} ${slot.start}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+                    if (!slotStart.isValid)
+                        continue;
+                    if (slotStart >= nowLocalForFallback.minus({ minutes: 1 })) {
+                        found = b;
+                        pickedTime = slotStart.toFormat('hh:mm a');
+                        break;
+                    }
+                }
+                if (found)
+                    break;
+            }
+            if (!found) {
+                // No future slot across all sorted barbers — return explicit error so caller can react
+                throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'No suitable future free slot found for any barber');
+            }
+            chosen = found;
+            chosenAppointmentAt = pickedTime;
         }
     }
     else {
@@ -529,8 +551,10 @@ const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter
     }
     // appointment can't be in the past (local)
     const nowLocal = luxon_1.DateTime.now().setZone('local');
-    if (localDateTime < nowLocal.minus({ minutes: 1 })) {
-        // allow a tiny tolerance
+    // allow the booking if the service would still be running now (i.e. end time is in the future)
+    const endLocal = localDateTime.plus({ minutes: totalDuration });
+    if (endLocal < nowLocal.minus({ minutes: 1 })) {
+        // booking would have already finished — reject
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Appointment time cannot be in the past');
     }
     const utcDateTime = localDateTime.toUTC().toJSDate();
@@ -614,8 +638,10 @@ const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter
                 ],
             },
         });
+        console.log('Overlapping status:', overlappingStatus);
+        console.log('Overlapping booking:', overlappingBooking);
         if (overlappingStatus || overlappingBooking) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Barber is unavailable during the requested time slot');
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Barber is unavailable during the requested time slot');
         }
         // shift following slots positions
         for (let i = existingSlots.length - 1; i >= insertPosition - 1; i--) {
@@ -723,7 +749,7 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
     }
     const utcDateTime = localDateTime.toUTC().toJSDate();
     // max 3 weeks ahead (business rule)
-    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 3 });
+    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 4 });
     if (localDateTime > threeWeeksFromNow) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking cannot be made more than 3 weeks in advance');
     }
@@ -1767,7 +1793,7 @@ const getAvailableBarbersForWalkingInFromDb1 = (userId, saloonOwnerId, specificD
 });
 const getAvailableABarberForWalkingInFromDb = (userId, saloonOwnerId, barberId, date, role) => __awaiter(void 0, void 0, void 0, function* () {
     let allBarbers;
-    if (role === client_1.UserRoleEnum.SALOON_OWNER) {
+    if ((role === client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER)) {
         allBarbers = yield getAvailableBarbersForWalkingInFromDb1(userId, saloonOwnerId, date);
     }
     if (role === client_1.UserRoleEnum.CUSTOMER) {
@@ -1795,7 +1821,7 @@ const getAvailableBarbersFromDb = (userId, data) => __awaiter(void 0, void 0, vo
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date and time must be in the future');
     }
     // must be within next 3 weeks
-    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 3 });
+    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 4 });
     if (requestedUtc > threeWeeksFromNow) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Date cannot be more than 3 weeks in the future');
     }
@@ -2246,6 +2272,187 @@ const getBookingListForSalonOwnerFromDb = (userId_1, ...args_1) => __awaiter(voi
         },
     };
 });
+const getBookingListForBarberFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, options = {}) {
+    var _a;
+    // Similar to salon owner version but filter by barberId
+    const { page, limit, skip, sortBy, sortOrder } = (0, pagination_1.calculatePagination)(options);
+    const searchTerm = (_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim();
+    const searchClause = searchTerm
+        ? {
+            OR: [
+                {
+                    user: {
+                        fullName: { contains: searchTerm, mode: 'insensitive' },
+                    },
+                },
+                {
+                    user: {
+                        email: { contains: searchTerm, mode: 'insensitive' },
+                    },
+                },
+                {
+                    user: {
+                        phoneNumber: {
+                            contains: searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+            ],
+        }
+        : {};
+    const allowedStatuses = [client_1.BookingStatus.CONFIRMED, client_1.BookingStatus.PENDING];
+    const date = options.date
+        ? (() => {
+            const localStart = luxon_1.DateTime.fromISO(String(options.date), {
+                zone: 'local',
+            }).startOf('day');
+            const localEnd = localStart.plus({ days: 1 });
+            return {
+                appointmentAt: {
+                    gte: localStart.toUTC().toJSDate(),
+                    lt: localEnd.toUTC().toJSDate(),
+                },
+            };
+        })()
+        : {};
+    const whereClause = Object.assign(Object.assign({ barberId: userId, status: { in: allowedStatuses } }, searchClause), date);
+    const [bookings, total] = yield Promise.all([
+        prisma_1.default.booking.findMany({
+            where: whereClause,
+            skip,
+            take: limit,
+            orderBy: { [sortBy]: sortOrder },
+            select: {
+                id: true,
+                userId: true,
+                barberId: true,
+                saloonOwnerId: true,
+                date: true,
+                notes: true,
+                isInQueue: true,
+                totalPrice: true,
+                startTime: true,
+                endTime: true,
+                status: true,
+                BookedServices: {
+                    select: {
+                        id: true,
+                        service: {
+                            select: {
+                                id: true,
+                                price: true,
+                                availableTo: true,
+                                serviceName: true,
+                            },
+                        },
+                    },
+                },
+                barber: {
+                    select: {
+                        BarberSchedule: {
+                            select: {
+                                id: true,
+                                type: true,
+                                openingTime: true,
+                                closingTime: true,
+                                dayName: true,
+                            },
+                        },
+                    },
+                },
+            },
+        }),
+        prisma_1.default.booking.count({ where: whereClause }),
+    ]);
+    const userIds = Array.from(new Set(bookings.map(b => b.userId).filter(Boolean)));
+    const registeredUsers = userIds.length
+        ? yield prisma_1.default.user.findMany({
+            where: { id: { in: userIds } },
+            select: {
+                id: true,
+                image: true,
+                fullName: true,
+                email: true,
+                phoneNumber: true,
+            },
+        })
+        : [];
+    const regUserMap = registeredUsers.reduce((acc, u) => {
+        acc[u.id] = u;
+        return acc;
+    }, {});
+    const nonRegisteredIds = userIds.filter(id => !regUserMap[id]);
+    const nonRegisteredUsers = nonRegisteredIds.length
+        ? yield prisma_1.default.nonRegisteredUser.findMany({
+            where: { id: { in: nonRegisteredIds } },
+            select: { id: true, fullName: true, email: true, phone: true },
+        })
+        : [];
+    const nonRegMap = nonRegisteredUsers.reduce((acc, nr) => {
+        acc[nr.id] = nr;
+        return acc;
+    }, {});
+    const mapped = bookings.map(b => {
+        var _a, _b, _c, _d, _e, _f, _g;
+        const userInfo = regUserMap[b.userId]
+            ? {
+                id: regUserMap[b.userId].id,
+                image: (_a = regUserMap[b.userId].image) !== null && _a !== void 0 ? _a : null,
+                fullName: (_b = regUserMap[b.userId].fullName) !== null && _b !== void 0 ? _b : null,
+                email: (_c = regUserMap[b.userId].email) !== null && _c !== void 0 ? _c : null,
+                phoneNumber: (_d = regUserMap[b.userId].phoneNumber) !== null && _d !== void 0 ? _d : null,
+            }
+            : nonRegMap[b.userId]
+                ? {
+                    id: nonRegMap[b.userId].id,
+                    image: null,
+                    fullName: nonRegMap[b.userId].fullName,
+                    email: (_e = nonRegMap[b.userId].email) !== null && _e !== void 0 ? _e : null,
+                    phoneNumber: (_f = nonRegMap[b.userId].phone) !== null && _f !== void 0 ? _f : null,
+                }
+                : {
+                    id: b.userId,
+                    image: null,
+                    fullName: 'Unknown',
+                    email: null,
+                    phoneNumber: null,
+                };
+        return {
+            bookingId: b.id,
+            customerId: b.userId,
+            barberId: b.barberId,
+            saloonOwnerId: b.saloonOwnerId,
+            totalPrice: b.totalPrice,
+            notes: b.notes,
+            customerImage: userInfo.image,
+            customerName: userInfo.fullName,
+            // customerEmail: userInfo.email,
+            // customerPhone: userInfo.phoneNumber,
+            bookingDate: b.date,
+            startTime: b.startTime,
+            endTime: b.endTime,
+            services: b.BookedServices.map(s => ({
+                serviceId: s.service.id,
+                serviceName: s.service.serviceName,
+                price: s.service.price,
+                availableTo: s.service.availableTo,
+            })),
+            status: (_g = b.status) !== null && _g !== void 0 ? _g : null,
+        };
+    });
+    return {
+        // statTime: bookings[0]?.barber?.BarberSchedule?.[0]?.openingTime || null,
+        // endTime: bookings[0]?.barber?.BarberSchedule?.[0]?.closingTime || null,
+        data: mapped,
+        meta: {
+            total,
+            page,
+            limit,
+            pageCount: Math.ceil(total / limit)
+        },
+    };
+});
 const getBookingByIdFromDbForSalon = (userId, bookingId) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d, _e, _f;
     const result = yield prisma_1.default.booking.findUnique({
@@ -2685,6 +2892,7 @@ exports.bookingService = {
     createQueueBookingForSalonOwnerIntoDb,
     createBookingIntoDb,
     getBookingListFromDb,
+    getBookingListForBarberFromDb,
     getBookingListForSalonOwnerFromDb,
     getBookingByIdFromDbForSalon,
     getAllBarbersForQueueFromDb,

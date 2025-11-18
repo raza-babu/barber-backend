@@ -13,12 +13,12 @@ const auth_1 = __importDefault(require("../../middlewares/auth"));
 const router = express_1.default.Router();
 router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.createBookingSchema), booking_controller_1.bookingController.createBooking);
 router.get('/customers', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.getBookingList);
-router.get('/list', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.getBookingListForSalonOwner);
+router.get('/list', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), booking_controller_1.bookingController.getBookingListForSalonOwner);
 router.get('/barbers', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.availableBarbersSchema), booking_controller_1.bookingController.getAvailableBarbers);
 router.get('/walking-in/barbers/:saloonId/:type', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.CUSTOMER), 
 // validateRequest(bookingValidation.walkingInBarbersSchema),
 booking_controller_1.bookingController.getAvailableBarbersForWalkingIn);
-router.get('/barbers/:saloonId/:barberId', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.CUSTOMER), 
+router.get('/barbers/:saloonId/:barberId', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.BARBER), 
 // validateRequest(bookingValidation.walkingInBarbersSchema),
 booking_controller_1.bookingController.getAvailableABarberForWalkingIn);
 router.get('/customers/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.getBookingById);

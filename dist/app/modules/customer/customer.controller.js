@@ -60,7 +60,7 @@ const getSaloonAllServicesList = (0, catchAsync_1.default)((req, res) => __await
 }));
 const getCustomerById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield customer_service_1.customerService.getCustomerByIdFromDb(req.params.id);
+    const result = yield customer_service_1.customerService.getCustomerByIdFromDb(user.id, req.params.id);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

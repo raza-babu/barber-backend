@@ -22,7 +22,7 @@ router.get(
 
 router.get(
   '/list',
-  auth(UserRoleEnum.SALOON_OWNER),
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
   bookingController.getBookingListForSalonOwner,
 );
 
@@ -41,7 +41,7 @@ router.get(
 );
 router.get(
   '/barbers/:saloonId/:barberId',
-  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.CUSTOMER),
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.CUSTOMER, UserRoleEnum.BARBER),
   // validateRequest(bookingValidation.walkingInBarbersSchema),
   bookingController.getAvailableABarberForWalkingIn,
 );

@@ -54,7 +54,7 @@ const getSaloonAllServicesList = catchAsync(async (req, res) => {
 
 const getCustomerById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await customerService.getCustomerByIdFromDb(req.params.id);
+  const result = await customerService.getCustomerByIdFromDb(user.id, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

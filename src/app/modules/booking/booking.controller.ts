@@ -70,17 +70,33 @@ const getBookingListForSalonOwner = catchAsync(async (req, res) => {
     'appointmentAt',
     'date',
   ]);
-  const result = await bookingService.getBookingListForSalonOwnerFromDb(
-    user.id,
-    filters,
-  );
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: 'Booking list for salon owner retrieved successfully',
-    data: result.data,
-    meta: result.meta,
-  });
+
+  if (user.role === UserRoleEnum.SALOON_OWNER) {
+    const result = await bookingService.getBookingListForSalonOwnerFromDb(
+      user.id,
+      filters,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Booking list for salon owner retrieved successfully',
+      data: result.data,
+      meta: result.meta,
+    });
+  }
+  if (user.role === UserRoleEnum.BARBER) {
+    const result = await bookingService.getBookingListForBarberFromDb(
+      user.id,
+      filters,
+    );
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Booking list for barber retrieved successfully',
+      data: result.data,
+      meta: result.meta,
+    });
+  }
 });
 
 const getAvailableBarbers = catchAsync(async (req, res) => {
@@ -147,21 +163,19 @@ const getAvailableABarberForWalkingIn = catchAsync(async (req, res) => {
   const barberId = req.params.barberId;
   const date = req.query.date as string;
   const role = user.role as UserRoleEnum;
-    const result = await bookingService.getAvailableABarberForWalkingInFromDb(
-      user.id,
-      saloonId,
-      barberId,
-      date,
-      role
-    );
-    sendResponse(res, {
-      statusCode: httpStatus.OK,
-      success: true,
-      message: 'Available barber for walking-in retrieved successfully',
-      data: result,
-    });
-  
-  
+  const result = await bookingService.getAvailableABarberForWalkingInFromDb(
+    user.id,
+    saloonId,
+    barberId,
+    date,
+    role,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Available barber for walking-in retrieved successfully',
+    data: result,
+  });
 });
 
 const getBookingByIdForSalonOwner = catchAsync(async (req, res) => {

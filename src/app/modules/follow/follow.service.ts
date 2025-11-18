@@ -79,6 +79,7 @@ const getFollowingListFromDb = async (userId: string) => {
         select: {
           id: true,
           status: true,
+          role: true,
           fullName: true,
           email: true,
           phoneNumber: true,
@@ -108,6 +109,7 @@ const getFollowingListFromDb = async (userId: string) => {
       followingImage: item.following.image,
       followingGender: item.following.gender,
       followingAddress: item.following.address,
+      followingRole: item.following.role,
     }));
 };
 
@@ -123,6 +125,7 @@ const getFollowListFromDb = async (userId: string) => {
           id: true,
           status: true,
           fullName: true,
+          role: true,
           email: true,
           phoneNumber: true,
           image: true,
@@ -150,6 +153,7 @@ const getFollowListFromDb = async (userId: string) => {
       followerImage: item.follower.image,
       followerAddress: item.follower.address,
       followerGender: item.follower.gender,
+      followerRole: item.follower.role,
     }));
 };
 

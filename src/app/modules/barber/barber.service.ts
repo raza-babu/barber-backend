@@ -167,6 +167,7 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'barber not found');
   }
   return {
+    isMe: userId === barberId,
     ...result,
     isFollowing: isFollowing ? true : false,
   };

@@ -116,8 +116,8 @@ const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
   });
 };
 
-const getCustomerByIdFromDb = async (customerId: string) => {
-  const result = await prisma.saloonOwner.findUnique({
+const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
+  const result = await prisma.user.findUnique({
     where: {
       id: customerId,
     },
@@ -125,7 +125,14 @@ const getCustomerByIdFromDb = async (customerId: string) => {
   if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'customer not found');
   }
-  return result;
+  return {
+    isMe: result.id === userId,
+    id: result.id,
+    fullName: result.fullName,
+    email: result.email,
+    phoneNumber: result.phoneNumber,
+    image: result.image,
+  };
 };
 
 const updateCustomerIntoDb = async (

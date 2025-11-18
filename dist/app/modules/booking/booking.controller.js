@@ -76,14 +76,26 @@ const getBookingListForSalonOwner = (0, catchAsync_1.default)((req, res) => __aw
         'appointmentAt',
         'date',
     ]);
-    const result = yield booking_service_1.bookingService.getBookingListForSalonOwnerFromDb(user.id, filters);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_1.default.OK,
-        success: true,
-        message: 'Booking list for salon owner retrieved successfully',
-        data: result.data,
-        meta: result.meta,
-    });
+    if (user.role === client_1.UserRoleEnum.SALOON_OWNER) {
+        const result = yield booking_service_1.bookingService.getBookingListForSalonOwnerFromDb(user.id, filters);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Booking list for salon owner retrieved successfully',
+            data: result.data,
+            meta: result.meta,
+        });
+    }
+    if (user.role === client_1.UserRoleEnum.BARBER) {
+        const result = yield booking_service_1.bookingService.getBookingListForBarberFromDb(user.id, filters);
+        (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Booking list for barber retrieved successfully',
+            data: result.data,
+            meta: result.meta,
+        });
+    }
 }));
 const getAvailableBarbers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;

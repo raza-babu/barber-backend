@@ -75,6 +75,7 @@ const getFollowingListFromDb = (userId) => __awaiter(void 0, void 0, void 0, fun
                 select: {
                     id: true,
                     status: true,
+                    role: true,
                     fullName: true,
                     email: true,
                     phoneNumber: true,
@@ -103,6 +104,7 @@ const getFollowingListFromDb = (userId) => __awaiter(void 0, void 0, void 0, fun
         followingImage: item.following.image,
         followingGender: item.following.gender,
         followingAddress: item.following.address,
+        followingRole: item.following.role,
     }));
 });
 const getFollowListFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
@@ -117,6 +119,7 @@ const getFollowListFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
                     id: true,
                     status: true,
                     fullName: true,
+                    role: true,
                     email: true,
                     phoneNumber: true,
                     image: true,
@@ -144,6 +147,7 @@ const getFollowListFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
         followerImage: item.follower.image,
         followerAddress: item.follower.address,
         followerGender: item.follower.gender,
+        followerRole: item.follower.role,
     }));
 });
 const getFollowByIdFromDb = (userId, followId) => __awaiter(void 0, void 0, void 0, function* () {

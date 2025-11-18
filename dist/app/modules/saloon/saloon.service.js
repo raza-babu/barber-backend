@@ -1017,8 +1017,10 @@ const getASaloonByIdFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0
     });
     //flatten the salon information
     return {
+        isMe: userId === saloonOwnerId,
         id: result.id,
         userId: result.userId,
+        isSaloonOwner: true,
         shopOwnerName: (_a = result.user) === null || _a === void 0 ? void 0 : _a.fullName,
         shopOwnerEmail: (_b = result.user) === null || _b === void 0 ? void 0 : _b.email,
         shopOwnerPhone: (_c = result.user) === null || _c === void 0 ? void 0 : _c.phoneNumber,

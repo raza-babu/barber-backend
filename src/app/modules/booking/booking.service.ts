@@ -1,3 +1,4 @@
+import { start } from 'repl';
 import prisma from '../../utils/prisma';
 import {
   BookingStatus,
@@ -411,7 +412,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       where: {
         barberId: barberId,
         dayName: dayName,
-        isActive: true,
+        isActive: false,
+        type: ScheduleType.QUEUE,
       },
     });
 
@@ -637,7 +639,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     for (const b of sorted) {
       // skip null/undefined entries (safety for TypeScript)
       if (!b) continue;
-      // b.freeSlots should be provided by getAvailableBarbersForWalkingInFromDb
+      // b.freeSlots should be provided by getAvailableBarbersForWalkingInFromDb1
       const slotStartStr = pickEarliestSlotForBarber(
         b.freeSlots,
         totalDuration,
@@ -658,17 +660,45 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       // choose the candidate with the earliest slotStartDt
       candidates.sort((x, y) => {
         if (!x.slotStartDt || !y.slotStartDt) return 0;
-        // use valueOf() which returns epoch milliseconds to avoid any type/tooling issues
         return x.slotStartDt.valueOf() - y.slotStartDt.valueOf();
       });
       chosen = candidates[0].barber;
       chosenAppointmentAt = candidates[0].slotStartStr;
     } else {
-      // No barber had a fitting free slot — fallback to the previous strategy:
-      // pick the top sorted barber and use 'now' (rounded up) as appointment
-      chosen = sorted[0];
-      // set appointmentAt to now (rounded up to next minute) to represent immediate queue
-      chosenAppointmentAt = DateTime.now().setZone('local').toFormat('hh:mm a');
+      // Try to find a barber in sorted list that has at least one free slot starting now or in future.
+      const nowLocalForFallback = DateTime.now().setZone('local');
+      let found = null as any | null;
+      let pickedTime: string | undefined = undefined;
+
+      for (const b of sorted) {
+        if (!b || !b.freeSlots || b.freeSlots.length === 0) continue;
+        // find first free slot start that's not in the past
+        for (const slot of b.freeSlots) {
+          const slotStart = DateTime.fromFormat(
+            `${date} ${slot.start}`,
+            'yyyy-MM-dd hh:mm a',
+            { zone: 'local' },
+          );
+          if (!slotStart.isValid) continue;
+          if (slotStart >= nowLocalForFallback.minus({ minutes: 1 })) {
+            found = b;
+            pickedTime = slotStart.toFormat('hh:mm a');
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      if (!found) {
+        // No future slot across all sorted barbers — return explicit error so caller can react
+        throw new AppError(
+          httpStatus.NOT_FOUND,
+          'No suitable future free slot found for any barber',
+        );
+      }
+
+      chosen = found;
+      chosenAppointmentAt = pickedTime;
     }
   } else {
     chosen = sorted[0];
@@ -681,6 +711,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       'Could not auto-select a barber',
     );
   }
+
   const barberId = chosen.barberId;
 
   // 6. Determine appointment time (use provided appointmentAt or auto-selected)
@@ -700,8 +731,10 @@ const createQueueBookingForSalonOwnerIntoDb = async (
   }
   // appointment can't be in the past (local)
   const nowLocal = DateTime.now().setZone('local');
-  if (localDateTime < nowLocal.minus({ minutes: 1 })) {
-    // allow a tiny tolerance
+  // allow the booking if the service would still be running now (i.e. end time is in the future)
+  const endLocal = localDateTime.plus({ minutes: totalDuration });
+  if (endLocal < nowLocal.minus({ minutes: 1 })) {
+    // booking would have already finished — reject
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Appointment time cannot be in the past',
@@ -795,9 +828,12 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       },
     });
 
+    console.log('Overlapping status:', overlappingStatus);
+    console.log('Overlapping booking:', overlappingBooking);
+
     if (overlappingStatus || overlappingBooking) {
       throw new AppError(
-        httpStatus.BAD_REQUEST,
+        httpStatus.NOT_FOUND,
         'Barber is unavailable during the requested time slot',
       );
     }
@@ -940,7 +976,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   const utcDateTime = localDateTime.toUTC().toJSDate();
 
   // max 3 weeks ahead (business rule)
-  const threeWeeksFromNow = DateTime.now().plus({ weeks: 3 });
+  const threeWeeksFromNow = DateTime.now().plus({ weeks: 4 });
   if (localDateTime > threeWeeksFromNow) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -1558,8 +1594,6 @@ const getAvailableBarbersForWalkingInFromDb = async (
         orderBy: { startDateTime: 'asc' },
       });
 
-      
-
       // Estimate wait time = sum of current bookings lengths (use local zone consistently)
       const estimatedWaitTime = bookings.reduce((sum, b) => {
         const start = DateTime.fromJSDate(b.startDateTime!).setZone('local');
@@ -1882,7 +1916,6 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
               },
             },
           },
-         
         },
         orderBy: { startDateTime: 'asc' },
       });
@@ -1917,12 +1950,11 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
 
       bookings = bookings.map(b => {
         const uid = b.userId as string | null;
-        const userObj =
-          (uid && registeredUsersMap[uid]) ||
+        const userObj = (uid && registeredUsersMap[uid]) ||
           (uid && nonRegisteredUsersMap[uid]) || {
-        id: null,
-        fullName: null,
-        image: null,
+            id: null,
+            fullName: null,
+            image: null,
           };
         return { ...b, user: userObj };
       });
@@ -2164,14 +2196,14 @@ const getAvailableABarberForWalkingInFromDb = async (
   role?: UserRoleEnum,
 ) => {
   let allBarbers;
-  if (role === UserRoleEnum.SALOON_OWNER) {
+  if ((role === UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER)) {
     allBarbers = await getAvailableBarbersForWalkingInFromDb1(
       userId,
       saloonOwnerId,
       date,
     );
   }
-   if (role === UserRoleEnum.CUSTOMER) { 
+  if (role === UserRoleEnum.CUSTOMER) {
     allBarbers = await getAvailableBarbersForWalkingInFromDb(
       userId,
       saloonOwnerId,
@@ -2222,7 +2254,7 @@ const getAvailableBarbersFromDb = async (
   }
 
   // must be within next 3 weeks
-  const threeWeeksFromNow = DateTime.now().plus({ weeks: 3 });
+  const threeWeeksFromNow = DateTime.now().plus({ weeks: 4 });
   if (requestedUtc > threeWeeksFromNow) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -2777,6 +2809,201 @@ const getBookingListForSalonOwnerFromDb = async (
   };
 };
 
+const getBookingListForBarberFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions = {},
+) => {
+  // Similar to salon owner version but filter by barberId
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  const searchTerm = options.searchTerm?.trim();
+  const searchClause = searchTerm
+    ? {
+        OR: [
+          {
+            user: {
+              fullName: { contains: searchTerm, mode: 'insensitive' as const },
+            },
+          },
+          {
+            user: {
+              email: { contains: searchTerm, mode: 'insensitive' as const },
+            },
+          },
+          {
+            user: {
+              phoneNumber: {
+                contains: searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+        ],
+      }
+    : {};
+  const allowedStatuses = [BookingStatus.CONFIRMED, BookingStatus.PENDING];
+
+  const date = options.date
+    ? (() => {
+        const localStart = DateTime.fromISO(String(options.date), {
+          zone: 'local',
+        }).startOf('day');
+        const localEnd = localStart.plus({ days: 1 });
+        return {
+          appointmentAt: {
+            gte: localStart.toUTC().toJSDate(),
+            lt: localEnd.toUTC().toJSDate(),
+          },
+        };
+      })()
+    : {};
+  const whereClause: any = {
+    barberId: userId,
+    status: { in: allowedStatuses },
+    ...searchClause,
+    ...date,
+  };
+  const [bookings, total] = await Promise.all([
+    prisma.booking.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder },
+      select: {
+        id: true,
+        userId: true,
+        barberId: true,
+        saloonOwnerId: true,
+        date: true,
+        notes: true,
+        isInQueue: true,
+        totalPrice: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        BookedServices: {
+          select: {
+            id: true,
+            service: {
+              select: {
+                id: true,
+                price: true,
+                availableTo: true,
+                serviceName: true,
+              },
+            },
+          },
+        },
+        barber: {
+          select: {
+            BarberSchedule: {
+              select: {
+                id: true,
+                type: true,
+                openingTime: true,
+                closingTime: true,
+                dayName: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.booking.count({ where: whereClause }),
+  ]);
+
+  const userIds = Array.from(
+    new Set(bookings.map(b => b.userId).filter(Boolean)),
+  );
+  const registeredUsers = userIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: {
+          id: true,
+          image: true,
+          fullName: true,
+          email: true,
+          phoneNumber: true,
+        },
+      })
+    : [];
+  const regUserMap = registeredUsers.reduce<Record<string, any>>((acc, u) => {
+    acc[u.id] = u;
+    return acc;
+  }, {});
+  const nonRegisteredIds = userIds.filter(id => !regUserMap[id]);
+  const nonRegisteredUsers = nonRegisteredIds.length
+    ? await prisma.nonRegisteredUser.findMany({
+        where: { id: { in: nonRegisteredIds } },
+        select: { id: true, fullName: true, email: true, phone: true },
+      })
+    : [];
+  const nonRegMap = nonRegisteredUsers.reduce<Record<string, any>>(
+    (acc, nr) => {
+      acc[nr.id] = nr;
+      return acc;
+    },
+    {},
+  );
+  const mapped = bookings.map(b => {
+    const userInfo = regUserMap[b.userId]
+      ? {
+          id: regUserMap[b.userId].id,
+          image: regUserMap[b.userId].image ?? null,
+          fullName: regUserMap[b.userId].fullName ?? null,
+          email: regUserMap[b.userId].email ?? null,
+          phoneNumber: regUserMap[b.userId].phoneNumber ?? null,
+        }
+      : nonRegMap[b.userId]
+        ? {
+            id: nonRegMap[b.userId].id,
+            image: null,
+            fullName: nonRegMap[b.userId].fullName,
+            email: nonRegMap[b.userId].email ?? null,
+            phoneNumber: nonRegMap[b.userId].phone ?? null,
+          }
+        : {
+            id: b.userId,
+            image: null,
+            fullName: 'Unknown',
+            email: null,
+            phoneNumber: null,
+          };
+    return {
+      bookingId: b.id,
+      customerId: b.userId,
+      barberId: b.barberId,
+      saloonOwnerId: b.saloonOwnerId,
+      totalPrice: b.totalPrice,
+      notes: b.notes,
+      customerImage: userInfo.image,
+      customerName: userInfo.fullName,
+      // customerEmail: userInfo.email,
+      // customerPhone: userInfo.phoneNumber,
+      bookingDate: b.date,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      services: b.BookedServices.map(s => ({
+        serviceId: s.service.id,
+        serviceName: s.service.serviceName,
+        price: s.service.price,
+        availableTo: s.service.availableTo,
+      })),
+      status: b.status ?? null,
+    };
+  });
+  return {
+    // statTime: bookings[0]?.barber?.BarberSchedule?.[0]?.openingTime || null,
+    // endTime: bookings[0]?.barber?.BarberSchedule?.[0]?.closingTime || null,
+    data: mapped,
+    meta: {
+      total,
+      page,
+      limit,
+      pageCount: Math.ceil(total / limit)
+    },
+  };
+};
+
 const getBookingByIdFromDbForSalon = async (
   userId: string,
   bookingId: string,
@@ -3296,6 +3523,7 @@ export const bookingService = {
   createQueueBookingForSalonOwnerIntoDb,
   createBookingIntoDb,
   getBookingListFromDb,
+  getBookingListForBarberFromDb,
   getBookingListForSalonOwnerFromDb,
   getBookingByIdFromDbForSalon,
   getAllBarbersForQueueFromDb,
