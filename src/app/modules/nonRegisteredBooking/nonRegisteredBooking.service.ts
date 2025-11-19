@@ -46,11 +46,11 @@ const createNonRegisteredBookingIntoDb = async (
   const utcDateTime = localDateTime.toUTC().toJSDate();
 
   // Prevent booking more than 3 weeks out
-  const threeWeeksFromNow = DateTime.now().plus({ weeks: 3 });
+  const threeWeeksFromNow = DateTime.now().plus({ weeks: 4 });
   if (localDateTime > threeWeeksFromNow) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Booking cannot be made more than 3 weeks in advance',
+      'Booking cannot be made more than 4 weeks in advance',
     );
   }
 

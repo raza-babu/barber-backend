@@ -751,7 +751,7 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
     // max 3 weeks ahead (business rule)
     const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 4 });
     if (localDateTime > threeWeeksFromNow) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking cannot be made more than 3 weeks in advance');
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking cannot be made more than 4 weeks in advance');
     }
     // 3. Fetch services and compute totals
     const serviceRecords = yield prisma_1.default.service.findMany({

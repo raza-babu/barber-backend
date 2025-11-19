@@ -980,7 +980,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   if (localDateTime > threeWeeksFromNow) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Booking cannot be made more than 3 weeks in advance',
+      'Booking cannot be made more than 4 weeks in advance',
     );
   }
 

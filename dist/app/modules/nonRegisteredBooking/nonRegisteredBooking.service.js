@@ -39,9 +39,9 @@ data) => __awaiter(void 0, void 0, void 0, function* () {
     }
     const utcDateTime = localDateTime.toUTC().toJSDate();
     // Prevent booking more than 3 weeks out
-    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 3 });
+    const threeWeeksFromNow = luxon_1.DateTime.now().plus({ weeks: 4 });
     if (localDateTime > threeWeeksFromNow) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking cannot be made more than 3 weeks in advance');
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking cannot be made more than 4 weeks in advance');
     }
     // Validate services and compute totals
     const serviceRecords = yield prisma_1.default.service.findMany({
