@@ -94,7 +94,7 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
                 },
                 QrCode: {
                     select: { code: true },
-                }
+                },
             },
         });
         userData.isSubscribed = (saloon === null || saloon === void 0 ? void 0 : saloon.user.isSubscribed) || false;
@@ -133,6 +133,17 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
             adminAccessFunctions = functionNames.map(func => func.function);
         }
     }
+    let saloonOwnerId = null;
+    if (userData.role === client_1.UserRoleEnum.BARBER) {
+        const barber = yield prisma_1.default.barberSchedule.findFirst({
+            where: {
+                barberId: userData.id,
+            },
+        });
+        if (barber) {
+            saloonOwnerId = barber.saloonOwnerId;
+        }
+    }
     if (userData.isLoggedIn === false) {
         const updateUser = yield prisma_1.default.user.update({
             where: { id: userData.id },
@@ -155,7 +166,7 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
         email: userData.email,
         role: userData.role,
     }, config_1.default.jwt.refresh_secret, config_1.default.jwt.refresh_expires_in);
-    return Object.assign(Object.assign({ id: userData.id, name: userData.fullName, email: userData.email, role: userData.role, image: userData.image, accessToken: accessToken, refreshToken: refreshedToken }, (userData.role === client_1.UserRoleEnum.ADMIN && {
+    return Object.assign(Object.assign(Object.assign({ id: userData.id, name: userData.fullName, email: userData.email, role: userData.role, image: userData.image, accessToken: accessToken, refreshToken: refreshedToken }, (userData.role === client_1.UserRoleEnum.ADMIN && {
         functions: adminAccessFunctions,
     })), (userData.role === client_1.UserRoleEnum.SALOON_OWNER && Object.assign(Object.assign({}, (userData.role === client_1.UserRoleEnum.SALOON_OWNER && {
         isSubscribed: userData.isSubscribed,
@@ -163,7 +174,9 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
         subscriptionPlan: userData.subscriptionPlan,
         onBoarding: userData.onBoarding,
         qrCode: hasQrCode,
-    })), { onBoarding: userData.onBoarding })));
+    })), { onBoarding: userData.onBoarding }))), (userData.role === client_1.UserRoleEnum.BARBER && {
+        saloonOwnerId,
+    }));
 });
 const refreshTokenFromDB = (refreshedToken) => __awaiter(void 0, void 0, void 0, function* () {
     if (!refreshedToken) {

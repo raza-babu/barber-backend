@@ -67,7 +67,7 @@ const loginUserFromDB = async (payload: {
         },
         QrCode: {
           select: { code: true },
-        }
+        },
       },
     });
     userData.isSubscribed = saloon?.user.isSubscribed || false;
@@ -119,6 +119,17 @@ const loginUserFromDB = async (payload: {
       adminAccessFunctions = functionNames.map(func => func.function);
     }
   }
+  let saloonOwnerId = null;
+  if (userData.role === UserRoleEnum.BARBER) {
+    const barber = await prisma.barberSchedule.findFirst({
+      where: {
+        barberId: userData.id,
+      },
+    });
+    if (barber) {
+      saloonOwnerId = barber.saloonOwnerId;
+    }
+  }
 
   if (userData.isLoggedIn === false) {
     const updateUser = await prisma.user.update({
@@ -164,15 +175,18 @@ const loginUserFromDB = async (payload: {
       functions: adminAccessFunctions,
     }),
     ...(userData.role === UserRoleEnum.SALOON_OWNER && {
-    ...(userData.role === UserRoleEnum.SALOON_OWNER && {
-      isSubscribed: userData.isSubscribed,
-      subscriptionEnd: userData.subscriptionEnd,
-      subscriptionPlan: userData.subscriptionPlan,
+      ...(userData.role === UserRoleEnum.SALOON_OWNER && {
+        isSubscribed: userData.isSubscribed,
+        subscriptionEnd: userData.subscriptionEnd,
+        subscriptionPlan: userData.subscriptionPlan,
+        onBoarding: userData.onBoarding,
+        qrCode: hasQrCode,
+      }),
       onBoarding: userData.onBoarding,
-      qrCode: hasQrCode,
     }),
-      onBoarding: userData.onBoarding,
-    }),
+    ...(userData.role === UserRoleEnum.BARBER && {
+      saloonOwnerId,
+    })
   };
 };
 
