@@ -175,7 +175,7 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
         onBoarding: userData.onBoarding,
         qrCode: hasQrCode,
     })), { onBoarding: userData.onBoarding }))), (userData.role === client_1.UserRoleEnum.BARBER && {
-        saloonOwnerId,
+        saloonOwnerId: saloonOwnerId || null,
     }));
 });
 const refreshTokenFromDB = (refreshedToken) => __awaiter(void 0, void 0, void 0, function* () {

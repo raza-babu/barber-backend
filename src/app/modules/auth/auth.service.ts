@@ -185,7 +185,7 @@ const loginUserFromDB = async (payload: {
       onBoarding: userData.onBoarding,
     }),
     ...(userData.role === UserRoleEnum.BARBER && {
-      saloonOwnerId,
+      saloonOwnerId: saloonOwnerId || null,
     })
   };
 };
