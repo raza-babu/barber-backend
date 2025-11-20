@@ -376,6 +376,7 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
                     openingTime: true,
                     closingTime: true,
                     type: true,
+                    isActive: true,
                 },
             }
         },

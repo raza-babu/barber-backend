@@ -391,6 +391,7 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
           openingTime: true,
           closingTime: true,
           type: true,
+          isActive: true,
         },
       }
     },
