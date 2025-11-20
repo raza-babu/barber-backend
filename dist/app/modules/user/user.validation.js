@@ -204,16 +204,28 @@ const updateSaloonOwner = zod_1.default.object({
             required_error: 'Shop address is required!',
         })
             .optional(),
-        latitude: zod_1.default
-            .number({
+        latitude: zod_1.default.preprocess((val) => {
+            if (val === '' || val === null || val === undefined)
+                return undefined;
+            if (typeof val === 'string') {
+                const n = Number(val);
+                return isNaN(n) ? val : n;
+            }
+            return val;
+        }, zod_1.default.number({
             invalid_type_error: 'Latitude must be a number!',
-        })
-            .optional(),
-        longitude: zod_1.default
-            .number({
+        }).optional()),
+        longitude: zod_1.default.preprocess((val) => {
+            if (val === '' || val === null || val === undefined)
+                return undefined;
+            if (typeof val === 'string') {
+                const n = Number(val);
+                return isNaN(n) ? val : n;
+            }
+            return val;
+        }, zod_1.default.number({
             invalid_type_error: 'Longitude must be a number!',
-        })
-            .optional(),
+        }).optional()),
         shopLogo: zod_1.default.string().optional(),
         shopImage: zod_1.default
             .array(zod_1.default.string(), {

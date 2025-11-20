@@ -21,8 +21,8 @@ router.post('/register/saloon-owner', multipleFile_1.multerUploadMultiple.fields
 ]), parseBody_1.parseBody, (0, validateRequest_1.default)(user_validation_1.UserValidations.createSaloonOwner), user_controller_1.UserControllers.registerSaloonOwner);
 router.patch('/update/saloon-owner', multipleFile_1.multerUploadMultiple.fields([
     { name: 'shop_logo', maxCount: 1 },
-    { name: 'shop_images', maxCount: 5 },
-    { name: 'shop_videos', maxCount: 2 },
+    { name: 'shop_images' },
+    { name: 'shop_videos', },
 ]), parseBody_1.parseBody, (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateSaloonOwner), user_controller_1.UserControllers.updateSaloonOwner);
 router.patch('/update/barber', multipleFile_1.multerUploadMultiple.fields([
     { name: 'portfolioImages', maxCount: 5 },

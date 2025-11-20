@@ -30,8 +30,8 @@ router.patch(
   '/update/saloon-owner',
   multerUploadMultiple.fields([
     { name: 'shop_logo', maxCount: 1 },
-    { name: 'shop_images', maxCount: 5 },
-    { name: 'shop_videos', maxCount: 2 },
+    { name: 'shop_images' },
+    { name: 'shop_videos', },
   ]),
   parseBody,
   auth(),

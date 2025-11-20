@@ -9,6 +9,10 @@ import { generateToken, refreshToken } from '../../utils/generateToken';
 import prisma from '../../utils/prisma';
 import { SubscriptionPlanStatus } from '@prisma/client';
 import Stripe from 'stripe';
+import FormData from 'form-data';
+import fs from 'fs';
+import path from 'path';
+import axios from 'axios';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -333,6 +337,86 @@ const updateBarberIntoDB = async (userId: string, payload: any) => {
   });
 
   return updatedBarber;
+};
+
+const sendReferenceImagesToAI = async (userId: string, images: string[]) => {
+  if (!userId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'userId is required');
+  }
+  if (!images || images.length === 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'At least one image is required');
+  }
+
+  // Lazy require to avoid adding top-level imports
+
+  const form = new FormData();
+  form.append('barberId', userId);
+
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+
+    // If it's a data URL (base64)
+    if (typeof img === 'string' && img.startsWith('data:')) {
+      const matches = img.match(/^data:(.+);base64,(.*)$/);
+      if (!matches) {
+        throw new AppError(httpStatus.BAD_REQUEST, `Invalid data URL at index ${i}`);
+      }
+      const contentType = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      form.append('images', buffer, {
+        filename: `image_${i}${contentType.includes('/') ? `.${contentType.split('/')[1]}` : '.jpg'}`,
+        contentType,
+      });
+      continue;
+    }
+
+    // If it's a remote URL -> fetch as stream
+    if (typeof img === 'string' && (img.startsWith('http://') || img.startsWith('https://'))) {
+      try {
+        const resp = await axios.get(img, { responseType: 'stream' });
+        const filename = path.basename(new URL(img).pathname) || `image_${i}`;
+        form.append('images', resp.data, {
+          filename,
+          contentType: resp.headers['content-type'] || 'application/octet-stream',
+        });
+        console.log(`Fetched remote image at index ${i} from URL: ${img}`);
+        continue;
+      } catch (err) {
+        throw new AppError(
+          httpStatus.BAD_GATEWAY,
+          `Failed to fetch remote image at index ${i}: ${(err as any)?.message ?? err}`,
+        );
+      }
+    }
+
+    // Otherwise treat as local file path
+    if (typeof img === 'string' && fs.existsSync(img)) {
+      const filename = path.basename(img);
+      form.append('images', fs.createReadStream(img), { filename });
+      continue;
+    }
+
+    // Unknown format
+    throw new AppError(httpStatus.BAD_REQUEST, `Unsupported image format at index ${i}`);
+  }
+
+  try {
+    const url = 'http://127.0.0.1:8080/upload_reference';
+    const headers = form.getHeaders();
+    const resp = await axios.post(url, form, {
+      headers,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      timeout: 30000,
+    });
+
+    console.log(`AI service response for barberId ${userId}:`, resp.data);
+    return resp.data;
+  } catch (err) {
+    const message = (err as any)?.response?.data ?? (err as any)?.message ?? 'Unknown error';
+    throw new AppError(httpStatus.BAD_GATEWAY, `AI service error: ${message}`);
+  }
 };
 
 const getMyProfileFromDB = async (id: string) => {
@@ -1069,6 +1153,7 @@ export const UserServices = {
   changePassword,
   forgotPassword,
   verifyOtpInDB,
+  sendReferenceImagesToAI,
   verifyOtpForgotPasswordInDB,
   socialLoginIntoDB,
   updatePasswordIntoDb,

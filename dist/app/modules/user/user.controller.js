@@ -105,20 +105,24 @@ const updateBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
         portfolioImages: [],
     };
     const fileGroups = files;
-    // Upload profile image (optional)
-    // if (fileGroups?.profileImage?.[0]) {
-    //   uploads.profileImage = await uploadFileToSpace(fileGroups.profileImage[0], 'barber-profile-images');
-    // }
     // Upload portfolio images (optional)
     if ((_a = fileGroups === null || fileGroups === void 0 ? void 0 : fileGroups.portfolioImages) === null || _a === void 0 ? void 0 : _a.length) {
         const uploadedImages = yield Promise.all(fileGroups.portfolioImages.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'barber-portfolio')));
         uploads.portfolioImages.push(...uploadedImages);
     }
     const payload = Object.assign(Object.assign({}, body), { portfolio: uploads.portfolioImages });
+    // Update DB
     const result = yield user_service_1.UserServices.updateBarberIntoDB(user.id, payload);
+    // Send reference images to external AI service.
+    // Best practice: perform external API calls from the service layer.
+    // Here we call a service function which should build the form-data (images + barber_codes)
+    // and POST to http://127.0.0.1:8080/upload_reference.
+    if (uploads.portfolioImages.length) {
+        yield user_service_1.UserServices.sendReferenceImagesToAI(user.id, uploads.portfolioImages);
+    }
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
-        message: 'Barber registered successfully',
+        message: 'Barber registered successfully (reference images sent to AI)',
         data: result,
     });
 }));

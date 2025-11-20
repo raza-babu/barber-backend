@@ -67,6 +67,10 @@ const generateToken_1 = require("../../utils/generateToken");
 const prisma_1 = __importDefault(require("../../utils/prisma"));
 const client_2 = require("@prisma/client");
 const stripe_1 = __importDefault(require("stripe"));
+const form_data_1 = __importDefault(require("form-data"));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const axios_1 = __importDefault(require("axios"));
 // Initialize Stripe with your secret API key
 const stripe = new stripe_1.default(config_1.default.stripe.stripe_secret_key, {
     apiVersion: '2025-08-27.basil',
@@ -322,6 +326,76 @@ const updateBarberIntoDB = (userId, payload) => __awaiter(void 0, void 0, void 0
         },
     });
     return updatedBarber;
+});
+const sendReferenceImagesToAI = (userId, images) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d;
+    if (!userId) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'userId is required');
+    }
+    if (!images || images.length === 0) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'At least one image is required');
+    }
+    // Lazy require to avoid adding top-level imports
+    const form = new form_data_1.default();
+    form.append('barberId', userId);
+    for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        // If it's a data URL (base64)
+        if (typeof img === 'string' && img.startsWith('data:')) {
+            const matches = img.match(/^data:(.+);base64,(.*)$/);
+            if (!matches) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Invalid data URL at index ${i}`);
+            }
+            const contentType = matches[1];
+            const base64Data = matches[2];
+            const buffer = Buffer.from(base64Data, 'base64');
+            form.append('images', buffer, {
+                filename: `image_${i}${contentType.includes('/') ? `.${contentType.split('/')[1]}` : '.jpg'}`,
+                contentType,
+            });
+            continue;
+        }
+        // If it's a remote URL -> fetch as stream
+        if (typeof img === 'string' && (img.startsWith('http://') || img.startsWith('https://'))) {
+            try {
+                const resp = yield axios_1.default.get(img, { responseType: 'stream' });
+                const filename = path_1.default.basename(new URL(img).pathname) || `image_${i}`;
+                form.append('images', resp.data, {
+                    filename,
+                    contentType: resp.headers['content-type'] || 'application/octet-stream',
+                });
+                console.log(`Fetched remote image at index ${i} from URL: ${img}`);
+                continue;
+            }
+            catch (err) {
+                throw new AppError_1.default(http_status_1.default.BAD_GATEWAY, `Failed to fetch remote image at index ${i}: ${(_a = err === null || err === void 0 ? void 0 : err.message) !== null && _a !== void 0 ? _a : err}`);
+            }
+        }
+        // Otherwise treat as local file path
+        if (typeof img === 'string' && fs_1.default.existsSync(img)) {
+            const filename = path_1.default.basename(img);
+            form.append('images', fs_1.default.createReadStream(img), { filename });
+            continue;
+        }
+        // Unknown format
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Unsupported image format at index ${i}`);
+    }
+    try {
+        const url = 'http://127.0.0.1:8080/upload_reference';
+        const headers = form.getHeaders();
+        const resp = yield axios_1.default.post(url, form, {
+            headers,
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+            timeout: 30000,
+        });
+        console.log(`AI service response for barberId ${userId}:`, resp.data);
+        return resp.data;
+    }
+    catch (err) {
+        const message = (_d = (_c = (_b = err === null || err === void 0 ? void 0 : err.response) === null || _b === void 0 ? void 0 : _b.data) !== null && _c !== void 0 ? _c : err === null || err === void 0 ? void 0 : err.message) !== null && _d !== void 0 ? _d : 'Unknown error';
+        throw new AppError_1.default(http_status_1.default.BAD_GATEWAY, `AI service error: ${message}`);
+    }
 });
 const getMyProfileFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const Profile = yield prisma_1.default.user.findUnique({
@@ -893,6 +967,7 @@ exports.UserServices = {
     changePassword,
     forgotPassword,
     verifyOtpInDB,
+    sendReferenceImagesToAI,
     verifyOtpForgotPasswordInDB,
     socialLoginIntoDB,
     updatePasswordIntoDb,
