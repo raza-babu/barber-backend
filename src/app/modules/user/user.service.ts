@@ -493,6 +493,7 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
   });
 
   return {
+    isMe: profile?.userId === userId,
     ...profile,
     Barbers: hiredBarbers.map(barber => ({
       id: barber.user?.id,
@@ -513,7 +514,10 @@ const getBarberProfileFromDB = async (userId: string) => {
       userId: userId,
     },
   });
-  return profile;
+  return {
+    isMe: profile?.userId === userId,
+    ...profile,
+  };
 };
 
 const updateMyProfileIntoDB = async (id: string, payload: any) => {

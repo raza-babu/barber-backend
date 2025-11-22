@@ -465,7 +465,7 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
             serviceName: true,
         },
     });
-    return Object.assign(Object.assign({}, profile), { Barbers: hiredBarbers.map(barber => {
+    return Object.assign(Object.assign({ isMe: (profile === null || profile === void 0 ? void 0 : profile.userId) === userId }, profile), { Barbers: hiredBarbers.map(barber => {
             var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
             return ({
                 id: (_a = barber.user) === null || _a === void 0 ? void 0 : _a.id,
@@ -484,7 +484,7 @@ const getBarberProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, fun
             userId: userId,
         },
     });
-    return profile;
+    return Object.assign({ isMe: (profile === null || profile === void 0 ? void 0 : profile.userId) === userId }, profile);
 });
 const updateMyProfileIntoDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const userData = payload;
