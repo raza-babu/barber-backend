@@ -532,6 +532,7 @@ const getBarberProfileFromDB = async (userId: string) => {
           id: true,
           followerCount: true,
           followingCount: true,
+          image: true,
         }
       }
     }
@@ -540,6 +541,7 @@ const getBarberProfileFromDB = async (userId: string) => {
   return {
     isMe: profile?.userId === userId,
     ...restProfile,
+    image: profile?.user?.image ?? null,
     followingCount: profile?.user?.followingCount ?? 0,
     followerCount: profile?.user?.followerCount ?? 0,
   };

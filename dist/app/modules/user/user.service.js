@@ -490,7 +490,7 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
         }), services: services });
 });
 const getBarberProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     const profile = yield prisma_1.default.barber.findUnique({
         where: {
             userId: userId,
@@ -501,12 +501,13 @@ const getBarberProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, fun
                     id: true,
                     followerCount: true,
                     followingCount: true,
+                    image: true,
                 }
             }
         }
     });
-    const _e = profile, { user } = _e, restProfile = __rest(_e, ["user"]);
-    return Object.assign(Object.assign({ isMe: (profile === null || profile === void 0 ? void 0 : profile.userId) === userId }, restProfile), { followingCount: (_b = (_a = profile === null || profile === void 0 ? void 0 : profile.user) === null || _a === void 0 ? void 0 : _a.followingCount) !== null && _b !== void 0 ? _b : 0, followerCount: (_d = (_c = profile === null || profile === void 0 ? void 0 : profile.user) === null || _c === void 0 ? void 0 : _c.followerCount) !== null && _d !== void 0 ? _d : 0 });
+    const _g = profile, { user } = _g, restProfile = __rest(_g, ["user"]);
+    return Object.assign(Object.assign({ isMe: (profile === null || profile === void 0 ? void 0 : profile.userId) === userId }, restProfile), { image: (_b = (_a = profile === null || profile === void 0 ? void 0 : profile.user) === null || _a === void 0 ? void 0 : _a.image) !== null && _b !== void 0 ? _b : null, followingCount: (_d = (_c = profile === null || profile === void 0 ? void 0 : profile.user) === null || _c === void 0 ? void 0 : _c.followingCount) !== null && _d !== void 0 ? _d : 0, followerCount: (_f = (_e = profile === null || profile === void 0 ? void 0 : profile.user) === null || _e === void 0 ? void 0 : _e.followerCount) !== null && _f !== void 0 ? _f : 0 });
 });
 const updateMyProfileIntoDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const userData = payload;
