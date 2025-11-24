@@ -168,18 +168,18 @@ const createSaloonOwner = zod_1.default.object({
             invalid_type_error: 'Longitude must be a number!',
         })
             .optional(),
-        shopLogo: zod_1.default.string().optional(),
-        shopImage: zod_1.default
-            .array(zod_1.default.string(), {
-            invalid_type_error: 'Shop images must be an array of strings!',
-        })
-            .optional(),
+        // shopLogo: z.string().optional(),
+        // shopImage: z
+        //   .array(z.string(), {
+        //     invalid_type_error: 'Shop images must be an array of strings!',
+        //   })
+        //   .optional(),
         qrCode: zod_1.default.string().optional(),
         isVerified: zod_1.default.boolean().optional(),
-        followerCount: zod_1.default.number().int().nonnegative().default(0),
-        followingCount: zod_1.default.number().int().nonnegative().default(0),
-        ratingCount: zod_1.default.number().int().nonnegative().default(0),
-        avgRating: zod_1.default.number().nonnegative().optional().default(0),
+        // followerCount: z.number().int().nonnegative().default(0),
+        // followingCount: z.number().int().nonnegative().default(0),
+        // ratingCount: z.number().int().nonnegative().default(0),
+        // avgRating: z.number().nonnegative().optional().default(0),
     }),
 });
 const updateSaloonOwner = zod_1.default.object({
@@ -226,12 +226,6 @@ const updateSaloonOwner = zod_1.default.object({
         }, zod_1.default.number({
             invalid_type_error: 'Longitude must be a number!',
         }).optional()),
-        shopLogo: zod_1.default.string().optional(),
-        shopImage: zod_1.default
-            .array(zod_1.default.string(), {
-            invalid_type_error: 'Shop images must be an array of strings!',
-        })
-            .optional(),
         isVerified: zod_1.default.boolean().optional(),
     }),
 });
@@ -240,11 +234,11 @@ const updateBarber = zod_1.default.object({
         saloonOwnerId: zod_1.default.string().optional(),
         currentWorkDes: zod_1.default.string().optional(),
         bio: zod_1.default.string().optional(),
-        portfolio: zod_1.default
-            .array(zod_1.default.string(), {
-            invalid_type_error: 'Portfolio images must be an array of strings!',
-        })
-            .optional(),
+        // portfolio: z
+        //   .array(z.string(), {
+        //     invalid_type_error: 'Portfolio images must be an array of strings!',
+        //   })
+        //   .optional(),
         isAvailable: zod_1.default.boolean().optional(),
         experienceYears: zod_1.default.string().optional(),
         skills: zod_1.default
@@ -252,10 +246,6 @@ const updateBarber = zod_1.default.object({
             invalid_type_error: 'Skills must be an array of strings!',
         })
             .optional(),
-        followerCount: zod_1.default.number().int().nonnegative().default(0),
-        followingCount: zod_1.default.number().int().nonnegative().default(0),
-        ratingCount: zod_1.default.number().int().nonnegative().default(0),
-        avgRating: zod_1.default.number().nonnegative().optional().default(0),
     }),
 });
 exports.UserValidations = {

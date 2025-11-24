@@ -67,14 +67,14 @@ const registerSaloonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(vo
     });
 }));
 const updateSaloonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f;
     const user = req.user;
     const { files, body } = req;
     const uploads = {
         shopImages: [],
         shopVideos: [],
     };
-    const fileGroups = files;
+    const fileGroups = files || {};
     // Upload shop logo (optional)
     if ((_a = fileGroups.shop_logo) === null || _a === void 0 ? void 0 : _a[0]) {
         uploads.shopLogo = yield (0, multipleFile_1.uploadFileToSpace)(fileGroups.shop_logo[0], 'saloon-logos');
@@ -89,7 +89,17 @@ const updateSaloonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(void
         const videoUploads = yield Promise.all(fileGroups.shop_videos.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'saloon-videos')));
         uploads.shopVideos.push(...videoUploads);
     }
-    const payload = Object.assign(Object.assign({}, body), { shopLogo: uploads.shopLogo, shopImages: uploads.shopImages, shopVideo: uploads.shopVideos ? uploads.shopVideos : [] });
+    const payload = Object.assign({}, body);
+    if (((_d = uploads.shopLogo) === null || _d === void 0 ? void 0 : _d.length) && uploads.shopLogo[0]) {
+        // store single logo string (we set uploads.shopLogo[0] on upload)
+        payload.shopLogo = uploads.shopLogo[0];
+    }
+    if ((_e = uploads.shopImages) === null || _e === void 0 ? void 0 : _e.length) {
+        payload.shopImages = uploads.shopImages;
+    }
+    if ((_f = uploads.shopVideos) === null || _f === void 0 ? void 0 : _f.length) {
+        payload.shopVideo = uploads.shopVideos;
+    }
     const result = yield user_service_1.UserServices.updateSaloonOwnerIntoDB(user.id, payload);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -104,13 +114,16 @@ const updateBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
     const uploads = {
         portfolioImages: [],
     };
-    const fileGroups = files;
+    const fileGroups = files || {};
     // Upload portfolio images (optional)
     if ((_a = fileGroups === null || fileGroups === void 0 ? void 0 : fileGroups.portfolioImages) === null || _a === void 0 ? void 0 : _a.length) {
         const uploadedImages = yield Promise.all(fileGroups.portfolioImages.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'barber-portfolio')));
         uploads.portfolioImages.push(...uploadedImages);
     }
-    const payload = Object.assign(Object.assign({}, body), { portfolio: uploads.portfolioImages });
+    if (uploads.portfolioImages.length) {
+        body.portfolio = uploads.portfolioImages;
+    }
+    const payload = Object.assign({}, body);
     // Update DB
     const result = yield user_service_1.UserServices.updateBarberIntoDB(user.id, payload);
     // Send reference images to external AI service.

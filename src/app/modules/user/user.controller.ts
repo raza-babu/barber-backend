@@ -103,14 +103,14 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
     shop_logo?: Express.Multer.File[];
     shop_images?: Express.Multer.File[];
     shop_videos?: Express.Multer.File[];
-  };
+  } || {};
   // Upload shop logo (optional)
   if (fileGroups.shop_logo?.[0]) {
     uploads.shopLogo = await uploadFileToSpace(
       fileGroups.shop_logo[0],
       'saloon-logos',
     );
-  }
+  } 
   // Upload shop images (optional)
   if (fileGroups.shop_images?.length) {
     const imageUploads = await Promise.all(
@@ -129,12 +129,21 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
     );
     uploads.shopVideos.push(...videoUploads);
   }
-  const payload = {
-    ...body,
-    shopLogo: uploads.shopLogo,
-    shopImages: uploads.shopImages,
-    shopVideo: uploads.shopVideos ? uploads.shopVideos : [],
-  };
+
+  const payload: Record<string, unknown> = { ...body };
+
+  if (uploads.shopLogo?.length && uploads.shopLogo[0]) {
+    // store single logo string (we set uploads.shopLogo[0] on upload)
+    payload.shopLogo = uploads.shopLogo[0];
+  }
+
+  if (uploads.shopImages?.length) {
+    payload.shopImages = uploads.shopImages;
+  }
+
+  if (uploads.shopVideos?.length) {
+    payload.shopVideo = uploads.shopVideos;
+  }
   const result = await UserServices.updateSaloonOwnerIntoDB(user.id, payload);
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -155,7 +164,7 @@ const updateBarber = catchAsync(async (req, res) => {
 
   const fileGroups = files as {
     portfolioImages?: Express.Multer.File[];
-  };
+  } || {};
 
   // Upload portfolio images (optional)
   if (fileGroups?.portfolioImages?.length) {
@@ -167,9 +176,12 @@ const updateBarber = catchAsync(async (req, res) => {
     uploads.portfolioImages.push(...uploadedImages);
   }
 
+  if(uploads.portfolioImages.length) {
+    body.portfolio = uploads.portfolioImages;
+  }
+
   const payload = {
     ...body,
-    portfolio: uploads.portfolioImages,
   };
 
   // Update DB

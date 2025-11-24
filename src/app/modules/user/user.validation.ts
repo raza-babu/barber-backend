@@ -175,25 +175,25 @@ const createSaloonOwner = z.object({
       })
       .optional(),
 
-    shopLogo: z.string().optional(),
+    // shopLogo: z.string().optional(),
 
-    shopImage: z
-      .array(z.string(), {
-        invalid_type_error: 'Shop images must be an array of strings!',
-      })
-      .optional(),
+    // shopImage: z
+    //   .array(z.string(), {
+    //     invalid_type_error: 'Shop images must be an array of strings!',
+    //   })
+    //   .optional(),
 
     qrCode: z.string().optional(),
 
     isVerified: z.boolean().optional(),
 
-    followerCount: z.number().int().nonnegative().default(0),
+    // followerCount: z.number().int().nonnegative().default(0),
 
-    followingCount: z.number().int().nonnegative().default(0),
+    // followingCount: z.number().int().nonnegative().default(0),
 
-    ratingCount: z.number().int().nonnegative().default(0),
+    // ratingCount: z.number().int().nonnegative().default(0),
 
-    avgRating: z.number().nonnegative().optional().default(0),
+    // avgRating: z.number().nonnegative().optional().default(0),
   }),
 });
 
@@ -245,14 +245,6 @@ const updateSaloonOwner = z.object({
       invalid_type_error: 'Longitude must be a number!',
     }).optional()),
 
-    shopLogo: z.string().optional(),
-
-    shopImage: z
-      .array(z.string(), {
-        invalid_type_error: 'Shop images must be an array of strings!',
-      })
-      .optional(),
-
     isVerified: z.boolean().optional(),
 
   }),
@@ -266,11 +258,11 @@ const updateBarber = z.object({
 
     bio: z.string().optional(),
 
-    portfolio: z
-      .array(z.string(), {
-        invalid_type_error: 'Portfolio images must be an array of strings!',
-      })
-      .optional(),
+    // portfolio: z
+    //   .array(z.string(), {
+    //     invalid_type_error: 'Portfolio images must be an array of strings!',
+    //   })
+    //   .optional(),
 
     isAvailable: z.boolean().optional(),
 
@@ -282,13 +274,7 @@ const updateBarber = z.object({
       })
       .optional(),
 
-    followerCount: z.number().int().nonnegative().default(0),
-
-    followingCount: z.number().int().nonnegative().default(0),
-
-    ratingCount: z.number().int().nonnegative().default(0),
-
-    avgRating: z.number().nonnegative().optional().default(0),
+  
   }),
 });
 
