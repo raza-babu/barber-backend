@@ -421,10 +421,20 @@ const getMyProfileFromDB = (id) => __awaiter(void 0, void 0, void 0, function* (
     return Profile;
 });
 const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d;
     const profile = yield prisma_1.default.saloonOwner.findUnique({
         where: {
             userId: userId,
         },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    followerCount: true,
+                    followingCount: true,
+                }
+            }
+        }
     });
     if (!profile) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon owner profile not found');
@@ -465,7 +475,8 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
             serviceName: true,
         },
     });
-    return Object.assign(Object.assign({ isMe: (profile === null || profile === void 0 ? void 0 : profile.userId) === userId }, profile), { Barbers: hiredBarbers.map(barber => {
+    const { user } = profile, restProfile = __rest(profile, ["user"]);
+    return Object.assign(Object.assign({}, restProfile), { isMe: (profile === null || profile === void 0 ? void 0 : profile.userId) === userId, followingCount: (_b = (_a = profile.user) === null || _a === void 0 ? void 0 : _a.followingCount) !== null && _b !== void 0 ? _b : 0, followerCount: (_d = (_c = profile.user) === null || _c === void 0 ? void 0 : _c.followerCount) !== null && _d !== void 0 ? _d : 0, Barbers: hiredBarbers.map(barber => {
             var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
             return ({
                 id: (_a = barber.user) === null || _a === void 0 ? void 0 : _a.id,
@@ -479,12 +490,23 @@ const getSaloonOwnerProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0
         }), services: services });
 });
 const getBarberProfileFromDB = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d;
     const profile = yield prisma_1.default.barber.findUnique({
         where: {
             userId: userId,
         },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    followerCount: true,
+                    followingCount: true,
+                }
+            }
+        }
     });
-    return Object.assign({ isMe: (profile === null || profile === void 0 ? void 0 : profile.userId) === userId }, profile);
+    const _e = profile, { user } = _e, restProfile = __rest(_e, ["user"]);
+    return Object.assign(Object.assign({ isMe: (profile === null || profile === void 0 ? void 0 : profile.userId) === userId }, restProfile), { followingCount: (_b = (_a = profile === null || profile === void 0 ? void 0 : profile.user) === null || _a === void 0 ? void 0 : _a.followingCount) !== null && _b !== void 0 ? _b : 0, followerCount: (_d = (_c = profile === null || profile === void 0 ? void 0 : profile.user) === null || _c === void 0 ? void 0 : _c.followerCount) !== null && _d !== void 0 ? _d : 0 });
 });
 const updateMyProfileIntoDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const userData = payload;

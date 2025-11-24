@@ -46,13 +46,18 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
 
   // Upload shop logo
   if (fileGroups.shop_logo?.[0]) {
-    uploads.shopLogo = await uploadFileToSpace(fileGroups.shop_logo[0], 'saloon-logos');
+    uploads.shopLogo = await uploadFileToSpace(
+      fileGroups.shop_logo[0],
+      'saloon-logos',
+    );
   }
 
   // Upload shop images
   if (fileGroups.shop_images?.length) {
     const imageUploads = await Promise.all(
-      fileGroups.shop_images.map(file => uploadFileToSpace(file, 'saloon-images'))
+      fileGroups.shop_images.map(file =>
+        uploadFileToSpace(file, 'saloon-images'),
+      ),
     );
     uploads.shopImages.push(...imageUploads);
   }
@@ -60,7 +65,9 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
   // Upload shop videos
   if (fileGroups.shop_videos?.length) {
     const videoUploads = await Promise.all(
-      fileGroups.shop_videos.map(file => uploadFileToSpace(file, 'saloon-videos'))
+      fileGroups.shop_videos.map(file =>
+        uploadFileToSpace(file, 'saloon-videos'),
+      ),
     );
     uploads.shopVideos.push(...videoUploads);
   }
@@ -69,7 +76,7 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
     ...body,
     shopLogo: uploads.shopLogo,
     shopImages: uploads.shopImages,
-    shopVideo: uploads.shopVideos? uploads.shopVideos : [],
+    shopVideo: uploads.shopVideos ? uploads.shopVideos : [],
   };
 
   const result = await UserServices.registerSaloonOwnerIntoDB(payload);
@@ -99,19 +106,26 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
   };
   // Upload shop logo (optional)
   if (fileGroups.shop_logo?.[0]) {
-    uploads.shopLogo = await uploadFileToSpace(fileGroups.shop_logo[0], 'saloon-logos');
+    uploads.shopLogo = await uploadFileToSpace(
+      fileGroups.shop_logo[0],
+      'saloon-logos',
+    );
   }
   // Upload shop images (optional)
   if (fileGroups.shop_images?.length) {
     const imageUploads = await Promise.all(
-      fileGroups.shop_images.map(file => uploadFileToSpace(file, 'saloon-images'))
+      fileGroups.shop_images.map(file =>
+        uploadFileToSpace(file, 'saloon-images'),
+      ),
     );
     uploads.shopImages.push(...imageUploads);
   }
   // Upload shop videos (optional)
   if (fileGroups.shop_videos?.length) {
     const videoUploads = await Promise.all(
-      fileGroups.shop_videos.map(file => uploadFileToSpace(file, 'saloon-videos'))
+      fileGroups.shop_videos.map(file =>
+        uploadFileToSpace(file, 'saloon-videos'),
+      ),
     );
     uploads.shopVideos.push(...videoUploads);
   }
@@ -119,7 +133,7 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
     ...body,
     shopLogo: uploads.shopLogo,
     shopImages: uploads.shopImages,
-    shopVideo: uploads.shopVideos? uploads.shopVideos : [],
+    shopVideo: uploads.shopVideos ? uploads.shopVideos : [],
   };
   const result = await UserServices.updateSaloonOwnerIntoDB(user.id, payload);
   sendResponse(res, {
@@ -128,7 +142,6 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
     data: result,
   });
 });
-
 
 const updateBarber = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -147,7 +160,9 @@ const updateBarber = catchAsync(async (req, res) => {
   // Upload portfolio images (optional)
   if (fileGroups?.portfolioImages?.length) {
     const uploadedImages = await Promise.all(
-      fileGroups.portfolioImages.map(file => uploadFileToSpace(file, 'barber-portfolio'))
+      fileGroups.portfolioImages.map(file =>
+        uploadFileToSpace(file, 'barber-portfolio'),
+      ),
     );
     uploads.portfolioImages.push(...uploadedImages);
   }
@@ -174,7 +189,6 @@ const updateBarber = catchAsync(async (req, res) => {
     data: result,
   });
 });
- 
 
 const getMyProfile = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -315,7 +329,10 @@ const updateProfileImage = catchAsync(async (req, res) => {
   const file = req.file;
 
   if (!file) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Profile image file is required.');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Profile image file is required.',
+    );
   }
 
   // Upload to DigitalOcean
@@ -330,7 +347,6 @@ const updateProfileImage = catchAsync(async (req, res) => {
     data: result,
   });
 });
-
 
 export const UserControllers = {
   registerUser,
@@ -350,5 +366,5 @@ export const UserControllers = {
   resendUserVerificationEmail,
   resendOtp,
   deleteAccount,
-  updateProfileImage
+  updateProfileImage,
 };

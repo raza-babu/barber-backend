@@ -449,6 +449,15 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
     where: {
       userId: userId,
     },
+    include: {
+      user: {
+        select: {
+          id: true,
+          followerCount: true,
+          followingCount: true,
+        }
+      }
+    }
   });
   if (!profile) {
     throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner profile not found');
@@ -491,10 +500,14 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
       serviceName: true,
     },
   });
+const { user, ...restProfile } = profile;
+  
 
   return {
+    ...restProfile,
     isMe: profile?.userId === userId,
-    ...profile,
+    followingCount: profile.user?.followingCount ?? 0,
+    followerCount: profile.user?.followerCount ?? 0,
     Barbers: hiredBarbers.map(barber => ({
       id: barber.user?.id,
       fullName: barber.user?.fullName ?? null,
@@ -513,10 +526,22 @@ const getBarberProfileFromDB = async (userId: string) => {
     where: {
       userId: userId,
     },
+    include: {
+      user: {
+        select: {
+          id: true,
+          followerCount: true,
+          followingCount: true,
+        }
+      }
+    }
   });
+  const { user, ...restProfile } = profile!;
   return {
     isMe: profile?.userId === userId,
-    ...profile,
+    ...restProfile,
+    followingCount: profile?.user?.followingCount ?? 0,
+    followerCount: profile?.user?.followerCount ?? 0,
   };
 };
 

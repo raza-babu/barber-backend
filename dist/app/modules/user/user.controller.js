@@ -267,5 +267,5 @@ exports.UserControllers = {
     resendUserVerificationEmail,
     resendOtp,
     deleteAccount,
-    updateProfileImage
+    updateProfileImage,
 };
