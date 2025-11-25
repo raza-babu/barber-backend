@@ -64,6 +64,7 @@ const getMyBookingsFromDb = async (userId: string) => {
       OR: [
         { status: BookingStatus.CONFIRMED },
         { status: BookingStatus.COMPLETED },
+        { status: BookingStatus.PENDING },
       ] 
     },
     select: {
