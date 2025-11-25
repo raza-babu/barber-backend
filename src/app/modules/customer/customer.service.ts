@@ -132,6 +132,8 @@ const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
     email: result.email,
     phoneNumber: result.phoneNumber,
     image: result.image,
+    address: result.address,
+    
   };
 };
 

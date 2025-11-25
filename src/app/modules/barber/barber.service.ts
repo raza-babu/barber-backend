@@ -75,6 +75,7 @@ const getMyBookingsFromDb = async (userId: string) => {
       startDateTime: true,
       endDateTime: true,
       status: true,
+      bookingType: true,
       totalPrice: true,
       createdAt: true,
       user: {
@@ -111,6 +112,7 @@ const getMyBookingsFromDb = async (userId: string) => {
     userId: booking.userId,
     saloonOwnerId: booking.saloonOwnerId,
     barberId: booking.barberId,
+    bookingType: booking.bookingType,
     date: booking.date,
     startDateTime: booking.startDateTime,
     endDateTime: booking.endDateTime,

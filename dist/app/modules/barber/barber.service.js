@@ -84,6 +84,7 @@ const getMyBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
             startDateTime: true,
             endDateTime: true,
             status: true,
+            bookingType: true,
             totalPrice: true,
             createdAt: true,
             user: {
@@ -120,6 +121,7 @@ const getMyBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
         userId: booking.userId,
         saloonOwnerId: booking.saloonOwnerId,
         barberId: booking.barberId,
+        bookingType: booking.bookingType,
         date: booking.date,
         startDateTime: booking.startDateTime,
         endDateTime: booking.endDateTime,

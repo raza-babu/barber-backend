@@ -132,6 +132,7 @@ const getCustomerByIdFromDb = (userId, customerId) => __awaiter(void 0, void 0, 
         email: result.email,
         phoneNumber: result.phoneNumber,
         image: result.image,
+        address: result.address,
     };
 });
 const updateCustomerIntoDb = (userId, customerId, data) => __awaiter(void 0, void 0, void 0, function* () {
