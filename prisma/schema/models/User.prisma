@@ -28,6 +28,8 @@ model User {
   subscriptionEnd      DateTime?
   followerCount        Int                    @default(0)
   followingCount       Int                    @default(0)
+  isDeleted            Boolean                @default(false)
+  deleteReason         String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 

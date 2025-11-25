@@ -31,7 +31,7 @@ router.patch(
   multerUploadMultiple.fields([
     { name: 'shop_logo', maxCount: 1 },
     { name: 'shop_images' },
-    { name: 'shop_videos', },
+    { name: 'shop_videos' },
   ]),
   parseBody,
   auth(),
@@ -39,17 +39,14 @@ router.patch(
   UserControllers.updateSaloonOwner,
 );
 
-
 router.patch(
   '/update/barber',
-  multerUploadMultiple.fields([
-    { name: 'portfolioImages', maxCount: 5 },
-  ]),
+  multerUploadMultiple.fields([{ name: 'portfolioImages', maxCount: 5 }]),
   parseBody,
   auth(),
   validateRequest(UserValidations.updateBarber),
   UserControllers.updateBarber,
-)
+);
 
 router.put(
   '/verify-otp',
@@ -115,7 +112,12 @@ router.post(
   UserControllers.socialLogin,
 );
 
-router.post('/delete-account', auth(), UserControllers.deleteAccount);
+router.post(
+  '/delete-account',
+  auth(),
+  validateRequest(UserValidations.deleteAccount),
+  UserControllers.deleteAccount,
+);
 
 router.put(
   '/update-profile-image',

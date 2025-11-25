@@ -1131,7 +1131,10 @@ const updatePasswordIntoDb = async (payload: any) => {
   };
 };
 
-const deleteAccountFromDB = async (id: string) => {
+const deleteAccountFromDB = async (id: string, data:{
+  reason?: string;
+  password: string;
+}) => {
   const userData = await prisma.user.findUnique({
     where: { id },
   });
@@ -1140,11 +1143,24 @@ const deleteAccountFromDB = async (id: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
 
-  await prisma.user.delete({
+  // match password from the user given input
+  const checkPassword: boolean = await bcrypt.compare(
+    userData.password!,
+    data.password,
+  );
+  if (!checkPassword) {
+    throw new AppError(httpStatus.CONFLICT, 'Password is incorrect!');
+  }
+  await prisma.user.update({
     where: { id },
+    data: {
+      status: UserStatus.BLOCKED,
+      isDeleted: true,
+      deleteReason: data.reason || 'No reason provided',
+    },
   });
-
   return { message: 'Account deleted successfully!' };
+ 
 };
 
 const updateProfileImageIntoDB = async (

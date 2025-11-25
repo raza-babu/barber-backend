@@ -204,7 +204,7 @@ const updateSaloonOwner = zod_1.default.object({
             required_error: 'Shop address is required!',
         })
             .optional(),
-        latitude: zod_1.default.preprocess((val) => {
+        latitude: zod_1.default.preprocess(val => {
             if (val === '' || val === null || val === undefined)
                 return undefined;
             if (typeof val === 'string') {
@@ -212,10 +212,12 @@ const updateSaloonOwner = zod_1.default.object({
                 return isNaN(n) ? val : n;
             }
             return val;
-        }, zod_1.default.number({
+        }, zod_1.default
+            .number({
             invalid_type_error: 'Latitude must be a number!',
-        }).optional()),
-        longitude: zod_1.default.preprocess((val) => {
+        })
+            .optional()),
+        longitude: zod_1.default.preprocess(val => {
             if (val === '' || val === null || val === undefined)
                 return undefined;
             if (typeof val === 'string') {
@@ -223,9 +225,11 @@ const updateSaloonOwner = zod_1.default.object({
                 return isNaN(n) ? val : n;
             }
             return val;
-        }, zod_1.default.number({
+        }, zod_1.default
+            .number({
             invalid_type_error: 'Longitude must be a number!',
-        }).optional()),
+        })
+            .optional()),
         isVerified: zod_1.default.boolean().optional(),
     }),
 });
@@ -248,6 +252,12 @@ const updateBarber = zod_1.default.object({
             .optional(),
     }),
 });
+const deleteAccount = zod_1.default.object({
+    body: zod_1.default.object({
+        password: zod_1.default.string(),
+        reason: zod_1.default.string().optional(),
+    }),
+});
 exports.UserValidations = {
     registerUser,
     updateProfileSchema,
@@ -259,4 +269,5 @@ exports.UserValidations = {
     socialLoginSchema,
     createSaloonOwner,
     updateBarber,
+    deleteAccount
 };

@@ -947,15 +947,25 @@ const updatePasswordIntoDb = (payload) => __awaiter(void 0, void 0, void 0, func
         message: 'Password updated successfully!',
     };
 });
-const deleteAccountFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
+const deleteAccountFromDB = (id, data) => __awaiter(void 0, void 0, void 0, function* () {
     const userData = yield prisma_1.default.user.findUnique({
         where: { id },
     });
     if (!userData) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
-    yield prisma_1.default.user.delete({
+    // match password from the user given input
+    const checkPassword = yield bcrypt.compare(userData.password, data.password);
+    if (!checkPassword) {
+        throw new AppError_1.default(http_status_1.default.CONFLICT, 'Password is incorrect!');
+    }
+    yield prisma_1.default.user.update({
         where: { id },
+        data: {
+            status: client_1.UserStatus.BLOCKED,
+            isDeleted: true,
+            deleteReason: data.reason || 'No reason provided',
+        },
     });
     return { message: 'Account deleted successfully!' };
 });

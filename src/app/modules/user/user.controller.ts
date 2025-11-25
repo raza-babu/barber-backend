@@ -326,7 +326,7 @@ const updatePassword = catchAsync(async (req, res) => {
 
 const deleteAccount = catchAsync(async (req, res) => {
   const user = req.user as any;
-  await UserServices.deleteAccountFromDB(user.id);
+  await UserServices.deleteAccountFromDB(user.id, req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

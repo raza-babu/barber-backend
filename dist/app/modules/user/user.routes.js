@@ -22,11 +22,9 @@ router.post('/register/saloon-owner', multipleFile_1.multerUploadMultiple.fields
 router.patch('/update/saloon-owner', multipleFile_1.multerUploadMultiple.fields([
     { name: 'shop_logo', maxCount: 1 },
     { name: 'shop_images' },
-    { name: 'shop_videos', },
+    { name: 'shop_videos' },
 ]), parseBody_1.parseBody, (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateSaloonOwner), user_controller_1.UserControllers.updateSaloonOwner);
-router.patch('/update/barber', multipleFile_1.multerUploadMultiple.fields([
-    { name: 'portfolioImages', maxCount: 5 },
-]), parseBody_1.parseBody, (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateBarber), user_controller_1.UserControllers.updateBarber);
+router.patch('/update/barber', multipleFile_1.multerUploadMultiple.fields([{ name: 'portfolioImages', maxCount: 5 }]), parseBody_1.parseBody, (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.updateBarber), user_controller_1.UserControllers.updateBarber);
 router.put('/verify-otp', (0, validateRequest_1.default)(user_validation_1.UserValidations.verifyOtpSchema), user_controller_1.UserControllers.verifyOtp);
 router.get('/me', (0, auth_1.default)(), user_controller_1.UserControllers.getMyProfile);
 router.get('/saloon-owner-profile', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), user_controller_1.UserControllers.getSaloonOwnerProfile);
@@ -39,6 +37,6 @@ router.post('/resend-otp', (0, validateRequest_1.default)(user_validation_1.User
 router.put('/verify-otp-forgot-password', (0, validateRequest_1.default)(user_validation_1.UserValidations.verifyOtpSchema), user_controller_1.UserControllers.verifyOtpForgotPassword);
 router.put('/update-password', (0, validateRequest_1.default)(user_validation_1.UserValidations.updatePasswordSchema), user_controller_1.UserControllers.updatePassword);
 router.post('/social-sign-up', (0, validateRequest_1.default)(user_validation_1.UserValidations.socialLoginSchema), user_controller_1.UserControllers.socialLogin);
-router.post('/delete-account', (0, auth_1.default)(), user_controller_1.UserControllers.deleteAccount);
+router.post('/delete-account', (0, auth_1.default)(), (0, validateRequest_1.default)(user_validation_1.UserValidations.deleteAccount), user_controller_1.UserControllers.deleteAccount);
 router.put('/update-profile-image', multipleFile_1.multerUploadMultiple.single('profileImage'), (0, auth_1.default)(), user_controller_1.UserControllers.updateProfileImage);
 exports.UserRouters = router;

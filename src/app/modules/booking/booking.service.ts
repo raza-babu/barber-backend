@@ -2148,6 +2148,7 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
         }
       }
 
+
       return {
         shopLogo: salon.shopLogo || null,
         barberId: barber.userId,

@@ -223,30 +223,39 @@ const updateSaloonOwner = z.object({
       })
       .optional(),
 
-    latitude: z.preprocess((val) => {
-      if (val === '' || val === null || val === undefined) return undefined;
-      if (typeof val === 'string') {
-        const n = Number(val);
-        return isNaN(n) ? val : n;
-      }
-      return val;
-    }, z.number({
-      invalid_type_error: 'Latitude must be a number!',
-    }).optional()),
+    latitude: z.preprocess(
+      val => {
+        if (val === '' || val === null || val === undefined) return undefined;
+        if (typeof val === 'string') {
+          const n = Number(val);
+          return isNaN(n) ? val : n;
+        }
+        return val;
+      },
+      z
+        .number({
+          invalid_type_error: 'Latitude must be a number!',
+        })
+        .optional(),
+    ),
 
-    longitude: z.preprocess((val) => {
-      if (val === '' || val === null || val === undefined) return undefined;
-      if (typeof val === 'string') {
-        const n = Number(val);
-        return isNaN(n) ? val : n;
-      }
-      return val;
-    }, z.number({
-      invalid_type_error: 'Longitude must be a number!',
-    }).optional()),
+    longitude: z.preprocess(
+      val => {
+        if (val === '' || val === null || val === undefined) return undefined;
+        if (typeof val === 'string') {
+          const n = Number(val);
+          return isNaN(n) ? val : n;
+        }
+        return val;
+      },
+      z
+        .number({
+          invalid_type_error: 'Longitude must be a number!',
+        })
+        .optional(),
+    ),
 
     isVerified: z.boolean().optional(),
-
   }),
 });
 
@@ -273,8 +282,13 @@ const updateBarber = z.object({
         invalid_type_error: 'Skills must be an array of strings!',
       })
       .optional(),
+  }),
+});
 
-  
+const deleteAccount = z.object({
+  body: z.object({
+    password: z.string(),
+    reason: z.string().optional(),
   }),
 });
 
@@ -289,4 +303,5 @@ export const UserValidations = {
   socialLoginSchema,
   createSaloonOwner,
   updateBarber,
+  deleteAccount
 };
