@@ -20,6 +20,14 @@ const loginUserFromDB = async (payload: {
   if (!userData) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
+  if (userData.isDeleted === true) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      `Your account is deleted. Reason: ${
+        userData.deleteReason || 'Not specified'
+      }`,
+    );
+  }
 
   if (userData.password === null) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Password is not set');
@@ -186,7 +194,7 @@ const loginUserFromDB = async (payload: {
     }),
     ...(userData.role === UserRoleEnum.BARBER && {
       saloonOwnerId: saloonOwnerId || null,
-    })
+    }),
   };
 };
 

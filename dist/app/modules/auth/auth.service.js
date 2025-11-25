@@ -63,6 +63,9 @@ const loginUserFromDB = (payload) => __awaiter(void 0, void 0, void 0, function*
     if (!userData) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found');
     }
+    if (userData.isDeleted === true) {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, `Your account is deleted. Reason: ${userData.deleteReason || 'Not specified'}`);
+    }
     if (userData.password === null) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Password is not set');
     }
