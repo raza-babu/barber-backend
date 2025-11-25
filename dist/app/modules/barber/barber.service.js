@@ -67,7 +67,7 @@ const getMyScheduleFromDb = (userId, dayName) => __awaiter(void 0, void 0, void 
     });
 });
 const getMyBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield prisma_1.default.booking.findMany({
+    let bookings = yield prisma_1.default.booking.findMany({
         where: {
             barberId: userId,
             OR: [
@@ -76,48 +76,62 @@ const getMyBookingsFromDb = (userId) => __awaiter(void 0, void 0, void 0, functi
                 { status: client_1.BookingStatus.PENDING },
             ]
         },
-        select: {
-            id: true,
-            userId: true,
-            saloonOwnerId: true,
-            barberId: true,
-            date: true,
-            startDateTime: true,
-            endDateTime: true,
-            status: true,
-            bookingType: true,
-            totalPrice: true,
-            createdAt: true,
-            user: {
-                select: {
-                    fullName: true,
-                    email: true,
-                    phoneNumber: true,
-                    image: true,
-                },
-            },
+        include: {
             BookedServices: {
                 select: {
+                    id: true,
                     service: {
-                        select: {
-                            id: true,
-                            serviceName: true,
-                            availableTo: true,
-                            price: true,
-                            duration: true,
-                        },
+                        select: { id: true, serviceName: true, duration: true, availableTo: true, price: true },
                     },
                 },
             },
         },
-        orderBy: {
-            createdAt: 'desc',
-        },
+        orderBy: { startDateTime: 'asc' },
     });
-    if (result.length === 0) {
+    if (bookings.length === 0) {
         return { message: 'No bookings found' };
     }
-    return result.map(booking => ({
+    const bookingUserIds = Array.from(new Set(bookings.map(b => b.userId).filter(Boolean)));
+    const registeredUsersMap = {};
+    if (bookingUserIds.length > 0) {
+        const registeredUsers = yield prisma_1.default.user.findMany({
+            where: { id: { in: bookingUserIds } },
+            // include email and phoneNumber so we don't lose those fields when replacing the user object
+            select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+        });
+        for (const u of registeredUsers) {
+            registeredUsersMap[u.id] = u;
+        }
+    }
+    const nonRegisteredUsersMap = {};
+    const nonRegIds = bookingUserIds.filter(id => !registeredUsersMap[id]);
+    if (nonRegIds.length > 0) {
+        const nonRegisteredUsers = yield prisma_1.default.nonRegisteredUser.findMany({
+            where: { id: { in: nonRegIds } },
+            // include phoneNumber and image if available, and email
+            select: { id: true, fullName: true, email: true, phone: true },
+        });
+        for (const nr of nonRegisteredUsers) {
+            nonRegisteredUsersMap[nr.id] = nr;
+        }
+    }
+    bookings = bookings.map(b => {
+        const uid = b.userId;
+        const userObj = (uid && registeredUsersMap[uid]) ||
+            (uid && nonRegisteredUsersMap[uid]) || {
+            id: null,
+            fullName: null,
+            email: null,
+            phoneNumber: null,
+            image: null,
+        };
+        return Object.assign(Object.assign({}, b), { user: userObj });
+    });
+    bookings = bookings.map(b => {
+        var _a;
+        return (Object.assign(Object.assign({}, b), { user: (_a = b.user) !== null && _a !== void 0 ? _a : { id: null, fullName: null, email: null, phoneNumber: null, image: null } }));
+    });
+    return bookings.map(booking => ({
         bookingId: booking.id,
         userId: booking.userId,
         saloonOwnerId: booking.saloonOwnerId,

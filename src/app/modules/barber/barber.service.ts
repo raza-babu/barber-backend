@@ -58,7 +58,7 @@ const getMyScheduleFromDb = async (userId: string, dayName: string) => {
 };
 
 const getMyBookingsFromDb = async (userId: string) => {
-  const result = await prisma.booking.findMany({
+  let bookings = await prisma.booking.findMany({
     where: {
       barberId: userId,
       OR: [
@@ -67,48 +67,72 @@ const getMyBookingsFromDb = async (userId: string) => {
         { status: BookingStatus.PENDING },
       ] 
     },
-    select: {
-      id: true,
-      userId: true,
-      saloonOwnerId: true,
-      barberId: true,
-      date: true,
-      startDateTime: true,
-      endDateTime: true,
-      status: true,
-      bookingType: true,
-      totalPrice: true,
-      createdAt: true,
-      user: {
-        select: {
-          fullName: true,
-          email: true,
-          phoneNumber: true,
-          image: true,
-        },
-      },
-      BookedServices: {
-        select: {
-          service: {
+    include: {
+          BookedServices: {
             select: {
               id: true,
-              serviceName: true,
-              availableTo: true,
-              price: true,
-              duration: true,
+              service: {
+                select: { id: true, serviceName: true, duration: true, availableTo: true, price: true },
+              },
             },
           },
         },
-      },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
+        orderBy: { startDateTime: 'asc' },
+      
+    
   });
-  if (result.length === 0) {
+
+  if (bookings.length === 0) {
     return { message: 'No bookings found' };
   }
-  return result.map(booking => ({
+
+  const bookingUserIds = Array.from(
+        new Set(bookings.map(b => b.userId).filter(Boolean)),
+      );
+
+      const registeredUsersMap: Record<string, any> = {};
+      if (bookingUserIds.length > 0) {
+        const registeredUsers = await prisma.user.findMany({
+          where: { id: { in: bookingUserIds } },
+          // include email and phoneNumber so we don't lose those fields when replacing the user object
+          select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+        });
+        for (const u of registeredUsers) {
+          registeredUsersMap[u.id] = u;
+        }
+      }
+
+      const nonRegisteredUsersMap: Record<string, any> = {};
+      const nonRegIds = bookingUserIds.filter(id => !registeredUsersMap[id]);
+      if (nonRegIds.length > 0) {
+        const nonRegisteredUsers = await prisma.nonRegisteredUser.findMany({
+          where: { id: { in: nonRegIds } },
+          // include phoneNumber and image if available, and email
+          select: { id: true, fullName: true, email: true, phone: true },
+        });
+        for (const nr of nonRegisteredUsers) {
+          nonRegisteredUsersMap[nr.id] = nr;
+        }
+      }
+
+      bookings = bookings.map(b => {
+        const uid = b.userId as string | null;
+        const userObj = (uid && registeredUsersMap[uid]) ||
+          (uid && nonRegisteredUsersMap[uid]) || {
+            id: null,
+            fullName: null,
+            email: null,
+            phoneNumber: null,
+            image: null,
+          };
+        return { ...b, user: userObj };
+      });
+      bookings = bookings.map(b => ({
+        ...b,
+        user: (b as any).user ?? { id: null, fullName: null, email: null, phoneNumber: null, image: null },
+      }));
+
+  return bookings.map(booking => ({
     bookingId: booking.id,
     userId: booking.userId,
     saloonOwnerId: booking.saloonOwnerId,
@@ -120,10 +144,10 @@ const getMyBookingsFromDb = async (userId: string) => {
     status: booking.status,
     totalPrice: booking.totalPrice,
     createdAt: booking.createdAt,
-    userFullName: booking.user.fullName,
-    userEmail: booking.user.email,
-    userPhoneNumber: booking.user.phoneNumber,
-    userImage: booking.user.image,
+    userFullName: (booking as any).user.fullName,
+    userEmail: (booking as any).user.email,
+    userPhoneNumber: (booking as any).user.phoneNumber,
+    userImage: (booking as any).user.image,
     bookedServices: booking.BookedServices.map(bs => ({
       id: bs.service.id,
       serviceName: bs.service.serviceName,
