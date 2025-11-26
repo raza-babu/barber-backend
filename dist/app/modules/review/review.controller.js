@@ -60,6 +60,16 @@ const getReviewListForBarber = (0, catchAsync_1.default)((req, res) => __awaiter
         });
     }
 }));
+const getNotProvidedForSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield review_service_1.reviewService.getNotProvidedReviewsForSaloonFromDb(user.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Not provided reviews for saloon retrieved successfully',
+        data: result,
+    });
+}));
 const getReviewById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield review_service_1.reviewService.getReviewByIdFromDb(user.id, req.params.id);
@@ -94,6 +104,7 @@ exports.reviewController = {
     createReview,
     getReviewListForSaloon,
     getReviewListForBarber,
+    getNotProvidedForSaloonList,
     getReviewById,
     updateReview,
     deleteReview,

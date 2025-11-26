@@ -16,7 +16,7 @@ const createBookingSchema = zod_1.z.object({
         notes: zod_1.z.string().optional(),
         loyaltySchemeId: zod_1.z.string().optional(),
         isInQueue: zod_1.z.boolean().optional(),
-        bookingType: zod_1.z.enum(['BOOKING', 'QUEUE'], {
+        type: zod_1.z.enum(['BOOKING', 'QUEUE'], {
             required_error: 'Booking type is required',
         }),
         fullName: zod_1.z.string().min(1, 'Full name is required').optional(),
@@ -38,7 +38,7 @@ const updateBookingSchema = zod_1.z.object({
         barberName: zod_1.z.string().optional(),
         barberImage: zod_1.z.string().optional(),
         loyaltySchemeId: zod_1.z.string().optional(),
-        bookingType: zod_1.z
+        type: zod_1.z
             .enum(['BOOKING', 'QUEUE'], {
             required_error: 'Booking type is required',
         })

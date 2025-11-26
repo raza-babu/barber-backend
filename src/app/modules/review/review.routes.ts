@@ -16,8 +16,13 @@ router.post(
 
 router.get('/', auth(), reviewController.getReviewListForBarber);
 
-router.get('/saloon/:id', auth(), reviewController.getReviewListForSaloon);
+router.get(
+  '/not-provided-reviews',
+  auth(UserRoleEnum.CUSTOMER),
+  reviewController.getNotProvidedForSaloonList,
+);
 
+router.get('/saloon/:id', auth(), reviewController.getReviewListForSaloon);
 
 router.patch(
   '/:id',

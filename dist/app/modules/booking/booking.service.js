@@ -972,6 +972,7 @@ const getBookingListFromDb = (userId) => __awaiter(void 0, void 0, void 0, funct
                 },
             },
         },
+        orderBy: { date: 'desc' }
     });
     if (result.length === 0) {
         return [];

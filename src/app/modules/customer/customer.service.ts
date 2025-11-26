@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { BookingStatus, BookingType } from '@prisma/client';
 
 const createCustomerIntoDb = async (userId: string, data: any) => {
   const result = await prisma.saloonOwner.create({
@@ -80,19 +81,29 @@ const getAllSaloonListFromDb = async (query: {
       longitude: true,
       ratingCount: true,
       avgRating: true,
+      Booking: {
+        where: {
+          bookingType: BookingType.QUEUE,
+          status: {
+            in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+          },
+        },
+      },
     },
     orderBy,
     skip,
     take: limit,
   });
 
-  const saloons = result.map(saloon => ({
-    ...saloon,
+
+  const saloons = result.map(({ Booking, ...rest }) => ({
+    ...rest,
     distance: 0,
+    queue: Array.isArray(Booking) ? Booking.length : 0,
   }));
 
   return {
-    data: saloons,
+   data : saloons,
     meta: {
       total,
       page,
@@ -151,6 +162,14 @@ const getMyNearestSaloonListFromDb = async (
       longitude: true,
       ratingCount: true,
       avgRating: true,
+      Booking: {
+        where: {
+          bookingType: BookingType.QUEUE,
+          status: {
+            in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+          },
+        },
+      },
     },
   });
 
@@ -183,10 +202,14 @@ const getMyNearestSaloonListFromDb = async (
         Number(saloon.latitude),
         Number(saloon.longitude),
       );
+
+      const { Booking, ...rest } = saloon;
       return {
-        ...saloon,
+        ...rest,
         distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
+        queue: Array.isArray(Booking) ? Booking.length : 0,
       };
+      
     })
     .filter(saloon => saloon.distance <= radiusInKm)
     .sort((a, b) => a.distance - b.distance);
@@ -254,6 +277,14 @@ const getTopRatedSaloonsFromDb = async (query: {
           rating: true,
         },
       },
+      Booking: {
+        where: {
+          bookingType: BookingType.QUEUE,
+          status: {
+            in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+          },
+        },
+      },
     },
   });
 
@@ -303,6 +334,7 @@ const getTopRatedSaloonsFromDb = async (query: {
         ratingCount: ratingCount,
         avgRating: Math.round(computedAvg * 100) / 100,
         distance: 0,
+        queue: saloon.Booking.length,
       };
     })
     .sort((a, b) => b.avgRating - a.avgRating);

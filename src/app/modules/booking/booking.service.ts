@@ -1234,6 +1234,7 @@ const getBookingListFromDb = async (userId: string) => {
         },
       },
     },
+    orderBy: { date: 'desc'}
   });
   if (result.length === 0) {
     return [];

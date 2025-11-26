@@ -23,7 +23,7 @@ const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const createBooking = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    if (req.body.bookingType === undefined) {
+    if (req.body.type === undefined) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking type is required');
     }
     if (req.body.bookingType === client_1.BookingType.QUEUE) {

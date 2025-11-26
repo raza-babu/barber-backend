@@ -9,7 +9,7 @@ import AppError from '../../errors/AppError';
 
 const createBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
-  if (req.body.bookingType === undefined) {
+  if (req.body.type === undefined) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Booking type is required');
   }
   if (req.body.bookingType === BookingType.QUEUE) {

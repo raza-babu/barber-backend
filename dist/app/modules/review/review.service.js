@@ -58,7 +58,10 @@ const createReviewIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, f
             },
         });
         const saloonReviewCount = findExistingReview.length;
-        const saloonAvgRating = saloonReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / saloonReviewCount;
+        const saloonAvgRating = saloonReviewCount === 0
+            ? 0
+            : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+                saloonReviewCount;
         const updateSaloonOwner = yield tx.saloonOwner.update({
             where: {
                 userId: data.saloonOwnerId,
@@ -68,7 +71,7 @@ const createReviewIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, f
                     increment: 1,
                 },
                 avgRating: {
-                    set: saloonAvgRating
+                    set: saloonAvgRating,
                 },
             },
         });
@@ -76,7 +79,10 @@ const createReviewIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, f
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon owner not updated');
         }
         const barberReviewCount = findExistingReview.length;
-        const barberAvgRating = barberReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / barberReviewCount;
+        const barberAvgRating = barberReviewCount === 0
+            ? 0
+            : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+                barberReviewCount;
         const updateBarber = yield tx.barber.update({
             where: {
                 userId: data.barberId,
@@ -117,7 +123,7 @@ const getReviewListForSaloonFromDb = (userId) => __awaiter(void 0, void 0, void 
                     shopName: true,
                     shopAddress: true,
                     shopLogo: true,
-                }
+                },
             },
         },
         orderBy: {
@@ -144,13 +150,67 @@ const getReviewListForSaloonFromDb = (userId) => __awaiter(void 0, void 0, void 
         });
     });
 });
+const getNotProvidedReviewsForSaloonFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield prisma_1.default.booking.findMany({
+        where: {
+            userId: userId,
+            status: client_1.BookingStatus.COMPLETED,
+            Review: {
+                none: {},
+            },
+        },
+        select: {
+            id: true,
+            userId: true,
+            barberId: true,
+            saloonOwnerId: true,
+            date: true,
+            appointmentAt: true,
+        },
+        orderBy: {
+            date: 'desc',
+        },
+    });
+    const saloonsNotReviewed = yield Promise.all(result.map((booking) => __awaiter(void 0, void 0, void 0, function* () {
+        const saloons = yield prisma_1.default.saloonOwner.findUnique({
+            where: {
+                userId: booking.saloonOwnerId,
+            },
+            select: {
+                id: true,
+                userId: true,
+                shopName: true,
+                shopAddress: true,
+                shopImages: true,
+                isVerified: true,
+                shopLogo: true,
+                shopVideo: true,
+                latitude: true,
+                longitude: true,
+                ratingCount: true,
+                avgRating: true,
+            },
+        });
+        return {
+            id: saloons === null || saloons === void 0 ? void 0 : saloons.id,
+            userId: saloons === null || saloons === void 0 ? void 0 : saloons.userId,
+            saloonName: (saloons === null || saloons === void 0 ? void 0 : saloons.shopName) || 'Unknown Saloon',
+            saloonAddress: (saloons === null || saloons === void 0 ? void 0 : saloons.shopAddress) || 'Unknown Address',
+            saloonLogo: (saloons === null || saloons === void 0 ? void 0 : saloons.shopLogo) || null,
+            saloonImages: (saloons === null || saloons === void 0 ? void 0 : saloons.shopImages) || [],
+            saloonVideo: (saloons === null || saloons === void 0 ? void 0 : saloons.shopVideo) || null,
+            latitude: (saloons === null || saloons === void 0 ? void 0 : saloons.latitude) || null,
+            longitude: (saloons === null || saloons === void 0 ? void 0 : saloons.longitude) || null,
+            ratingCount: (saloons === null || saloons === void 0 ? void 0 : saloons.ratingCount) || 0,
+            avgRating: (saloons === null || saloons === void 0 ? void 0 : saloons.avgRating) || 0,
+        };
+    })));
+    return saloonsNotReviewed;
+});
 const getReviewListForBarberFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.review.findMany({
         where: {
-            OR: [
-                { barberId: userId },
-                { saloonOwnerId: userId },
-            ],
+            OR: [{ barberId: userId }, { saloonOwnerId: userId }],
         },
         select: {
             id: true,
@@ -167,7 +227,7 @@ const getReviewListForBarberFromDb = (userId) => __awaiter(void 0, void 0, void 
                     shopName: true,
                     shopAddress: true,
                     shopLogo: true,
-                }
+                },
             },
         },
         orderBy: {
@@ -230,7 +290,10 @@ const updateReviewIntoDb = (userId, reviewId, data) => __awaiter(void 0, void 0,
             },
         });
         const saloonReviewCount = findExistingReview.length;
-        const saloonAvgRating = saloonReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / saloonReviewCount;
+        const saloonAvgRating = saloonReviewCount === 0
+            ? 0
+            : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+                saloonReviewCount;
         const updateSaloonOwner = yield tx.saloonOwner.update({
             where: {
                 userId: result.saloonOwnerId,
@@ -245,7 +308,10 @@ const updateReviewIntoDb = (userId, reviewId, data) => __awaiter(void 0, void 0,
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon owner not updated');
         }
         const barberReviewCount = findExistingReview.length;
-        const barberAvgRating = barberReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / barberReviewCount;
+        const barberAvgRating = barberReviewCount === 0
+            ? 0
+            : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+                barberReviewCount;
         const updateBarber = yield tx.barber.update({
             where: {
                 userId: result.barberId,
@@ -287,7 +353,10 @@ const deleteReviewItemFromDb = (userId, reviewId) => __awaiter(void 0, void 0, v
             },
         });
         const saloonReviewCount = findExistingReview.length;
-        const saloonAvgRating = saloonReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / saloonReviewCount;
+        const saloonAvgRating = saloonReviewCount === 0
+            ? 0
+            : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+                saloonReviewCount;
         const updateSaloonOwner = yield tx.saloonOwner.update({
             where: {
                 userId: deletedItem.saloonOwnerId,
@@ -305,7 +374,10 @@ const deleteReviewItemFromDb = (userId, reviewId) => __awaiter(void 0, void 0, v
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon owner not updated');
         }
         const barberReviewCount = findExistingReview.length;
-        const barberAvgRating = barberReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / barberReviewCount;
+        const barberAvgRating = barberReviewCount === 0
+            ? 0
+            : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+                barberReviewCount;
         const updateBarber = yield tx.barber.update({
             where: {
                 userId: deletedItem.barberId,
@@ -330,6 +402,7 @@ exports.reviewService = {
     createReviewIntoDb,
     getReviewListForSaloonFromDb,
     getReviewListForBarberFromDb,
+    getNotProvidedReviewsForSaloonFromDb,
     getReviewByIdFromDb,
     updateReviewIntoDb,
     deleteReviewItemFromDb,

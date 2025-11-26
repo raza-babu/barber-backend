@@ -30,7 +30,7 @@ const createCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { searchTerm, page, limit, sortBy, minRating, latitude, longitude, radius, topRated } = req.query;
     // If latitude and longitude are provided, get nearest saloons
-    if (latitude && longitude) {
+    if (latitude && longitude && !topRated) {
         const query = {
             radius: radius ? Number(radius) : undefined,
             searchTerm: searchTerm,
@@ -48,7 +48,7 @@ const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 
         });
     }
     // If topRated is true, get top rated saloons
-    if (topRated === 'true') {
+    if (topRated && !(latitude || longitude)) {
         const query = {
             searchTerm: searchTerm,
             page: page ? Number(page) : undefined,

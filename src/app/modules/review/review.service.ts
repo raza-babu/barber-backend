@@ -4,7 +4,7 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 
 const createReviewIntoDb = async (userId: string, data: any) => {
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async tx => {
     const BookingStatusCheck = await tx.booking.findUnique({
       where: {
         id: data.bookingId,
@@ -13,7 +13,10 @@ const createReviewIntoDb = async (userId: string, data: any) => {
       },
     });
     if (!BookingStatusCheck) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found or not completed');
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Booking not found or not completed',
+      );
     }
 
     const existingReview = await tx.review.findFirst({
@@ -24,7 +27,10 @@ const createReviewIntoDb = async (userId: string, data: any) => {
       },
     });
     if (existingReview) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Review already exists for this booking');
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Review already exists for this booking',
+      );
     }
 
     const result = await tx.review.create({
@@ -46,12 +52,16 @@ const createReviewIntoDb = async (userId: string, data: any) => {
       },
       orderBy: {
         createdAt: 'desc',
-      },  
+      },
     });
 
     const saloonReviewCount = findExistingReview.length;
-    const saloonAvgRating = saloonReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / saloonReviewCount;
-    
+    const saloonAvgRating =
+      saloonReviewCount === 0
+        ? 0
+        : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+          saloonReviewCount;
+
     const updateSaloonOwner = await tx.saloonOwner.update({
       where: {
         userId: data.saloonOwnerId,
@@ -61,7 +71,7 @@ const createReviewIntoDb = async (userId: string, data: any) => {
           increment: 1,
         },
         avgRating: {
-          set: saloonAvgRating
+          set: saloonAvgRating,
         },
       },
     });
@@ -70,7 +80,11 @@ const createReviewIntoDb = async (userId: string, data: any) => {
     }
 
     const barberReviewCount = findExistingReview.length;
-    const barberAvgRating = barberReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / barberReviewCount;
+    const barberAvgRating =
+      barberReviewCount === 0
+        ? 0
+        : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+          barberReviewCount;
 
     const updateBarber = await tx.barber.update({
       where: {
@@ -93,9 +107,7 @@ const createReviewIntoDb = async (userId: string, data: any) => {
   });
 };
 
-const getReviewListForSaloonFromDb = async (
-  userId: string,
-) => {
+const getReviewListForSaloonFromDb = async (userId: string) => {
   const result = await prisma.review.findMany({
     where: {
       saloonOwnerId: userId,
@@ -111,11 +123,11 @@ const getReviewListForSaloonFromDb = async (
       createdAt: true,
       saloonOwner: {
         select: {
-          userId : true,
+          userId: true,
           shopName: true,
           shopAddress: true,
           shopLogo: true,
-        }
+        },
       },
     },
     orderBy: {
@@ -140,16 +152,76 @@ const getReviewListForSaloonFromDb = async (
   }));
 };
 
+const getNotProvidedReviewsForSaloonFromDb = async (userId: string) => {
+  const result = await prisma.booking.findMany({
+    where: {
+      userId: userId,
+      status: BookingStatus.COMPLETED,
+      Review: {
+        none: {},
+      },
+    },
+    select: {
+      id: true,
+      userId: true,
+      barberId: true,
+      saloonOwnerId: true,
+      date: true,
+      appointmentAt: true,
+    },
+    orderBy: {
+      date: 'desc',
+    },
+  });
+
+  const saloonsNotReviewed = await Promise.all(
+    result.map(async booking => {
+      const saloons = await prisma.saloonOwner.findUnique({
+        where: {
+          userId: booking.saloonOwnerId,
+        },
+        select: {
+          id: true,
+          userId: true,
+          shopName: true,
+          shopAddress: true,
+          shopImages: true,
+          isVerified: true,
+          shopLogo: true,
+          shopVideo: true,
+          latitude: true,
+          longitude: true,
+          ratingCount: true,
+          avgRating: true,
+        },
+      });
+
+      return {
+        id: saloons?.id,
+        userId: saloons?.userId,
+        saloonName: saloons?.shopName || 'Unknown Saloon',
+        saloonAddress: saloons?.shopAddress || 'Unknown Address',
+        saloonLogo: saloons?.shopLogo || null,
+        saloonImages: saloons?.shopImages || [],
+        saloonVideo: saloons?.shopVideo || null,
+        latitude: saloons?.latitude || null,
+        longitude: saloons?.longitude || null,
+        ratingCount: saloons?.ratingCount || 0,
+        avgRating: saloons?.avgRating || 0,
+      };
+    }),
+  );
+
+  return saloonsNotReviewed;
+};
+
 const getReviewListForBarberFromDb = async (
   userId: string,
   // barberId: string,
 ) => {
   const result = await prisma.review.findMany({
     where: {
-      OR: [
-        { barberId: userId },
-        { saloonOwnerId: userId },
-      ],
+      OR: [{ barberId: userId }, { saloonOwnerId: userId }],
     },
     select: {
       id: true,
@@ -162,11 +234,11 @@ const getReviewListForBarberFromDb = async (
       createdAt: true,
       saloonOwner: {
         select: {
-          userId : true,
+          userId: true,
           shopName: true,
           shopAddress: true,
           shopLogo: true,
-        }
+        },
       },
     },
     orderBy: {
@@ -211,7 +283,7 @@ const updateReviewIntoDb = async (
     comment?: string;
   },
 ) => {
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async tx => {
     const result = await tx.review.update({
       where: {
         id: reviewId,
@@ -238,7 +310,11 @@ const updateReviewIntoDb = async (
       },
     });
     const saloonReviewCount = findExistingReview.length;
-    const saloonAvgRating = saloonReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / saloonReviewCount;
+    const saloonAvgRating =
+      saloonReviewCount === 0
+        ? 0
+        : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+          saloonReviewCount;
     const updateSaloonOwner = await tx.saloonOwner.update({
       where: {
         userId: result.saloonOwnerId,
@@ -253,7 +329,11 @@ const updateReviewIntoDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Saloon owner not updated');
     }
     const barberReviewCount = findExistingReview.length;
-    const barberAvgRating = barberReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / barberReviewCount;
+    const barberAvgRating =
+      barberReviewCount === 0
+        ? 0
+        : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+          barberReviewCount;
     const updateBarber = await tx.barber.update({
       where: {
         userId: result.barberId,
@@ -274,7 +354,7 @@ const updateReviewIntoDb = async (
 };
 
 const deleteReviewItemFromDb = async (userId: string, reviewId: string) => {
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async tx => {
     const deletedItem = await tx.review.delete({
       where: {
         id: reviewId,
@@ -297,7 +377,11 @@ const deleteReviewItemFromDb = async (userId: string, reviewId: string) => {
       },
     });
     const saloonReviewCount = findExistingReview.length;
-    const saloonAvgRating = saloonReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / saloonReviewCount;
+    const saloonAvgRating =
+      saloonReviewCount === 0
+        ? 0
+        : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+          saloonReviewCount;
     const updateSaloonOwner = await tx.saloonOwner.update({
       where: {
         userId: deletedItem.saloonOwnerId,
@@ -315,7 +399,11 @@ const deleteReviewItemFromDb = async (userId: string, reviewId: string) => {
       throw new AppError(httpStatus.BAD_REQUEST, 'Saloon owner not updated');
     }
     const barberReviewCount = findExistingReview.length;
-    const barberAvgRating = barberReviewCount === 0 ? 0 : findExistingReview.reduce((acc, review) => acc + review.rating, 0) / barberReviewCount; 
+    const barberAvgRating =
+      barberReviewCount === 0
+        ? 0
+        : findExistingReview.reduce((acc, review) => acc + review.rating, 0) /
+          barberReviewCount;
     const updateBarber = await tx.barber.update({
       where: {
         userId: deletedItem.barberId,
@@ -341,6 +429,7 @@ export const reviewService = {
   createReviewIntoDb,
   getReviewListForSaloonFromDb,
   getReviewListForBarberFromDb,
+  getNotProvidedReviewsForSaloonFromDb,
   getReviewByIdFromDb,
   updateReviewIntoDb,
   deleteReviewItemFromDb,

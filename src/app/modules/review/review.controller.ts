@@ -51,6 +51,21 @@ const getReviewListForBarber = catchAsync(async (req, res) => {
   }
 });
 
+const getNotProvidedForSaloonList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await reviewService.getNotProvidedReviewsForSaloonFromDb(
+    user.id,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Not provided reviews for saloon retrieved successfully',
+    data: result,
+  });
+});
+
+
+
 const getReviewById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await reviewService.getReviewByIdFromDb(
@@ -98,6 +113,7 @@ export const reviewController = {
   createReview,
   getReviewListForSaloon,
   getReviewListForBarber,
+  getNotProvidedForSaloonList,
   getReviewById,
   updateReview,
   deleteReview,
