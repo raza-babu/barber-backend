@@ -1758,6 +1758,7 @@ const getAvailableBarbersForWalkingInFromDb1 = (userId, saloonOwnerId, specificD
                 }
             }
         }
+        console.log('Free slots for barber', barber.userId, freeSlots);
         return {
             shopLogo: salon.shopLogo || null,
             barberId: barber.userId,

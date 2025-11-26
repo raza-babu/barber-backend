@@ -14,6 +14,7 @@ const router = express_1.default.Router();
 router.post('/', (0, auth_1.default)(), (0, validateRequest_1.default)(customer_validation_1.customerValidation.createSchema), customer_controller_1.customerController.createCustomer);
 router.get('/all-saloons', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), customer_controller_1.customerController.getAllSaloonList);
 router.get('/nearest-saloons', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), customer_controller_1.customerController.getMyNearestSaloonList);
+router.get('/top-rated-saloons', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), customer_controller_1.customerController.getTopRatedSaloons);
 router.get('/saloon-services/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), customer_controller_1.customerController.getSaloonAllServicesList);
 router.get('/:id', (0, auth_1.default)(), customer_controller_1.customerController.getCustomerById);
 router.put('/:id', (0, auth_1.default)(), (0, validateRequest_1.default)(customer_validation_1.customerValidation.updateSchema), customer_controller_1.customerController.updateCustomer);

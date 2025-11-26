@@ -36,13 +36,15 @@ const createBooking = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
                 data: result,
             });
         }
-        const result = yield booking_service_1.bookingService.createQueueBookingIntoDb(user.id, req.body);
-        return (0, sendResponse_1.default)(res, {
-            statusCode: http_status_1.default.CREATED,
-            success: true,
-            message: 'Queue booking created successfully',
-            data: result,
-        });
+        if (user.role === client_1.UserRoleEnum.CUSTOMER) {
+            const result = yield booking_service_1.bookingService.createQueueBookingIntoDb(user.id, req.body);
+            return (0, sendResponse_1.default)(res, {
+                statusCode: http_status_1.default.CREATED,
+                success: true,
+                message: 'Queue booking created successfully',
+                data: result,
+            });
+        }
     }
     const result = yield booking_service_1.bookingService.createBookingIntoDb(user.id, req.body);
     (0, sendResponse_1.default)(res, {

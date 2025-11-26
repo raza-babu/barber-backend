@@ -595,7 +595,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     nonRegisteredUser.id,
     saloonOwnerId,
     date,
-    bookingType as ScheduleType,
+    bookingType as BookingType,
   );
 
   if (
@@ -1822,7 +1822,7 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
   userId: string,
   saloonOwnerId: string,
   specificDate?: string,
-  type?: ScheduleType,
+  type?: BookingType,
 ) => {
   // Always use today's date or provided specificDate (local)
   let date;
@@ -2147,6 +2147,8 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
           }
         }
       }
+
+      console.log('Free slots for barber', barber.userId, freeSlots);
 
 
       return {

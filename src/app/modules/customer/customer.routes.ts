@@ -26,6 +26,11 @@ router.get(
   customerController.getMyNearestSaloonList,
 );
 
+router.get(
+  '/top-rated-saloons',
+  auth(UserRoleEnum.CUSTOMER),
+  customerController.getTopRatedSaloons,
+);
 
 router.get(
   '/saloon-services/:id',

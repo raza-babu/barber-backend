@@ -15,11 +15,58 @@ const createCustomerIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getAllSaloonListFromDb = async () => {
+const getAllSaloonListFromDb = async (query: {
+  searchTerm?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: 'name' | 'rating' | 'newest';
+  minRating?: number;
+}) => {
+  const {
+    searchTerm = '',
+    page = 1,
+    limit = 10,
+    sortBy = 'name',
+    minRating,
+  } = query;
+
+  const skip = (page - 1) * limit;
+
+  // Build where clause
+  const where: any = {
+    isVerified: true,
+  };
+
+  if (searchTerm) {
+    where.OR = [
+      { shopName: { contains: searchTerm, mode: 'insensitive' } },
+      { shopAddress: { contains: searchTerm, mode: 'insensitive' } },
+    ];
+  }
+
+  if (minRating) {
+    where.avgRating = { gte: minRating };
+  }
+
+  // Build orderBy clause
+  let orderBy: any = {};
+  switch (sortBy) {
+    case 'rating':
+      orderBy = { avgRating: 'desc' };
+      break;
+    case 'newest':
+      orderBy = { createdAt: 'desc' };
+      break;
+    default:
+      orderBy = { shopName: 'asc' };
+  }
+
+  // Get total count
+  const total = await prisma.saloonOwner.count({ where });
+
+  // Get paginated results
   const result = await prisma.saloonOwner.findMany({
-    where: {
-      isVerified: true,
-    },
+    where,
     select: {
       id: true,
       userId: true,
@@ -29,41 +76,251 @@ const getAllSaloonListFromDb = async () => {
       isVerified: true,
       shopLogo: true,
       shopVideo: true,
+      latitude: true,
+      longitude: true,
+      ratingCount: true,
+      avgRating: true,
     },
+    orderBy,
+    skip,
+    take: limit,
   });
-  if (result.length === 0) {
-    return [];
-  }
-  return result;
+
+  const saloons = result.map(saloon => ({
+    ...saloon,
+    distance: 0,
+  }));
+
+  return {
+    data: saloons,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 };
 
 // All saloons near get within a radius
 const getMyNearestSaloonListFromDb = async (
   latitude: number,
   longitude: number,
-  radiusInKm: number,
+  query: {
+    radius?: number;
+    searchTerm?: string;
+    page?: number;
+    limit?: number;
+    minRating?: number;
+  } = {},
 ) => {
-  const radiusInMeters = (radiusInKm || 10) * 1000; // Mongo uses meters
+  const { radius = 50, searchTerm = '', page = 1, limit = 10, minRating } = query;
 
-  const saloons = await prisma.saloonOwner.aggregateRaw({
-    pipeline: [
-      {
-        $geoNear: {
-          near: { type: 'Point', coordinates: [longitude, latitude] },
-          distanceField: 'distance',
-          maxDistance: radiusInMeters,
-          spherical: true,
-        },
-      },
-      {
-        $sort: { distance: 1 },
-      },
-    ],
+  const radiusInKm = radius;
+
+  // Build where clause
+  const where: any = {
+    isVerified: true,
+    latitude: { not: null },
+    longitude: { not: null },
+  };
+
+  if (searchTerm) {
+    where.OR = [
+      { shopName: { contains: searchTerm, mode: 'insensitive' } },
+      { shopAddress: { contains: searchTerm, mode: 'insensitive' } },
+    ];
+  }
+
+  if (minRating) {
+    where.avgRating = { gte: minRating };
+  }
+
+  // Get all verified saloons
+  const allSaloons = await prisma.saloonOwner.findMany({
+    where,
+    select: {
+      id: true,
+      userId: true,
+      shopName: true,
+      shopAddress: true,
+      shopImages: true,
+      shopLogo: true,
+      shopVideo: true,
+      latitude: true,
+      longitude: true,
+      ratingCount: true,
+      avgRating: true,
+    },
   });
 
-  return saloons;
+  // Haversine formula to calculate distance
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  // Filter and sort saloons by distance
+  const nearbySaloons = allSaloons
+    .map(saloon => {
+      const distance = calculateDistance(
+        latitude,
+        longitude,
+        Number(saloon.latitude),
+        Number(saloon.longitude),
+      );
+      return {
+        ...saloon,
+        distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
+      };
+    })
+    .filter(saloon => saloon.distance <= radiusInKm)
+    .sort((a, b) => a.distance - b.distance);
+
+  // Apply pagination
+  const total = nearbySaloons.length;
+  const skip = (page - 1) * limit;
+  const paginatedSaloons = nearbySaloons.slice(skip, skip + limit);
+
+  return {
+    data: paginatedSaloons,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 };
 
+const getTopRatedSaloonsFromDb = async (query: {
+  searchTerm?: string;
+  page?: number;
+  limit?: number;
+  minRating?: number;
+}) => {
+  const { searchTerm = '', page = 1, limit = 10, minRating } = query;
+
+  // Build where clause
+  const where: any = {
+    isVerified: true,
+  };
+
+  if (searchTerm) {
+    where.OR = [
+      { shopName: { contains: searchTerm, mode: 'insensitive' } },
+      { shopAddress: { contains: searchTerm, mode: 'insensitive' } },
+    ];
+  }
+
+  if (minRating) {
+    where.avgRating = { gte: minRating };
+  }
+
+  // Get total count
+  const total = await prisma.saloonOwner.count({ where });
+
+  // Get results
+  const result = await prisma.saloonOwner.findMany({
+    where,
+    select: {
+      id: true,
+      userId: true,
+      shopName: true,
+      shopAddress: true,
+      shopImages: true,
+      shopLogo: true,
+      shopVideo: true,
+      latitude: true,
+      longitude: true,
+      ratingCount: true,
+      avgRating: true,
+      Review: {
+        select: {
+          rating: true,
+        },
+      },
+    },
+  });
+
+  // Normalize output to the requested format and sort by avgRating desc
+  const saloonsWithAvgRatings = result
+    .map(saloon => {
+      const reviews = Array.isArray((saloon as any).Review)
+        ? (saloon as any).Review
+        : [];
+
+      const ratingsArray = reviews
+        .map((r: any) => {
+          const val = r && typeof r.rating !== 'undefined' ? r.rating : null;
+          return typeof val === 'number' ? val : Number(val);
+        })
+        .filter((n: number) => !isNaN(n));
+
+      const computedAvg =
+        ratingsArray.length > 0
+          ? ratingsArray.reduce((s: number, v: number) => s + v, 0) /
+            ratingsArray.length
+          : typeof saloon.avgRating === 'number'
+            ? saloon.avgRating
+            : 0;
+
+      const ratingCount =
+        typeof saloon.ratingCount === 'number'
+          ? saloon.ratingCount
+          : ratingsArray.length;
+
+      return {
+        id: saloon.id,
+        userId: saloon.userId,
+        shopName: saloon.shopName,
+        shopAddress: saloon.shopAddress,
+        shopImages: saloon.shopImages ?? [],
+        shopLogo: saloon.shopLogo ?? null,
+        shopVideo: saloon.shopVideo ?? [],
+        latitude:
+          saloon.latitude !== null && typeof saloon.latitude !== 'undefined'
+            ? Number(saloon.latitude)
+            : null,
+        longitude:
+          saloon.longitude !== null && typeof saloon.longitude !== 'undefined'
+            ? Number(saloon.longitude)
+            : null,
+        ratingCount: ratingCount,
+        avgRating: Math.round(computedAvg * 100) / 100,
+        distance: 0,
+      };
+    })
+    .sort((a, b) => b.avgRating - a.avgRating);
+
+  // Apply pagination
+  const skip = (page - 1) * limit;
+  const paginatedSaloons = saloonsWithAvgRatings.slice(skip, skip + limit);
+
+  return {
+    data: paginatedSaloons,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
 
 
 const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
@@ -133,7 +390,6 @@ const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
     phoneNumber: result.phoneNumber,
     image: result.image,
     address: result.address,
-    
   };
 };
 
@@ -175,6 +431,7 @@ export const customerService = {
   createCustomerIntoDb,
   getAllSaloonListFromDb,
   getMyNearestSaloonListFromDb,
+  getTopRatedSaloonsFromDb,
   getSaloonAllServicesListFromDb,
   getCustomerByIdFromDb,
   updateCustomerIntoDb,

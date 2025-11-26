@@ -14,8 +14,12 @@ model QueueSlot {
   // Relationships
   queue        Queue                  @relation(fields: [queueId], references: [id])
   booking      Booking?               @relation(fields: [bookingId], references: [id])
-  customer     User                   @relation(fields: [customerId], references: [id])
+  // Customer relations
+  customer                   User                   @relation("QueueSlotCustomerUser", fields: [customerId], references: [id])
+  nonRegisteredCustomerId    String?                @db.ObjectId
+  nonRegistered              NonRegisteredUser?     @relation("QueueSlotNonRegisteredUser", fields: [nonRegisteredCustomerId], references: [id])
   barber       Barber                 @relation(fields: [barberId], references: [userId])
+
   barberStatus BarberRealTimeStatus[]
 
   @@map("queue_slots")

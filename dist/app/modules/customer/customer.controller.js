@@ -28,24 +28,92 @@ const createCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
     });
 }));
 const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const user = req.user;
-    const result = yield customer_service_1.customerService.getAllSaloonListFromDb();
+    const { searchTerm, page, limit, sortBy, minRating, latitude, longitude, radius, topRated } = req.query;
+    // If latitude and longitude are provided, get nearest saloons
+    if (latitude && longitude) {
+        const query = {
+            radius: radius ? Number(radius) : undefined,
+            searchTerm: searchTerm,
+            page: page ? Number(page) : undefined,
+            limit: limit ? Number(limit) : undefined,
+            minRating: minRating ? Number(minRating) : undefined,
+        };
+        const result = yield customer_service_1.customerService.getMyNearestSaloonListFromDb(Number(latitude), Number(longitude), query);
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Nearby saloons retrieved successfully',
+            data: result.data,
+            meta: result.meta,
+        });
+    }
+    // If topRated is true, get top rated saloons
+    if (topRated === 'true') {
+        const query = {
+            searchTerm: searchTerm,
+            page: page ? Number(page) : undefined,
+            limit: limit ? Number(limit) : undefined,
+            minRating: minRating ? Number(minRating) : undefined,
+        };
+        const result = yield customer_service_1.customerService.getTopRatedSaloonsFromDb(query);
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.OK,
+            success: true,
+            message: 'Top rated saloons retrieved successfully',
+            data: result.data,
+            meta: result.meta,
+        });
+    }
+    // Default: get all saloons
+    const query = {
+        searchTerm: searchTerm,
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        sortBy: sortBy,
+        minRating: minRating ? Number(minRating) : undefined,
+    };
+    const result = yield customer_service_1.customerService.getAllSaloonListFromDb(query);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
-        message: 'Customer list retrieved successfully',
-        data: result,
+        message: 'Saloon list retrieved successfully',
+        data: result.data,
+        meta: result.meta,
     });
 }));
 const getMyNearestSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const user = req.user;
-    const { latitude, longitude, radius } = req.query;
-    const result = yield customer_service_1.customerService.getMyNearestSaloonListFromDb(Number(latitude), Number(longitude), Number(radius));
+    const { latitude, longitude, radius, searchTerm, page, limit, minRating } = req.query;
+    const query = {
+        radius: radius ? Number(radius) : undefined,
+        searchTerm: searchTerm,
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        minRating: minRating ? Number(minRating) : undefined,
+    };
+    const result = yield customer_service_1.customerService.getMyNearestSaloonListFromDb(Number(latitude), Number(longitude), query);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
         message: 'Nearby saloons retrieved successfully',
-        data: result,
+        data: result.data,
+        meta: result.meta,
+    });
+}));
+const getTopRatedSaloons = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { searchTerm, page, limit, minRating } = req.query;
+    const query = {
+        searchTerm: searchTerm,
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        minRating: minRating ? Number(minRating) : undefined,
+    };
+    const result = yield customer_service_1.customerService.getTopRatedSaloonsFromDb(query);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Top rated saloons retrieved successfully',
+        data: result.data,
+        meta: result.meta,
     });
 }));
 const getSaloonAllServicesList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -54,7 +122,7 @@ const getSaloonAllServicesList = (0, catchAsync_1.default)((req, res) => __await
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
-        message: 'Customer list retrieved successfully',
+        message: 'Saloon services retrieved successfully',
         data: result,
     });
 }));
@@ -92,6 +160,7 @@ exports.customerController = {
     createCustomer,
     getAllSaloonList,
     getMyNearestSaloonList,
+    getTopRatedSaloons,
     getSaloonAllServicesList,
     getCustomerById,
     updateCustomer,

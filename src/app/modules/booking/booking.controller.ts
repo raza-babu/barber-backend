@@ -25,16 +25,18 @@ const createBooking = catchAsync(async (req, res) => {
         data: result,
       });
     }
-    const result = await bookingService.createQueueBookingIntoDb(
-      user.id,
-      req.body,
-    );
-    return sendResponse(res, {
-      statusCode: httpStatus.CREATED,
-      success: true,
-      message: 'Queue booking created successfully',
-      data: result,
-    });
+    if (user.role === UserRoleEnum.CUSTOMER) {
+      const result = await bookingService.createQueueBookingIntoDb(
+        user.id,
+        req.body,
+      );
+      return sendResponse(res, {
+        statusCode: httpStatus.CREATED,
+        success: true,
+        message: 'Queue booking created successfully',
+        data: result,
+      });
+    }
   }
   const result = await bookingService.createBookingIntoDb(user.id, req.body);
   sendResponse(res, {
