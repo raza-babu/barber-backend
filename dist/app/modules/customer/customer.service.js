@@ -112,7 +112,7 @@ const getAllSaloonListFromDb = (query) => __awaiter(void 0, void 0, void 0, func
 });
 // All saloons near get within a radius
 const getMyNearestSaloonListFromDb = (latitude_1, longitude_1, ...args_1) => __awaiter(void 0, [latitude_1, longitude_1, ...args_1], void 0, function* (latitude, longitude, query = {}) {
-    const { radius = 50, searchTerm = '', page = 1, limit = 10, minRating } = query;
+    const { radius = 50, searchTerm = '', page = 1, limit = 10, minRating, } = query;
     const radiusInKm = radius;
     // Build where clause
     const where = {
@@ -293,6 +293,99 @@ const getTopRatedSaloonsFromDb = (query) => __awaiter(void 0, void 0, void 0, fu
         },
     };
 });
+const addSaloonToFavoritesInDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
+    const existingFavorite = yield prisma_1.default.favoriteShop.findFirst({
+        where: {
+            userId: userId,
+            saloonOwnerId: saloonOwnerId,
+        },
+    });
+    if (existingFavorite) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon already in favorites');
+    }
+    const result = yield prisma_1.default.favoriteShop.create({
+        data: {
+            userId: userId,
+            saloonOwnerId: saloonOwnerId,
+        },
+    });
+    if (!result) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon not added to favorites');
+    }
+    return result;
+});
+const getFavoriteSaloonsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, query = {}) {
+    const { page = 1, limit = 10 } = query;
+    const skip = (page - 1) * limit;
+    // Get total count
+    const total = yield prisma_1.default.favoriteShop.count({
+        where: {
+            userId: userId,
+        },
+    });
+    // Get paginated results
+    const result = yield prisma_1.default.favoriteShop.findMany({
+        where: {
+            userId: userId,
+        },
+        include: {
+            saloonOwner: {
+                select: {
+                    id: true,
+                    userId: true,
+                    shopName: true,
+                    shopAddress: true,
+                    shopImages: true,
+                    shopLogo: true,
+                    shopVideo: true,
+                    latitude: true,
+                    longitude: true,
+                    ratingCount: true,
+                    avgRating: true,
+                },
+            },
+        },
+        skip,
+        take: limit,
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    const favorites = result.map(fav => fav.saloonOwner);
+    return {
+        data: favorites,
+        meta: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
+});
+const removeSaloonFromFavoritesInDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
+    // Check if the favorite exists
+    const existingFavorite = yield prisma_1.default.favoriteShop.findFirst({
+        where: {
+            userId: userId,
+            saloonOwnerId: saloonOwnerId,
+        },
+    });
+    if (!existingFavorite) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon not found in favorites');
+    }
+    const deletedItem = yield prisma_1.default.favoriteShop.delete({
+        where: {
+            userId_saloonOwnerId: {
+                userId: userId,
+                saloonOwnerId: saloonOwnerId,
+            },
+        },
+    });
+    if (!deletedItem) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Saloon not removed from favorites');
+    }
+    return deletedItem;
+});
 const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.service.findMany({
         where: {
@@ -394,6 +487,9 @@ exports.customerService = {
     getTopRatedSaloonsFromDb,
     getSaloonAllServicesListFromDb,
     getCustomerByIdFromDb,
+    addSaloonToFavoritesInDb,
+    getFavoriteSaloonsFromDb,
+    removeSaloonFromFavoritesInDb,
     updateCustomerIntoDb,
     deleteCustomerItemFromDb,
 };

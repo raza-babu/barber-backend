@@ -12,7 +12,7 @@ const createBooking = catchAsync(async (req, res) => {
   if (req.body.type === undefined) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Booking type is required');
   }
-  if (req.body.bookingType === BookingType.QUEUE) {
+  if (req.body.type === BookingType.QUEUE) {
     if (user.role === UserRoleEnum.SALOON_OWNER) {
       const result = await bookingService.createQueueBookingForSalonOwnerIntoDb(
         user.id,
@@ -26,6 +26,19 @@ const createBooking = catchAsync(async (req, res) => {
       });
     }
     if (user.role === UserRoleEnum.CUSTOMER) {
+      if (!req.body.barberId) {
+        const result = await bookingService.createQueueBookingForCustomerIntoDb(
+          user.id,
+          req.body.saloonOwnerId,
+          req.body,
+        );
+        return sendResponse(res, {
+          statusCode: httpStatus.CREATED,
+          success: true,
+          message: 'Queue booking created successfully',
+          data: result,
+        });
+      }
       const result = await bookingService.createQueueBookingIntoDb(
         user.id,
         req.body,

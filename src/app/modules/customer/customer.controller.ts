@@ -130,6 +130,53 @@ const getTopRatedSaloons = catchAsync(async (req, res) => {
   });
 });
 
+const addSaloonToFavorites = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await customerService.addSaloonToFavoritesInDb(
+    user.id,
+    req.body.saloonId,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Saloon added to favorites successfully',
+    data: result,
+  });
+});
+
+const getFavoriteSaloons = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const { page, limit } = req.query;
+
+  const query = {
+    page: page ? Number(page) : undefined,
+    limit: limit ? Number(limit) : undefined,
+  };
+
+  const result = await customerService.getFavoriteSaloonsFromDb(user.id, query);
+  
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Favorite saloons retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+const removeSaloonFromFavorites = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await customerService.removeSaloonFromFavoritesInDb(
+    user.id,
+    req.params.saloonId,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Saloon removed from favorites successfully',
+    data: result,
+  });
+});
+
 const getSaloonAllServicesList = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await customerService.getSaloonAllServicesListFromDb(
@@ -192,6 +239,9 @@ export const customerController = {
   getMyNearestSaloonList,
   getTopRatedSaloons,
   getSaloonAllServicesList,
+  addSaloonToFavorites,
+  getFavoriteSaloons,
+  removeSaloonFromFavorites,
   getCustomerById,
   updateCustomer,
   deleteCustomer,

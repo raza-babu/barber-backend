@@ -95,7 +95,6 @@ const getAllSaloonListFromDb = async (query: {
     take: limit,
   });
 
-
   const saloons = result.map(({ Booking, ...rest }) => ({
     ...rest,
     distance: 0,
@@ -103,7 +102,7 @@ const getAllSaloonListFromDb = async (query: {
   }));
 
   return {
-   data : saloons,
+    data: saloons,
     meta: {
       total,
       page,
@@ -125,7 +124,13 @@ const getMyNearestSaloonListFromDb = async (
     minRating?: number;
   } = {},
 ) => {
-  const { radius = 50, searchTerm = '', page = 1, limit = 10, minRating } = query;
+  const {
+    radius = 50,
+    searchTerm = '',
+    page = 1,
+    limit = 10,
+    minRating,
+  } = query;
 
   const radiusInKm = radius;
 
@@ -209,7 +214,6 @@ const getMyNearestSaloonListFromDb = async (
         distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
         queue: Array.isArray(Booking) ? Booking.length : 0,
       };
-      
     })
     .filter(saloon => saloon.distance <= radiusInKm)
     .sort((a, b) => a.distance - b.distance);
@@ -354,6 +358,122 @@ const getTopRatedSaloonsFromDb = async (query: {
   };
 };
 
+const addSaloonToFavoritesInDb = async (
+  userId: string,
+  saloonOwnerId: string,
+) => {
+  const existingFavorite = await prisma.favoriteShop.findFirst({
+    where: {
+      userId: userId,
+      saloonOwnerId: saloonOwnerId,
+    },
+  });
+
+  if (existingFavorite) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon already in favorites');
+  }
+  const result = await prisma.favoriteShop.create({
+    data: {
+      userId: userId,
+      saloonOwnerId: saloonOwnerId,
+    },
+  });
+  if (!result) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon not added to favorites');
+  }
+  return result;
+};
+
+
+const getFavoriteSaloonsFromDb = async (
+  userId: string,
+  query: {
+    page?: number;
+    limit?: number;
+  } = {},
+) => {
+  const { page = 1, limit = 10 } = query;
+
+  const skip = (page - 1) * limit;
+
+  // Get total count
+  const total = await prisma.favoriteShop.count({
+    where: {
+      userId: userId,
+    },
+  });
+
+  // Get paginated results
+  const result = await prisma.favoriteShop.findMany({
+    where: {
+      userId: userId,
+    },
+    include: {
+      saloonOwner: {
+        select: {
+          id: true,
+          userId: true,
+          shopName: true,
+          shopAddress: true,
+          shopImages: true,
+          shopLogo: true,
+          shopVideo: true,
+          latitude: true,
+          longitude: true,
+          ratingCount: true,
+          avgRating: true,
+        },
+      },
+    },
+    skip,
+    take: limit,
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  const favorites = result.map(fav => fav.saloonOwner);
+
+  return {
+    data: favorites,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+
+const removeSaloonFromFavoritesInDb = async (
+  userId: string,
+  saloonOwnerId: string,
+) => {
+  // Check if the favorite exists
+  const existingFavorite = await prisma.favoriteShop.findFirst({
+    where: {
+      userId: userId,
+      saloonOwnerId: saloonOwnerId,
+    },
+  });
+  if (!existingFavorite) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon not found in favorites');
+  }
+  const deletedItem = await prisma.favoriteShop.delete({
+    where: {
+      userId_saloonOwnerId: {
+        userId: userId,
+        saloonOwnerId: saloonOwnerId,
+      },
+    },
+  });
+  if(!deletedItem) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon not removed from favorites');
+  }
+
+  return deletedItem;
+};
 
 const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
   const result = await prisma.service.findMany({
@@ -466,6 +586,9 @@ export const customerService = {
   getTopRatedSaloonsFromDb,
   getSaloonAllServicesListFromDb,
   getCustomerByIdFromDb,
+  addSaloonToFavoritesInDb,
+  getFavoriteSaloonsFromDb,
+  removeSaloonFromFavoritesInDb,
   updateCustomerIntoDb,
   deleteCustomerItemFromDb,
 };

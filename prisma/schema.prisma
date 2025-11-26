@@ -510,6 +510,22 @@ model FavoriteFeed {
 }
 
 
+model FavoriteShop {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  saloonOwnerId String   @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  user        User        @relation(fields: [userId], references: [id])
+  saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
+
+  @@unique([userId, saloonOwnerId])
+
+  @@map("favorite_shops")
+}
+
 model Feed {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   userId        String   @db.ObjectId
@@ -709,6 +725,7 @@ model NonRegisteredUser {
 
   // Relationships
   saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
+  QueueSlots QueueSlot[] @relation("QueueSlotNonRegisteredUser")
 
   @@map("non_registered_users")
 }
@@ -840,7 +857,10 @@ model QueueSlot {
   // Relationships
   queue        Queue                  @relation(fields: [queueId], references: [id])
   booking      Booking?               @relation(fields: [bookingId], references: [id])
-  customer     User                   @relation(fields: [customerId], references: [id])
+  // Customer relations
+  customer                   User                   @relation("QueueSlotCustomerUser", fields: [customerId], references: [id])
+  nonRegisteredCustomerId    String?                @db.ObjectId
+  nonRegistered              NonRegisteredUser?     @relation("QueueSlotNonRegisteredUser", fields: [nonRegisteredCustomerId], references: [id])
   barber       Barber                 @relation(fields: [barberId], references: [userId])
   barberStatus BarberRealTimeStatus[]
 
@@ -970,21 +990,22 @@ model SaloonOwner {
   updatedAt          DateTime @updatedAt
 
   // Relationships
-  user              User                @relation(fields: [userId], references: [id])
-  Booking           Booking[]
-  Barber            Barber[]
-  NonRegisteredUser NonRegisteredUser[]
-  SaloonReport      SaloonReport[]
-  SaloonSchedule    SaloonSchedule[]
-  SaloonHoliday     SaloonHoliday[]
-  QrCode            QrCode[]
-  CustomerVisit     CustomerVisit[]
+  user                       User                @relation(fields: [userId], references: [id])
+  Booking                    Booking[]
+  Barber                     Barber[]
+  SaloonReport               SaloonReport[]
+  SaloonSchedule             SaloonSchedule[]
+  SaloonHoliday              SaloonHoliday[]
+  QrCode                     QrCode[]
+  CustomerVisit              CustomerVisit[]
   // Service           Service[]
-  jobPosts          JobPost[]
-  JobApplication    JobApplication[]
-  Support           Support[]
-  Review            Review[]
-  LoyaltyPointLog   LoyaltyPointLog[]
+  NonRegisteredUserQueueSlot NonRegisteredUser[]
+  FavoriteShop               FavoriteShop[]
+  jobPosts                   JobPost[]
+  JobApplication             JobApplication[]
+  Support                    Support[]
+  Review                     Review[]
+  LoyaltyPointLog            LoyaltyPointLog[]
 
   @@map("saloon_owners")
 }
@@ -1203,7 +1224,8 @@ model User {
   CustomerVisit       CustomerVisit[]
   LoyaltyPointLog     LoyaltyPointLog[]
   LoyaltyRedemption   LoyaltyRedemption[]
-  QueueSlot           QueueSlot[]
+  QueueSlots         QueueSlot[]           @relation("QueueSlotCustomerUser")
+  FavoriteShop       FavoriteShop[]
   HiredBarber         HiredBarber[]
   adminAccessFunction AdminAccessFunction[]
   QueueCapacity       QueueCapacity[]

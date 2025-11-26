@@ -116,6 +116,42 @@ const getTopRatedSaloons = (0, catchAsync_1.default)((req, res) => __awaiter(voi
         meta: result.meta,
     });
 }));
+const addSaloonToFavorites = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield customer_service_1.customerService.addSaloonToFavoritesInDb(user.id, req.body.saloonId);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Saloon added to favorites successfully',
+        data: result,
+    });
+}));
+const getFavoriteSaloons = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const { page, limit } = req.query;
+    const query = {
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+    };
+    const result = yield customer_service_1.customerService.getFavoriteSaloonsFromDb(user.id, query);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Favorite saloons retrieved successfully',
+        data: result.data,
+        meta: result.meta,
+    });
+}));
+const removeSaloonFromFavorites = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield customer_service_1.customerService.removeSaloonFromFavoritesInDb(user.id, req.params.saloonId);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Saloon removed from favorites successfully',
+        data: result,
+    });
+}));
 const getSaloonAllServicesList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield customer_service_1.customerService.getSaloonAllServicesListFromDb(req.params.id);
@@ -162,6 +198,9 @@ exports.customerController = {
     getMyNearestSaloonList,
     getTopRatedSaloons,
     getSaloonAllServicesList,
+    addSaloonToFavorites,
+    getFavoriteSaloons,
+    removeSaloonFromFavorites,
     getCustomerById,
     updateCustomer,
     deleteCustomer,

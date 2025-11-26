@@ -22,21 +22,22 @@ model SaloonOwner {
   updatedAt          DateTime @updatedAt
 
   // Relationships
-  user              User                @relation(fields: [userId], references: [id])
-  Booking           Booking[]
-  Barber            Barber[]
-  NonRegisteredUser NonRegisteredUser[]
-  SaloonReport      SaloonReport[]
-  SaloonSchedule    SaloonSchedule[]
-  SaloonHoliday     SaloonHoliday[]
-  QrCode            QrCode[]
-  CustomerVisit     CustomerVisit[]
+  user                       User                @relation(fields: [userId], references: [id])
+  Booking                    Booking[]
+  Barber                     Barber[]
+  SaloonReport               SaloonReport[]
+  SaloonSchedule             SaloonSchedule[]
+  SaloonHoliday              SaloonHoliday[]
+  QrCode                     QrCode[]
+  CustomerVisit              CustomerVisit[]
   // Service           Service[]
-  jobPosts          JobPost[]
-  JobApplication    JobApplication[]
-  Support           Support[]
-  Review            Review[]
-  LoyaltyPointLog   LoyaltyPointLog[]
+  NonRegisteredUserQueueSlot NonRegisteredUser[]
+  FavoriteShop               FavoriteShop[]
+  jobPosts                   JobPost[]
+  JobApplication             JobApplication[]
+  Support                    Support[]
+  Review                     Review[]
+  LoyaltyPointLog            LoyaltyPointLog[]
 
   @@map("saloon_owners")
 }

@@ -9,6 +9,7 @@ model NonRegisteredUser {
 
   // Relationships
   saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
+  QueueSlots QueueSlot[] @relation("QueueSlotNonRegisteredUser")
 
   @@map("non_registered_users")
 }

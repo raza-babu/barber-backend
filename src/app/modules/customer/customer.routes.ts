@@ -32,6 +32,23 @@ router.get(
   customerController.getTopRatedSaloons,
 );
 
+router.post(
+  '/favorite-saloons',
+  auth(UserRoleEnum.CUSTOMER),
+  customerController.addSaloonToFavorites,
+)
+router.get(
+  '/favorite-saloons',
+  auth(UserRoleEnum.CUSTOMER),
+  customerController.getFavoriteSaloons,
+)
+
+router.delete(
+  '/favorite-saloons/:saloonId',
+  auth(UserRoleEnum.CUSTOMER),
+  customerController.removeSaloonFromFavorites,
+)
+
 router.get(
   '/saloon-services/:id',
   auth(UserRoleEnum.CUSTOMER),
