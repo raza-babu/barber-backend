@@ -194,6 +194,14 @@ const getNotProvidedReviewsForSaloonFromDb = async (userId: string) => {
           longitude: true,
           ratingCount: true,
           avgRating: true,
+          FavoriteShop: {
+            where: {
+              userId: booking.userId,
+            },
+            select: {
+              id: true,
+            },
+          },
         },
       });
 
@@ -210,6 +218,7 @@ const getNotProvidedReviewsForSaloonFromDb = async (userId: string) => {
         longitude: saloons?.longitude || null,
         ratingCount: saloons?.ratingCount || 0,
         avgRating: saloons?.avgRating || 0,
+        isFavorite: saloons?.FavoriteShop.length!== 0,
       };
     }),
   );

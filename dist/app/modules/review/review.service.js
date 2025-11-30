@@ -190,6 +190,14 @@ const getNotProvidedReviewsForSaloonFromDb = (userId) => __awaiter(void 0, void 
                 longitude: true,
                 ratingCount: true,
                 avgRating: true,
+                FavoriteShop: {
+                    where: {
+                        userId: booking.userId,
+                    },
+                    select: {
+                        id: true,
+                    },
+                },
             },
         });
         return {
@@ -205,6 +213,7 @@ const getNotProvidedReviewsForSaloonFromDb = (userId) => __awaiter(void 0, void 
             longitude: (saloons === null || saloons === void 0 ? void 0 : saloons.longitude) || null,
             ratingCount: (saloons === null || saloons === void 0 ? void 0 : saloons.ratingCount) || 0,
             avgRating: (saloons === null || saloons === void 0 ? void 0 : saloons.avgRating) || 0,
+            isFavorite: (saloons === null || saloons === void 0 ? void 0 : saloons.FavoriteShop.length) !== 0,
         };
     })));
     return saloonsNotReviewed;
