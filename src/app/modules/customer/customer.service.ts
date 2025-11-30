@@ -502,7 +502,7 @@ const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
     },
   });
   if (result.length === 0) {
-    throw new AppError(httpStatus.NOT_FOUND, 'No services found');
+    return [];
   }
   return result.map(service => {
     const saloon = service.user?.SaloonOwner?.[0];

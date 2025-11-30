@@ -413,7 +413,7 @@ const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void
         },
     });
     if (result.length === 0) {
-        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'No services found');
+        return [];
     }
     return result.map(service => {
         var _a, _b;
