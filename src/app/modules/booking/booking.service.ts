@@ -1638,8 +1638,17 @@ const getBookingListFromDb = async (userId: string) => {
           id: true,
           fullName: true,
           email: true,
+          image: true,
           phoneNumber: true,
         },
+      },
+      saloonOwner: {
+        select: {
+          shopName: true,
+          shopAddress: true,
+          shopLogo: true,
+        },
+      
       },
     },
     orderBy: { date: 'desc'}
@@ -1671,8 +1680,12 @@ const getBookingListFromDb = async (userId: string) => {
       barberId: booking.barberId,
       bookingType: booking.bookingType,
       saloonOwnerId: booking.saloonOwnerId,
+      saloonName: booking.saloonOwner?.shopName || null,
+      saloonAddress: booking.saloonOwner?.shopAddress || null,
+      saloonLogo: booking.saloonOwner?.shopLogo || null,
       totalPrice: booking.totalPrice,
       notes: booking.notes,
+      customerImage: booking.user?.image || null,
       customerName: booking.user?.fullName || null,
       customerEmail: booking.user?.email || null,
       customerContact: booking.user?.phoneNumber || null,
@@ -1682,7 +1695,10 @@ const getBookingListFromDb = async (userId: string) => {
       position: booking.queueSlot[0]?.position || null,
       serviceNames:
         booking.BookedServices?.map(bs => bs.service?.serviceName) || [],
+      serviceDurations:
+        booking.BookedServices?.map(bs => bs.service?.duration) || [],
       barberName: booking.barber?.user?.fullName || null,
+      barberImage: booking.barber?.user?.image || null,
       status: booking.status || null,
     };
   });

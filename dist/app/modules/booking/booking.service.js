@@ -1268,7 +1268,15 @@ const getBookingListFromDb = (userId) => __awaiter(void 0, void 0, void 0, funct
                     id: true,
                     fullName: true,
                     email: true,
+                    image: true,
                     phoneNumber: true,
+                },
+            },
+            saloonOwner: {
+                select: {
+                    shopName: true,
+                    shopAddress: true,
+                    shopLogo: true,
                 },
             },
         },
@@ -1279,7 +1287,7 @@ const getBookingListFromDb = (userId) => __awaiter(void 0, void 0, void 0, funct
     }
     // Flatten the result to include barber and booked services details at the top level
     return result.map(booking => {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
         // Calculate estimatedWaitTime as the difference in minutes between startTime and now
         let estimatedWaitTime = null;
         if (booking.startTime) {
@@ -1295,17 +1303,23 @@ const getBookingListFromDb = (userId) => __awaiter(void 0, void 0, void 0, funct
             barberId: booking.barberId,
             bookingType: booking.bookingType,
             saloonOwnerId: booking.saloonOwnerId,
+            saloonName: ((_a = booking.saloonOwner) === null || _a === void 0 ? void 0 : _a.shopName) || null,
+            saloonAddress: ((_b = booking.saloonOwner) === null || _b === void 0 ? void 0 : _b.shopAddress) || null,
+            saloonLogo: ((_c = booking.saloonOwner) === null || _c === void 0 ? void 0 : _c.shopLogo) || null,
             totalPrice: booking.totalPrice,
             notes: booking.notes,
-            customerName: ((_a = booking.user) === null || _a === void 0 ? void 0 : _a.fullName) || null,
-            customerEmail: ((_b = booking.user) === null || _b === void 0 ? void 0 : _b.email) || null,
-            customerContact: ((_c = booking.user) === null || _c === void 0 ? void 0 : _c.phoneNumber) || null,
+            customerImage: ((_d = booking.user) === null || _d === void 0 ? void 0 : _d.image) || null,
+            customerName: ((_e = booking.user) === null || _e === void 0 ? void 0 : _e.fullName) || null,
+            customerEmail: ((_f = booking.user) === null || _f === void 0 ? void 0 : _f.email) || null,
+            customerContact: ((_g = booking.user) === null || _g === void 0 ? void 0 : _g.phoneNumber) || null,
             date: booking.date,
             time: booking.startTime,
             estimatedWaitTime,
-            position: ((_d = booking.queueSlot[0]) === null || _d === void 0 ? void 0 : _d.position) || null,
-            serviceNames: ((_e = booking.BookedServices) === null || _e === void 0 ? void 0 : _e.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
-            barberName: ((_g = (_f = booking.barber) === null || _f === void 0 ? void 0 : _f.user) === null || _g === void 0 ? void 0 : _g.fullName) || null,
+            position: ((_h = booking.queueSlot[0]) === null || _h === void 0 ? void 0 : _h.position) || null,
+            serviceNames: ((_j = booking.BookedServices) === null || _j === void 0 ? void 0 : _j.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.serviceName; })) || [],
+            serviceDurations: ((_k = booking.BookedServices) === null || _k === void 0 ? void 0 : _k.map(bs => { var _a; return (_a = bs.service) === null || _a === void 0 ? void 0 : _a.duration; })) || [],
+            barberName: ((_m = (_l = booking.barber) === null || _l === void 0 ? void 0 : _l.user) === null || _m === void 0 ? void 0 : _m.fullName) || null,
+            barberImage: ((_p = (_o = booking.barber) === null || _o === void 0 ? void 0 : _o.user) === null || _p === void 0 ? void 0 : _p.image) || null,
             status: booking.status || null,
         };
     });
