@@ -339,7 +339,7 @@ const updateBarberIntoDB = async (userId: string, payload: any) => {
   return updatedBarber;
 };
 
-const sendReferenceImagesToAI = async (userId: string, images: string[]) => {
+const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.File[]) => {
   if (!userId) {
     throw new AppError(httpStatus.BAD_REQUEST, 'userId is required');
   }
@@ -350,59 +350,57 @@ const sendReferenceImagesToAI = async (userId: string, images: string[]) => {
   // Lazy require to avoid adding top-level imports
 
   const form = new FormData();
-  form.append('barberId', userId);
+  form.append('barber_codes', userId);
 
+  // Accept multer files (disk or memory storage). Support both buffer and path.
   for (let i = 0; i < images.length; i++) {
-    const img = images[i];
+    const file = images[i] as Express.Multer.File;
 
-    // If it's a data URL (base64)
-    if (typeof img === 'string' && img.startsWith('data:')) {
-      const matches = img.match(/^data:(.+);base64,(.*)$/);
-      if (!matches) {
-        throw new AppError(httpStatus.BAD_REQUEST, `Invalid data URL at index ${i}`);
-      }
-      const contentType = matches[1];
-      const base64Data = matches[2];
-      const buffer = Buffer.from(base64Data, 'base64');
-      form.append('images', buffer, {
-        filename: `image_${i}${contentType.includes('/') ? `.${contentType.split('/')[1]}` : '.jpg'}`,
-        contentType,
+    if (!file) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Invalid file at index ${i}`,
+      );
+    }
+
+    // If using memoryStorage, multer provides a buffer
+    if (file.buffer && file.buffer.length > 0) {
+      form.append('images', file.buffer, {
+        filename: file.originalname || `image_${i}`,
+        contentType: file.mimetype || 'application/octet-stream',
       });
       continue;
     }
 
-    // If it's a remote URL -> fetch as stream
-    if (typeof img === 'string' && (img.startsWith('http://') || img.startsWith('https://'))) {
-      try {
-        const resp = await axios.get(img, { responseType: 'stream' });
-        const filename = path.basename(new URL(img).pathname) || `image_${i}`;
-        form.append('images', resp.data, {
-          filename,
-          contentType: resp.headers['content-type'] || 'application/octet-stream',
-        });
-        console.log(`Fetched remote image at index ${i} from URL: ${img}`);
-        continue;
-      } catch (err) {
+    // If using diskStorage, multer provides a path
+    if (file.path) {
+      const resolvedPath = path.isAbsolute(file.path)
+        ? file.path
+        : path.resolve(process.cwd(), file.path);
+
+      if (!fs.existsSync(resolvedPath)) {
         throw new AppError(
-          httpStatus.BAD_GATEWAY,
-          `Failed to fetch remote image at index ${i}: ${(err as any)?.message ?? err}`,
+          httpStatus.BAD_REQUEST,
+          `Uploaded file not found at index ${i}: ${resolvedPath}`,
         );
       }
-    }
 
-    // Otherwise treat as local file path
-    if (typeof img === 'string' && fs.existsSync(img)) {
-      const filename = path.basename(img);
-      form.append('images', fs.createReadStream(img), { filename });
+      form.append('images', fs.createReadStream(resolvedPath), {
+        filename: file.originalname || path.basename(resolvedPath),
+        contentType: file.mimetype || 'application/octet-stream',
+      });
       continue;
     }
 
-    // Unknown format
-    throw new AppError(httpStatus.BAD_REQUEST, `Unsupported image format at index ${i}`);
+    // Neither buffer nor path available — unsupported multer configuration
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Unsupported multer file at index ${i}. Ensure you use diskStorage or memoryStorage.`,
+    );
   }
 
   try {
-    const url = 'http://127.0.0.1:8080/upload_reference';
+    const url = 'https://reyai.dsrt321.online/upload_reference';
     const headers = form.getHeaders();
     const resp = await axios.post(url, form, {
       headers,
