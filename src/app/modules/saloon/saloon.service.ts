@@ -1172,6 +1172,8 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
           email: true,
           fullName: true,
           dateOfBirth: true,
+          followerCount: true,
+          followingCount: true,
           Service: {
             select: {
               id: true,
@@ -1230,8 +1232,8 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     isVerified: result.isVerified,
     ratingCount: result.ratingCount,
     avgRating: result.avgRating,
-    followerCount: result.followerCount,
-    followingCount: result.followingCount,
+    followerCount: result.user?.followerCount,
+    followingCount: result.user?.followingCount,
     registrationNumber: result.registrationNumber,
     shopLogo: result.shopLogo,
     shopVideo: result.shopVideo,
