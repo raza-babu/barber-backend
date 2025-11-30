@@ -108,10 +108,10 @@ const createReviewIntoDb = async (userId: string, data: any) => {
   });
 };
 
-const getReviewListForSaloonFromDb = async (userId: string) => {
+const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: string) => {
   const result = await prisma.review.findMany({
     where: {
-      saloonOwnerId: userId,
+      saloonOwnerId,
     },
     select: {
       id: true,

@@ -48,7 +48,7 @@ const getReviewListForSaloon = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await reviewService.getReviewListForSaloonFromDb(
     user.id,
-    // req.params.id,
+    req.params.id,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -70,7 +70,7 @@ const getReviewListForBarber = catchAsync(async (req, res) => {
       data: result,
     });
   } else {
-    const result = await reviewService.getReviewListForSaloonFromDb(user.id);
+    const result = await reviewService.getReviewListForSaloonFromDb(user.id, req.params.id);
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
@@ -111,10 +111,38 @@ const getReviewById = catchAsync(async (req, res) => {
 
 const updateReview = catchAsync(async (req, res) => {
   const user = req.user as any;
+  const { files, body } = req;
+  const uploads: {
+      reviewImages: string[];
+    } = {
+      reviewImages: [],
+    };
+  
+    const fileGroups = files as {
+      reviewImages?: Express.Multer.File[];
+    } || {};
+  
+    // Upload portfolio images (optional)
+    if (fileGroups?.reviewImages?.length) {
+      const uploadedImages = await Promise.all(
+        fileGroups.reviewImages.map(file =>
+          uploadFileToSpace(file, 'booking-review-images'),
+        ),
+      );
+      uploads.reviewImages.push(...uploadedImages);
+    }
+  
+    if(uploads.reviewImages.length) {
+      body.images = uploads.reviewImages;
+    }
+  
+    const payload = {
+      ...body,
+    };
   const result = await reviewService.updateReviewIntoDb(
     user.id,
     req.params.id,
-    req.body,
+    payload,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

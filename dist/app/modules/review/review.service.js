@@ -104,10 +104,10 @@ const createReviewIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, f
         return result;
     }));
 });
-const getReviewListForSaloonFromDb = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+const getReviewListForSaloonFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.review.findMany({
         where: {
-            saloonOwnerId: userId,
+            saloonOwnerId,
         },
         select: {
             id: true,

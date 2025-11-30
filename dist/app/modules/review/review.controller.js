@@ -46,7 +46,7 @@ const createReview = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 }));
 const getReviewListForSaloon = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    const result = yield review_service_1.reviewService.getReviewListForSaloonFromDb(user.id);
+    const result = yield review_service_1.reviewService.getReviewListForSaloonFromDb(user.id, req.params.id);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -67,7 +67,7 @@ const getReviewListForBarber = (0, catchAsync_1.default)((req, res) => __awaiter
         });
     }
     else {
-        const result = yield review_service_1.reviewService.getReviewListForSaloonFromDb(user.id);
+        const result = yield review_service_1.reviewService.getReviewListForSaloonFromDb(user.id, req.params.id);
         (0, sendResponse_1.default)(res, {
             statusCode: http_status_1.default.OK,
             success: true,
@@ -97,8 +97,23 @@ const getReviewById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
     });
 }));
 const updateReview = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const user = req.user;
-    const result = yield review_service_1.reviewService.updateReviewIntoDb(user.id, req.params.id, req.body);
+    const { files, body } = req;
+    const uploads = {
+        reviewImages: [],
+    };
+    const fileGroups = files || {};
+    // Upload portfolio images (optional)
+    if ((_a = fileGroups === null || fileGroups === void 0 ? void 0 : fileGroups.reviewImages) === null || _a === void 0 ? void 0 : _a.length) {
+        const uploadedImages = yield Promise.all(fileGroups.reviewImages.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'booking-review-images')));
+        uploads.reviewImages.push(...uploadedImages);
+    }
+    if (uploads.reviewImages.length) {
+        body.images = uploads.reviewImages;
+    }
+    const payload = Object.assign({}, body);
+    const result = yield review_service_1.reviewService.updateReviewIntoDb(user.id, req.params.id, payload);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
