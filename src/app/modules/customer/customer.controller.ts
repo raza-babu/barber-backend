@@ -15,6 +15,7 @@ const createCustomer = catchAsync(async (req, res) => {
 });
 
 const getAllSaloonList = catchAsync(async (req, res) => {
+  const user = req.user as any;
   const { searchTerm, page, limit, sortBy, minRating, latitude, longitude, radius, topRated } = req.query;
 
   // If latitude and longitude are provided, get nearest saloons
@@ -28,6 +29,7 @@ const getAllSaloonList = catchAsync(async (req, res) => {
     };
 
     const result = await customerService.getMyNearestSaloonListFromDb(
+      user.id,
       Number(latitude),
       Number(longitude),
       query,
@@ -51,7 +53,7 @@ const getAllSaloonList = catchAsync(async (req, res) => {
       minRating: minRating ? Number(minRating) : undefined,
     };
 
-    const result = await customerService.getTopRatedSaloonsFromDb(query);
+    const result = await customerService.getTopRatedSaloonsFromDb(user.id, query);
 
     return sendResponse(res, {
       statusCode: httpStatus.OK,
@@ -71,7 +73,7 @@ const getAllSaloonList = catchAsync(async (req, res) => {
     minRating: minRating ? Number(minRating) : undefined,
   };
 
-  const result = await customerService.getAllSaloonListFromDb(query);
+  const result = await customerService.getAllSaloonListFromDb(user.id, query);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -83,6 +85,7 @@ const getAllSaloonList = catchAsync(async (req, res) => {
 });
 
 const getMyNearestSaloonList = catchAsync(async (req, res) => {
+  const user = req.user as any;
   const { latitude, longitude, radius, searchTerm, page, limit, minRating } =
     req.query;
 
@@ -95,6 +98,7 @@ const getMyNearestSaloonList = catchAsync(async (req, res) => {
   };
 
   const result = await customerService.getMyNearestSaloonListFromDb(
+    user.id,
     Number(latitude),
     Number(longitude),
     query,
@@ -110,6 +114,7 @@ const getMyNearestSaloonList = catchAsync(async (req, res) => {
 });
 
 const getTopRatedSaloons = catchAsync(async (req, res) => {
+  const user = req.user as any;
   const { searchTerm, page, limit, minRating } = req.query;
 
   const query = {
@@ -119,7 +124,7 @@ const getTopRatedSaloons = catchAsync(async (req, res) => {
     minRating: minRating ? Number(minRating) : undefined,
   };
 
-  const result = await customerService.getTopRatedSaloonsFromDb(query);
+  const result = await customerService.getTopRatedSaloonsFromDb(user.id, query);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

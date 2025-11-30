@@ -16,7 +16,7 @@ const createCustomerIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getAllSaloonListFromDb = async (query: {
+const getAllSaloonListFromDb = async (userId: string, query: {
   searchTerm?: string;
   page?: number;
   limit?: number;
@@ -89,16 +89,35 @@ const getAllSaloonListFromDb = async (query: {
           },
         },
       },
+      FavoriteShop: { select: { id: true, userId: true }  },        
     },
     orderBy,
     skip,
     take: limit,
   });
 
+  // check for favorite shop or not 
+    let isFavoriteShop = false;
+    if(userId){
+      result.forEach(saloon => {
+        isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+        (saloon as any).isFavorite = isFavoriteShop;
+        delete (saloon as any).FavoriteShop;
+      });
+    } else {
+      result.forEach(saloon => {
+        (saloon as any).isFavorite = false;
+        delete (saloon as any).FavoriteShop;
+      });
+    }
+
+
+
   const saloons = result.map(({ Booking, ...rest }) => ({
     ...rest,
     distance: 0,
     queue: Array.isArray(Booking) ? Booking.length : 0,
+    // isFavoriteShop: (rest as any).isFavorite || false,
   }));
 
   return {
@@ -114,6 +133,7 @@ const getAllSaloonListFromDb = async (query: {
 
 // All saloons near get within a radius
 const getMyNearestSaloonListFromDb = async (
+  userId: string,
   latitude: number,
   longitude: number,
   query: {
@@ -175,8 +195,23 @@ const getMyNearestSaloonListFromDb = async (
           },
         },
       },
+      FavoriteShop: { select: { id: true, userId: true }  }, 
     },
   });
+  // check for favorite shop or not 
+    let isFavoriteShop = false;
+    if(userId){
+      allSaloons.forEach(saloon => {
+        isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+        (saloon as any).isFavorite = isFavoriteShop;
+        delete (saloon as any).FavoriteShop;
+      });
+    } else {
+      allSaloons.forEach(saloon => {
+        (saloon as any).isFavorite = false;
+        delete (saloon as any).FavoriteShop;
+      });
+    }
 
   // Haversine formula to calculate distance
   const calculateDistance = (
@@ -213,10 +248,13 @@ const getMyNearestSaloonListFromDb = async (
         ...rest,
         distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
         queue: Array.isArray(Booking) ? Booking.length : 0,
+        // isFavoriteShop: (rest as any).isFavorite || false,
       };
     })
     .filter(saloon => saloon.distance <= radiusInKm)
     .sort((a, b) => a.distance - b.distance);
+
+    
 
   // Apply pagination
   const total = nearbySaloons.length;
@@ -234,7 +272,9 @@ const getMyNearestSaloonListFromDb = async (
   };
 };
 
-const getTopRatedSaloonsFromDb = async (query: {
+const getTopRatedSaloonsFromDb = async (
+  userId: string,
+  query: {
   searchTerm?: string;
   page?: number;
   limit?: number;
@@ -289,8 +329,23 @@ const getTopRatedSaloonsFromDb = async (query: {
           },
         },
       },
+      FavoriteShop: { select: { id: true, userId: true }  }, 
     },
   });
+     // check for favorite shop or not 
+    let isFavoriteShop = false;
+    if(userId){
+      result.forEach(saloon => {
+        isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+        (saloon as any).isFavorite = isFavoriteShop;
+        delete (saloon as any).FavoriteShop;
+      });
+    } else {
+      result.forEach(saloon => {
+        (saloon as any).isFavorite = false;
+        delete (saloon as any).FavoriteShop;
+      });
+    }
 
   // Normalize output to the requested format and sort by avgRating desc
   const saloonsWithAvgRatings = result
@@ -319,6 +374,8 @@ const getTopRatedSaloonsFromDb = async (query: {
           ? saloon.ratingCount
           : ratingsArray.length;
 
+       
+
       return {
         id: saloon.id,
         userId: saloon.userId,
@@ -339,6 +396,7 @@ const getTopRatedSaloonsFromDb = async (query: {
         avgRating: Math.round(computedAvg * 100) / 100,
         distance: 0,
         queue: saloon.Booking.length,
+        isFavorite: (saloon as any).isFavorite || false,
       };
     })
     .sort((a, b) => b.avgRating - a.avgRating);

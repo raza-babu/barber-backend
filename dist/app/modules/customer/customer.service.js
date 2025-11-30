@@ -37,7 +37,7 @@ const createCustomerIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
     }
     return result;
 });
-const getAllSaloonListFromDb = (query) => __awaiter(void 0, void 0, void 0, function* () {
+const getAllSaloonListFromDb = (userId, query) => __awaiter(void 0, void 0, void 0, function* () {
     const { searchTerm = '', page = 1, limit = 10, sortBy = 'name', minRating, } = query;
     const skip = (page - 1) * limit;
     // Build where clause
@@ -91,11 +91,27 @@ const getAllSaloonListFromDb = (query) => __awaiter(void 0, void 0, void 0, func
                     },
                 },
             },
+            FavoriteShop: { select: { id: true, userId: true } },
         },
         orderBy,
         skip,
         take: limit,
     });
+    // check for favorite shop or not 
+    let isFavoriteShop = false;
+    if (userId) {
+        result.forEach(saloon => {
+            isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+            saloon.isFavorite = isFavoriteShop;
+            delete saloon.FavoriteShop;
+        });
+    }
+    else {
+        result.forEach(saloon => {
+            saloon.isFavorite = false;
+            delete saloon.FavoriteShop;
+        });
+    }
     const saloons = result.map((_a) => {
         var { Booking } = _a, rest = __rest(_a, ["Booking"]);
         return (Object.assign(Object.assign({}, rest), { distance: 0, queue: Array.isArray(Booking) ? Booking.length : 0 }));
@@ -111,7 +127,7 @@ const getAllSaloonListFromDb = (query) => __awaiter(void 0, void 0, void 0, func
     };
 });
 // All saloons near get within a radius
-const getMyNearestSaloonListFromDb = (latitude_1, longitude_1, ...args_1) => __awaiter(void 0, [latitude_1, longitude_1, ...args_1], void 0, function* (latitude, longitude, query = {}) {
+const getMyNearestSaloonListFromDb = (userId_1, latitude_1, longitude_1, ...args_1) => __awaiter(void 0, [userId_1, latitude_1, longitude_1, ...args_1], void 0, function* (userId, latitude, longitude, query = {}) {
     const { radius = 50, searchTerm = '', page = 1, limit = 10, minRating, } = query;
     const radiusInKm = radius;
     // Build where clause
@@ -152,8 +168,24 @@ const getMyNearestSaloonListFromDb = (latitude_1, longitude_1, ...args_1) => __a
                     },
                 },
             },
+            FavoriteShop: { select: { id: true, userId: true } },
         },
     });
+    // check for favorite shop or not 
+    let isFavoriteShop = false;
+    if (userId) {
+        allSaloons.forEach(saloon => {
+            isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+            saloon.isFavorite = isFavoriteShop;
+            delete saloon.FavoriteShop;
+        });
+    }
+    else {
+        allSaloons.forEach(saloon => {
+            saloon.isFavorite = false;
+            delete saloon.FavoriteShop;
+        });
+    }
     // Haversine formula to calculate distance
     const calculateDistance = (lat1, lon1, lat2, lon2) => {
         const R = 6371; // Earth's radius in kilometers
@@ -190,7 +222,7 @@ const getMyNearestSaloonListFromDb = (latitude_1, longitude_1, ...args_1) => __a
         },
     };
 });
-const getTopRatedSaloonsFromDb = (query) => __awaiter(void 0, void 0, void 0, function* () {
+const getTopRatedSaloonsFromDb = (userId, query) => __awaiter(void 0, void 0, void 0, function* () {
     const { searchTerm = '', page = 1, limit = 10, minRating } = query;
     // Build where clause
     const where = {
@@ -235,8 +267,24 @@ const getTopRatedSaloonsFromDb = (query) => __awaiter(void 0, void 0, void 0, fu
                     },
                 },
             },
+            FavoriteShop: { select: { id: true, userId: true } },
         },
     });
+    // check for favorite shop or not 
+    let isFavoriteShop = false;
+    if (userId) {
+        result.forEach(saloon => {
+            isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+            saloon.isFavorite = isFavoriteShop;
+            delete saloon.FavoriteShop;
+        });
+    }
+    else {
+        result.forEach(saloon => {
+            saloon.isFavorite = false;
+            delete saloon.FavoriteShop;
+        });
+    }
     // Normalize output to the requested format and sort by avgRating desc
     const saloonsWithAvgRatings = result
         .map(saloon => {
@@ -277,6 +325,7 @@ const getTopRatedSaloonsFromDb = (query) => __awaiter(void 0, void 0, void 0, fu
             avgRating: Math.round(computedAvg * 100) / 100,
             distance: 0,
             queue: saloon.Booking.length,
+            isFavorite: saloon.isFavorite || false,
         };
     })
         .sort((a, b) => b.avgRating - a.avgRating);

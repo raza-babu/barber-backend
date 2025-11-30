@@ -28,6 +28,7 @@ const createCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
     });
 }));
 const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
     const { searchTerm, page, limit, sortBy, minRating, latitude, longitude, radius, topRated } = req.query;
     // If latitude and longitude are provided, get nearest saloons
     if (latitude && longitude && !topRated) {
@@ -38,7 +39,7 @@ const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 
             limit: limit ? Number(limit) : undefined,
             minRating: minRating ? Number(minRating) : undefined,
         };
-        const result = yield customer_service_1.customerService.getMyNearestSaloonListFromDb(Number(latitude), Number(longitude), query);
+        const result = yield customer_service_1.customerService.getMyNearestSaloonListFromDb(user.id, Number(latitude), Number(longitude), query);
         return (0, sendResponse_1.default)(res, {
             statusCode: http_status_1.default.OK,
             success: true,
@@ -55,7 +56,7 @@ const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 
             limit: limit ? Number(limit) : undefined,
             minRating: minRating ? Number(minRating) : undefined,
         };
-        const result = yield customer_service_1.customerService.getTopRatedSaloonsFromDb(query);
+        const result = yield customer_service_1.customerService.getTopRatedSaloonsFromDb(user.id, query);
         return (0, sendResponse_1.default)(res, {
             statusCode: http_status_1.default.OK,
             success: true,
@@ -72,7 +73,7 @@ const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 
         sortBy: sortBy,
         minRating: minRating ? Number(minRating) : undefined,
     };
-    const result = yield customer_service_1.customerService.getAllSaloonListFromDb(query);
+    const result = yield customer_service_1.customerService.getAllSaloonListFromDb(user.id, query);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -82,6 +83,7 @@ const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 
     });
 }));
 const getMyNearestSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
     const { latitude, longitude, radius, searchTerm, page, limit, minRating } = req.query;
     const query = {
         radius: radius ? Number(radius) : undefined,
@@ -90,7 +92,7 @@ const getMyNearestSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter
         limit: limit ? Number(limit) : undefined,
         minRating: minRating ? Number(minRating) : undefined,
     };
-    const result = yield customer_service_1.customerService.getMyNearestSaloonListFromDb(Number(latitude), Number(longitude), query);
+    const result = yield customer_service_1.customerService.getMyNearestSaloonListFromDb(user.id, Number(latitude), Number(longitude), query);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -100,6 +102,7 @@ const getMyNearestSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter
     });
 }));
 const getTopRatedSaloons = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
     const { searchTerm, page, limit, minRating } = req.query;
     const query = {
         searchTerm: searchTerm,
@@ -107,7 +110,7 @@ const getTopRatedSaloons = (0, catchAsync_1.default)((req, res) => __awaiter(voi
         limit: limit ? Number(limit) : undefined,
         minRating: minRating ? Number(minRating) : undefined,
     };
-    const result = yield customer_service_1.customerService.getTopRatedSaloonsFromDb(query);
+    const result = yield customer_service_1.customerService.getTopRatedSaloonsFromDb(user.id, query);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
