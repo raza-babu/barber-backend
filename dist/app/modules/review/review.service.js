@@ -34,6 +34,7 @@ const createReviewIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, f
                 userId: userId,
                 saloonOwnerId: data.saloonOwnerId,
                 barberId: data.barberId,
+                bookingId: data.bookingId,
             },
         });
         if (existingReview) {

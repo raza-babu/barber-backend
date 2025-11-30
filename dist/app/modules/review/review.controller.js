@@ -18,9 +18,25 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const review_service_1 = require("./review.service");
 const client_1 = require("@prisma/client");
+const multipleFile_1 = require("../../utils/multipleFile");
 const createReview = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const user = req.user;
-    const result = yield review_service_1.reviewService.createReviewIntoDb(user.id, req.body);
+    const { files, body } = req;
+    const uploads = {
+        reviewImages: [],
+    };
+    const fileGroups = files || {};
+    // Upload portfolio images (optional)
+    if ((_a = fileGroups === null || fileGroups === void 0 ? void 0 : fileGroups.reviewImages) === null || _a === void 0 ? void 0 : _a.length) {
+        const uploadedImages = yield Promise.all(fileGroups.reviewImages.map(file => (0, multipleFile_1.uploadFileToSpace)(file, 'booking-review-images')));
+        uploads.reviewImages.push(...uploadedImages);
+    }
+    if (uploads.reviewImages.length) {
+        body.images = uploads.reviewImages;
+    }
+    const payload = Object.assign({}, body);
+    const result = yield review_service_1.reviewService.createReviewIntoDb(user.id, payload);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
         success: true,

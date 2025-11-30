@@ -7,22 +7,33 @@ const createReviewSchema = zod_1.z.object({
         barberId: zod_1.z.string().min(1, 'Barber ID is required'),
         saloonOwnerId: zod_1.z.string().min(1, 'Saloon Owner ID is required'),
         bookingId: zod_1.z.string().min(1, 'Booking ID is required'),
-        rating: zod_1.z
+        rating: zod_1.z.preprocess(val => {
+            if (typeof val === 'number')
+                return Math.round(val);
+            if (typeof val === 'string' && val.trim() !== '')
+                return Math.round(Number(val));
+            return val;
+        }, zod_1.z
             .number()
             .int()
             .min(1, 'Rating must be at least 1')
-            .max(5, 'Rating cannot exceed 5'),
+            .max(5, 'Rating cannot exceed 5')),
         comment: zod_1.z.string().optional(),
     }),
 });
 const updateReviewSchema = zod_1.z.object({
     body: zod_1.z.object({
-        rating: zod_1.z
+        rating: zod_1.z.preprocess(val => {
+            if (typeof val === 'number')
+                return Math.round(val);
+            if (typeof val === 'string' && val.trim() !== '')
+                return Math.round(Number(val));
+            return val;
+        }, zod_1.z
             .number()
             .int()
             .min(1, 'Rating must be at least 1')
-            .max(5, 'Rating cannot exceed 5')
-            .optional(),
+            .max(5, 'Rating cannot exceed 5')),
         comment: zod_1.z.string().optional(),
     }),
 });

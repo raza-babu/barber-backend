@@ -24,6 +24,7 @@ const createReviewIntoDb = async (userId: string, data: any) => {
         userId: userId,
         saloonOwnerId: data.saloonOwnerId,
         barberId: data.barberId,
+        bookingId: data.bookingId,
       },
     });
     if (existingReview) {

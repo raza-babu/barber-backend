@@ -6,6 +6,7 @@ model Review {
   bookingId     String   @db.ObjectId
   rating        Int
   comment       String?
+  images        String[] @default([])
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

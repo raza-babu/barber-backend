@@ -3,10 +3,39 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { reviewService } from './review.service';
 import { UserRoleEnum } from '@prisma/client';
+import { uploadFileToSpace } from '../../utils/multipleFile';
 
 const createReview = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await reviewService.createReviewIntoDb(user.id, req.body);
+  const { files, body } = req;
+  const uploads: {
+      reviewImages: string[];
+    } = {
+      reviewImages: [],
+    };
+  
+    const fileGroups = files as {
+      reviewImages?: Express.Multer.File[];
+    } || {};
+  
+    // Upload portfolio images (optional)
+    if (fileGroups?.reviewImages?.length) {
+      const uploadedImages = await Promise.all(
+        fileGroups.reviewImages.map(file =>
+          uploadFileToSpace(file, 'booking-review-images'),
+        ),
+      );
+      uploads.reviewImages.push(...uploadedImages);
+    }
+  
+    if(uploads.reviewImages.length) {
+      body.images = uploads.reviewImages;
+    }
+  
+    const payload = {
+      ...body,
+    };
+  const result = await reviewService.createReviewIntoDb(user.id, payload);
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,

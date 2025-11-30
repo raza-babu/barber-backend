@@ -10,8 +10,12 @@ const validateRequest_1 = __importDefault(require("../../middlewares/validateReq
 const review_controller_1 = require("./review.controller");
 const review_validation_1 = require("./review.validation");
 const client_1 = require("@prisma/client");
+const multipleFile_1 = require("../../utils/multipleFile");
+const parseBody_1 = require("../../middlewares/parseBody");
 const router = express_1.default.Router();
-router.post('/', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(review_validation_1.reviewValidation.createReviewSchema), review_controller_1.reviewController.createReview);
+router.post('/', multipleFile_1.multerUploadMultiple.fields([
+    { name: 'reviewImages', maxCount: 5 },
+]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(review_validation_1.reviewValidation.createReviewSchema), review_controller_1.reviewController.createReview);
 router.get('/', (0, auth_1.default)(), review_controller_1.reviewController.getReviewListForBarber);
 router.get('/not-provided-reviews', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), review_controller_1.reviewController.getNotProvidedForSaloonList);
 router.get('/saloon/:id', (0, auth_1.default)(), review_controller_1.reviewController.getReviewListForSaloon);

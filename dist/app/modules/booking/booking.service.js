@@ -1280,7 +1280,7 @@ const getBookingListFromDb = (userId) => __awaiter(void 0, void 0, void 0, funct
                 },
             },
         },
-        orderBy: { date: 'desc' }
+        orderBy: { date: 'desc' },
     });
     if (result.length === 0) {
         return [];
@@ -2766,7 +2766,7 @@ const getBookingListForBarberFromDb = (userId_1, ...args_1) => __awaiter(void 0,
             total,
             page,
             limit,
-            pageCount: Math.ceil(total / limit)
+            pageCount: Math.ceil(total / limit),
         },
     };
 });

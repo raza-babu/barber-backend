@@ -408,7 +408,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       .toFormat('cccc')
       .toLowerCase();
 
-
     const barberSchedule = await tx.barberSchedule.findFirst({
       where: {
         barberId: barberId,
@@ -1648,10 +1647,9 @@ const getBookingListFromDb = async (userId: string) => {
           shopAddress: true,
           shopLogo: true,
         },
-      
       },
     },
-    orderBy: { date: 'desc'}
+    orderBy: { date: 'desc' },
   });
   if (result.length === 0) {
     return [];
@@ -2576,7 +2574,6 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
 
       console.log('Free slots for barber', barber.userId, freeSlots);
 
-
       return {
         shopLogo: salon.shopLogo || null,
         barberId: barber.userId,
@@ -3428,7 +3425,7 @@ const getBookingListForBarberFromDb = async (
       total,
       page,
       limit,
-      pageCount: Math.ceil(total / limit)
+      pageCount: Math.ceil(total / limit),
     },
   };
 };
