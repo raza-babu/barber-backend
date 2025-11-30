@@ -195,6 +195,7 @@ const getNotProvidedReviewsForSaloonFromDb = (userId) => __awaiter(void 0, void 
         return {
             id: saloons === null || saloons === void 0 ? void 0 : saloons.id,
             userId: saloons === null || saloons === void 0 ? void 0 : saloons.userId,
+            bookingId: booking.id,
             saloonName: (saloons === null || saloons === void 0 ? void 0 : saloons.shopName) || 'Unknown Saloon',
             saloonAddress: (saloons === null || saloons === void 0 ? void 0 : saloons.shopAddress) || 'Unknown Address',
             saloonLogo: (saloons === null || saloons === void 0 ? void 0 : saloons.shopLogo) || null,

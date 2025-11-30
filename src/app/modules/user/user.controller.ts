@@ -191,9 +191,9 @@ const updateBarber = catchAsync(async (req, res) => {
   // Best practice: perform external API calls from the service layer.
   // Here we call a service function which should build the form-data (images + barber_codes)
   // and POST to http://127.0.0.1:8080/upload_reference.
-  // if (uploads.portfolioImages.length) {
-  //   await UserServices.sendReferenceImagesToAI(user.id, uploads.portfolioImages);
-  // }
+  if (uploads.portfolioImages.length) {
+    await UserServices.sendReferenceImagesToAI(user.id, uploads.portfolioImages);
+  }
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,

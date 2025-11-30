@@ -200,6 +200,7 @@ const getNotProvidedReviewsForSaloonFromDb = async (userId: string) => {
       return {
         id: saloons?.id,
         userId: saloons?.userId,
+        bookingId: booking.id,
         saloonName: saloons?.shopName || 'Unknown Saloon',
         saloonAddress: saloons?.shopAddress || 'Unknown Address',
         saloonLogo: saloons?.shopLogo || null,
