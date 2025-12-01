@@ -74,7 +74,7 @@ const getReviewListForBarber = catchAsync(async (req, res) => {
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
-      message: 'Review list for barber retrieved successfully',
+      message: 'Review list for saloon owners retrieved successfully',
       data: result,
     });
   }

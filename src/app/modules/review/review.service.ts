@@ -118,6 +118,7 @@ const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: strin
       userId: true,
       barberId: true,
       saloonOwnerId: true,
+      images: true,
       bookingId: true,
       rating: true,
       comment: true,
@@ -128,6 +129,30 @@ const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: strin
           shopName: true,
           shopAddress: true,
           shopLogo: true,
+        },
+      },
+      barber: {
+        select: {
+          userId: true,
+          user: {
+            select: {
+              fullName: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      },
+      booking: {
+        select: {
+          appointmentAt: true,
+          date: true,
+          user: {
+            select: {
+              fullName: true,
+              image: true,
+            },
+          },
         },
       },
     },
@@ -148,6 +173,13 @@ const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: strin
     saloonName: review.saloonOwner?.shopName || 'Unknown Saloon',
     saloonAddress: review.saloonOwner?.shopAddress || 'Unknown Address',
     saloonLogo: review.saloonOwner?.shopLogo || null,
+    barberName: review.barber?.user?.fullName || 'Unknown Barber',
+    barberImage: review.barber?.user?.image || null,
+    customerName: review.booking?.user?.fullName || 'Unknown Customer',
+    customerImage: review.booking?.user?.image || null,
+    appointmentAt: review.booking?.appointmentAt || null,
+    date: review.booking?.date || null,
+    images: review.images || [],
     bookingId: review.bookingId,
     createdAt: review.createdAt,
   }));
@@ -299,6 +331,13 @@ const getReviewListForBarberFromDb = async (
     saloonAddress: review.saloonOwner?.shopAddress || 'Unknown Address',
     saloonLogo: review.saloonOwner?.shopLogo || null,
     bookingId: review.bookingId,
+    barberName: review.barber?.user?.fullName || 'Unknown Barber',
+    barberImage: review.barber?.user?.image || null,
+    customerName: review.booking?.user?.fullName || 'Unknown Customer',
+    customerImage: review.booking?.user?.image || null,
+    appointmentAt: review.booking?.appointmentAt || null,
+    date: review.booking?.date || null,
+    images: review.images || [],
     createdAt: review.createdAt,
   }));
 };

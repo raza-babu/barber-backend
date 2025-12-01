@@ -20,7 +20,7 @@ router.post(
   reviewController.createReview,
 );
 
-router.get('/', auth(), reviewController.getReviewListForBarber);
+router.get('/', auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER), reviewController.getReviewListForBarber);
 
 router.get(
   '/not-provided-reviews',

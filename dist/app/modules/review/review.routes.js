@@ -16,7 +16,7 @@ const router = express_1.default.Router();
 router.post('/', multipleFile_1.multerUploadMultiple.fields([
     { name: 'reviewImages', maxCount: 5 },
 ]), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(review_validation_1.reviewValidation.createReviewSchema), review_controller_1.reviewController.createReview);
-router.get('/', (0, auth_1.default)(), review_controller_1.reviewController.getReviewListForBarber);
+router.get('/', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER, client_1.UserRoleEnum.BARBER), review_controller_1.reviewController.getReviewListForBarber);
 router.get('/not-provided-reviews', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), review_controller_1.reviewController.getNotProvidedForSaloonList);
 router.get('/saloon/:id', (0, auth_1.default)(), review_controller_1.reviewController.getReviewListForSaloon);
 router.patch('/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), (0, validateRequest_1.default)(review_validation_1.reviewValidation.updateReviewSchema), review_controller_1.reviewController.updateReview);

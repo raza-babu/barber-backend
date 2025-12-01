@@ -71,7 +71,7 @@ const getReviewListForBarber = (0, catchAsync_1.default)((req, res) => __awaiter
         (0, sendResponse_1.default)(res, {
             statusCode: http_status_1.default.OK,
             success: true,
-            message: 'Review list for barber retrieved successfully',
+            message: 'Review list for saloon owners retrieved successfully',
             data: result,
         });
     }

@@ -114,6 +114,7 @@ const getReviewListForSaloonFromDb = (userId, saloonOwnerId) => __awaiter(void 0
             userId: true,
             barberId: true,
             saloonOwnerId: true,
+            images: true,
             bookingId: true,
             rating: true,
             comment: true,
@@ -126,6 +127,30 @@ const getReviewListForSaloonFromDb = (userId, saloonOwnerId) => __awaiter(void 0
                     shopLogo: true,
                 },
             },
+            barber: {
+                select: {
+                    userId: true,
+                    user: {
+                        select: {
+                            fullName: true,
+                            email: true,
+                            image: true,
+                        },
+                    },
+                },
+            },
+            booking: {
+                select: {
+                    appointmentAt: true,
+                    date: true,
+                    user: {
+                        select: {
+                            fullName: true,
+                            image: true,
+                        },
+                    },
+                },
+            },
         },
         orderBy: {
             createdAt: 'desc',
@@ -135,7 +160,7 @@ const getReviewListForSaloonFromDb = (userId, saloonOwnerId) => __awaiter(void 0
         return [];
     }
     return result.map(review => {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
         return ({
             id: review.id,
             customerId: review.userId,
@@ -146,6 +171,13 @@ const getReviewListForSaloonFromDb = (userId, saloonOwnerId) => __awaiter(void 0
             saloonName: ((_a = review.saloonOwner) === null || _a === void 0 ? void 0 : _a.shopName) || 'Unknown Saloon',
             saloonAddress: ((_b = review.saloonOwner) === null || _b === void 0 ? void 0 : _b.shopAddress) || 'Unknown Address',
             saloonLogo: ((_c = review.saloonOwner) === null || _c === void 0 ? void 0 : _c.shopLogo) || null,
+            barberName: ((_e = (_d = review.barber) === null || _d === void 0 ? void 0 : _d.user) === null || _e === void 0 ? void 0 : _e.fullName) || 'Unknown Barber',
+            barberImage: ((_g = (_f = review.barber) === null || _f === void 0 ? void 0 : _f.user) === null || _g === void 0 ? void 0 : _g.image) || null,
+            customerName: ((_j = (_h = review.booking) === null || _h === void 0 ? void 0 : _h.user) === null || _j === void 0 ? void 0 : _j.fullName) || 'Unknown Customer',
+            customerImage: ((_l = (_k = review.booking) === null || _k === void 0 ? void 0 : _k.user) === null || _l === void 0 ? void 0 : _l.image) || null,
+            appointmentAt: ((_m = review.booking) === null || _m === void 0 ? void 0 : _m.appointmentAt) || null,
+            date: ((_o = review.booking) === null || _o === void 0 ? void 0 : _o.date) || null,
+            images: review.images || [],
             bookingId: review.bookingId,
             createdAt: review.createdAt,
         });
@@ -278,7 +310,7 @@ const getReviewListForBarberFromDb = (userId) => __awaiter(void 0, void 0, void 
         return [];
     }
     return result.map(review => {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
         return ({
             id: review.id,
             customerId: review.userId,
@@ -290,6 +322,13 @@ const getReviewListForBarberFromDb = (userId) => __awaiter(void 0, void 0, void 
             saloonAddress: ((_c = review.saloonOwner) === null || _c === void 0 ? void 0 : _c.shopAddress) || 'Unknown Address',
             saloonLogo: ((_d = review.saloonOwner) === null || _d === void 0 ? void 0 : _d.shopLogo) || null,
             bookingId: review.bookingId,
+            barberName: ((_f = (_e = review.barber) === null || _e === void 0 ? void 0 : _e.user) === null || _f === void 0 ? void 0 : _f.fullName) || 'Unknown Barber',
+            barberImage: ((_h = (_g = review.barber) === null || _g === void 0 ? void 0 : _g.user) === null || _h === void 0 ? void 0 : _h.image) || null,
+            customerName: ((_k = (_j = review.booking) === null || _j === void 0 ? void 0 : _j.user) === null || _k === void 0 ? void 0 : _k.fullName) || 'Unknown Customer',
+            customerImage: ((_m = (_l = review.booking) === null || _l === void 0 ? void 0 : _l.user) === null || _m === void 0 ? void 0 : _m.image) || null,
+            appointmentAt: ((_o = review.booking) === null || _o === void 0 ? void 0 : _o.appointmentAt) || null,
+            date: ((_p = review.booking) === null || _p === void 0 ? void 0 : _p.date) || null,
+            images: review.images || [],
             createdAt: review.createdAt,
         });
     });
