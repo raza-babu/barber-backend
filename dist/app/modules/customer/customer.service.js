@@ -343,6 +343,16 @@ const getTopRatedSaloonsFromDb = (userId, query) => __awaiter(void 0, void 0, vo
     };
 });
 const addSaloonToFavoritesInDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
+    //check the saloon is exist or not
+    const saloon = yield prisma_1.default.saloonOwner.findUnique({
+        where: {
+            userId: saloonOwnerId,
+        },
+    });
+    if (!saloon) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon not found');
+    }
+    // Check if the favorite already exists
     const existingFavorite = yield prisma_1.default.favoriteShop.findFirst({
         where: {
             userId: userId,

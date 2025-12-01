@@ -235,6 +235,7 @@ const getReviewListForBarberFromDb = (userId) => __awaiter(void 0, void 0, void 
             userId: true,
             rating: true,
             comment: true,
+            images: true,
             createdAt: true,
             saloonOwner: {
                 select: {
@@ -242,6 +243,30 @@ const getReviewListForBarberFromDb = (userId) => __awaiter(void 0, void 0, void 
                     shopName: true,
                     shopAddress: true,
                     shopLogo: true,
+                },
+            },
+            barber: {
+                select: {
+                    userId: true,
+                    user: {
+                        select: {
+                            fullName: true,
+                            email: true,
+                            image: true,
+                        },
+                    },
+                },
+            },
+            booking: {
+                select: {
+                    appointmentAt: true,
+                    date: true,
+                    user: {
+                        select: {
+                            fullName: true,
+                            image: true,
+                        },
+                    },
                 },
             },
         },

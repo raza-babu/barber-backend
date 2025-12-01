@@ -246,6 +246,7 @@ const getReviewListForBarberFromDb = async (
       userId: true,
       rating: true,
       comment: true,
+      images: true,
       createdAt: true,
       saloonOwner: {
         select: {
@@ -253,6 +254,30 @@ const getReviewListForBarberFromDb = async (
           shopName: true,
           shopAddress: true,
           shopLogo: true,
+        },
+      },
+      barber: {
+        select: {
+          userId: true,
+          user: {
+            select: {
+              fullName: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      },
+      booking: {
+        select: {
+          appointmentAt: true,
+          date: true,
+          user: {
+            select: {
+              fullName: true,
+              image: true,
+            },
+          },
         },
       },
     },

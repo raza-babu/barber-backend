@@ -420,6 +420,19 @@ const addSaloonToFavoritesInDb = async (
   userId: string,
   saloonOwnerId: string,
 ) => {
+
+  //check the saloon is exist or not
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: {
+      userId: saloonOwnerId,
+    },
+  });
+  if (!saloon) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
+  }
+
+  // Check if the favorite already exists
+
   const existingFavorite = await prisma.favoriteShop.findFirst({
     where: {
       userId: userId,
