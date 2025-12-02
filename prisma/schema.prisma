@@ -441,13 +441,13 @@ model Chat {
 
 
 model CustomerLoyalty {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String    @db.ObjectId
-  saloonOwnerId   String    @db.ObjectId
-  totalPoints    Int       @default(0)
-  redeemedPoints Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @db.ObjectId
+  saloonOwnerId  String   @db.ObjectId
+  totalPoints    Int      @default(0)
+  redeemedPoints Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relationships
   user        User                @relation(fields: [userId], references: [id])
@@ -456,21 +456,20 @@ model CustomerLoyalty {
   redemptions LoyaltyRedemption[]
 
   @@unique([userId, saloonOwnerId])
-
   @@map("customer_loyalty")
 }
 
 
 model CustomerVisit {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  customerId   String   @db.ObjectId
-  saloonOwnerId     String   @db.ObjectId
-  serviceId    String[]
-  visitDate    DateTime @default(now())
-  amountSpent  Float? // Bill amount (if tracking spending-based points)
-  earnedPoints Int? // Points earned in this visit
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  customerId    String   @db.ObjectId
+  saloonOwnerId String   @db.ObjectId
+  serviceId     String[] @db.ObjectId
+  visitDate     DateTime @default(now())
+  amountSpent   Float? // Bill amount (if tracking spending-based points)
+  earnedPoints  Int? // Points earned in this visit
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relationships
   customer          User             @relation(fields: [customerId], references: [id])
