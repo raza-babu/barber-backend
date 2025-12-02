@@ -390,7 +390,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
           saloonOwnerId: saloonOwnerId,
           visitDate: new Date(),
           amountSpent: price,
-          serviceId: services,
+          serviceId: serviceRecords.map(s => s.id),
         },
       });
     }

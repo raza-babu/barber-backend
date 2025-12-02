@@ -1,13 +1,13 @@
 model CustomerVisit {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  customerId   String   @db.ObjectId
-  saloonOwnerId     String   @db.ObjectId
-  serviceId    String[]
-  visitDate    DateTime @default(now())
-  amountSpent  Float? // Bill amount (if tracking spending-based points)
-  earnedPoints Int? // Points earned in this visit
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  customerId    String   @db.ObjectId
+  saloonOwnerId String   @db.ObjectId
+  serviceId     String[] @db.ObjectId
+  visitDate     DateTime @default(now())
+  amountSpent   Float? // Bill amount (if tracking spending-based points)
+  earnedPoints  Int? // Points earned in this visit
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relationships
   customer          User             @relation(fields: [customerId], references: [id])

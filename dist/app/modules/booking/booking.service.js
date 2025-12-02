@@ -326,7 +326,7 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
                     saloonOwnerId: saloonOwnerId,
                     visitDate: new Date(),
                     amountSpent: price,
-                    serviceId: services,
+                    serviceId: serviceRecords.map(s => s.id),
                 },
             });
         }
