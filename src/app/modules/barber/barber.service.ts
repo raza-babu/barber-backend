@@ -178,6 +178,8 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
           email: true,
           phoneNumber: true,
           image: true,
+          followerCount: true,
+          followingCount: true,
         },
       },
     },
@@ -196,6 +198,8 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
   return {
     isMe: userId === barberId,
     ...result,
+    followerCount: result.user.followerCount,
+    followingCount: result.user.followingCount,
     isFollowing: isFollowing ? true : false,
   };
 };

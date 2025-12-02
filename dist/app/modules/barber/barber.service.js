@@ -175,6 +175,8 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
                     email: true,
                     phoneNumber: true,
                     image: true,
+                    followerCount: true,
+                    followingCount: true,
                 },
             },
         },
@@ -189,7 +191,7 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
     if (!result) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'barber not found');
     }
-    return Object.assign(Object.assign({ isMe: userId === barberId }, result), { isFollowing: isFollowing ? true : false });
+    return Object.assign(Object.assign({ isMe: userId === barberId }, result), { followerCount: result.user.followerCount, followingCount: result.user.followingCount, isFollowing: isFollowing ? true : false });
 });
 const updateBarberIntoDb = (userId, barberId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.barber.update({
