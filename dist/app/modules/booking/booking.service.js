@@ -1077,7 +1077,7 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
                     saloonOwnerId: saloonOwnerId,
                     visitDate: new Date(),
                     amountSpent: totalPrice,
-                    serviceId: services,
+                    serviceId: serviceRecords.map(s => s.id),
                 },
             });
         }
@@ -1300,7 +1300,7 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                     saloonOwnerId: saloonOwnerId,
                     visitDate: new Date(),
                     amountSpent: totalPrice,
-                    serviceId: services,
+                    serviceId: serviceRecords.map(s => s.id),
                 },
             });
         }

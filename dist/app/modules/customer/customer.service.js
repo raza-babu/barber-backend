@@ -498,32 +498,167 @@ const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void
 const getVisitedSaloonListFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, query = {}) {
     const { page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
-    // Get total count
-    const total = yield prisma_1.default.booking.count({
+    // Get all visited saloonOwnerIds for the user (deduplicated)
+    const allVisits = yield prisma_1.default.customerVisit.findMany({
         where: {
-            userId,
-            status: client_1.BookingStatus.COMPLETED,
-            saloonOwnerId: { not: undefined }, // FIXED
-        },
-    });
-    const result = yield prisma_1.default.booking.findMany({
-        where: {
-            userId,
-            status: client_1.BookingStatus.COMPLETED,
-            saloonOwnerId: { not: undefined }, // FIXED
+            customerId: userId,
         },
         select: {
-            saloonOwner: true,
+            saloonOwnerId: true,
+            customer: {
+                select: {
+                    fullName: true,
+                    email: true,
+                    phoneNumber: true,
+                    image: true,
+                },
+            },
         },
-        skip,
-        take: limit,
         orderBy: {
             createdAt: 'desc',
         },
     });
-    const visitedSaloons = result.map(b => b.saloonOwner);
+    const distinctSaloonIds = Array.from(new Set(allVisits.map(v => v.saloonOwnerId))).filter(Boolean);
+    const total = distinctSaloonIds.length;
+    // Apply pagination on distinct saloon ids
+    const pagedSaloonIds = distinctSaloonIds.slice(skip, skip + limit);
+    if (pagedSaloonIds.length === 0) {
+        return {
+            data: [],
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
+    // Get the latest visit record per saloon for this user (to provide visit detail like lastVisited)
+    const visits = yield prisma_1.default.customerVisit.findMany({
+        where: {
+            customerId: userId,
+            saloonOwnerId: { in: pagedSaloonIds },
+        },
+        // select minimal safe fields; adjust if your model has other visit fields you want to expose
+        select: {
+            saloonOwnerId: true,
+            createdAt: true, // used as lastVisitedAt
+            // If your CustomerVisit has a visitCount or totalVisits field, add it here, e.g. visitCount: true
+            saloon: {
+                select: {
+                    userId: true,
+                    shopName: true,
+                },
+            },
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    // Get loyalty info for these saloons in a single query
+    const loyalties = yield prisma_1.default.customerLoyalty.findMany({
+        where: {
+            userId,
+            saloonOwnerId: { in: pagedSaloonIds },
+        },
+        select: {
+            saloonOwnerId: true,
+            totalPoints: true,
+            // add other loyalty fields you need, e.g. tier: true
+        },
+    });
+    const loyaltyBySaloon = loyalties.reduce((acc, l) => {
+        acc[l.saloonOwnerId] = l;
+        return acc;
+    }, {});
+    // Build final list preserving pagination order
+    const loyaltySchemes = yield prisma_1.default.loyaltyScheme.findMany({
+        where: {
+            userId: { in: pagedSaloonIds },
+        },
+        select: {
+            userId: true,
+            pointThreshold: true,
+            percentage: true,
+        },
+    });
+    // console.log(loyaltySchemes);
+    const schemesBySaloon = loyaltySchemes.reduce((acc, s) => {
+        acc[s.userId] = acc[s.userId] || [];
+        acc[s.userId].push(s);
+        return acc;
+    }, {});
+    // Sort schemes for each saloon by descending pointThreshold (highest first)
+    Object.values(schemesBySaloon).forEach(arr => arr.sort((a, b) => { var _a, _b; return ((_a = b.pointThreshold) !== null && _a !== void 0 ? _a : 0) - ((_b = a.pointThreshold) !== null && _b !== void 0 ? _b : 0); }));
+    // Pick the best applicable scheme per saloon based on the customer's totalPoints.
+    // If the customer has no loyalty record for a saloon, or doesn't meet any threshold,
+    // the mapping will contain null (meaning not eligible).
+    const loyaltySchemeBySaloon = {};
+    Object.keys(schemesBySaloon).forEach(salId => {
+        const schemes = schemesBySaloon[salId];
+        const loyalty = loyaltyBySaloon[salId];
+        if (loyalty && Array.isArray(schemes) && schemes.length > 0) {
+            // find highest threshold that the customer qualifies for
+            const matched = schemes.find(sch => { var _a, _b; return ((_a = loyalty.totalPoints) !== null && _a !== void 0 ? _a : 0) >= ((_b = sch.pointThreshold) !== null && _b !== void 0 ? _b : 0); });
+            loyaltySchemeBySaloon[salId] = matched !== null && matched !== void 0 ? matched : null;
+        }
+        else {
+            loyaltySchemeBySaloon[salId] = null;
+        }
+    });
+    const data = pagedSaloonIds.map(sid => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+        const visit = visits.find(v => v.saloonOwnerId === sid);
+        const loyalty = loyaltyBySaloon[sid];
+        const scheme = loyaltySchemeBySaloon[sid];
+        // get the customer's last visit record for this saloon (if any)
+        const customerVisit = allVisits.find(v => v.saloonOwnerId === sid);
+        // All schemes available for this saloon (may be empty)
+        const schemes = (_a = schemesBySaloon[sid]) !== null && _a !== void 0 ? _a : [];
+        // Build offers array with eligibility info so customer can choose
+        const offers = schemes.map((sch, idx) => {
+            var _a, _b, _c;
+            const threshold = Number((_a = sch.pointThreshold) !== null && _a !== void 0 ? _a : 0);
+            const percentage = Number((_b = sch.percentage) !== null && _b !== void 0 ? _b : 0);
+            const totalPoints = Number((_c = loyalty === null || loyalty === void 0 ? void 0 : loyalty.totalPoints) !== null && _c !== void 0 ? _c : 0);
+            const eligible = totalPoints >= threshold;
+            return {
+                // include a local identifier in case scheme lacks an id
+                schemeKey: `${sid}#${idx}`,
+                pointThreshold: threshold,
+                percentage,
+                eligible,
+                pointsNeeded: Math.max(0, threshold - totalPoints),
+                // raw scheme (optional) - keep minimal to avoid leaking unrelated fields
+                // raw: {
+                // userId: sch.userId,
+                // pointThreshold: sch.pointThreshold,
+                // percentage: sch.percentage,
+                // },
+            };
+        });
+        // Only the offers customer can actually use right now
+        const applicableOffers = offers.filter((o) => o.eligible);
+        const offerEligible = !!(loyalty && scheme && loyalty.totalPoints >= scheme.pointThreshold);
+        const offerPercentage = offerEligible ? (_b = scheme.percentage) !== null && _b !== void 0 ? _b : 0 : 0;
+        return {
+            saloonOwnerId: sid,
+            shopName: (_d = (_c = visit === null || visit === void 0 ? void 0 : visit.saloon) === null || _c === void 0 ? void 0 : _c.shopName) !== null && _d !== void 0 ? _d : null,
+            customerName: (_f = (_e = customerVisit === null || customerVisit === void 0 ? void 0 : customerVisit.customer) === null || _e === void 0 ? void 0 : _e.fullName) !== null && _f !== void 0 ? _f : null,
+            customerImage: (_h = (_g = customerVisit === null || customerVisit === void 0 ? void 0 : customerVisit.customer) === null || _g === void 0 ? void 0 : _g.image) !== null && _h !== void 0 ? _h : null,
+            visitCount: visits.filter(v => v.saloonOwnerId === sid).length,
+            lastVisitedAt: (_j = visit === null || visit === void 0 ? void 0 : visit.createdAt) !== null && _j !== void 0 ? _j : null,
+            totalPoints: (_k = loyalty === null || loyalty === void 0 ? void 0 : loyalty.totalPoints) !== null && _k !== void 0 ? _k : 0,
+            // legacy single best offer info (kept for compatibility)
+            // offerEligible,
+            // offerPercentage,
+            // new arrays for customers to choose from
+            offers, // all offers defined for this saloon with eligibility flags
+            applicableOffers, // only offers the customer currently qualifies for
+        };
+    });
     return {
-        data: visitedSaloons,
+        data,
         meta: {
             total,
             page,
