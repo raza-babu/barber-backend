@@ -165,6 +165,22 @@ const getSaloonAllServicesList = (0, catchAsync_1.default)((req, res) => __await
         data: result,
     });
 }));
+const getVisitedSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const { page, limit } = req.query;
+    const query = {
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+    };
+    const result = yield customer_service_1.customerService.getVisitedSaloonListFromDb(user.id, query);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Visited saloons retrieved successfully',
+        data: result.data,
+        meta: result.meta,
+    });
+}));
 const getCustomerById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield customer_service_1.customerService.getCustomerByIdFromDb(user.id, req.params.id);
@@ -201,6 +217,7 @@ exports.customerController = {
     getMyNearestSaloonList,
     getTopRatedSaloons,
     getSaloonAllServicesList,
+    getVisitedSaloonList,
     addSaloonToFavorites,
     getFavoriteSaloons,
     removeSaloonFromFavorites,

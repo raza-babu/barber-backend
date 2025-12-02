@@ -1,7 +1,7 @@
 model CustomerVisit {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   customerId   String   @db.ObjectId
-  saloonId     String   @db.ObjectId
+  saloonOwnerId     String   @db.ObjectId
   serviceId    String[]
   visitDate    DateTime @default(now())
   amountSpent  Float? // Bill amount (if tracking spending-based points)
@@ -11,7 +11,7 @@ model CustomerVisit {
 
   // Relationships
   customer          User             @relation(fields: [customerId], references: [id])
-  saloon            SaloonOwner      @relation(fields: [saloonId], references: [userId])
+  saloon            SaloonOwner      @relation(fields: [saloonOwnerId], references: [userId])
   service           Service          @relation(fields: [serviceId], references: [id])
   CustomerLoyalty   CustomerLoyalty? @relation(fields: [customerLoyaltyId], references: [id])
   customerLoyaltyId String?          @db.ObjectId

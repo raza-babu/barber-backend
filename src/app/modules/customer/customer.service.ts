@@ -1,7 +1,7 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { BookingStatus, BookingType } from '@prisma/client';
+import { BookingStatus, BookingType, Prisma } from '@prisma/client';
 
 const createCustomerIntoDb = async (userId: string, data: any) => {
   const result = await prisma.saloonOwner.create({
@@ -16,13 +16,16 @@ const createCustomerIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getAllSaloonListFromDb = async (userId: string, query: {
-  searchTerm?: string;
-  page?: number;
-  limit?: number;
-  sortBy?: 'name' | 'rating' | 'newest';
-  minRating?: number;
-}) => {
+const getAllSaloonListFromDb = async (
+  userId: string,
+  query: {
+    searchTerm?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: 'name' | 'rating' | 'newest';
+    minRating?: number;
+  },
+) => {
   const {
     searchTerm = '',
     page = 1,
@@ -89,29 +92,27 @@ const getAllSaloonListFromDb = async (userId: string, query: {
           },
         },
       },
-      FavoriteShop: { select: { id: true, userId: true }  },        
+      FavoriteShop: { select: { id: true, userId: true } },
     },
     orderBy,
     skip,
     take: limit,
   });
 
-  // check for favorite shop or not 
-    let isFavoriteShop = false;
-    if(userId){
-      result.forEach(saloon => {
-        isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
-        (saloon as any).isFavorite = isFavoriteShop;
-        delete (saloon as any).FavoriteShop;
-      });
-    } else {
-      result.forEach(saloon => {
-        (saloon as any).isFavorite = false;
-        delete (saloon as any).FavoriteShop;
-      });
-    }
-
-
+  // check for favorite shop or not
+  let isFavoriteShop = false;
+  if (userId) {
+    result.forEach(saloon => {
+      isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+      (saloon as any).isFavorite = isFavoriteShop;
+      delete (saloon as any).FavoriteShop;
+    });
+  } else {
+    result.forEach(saloon => {
+      (saloon as any).isFavorite = false;
+      delete (saloon as any).FavoriteShop;
+    });
+  }
 
   const saloons = result.map(({ Booking, ...rest }) => ({
     ...rest,
@@ -195,23 +196,23 @@ const getMyNearestSaloonListFromDb = async (
           },
         },
       },
-      FavoriteShop: { select: { id: true, userId: true }  }, 
+      FavoriteShop: { select: { id: true, userId: true } },
     },
   });
-  // check for favorite shop or not 
-    let isFavoriteShop = false;
-    if(userId){
-      allSaloons.forEach(saloon => {
-        isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
-        (saloon as any).isFavorite = isFavoriteShop;
-        delete (saloon as any).FavoriteShop;
-      });
-    } else {
-      allSaloons.forEach(saloon => {
-        (saloon as any).isFavorite = false;
-        delete (saloon as any).FavoriteShop;
-      });
-    }
+  // check for favorite shop or not
+  let isFavoriteShop = false;
+  if (userId) {
+    allSaloons.forEach(saloon => {
+      isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+      (saloon as any).isFavorite = isFavoriteShop;
+      delete (saloon as any).FavoriteShop;
+    });
+  } else {
+    allSaloons.forEach(saloon => {
+      (saloon as any).isFavorite = false;
+      delete (saloon as any).FavoriteShop;
+    });
+  }
 
   // Haversine formula to calculate distance
   const calculateDistance = (
@@ -254,8 +255,6 @@ const getMyNearestSaloonListFromDb = async (
     .filter(saloon => saloon.distance <= radiusInKm)
     .sort((a, b) => a.distance - b.distance);
 
-    
-
   // Apply pagination
   const total = nearbySaloons.length;
   const skip = (page - 1) * limit;
@@ -275,11 +274,12 @@ const getMyNearestSaloonListFromDb = async (
 const getTopRatedSaloonsFromDb = async (
   userId: string,
   query: {
-  searchTerm?: string;
-  page?: number;
-  limit?: number;
-  minRating?: number;
-}) => {
+    searchTerm?: string;
+    page?: number;
+    limit?: number;
+    minRating?: number;
+  },
+) => {
   const { searchTerm = '', page = 1, limit = 10, minRating } = query;
 
   // Build where clause
@@ -329,23 +329,23 @@ const getTopRatedSaloonsFromDb = async (
           },
         },
       },
-      FavoriteShop: { select: { id: true, userId: true }  }, 
+      FavoriteShop: { select: { id: true, userId: true } },
     },
   });
-     // check for favorite shop or not 
-    let isFavoriteShop = false;
-    if(userId){
-      result.forEach(saloon => {
-        isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
-        (saloon as any).isFavorite = isFavoriteShop;
-        delete (saloon as any).FavoriteShop;
-      });
-    } else {
-      result.forEach(saloon => {
-        (saloon as any).isFavorite = false;
-        delete (saloon as any).FavoriteShop;
-      });
-    }
+  // check for favorite shop or not
+  let isFavoriteShop = false;
+  if (userId) {
+    result.forEach(saloon => {
+      isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
+      (saloon as any).isFavorite = isFavoriteShop;
+      delete (saloon as any).FavoriteShop;
+    });
+  } else {
+    result.forEach(saloon => {
+      (saloon as any).isFavorite = false;
+      delete (saloon as any).FavoriteShop;
+    });
+  }
 
   // Normalize output to the requested format and sort by avgRating desc
   const saloonsWithAvgRatings = result
@@ -373,8 +373,6 @@ const getTopRatedSaloonsFromDb = async (
         typeof saloon.ratingCount === 'number'
           ? saloon.ratingCount
           : ratingsArray.length;
-
-       
 
       return {
         id: saloon.id,
@@ -420,7 +418,6 @@ const addSaloonToFavoritesInDb = async (
   userId: string,
   saloonOwnerId: string,
 ) => {
-
   //check the saloon is exist or not
   const saloon = await prisma.saloonOwner.findUnique({
     where: {
@@ -454,7 +451,6 @@ const addSaloonToFavoritesInDb = async (
   }
   return result;
 };
-
 
 const getFavoriteSaloonsFromDb = async (
   userId: string,
@@ -516,7 +512,6 @@ const getFavoriteSaloonsFromDb = async (
   };
 };
 
-
 const removeSaloonFromFavoritesInDb = async (
   userId: string,
   saloonOwnerId: string,
@@ -539,8 +534,11 @@ const removeSaloonFromFavoritesInDb = async (
       },
     },
   });
-  if(!deletedItem) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon not removed from favorites');
+  if (!deletedItem) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Saloon not removed from favorites',
+    );
   }
 
   return deletedItem;
@@ -594,6 +592,55 @@ const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
         : null,
     };
   });
+};
+
+const getVisitedSaloonListFromDb = async (
+  userId: string,
+  query: {
+    page?: number;
+    limit?: number;
+  } = {},
+) => {
+  const { page = 1, limit = 10 } = query;
+
+  const skip = (page - 1) * limit;
+
+  // Get total count
+  const total = await prisma.booking.count({
+    where: {
+      userId,
+      status: BookingStatus.COMPLETED,
+      saloonOwnerId: { not: undefined }, // FIXED
+    },
+  });
+
+  const result = await prisma.booking.findMany({
+    where: {
+      userId,
+      status: BookingStatus.COMPLETED,
+      saloonOwnerId: { not: undefined }, // FIXED
+    },
+    select: {
+      saloonOwner: true,
+    },
+    skip,
+    take: limit,
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  const visitedSaloons = result.map(b => b.saloonOwner);
+
+  return {
+    data: visitedSaloons,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 };
 
 const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
@@ -657,6 +704,7 @@ export const customerService = {
   getTopRatedSaloonsFromDb,
   getSaloonAllServicesListFromDb,
   getCustomerByIdFromDb,
+  getVisitedSaloonListFromDb,
   addSaloonToFavoritesInDb,
   getFavoriteSaloonsFromDb,
   removeSaloonFromFavoritesInDb,

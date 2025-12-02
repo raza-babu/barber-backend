@@ -289,8 +289,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         throw new AppError(httpStatus.NOT_FOUND, 'Loyalty scheme not found');
       }
       // Check if the customer has enough points
-      const customerLoyalty = await tx.customerLoyalty.findUnique({
-        where: { userId: userId },
+      const customerLoyalty = await tx.customerLoyalty.findFirst({
+        where: { userId: userId, saloonOwnerId: saloonOwnerId },
         select: { id: true, totalPoints: true },
       });
       if (
@@ -299,9 +299,9 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       ) {
         throw new AppError(httpStatus.BAD_REQUEST, 'Not enough loyalty points');
       }
-      // Deduct points from customerLoyalty
+      // Deduct points from customerLoyalty by id (safe unique identifier)
       await tx.customerLoyalty.update({
-        where: { userId: userId },
+        where: { id: customerLoyalty.id },
         data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
       });
       // Add a record to loyaltyRedemption
@@ -342,6 +342,59 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         loyaltyUsed: data.loyaltyProgramId ? true : false,
       },
     });
+    if (booking) {
+      // update the customer loyalty points as well as customer visit
+      //first find loyalty points for services
+      const findPoints = await tx.loyaltyProgram.findFirst({
+        where: {
+          userId: saloonOwnerId,
+          serviceId: { in: services },
+        },
+        select: { points: true, id: true },
+      });
+      let pointsToAdd = 0;
+      if (findPoints) {
+        pointsToAdd = (findPoints.points || 0) * services.length;
+      }
+
+      // Upsert customer loyalty: create a new record with initial points or increment existing points
+      await tx.customerLoyalty.upsert({
+        where: {
+          userId_saloonOwnerId: {
+            userId: userId,
+            saloonOwnerId: saloonOwnerId,
+          },
+        },
+        create: {
+          userId: userId,
+          saloonOwnerId: saloonOwnerId,
+          totalPoints: pointsToAdd,
+        },
+        update: {
+          totalPoints: { increment: pointsToAdd },
+        },
+      });
+
+      // Prisma schema may not define a composite unique input named customerId_saloonId,
+      // so perform a safe find-then-create/update to avoid using an unknown unique field.
+      // const existingVisit = await tx.customerVisit.findFirst({
+      //   where: {
+      //     customerId: userId,
+      //     saloonOwnerId: saloonOwnerId,
+      //   },
+      // });
+
+      await tx.customerVisit.create({
+        data: {
+          customerId: userId,
+          saloonOwnerId: saloonOwnerId,
+          visitDate: new Date(),
+          amountSpent: price,
+          serviceId: services,
+        },
+      });
+    }
+
     if (isInQueue && booking) {
       // add payment status as PAID
       await tx.payment.create({
@@ -828,8 +881,8 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       },
     });
 
-    console.log('Overlapping status:', overlappingStatus);
-    console.log('Overlapping booking:', overlappingBooking);
+    // console.log('Overlapping status:', overlappingStatus);
+    // console.log('Overlapping booking:', overlappingBooking);
 
     if (overlappingStatus || overlappingBooking) {
       throw new AppError(
@@ -1294,6 +1347,53 @@ const createQueueBookingForCustomerIntoDb = async (
       },
     });
 
+    if (booking) {
+      // update the customer loyalty points as well as customer visit
+      //first find loyalty points for services
+      const findPoints = await tx.loyaltyProgram.findFirst({
+        where: {
+          userId: saloonOwnerId,
+          serviceId: { in: services },
+        },
+        select: { points: true, id: true },
+      });
+      let pointsToAdd = 0;
+      if (findPoints) {
+        pointsToAdd = (findPoints.points || 0) * services.length;
+      }
+
+      // Upsert customer loyalty: create a new record with initial points or increment existing points
+      await tx.customerLoyalty.upsert({
+        where: {
+          userId_saloonOwnerId: {
+            userId: userId,
+            saloonOwnerId: saloonOwnerId,
+          },
+        },
+        create: {
+          userId: userId,
+          saloonOwnerId: saloonOwnerId,
+          totalPoints: pointsToAdd,
+        },
+        update: {
+          totalPoints: { increment: pointsToAdd },
+        },
+      });
+
+      // Prisma schema may not define a composite unique input named customerId_saloonId,
+      // so perform a safe find-then-create/update to avoid using an unknown unique field.
+
+      await tx.customerVisit.create({
+        data: {
+          customerId: userId,
+          saloonOwnerId: saloonOwnerId,
+          visitDate: new Date(),
+          amountSpent: totalPrice,
+          serviceId: services,
+        },
+      });
+    }
+
     await tx.queueSlot.update({
       where: { id: queueSlot.id },
       data: {
@@ -1470,8 +1570,8 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         throw new AppError(httpStatus.NOT_FOUND, 'Loyalty scheme not found');
       }
 
-      const customerLoyalty = await tx.customerLoyalty.findUnique({
-        where: { userId },
+      const customerLoyalty = await tx.customerLoyalty.findFirst({
+        where: { userId: userId, saloonOwnerId: saloonOwnerId },
         select: { id: true, totalPoints: true },
       });
 
@@ -1482,9 +1582,9 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         throw new AppError(httpStatus.BAD_REQUEST, 'Not enough loyalty points');
       }
 
-      // Deduct points
+      // Deduct points (use the record's id so the where type matches Prisma's expectations)
       await tx.customerLoyalty.update({
-        where: { userId },
+        where: { id: customerLoyalty.id },
         data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
       });
 
@@ -1522,6 +1622,59 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         loyaltyUsed: !!loyaltyUsed,
       },
     });
+
+    if (booking) {
+      // update the customer loyalty points as well as customer visit
+      //first find loyalty points for services
+      const findPoints = await tx.loyaltyProgram.findFirst({
+        where: {
+          userId: saloonOwnerId,
+          serviceId: { in: services },
+        },
+        select: { points: true, id: true },
+      });
+      let pointsToAdd = 0;
+      if (findPoints) {
+        pointsToAdd = (findPoints.points || 0) * services.length;
+      }
+
+      // Upsert customer loyalty: create a new record with initial points or increment existing points
+      await tx.customerLoyalty.upsert({
+        where: {
+          userId_saloonOwnerId: {
+            userId: userId,
+            saloonOwnerId: saloonOwnerId,
+          },
+        },
+        create: {
+          userId: userId,
+          saloonOwnerId: saloonOwnerId,
+          totalPoints: pointsToAdd,
+        },
+        update: {
+          totalPoints: { increment: pointsToAdd },
+        },
+      });
+
+      // Prisma schema may not define a composite unique input named customerId_saloonId,
+      // so perform a safe find-then-create/update to avoid using an unknown unique field.
+      // const existingVisit = await tx.customerVisit.findFirst({
+      //   where: {
+      //     customerId: userId,
+      //     saloonOwnerId: saloonOwnerId,
+      //   },
+      // });
+
+      await tx.customerVisit.create({
+        data: {
+          customerId: userId,
+          saloonOwnerId: saloonOwnerId,
+          visitDate: new Date(),
+          amountSpent: totalPrice,
+          serviceId: services,
+        },
+      });
+    }
 
     // 4f. Attach loyalty redemptions to booking if any
     if (loyaltyUsed) {

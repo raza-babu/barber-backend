@@ -97,7 +97,7 @@ const getAllSaloonListFromDb = (userId, query) => __awaiter(void 0, void 0, void
         skip,
         take: limit,
     });
-    // check for favorite shop or not 
+    // check for favorite shop or not
     let isFavoriteShop = false;
     if (userId) {
         result.forEach(saloon => {
@@ -171,7 +171,7 @@ const getMyNearestSaloonListFromDb = (userId_1, latitude_1, longitude_1, ...args
             FavoriteShop: { select: { id: true, userId: true } },
         },
     });
-    // check for favorite shop or not 
+    // check for favorite shop or not
     let isFavoriteShop = false;
     if (userId) {
         allSaloons.forEach(saloon => {
@@ -270,7 +270,7 @@ const getTopRatedSaloonsFromDb = (userId, query) => __awaiter(void 0, void 0, vo
             FavoriteShop: { select: { id: true, userId: true } },
         },
     });
-    // check for favorite shop or not 
+    // check for favorite shop or not
     let isFavoriteShop = false;
     if (userId) {
         result.forEach(saloon => {
@@ -495,6 +495,43 @@ const getSaloonAllServicesListFromDb = (saloonOwnerId) => __awaiter(void 0, void
         };
     });
 });
+const getVisitedSaloonListFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ...args_1], void 0, function* (userId, query = {}) {
+    const { page = 1, limit = 10 } = query;
+    const skip = (page - 1) * limit;
+    // Get total count
+    const total = yield prisma_1.default.booking.count({
+        where: {
+            userId,
+            status: client_1.BookingStatus.COMPLETED,
+            saloonOwnerId: { not: undefined }, // FIXED
+        },
+    });
+    const result = yield prisma_1.default.booking.findMany({
+        where: {
+            userId,
+            status: client_1.BookingStatus.COMPLETED,
+            saloonOwnerId: { not: undefined }, // FIXED
+        },
+        select: {
+            saloonOwner: true,
+        },
+        skip,
+        take: limit,
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+    const visitedSaloons = result.map(b => b.saloonOwner);
+    return {
+        data: visitedSaloons,
+        meta: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
+});
 const getCustomerByIdFromDb = (userId, customerId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.user.findUnique({
         where: {
@@ -546,6 +583,7 @@ exports.customerService = {
     getTopRatedSaloonsFromDb,
     getSaloonAllServicesListFromDb,
     getCustomerByIdFromDb,
+    getVisitedSaloonListFromDb,
     addSaloonToFavoritesInDb,
     getFavoriteSaloonsFromDb,
     removeSaloonFromFavoritesInDb,

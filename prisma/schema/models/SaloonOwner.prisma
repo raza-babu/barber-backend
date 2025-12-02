@@ -30,6 +30,7 @@ model SaloonOwner {
   SaloonHoliday              SaloonHoliday[]
   QrCode                     QrCode[]
   CustomerVisit              CustomerVisit[]
+  CustomerLoyalty            CustomerLoyalty[]
   // Service           Service[]
   NonRegisteredUserQueueSlot NonRegisteredUser[]
   FavoriteShop               FavoriteShop[]

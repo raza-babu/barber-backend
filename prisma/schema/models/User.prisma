@@ -67,7 +67,7 @@ model User {
   SaloonHoliday       SaloonHoliday[]
   BarberDayOff        BarberDayOff[]
   LoyaltyProgram      LoyaltyProgram[]
-  CustomerLoyalty     CustomerLoyalty?
+  CustomerLoyalty     CustomerLoyalty[]
   CustomerVisit       CustomerVisit[]
   LoyaltyPointLog     LoyaltyPointLog[]
   LoyaltyRedemption   LoyaltyRedemption[]

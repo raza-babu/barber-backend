@@ -195,6 +195,26 @@ const getSaloonAllServicesList = catchAsync(async (req, res) => {
   });
 });
 
+const getVisitedSaloonList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const { page, limit } = req.query;
+
+  const query = {
+    page: page ? Number(page) : undefined,
+    limit: limit ? Number(limit) : undefined,
+  };
+
+  const result = await customerService.getVisitedSaloonListFromDb(user.id, query);
+  
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Visited saloons retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 const getCustomerById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await customerService.getCustomerByIdFromDb(
@@ -244,6 +264,7 @@ export const customerController = {
   getMyNearestSaloonList,
   getTopRatedSaloons,
   getSaloonAllServicesList,
+  getVisitedSaloonList,
   addSaloonToFavorites,
   getFavoriteSaloons,
   removeSaloonFromFavorites,

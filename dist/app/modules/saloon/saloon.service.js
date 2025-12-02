@@ -112,6 +112,7 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
                     yield tx.customerLoyalty.create({
                         data: {
                             userId: updatedBooking.userId,
+                            saloonOwnerId: userId,
                             totalPoints: totalPoints,
                         },
                     });
@@ -119,7 +120,7 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
                 const updateVisitLog = yield tx.customerVisit.create({
                     data: {
                         customerId: updatedBooking.userId,
-                        saloonId: userId,
+                        saloonOwnerId: userId,
                         serviceId: serviceIds,
                         visitDate: new Date(),
                         amountSpent: updatedBooking.totalPrice,

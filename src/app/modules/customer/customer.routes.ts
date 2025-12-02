@@ -55,6 +55,12 @@ router.get(
   customerController.getSaloonAllServicesList,
 );
 
+router.get(
+  '/visited-saloons',
+  auth(UserRoleEnum.CUSTOMER),
+  customerController.getVisitedSaloonList,
+)
+
 router.get('/:id', auth(), customerController.getCustomerById);
 
 router.put(

@@ -159,6 +159,7 @@ const manageBookingsIntoDb = async (
           await tx.customerLoyalty.create({
             data: {
               userId: updatedBooking.userId,
+              saloonOwnerId: userId,
               totalPoints: totalPoints,
             },
           });
@@ -167,7 +168,7 @@ const manageBookingsIntoDb = async (
         const updateVisitLog = await tx.customerVisit.create({
           data: {
             customerId: updatedBooking.userId,
-            saloonId: userId,
+            saloonOwnerId: userId,
             serviceId: serviceIds,
             visitDate: new Date(),
             amountSpent: updatedBooking.totalPrice,
