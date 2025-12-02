@@ -195,9 +195,13 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
   if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'barber not found');
   }
+
+  // without user
+  const { user, ...rest } = result;
+
   return {
     isMe: userId === barberId,
-    ...result,
+    ...rest,
     followerCount: result.user.followerCount,
     followingCount: result.user.followingCount,
     isFollowing: isFollowing ? true : false,
