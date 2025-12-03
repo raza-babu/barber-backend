@@ -281,55 +281,6 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
                 loyaltyUsed: data.loyaltyProgramId ? true : false,
             },
         });
-        if (booking) {
-            // update the customer loyalty points as well as customer visit
-            //first find loyalty points for services
-            const findPoints = yield tx.loyaltyProgram.findFirst({
-                where: {
-                    userId: saloonOwnerId,
-                    serviceId: { in: services },
-                },
-                select: { points: true, id: true },
-            });
-            let pointsToAdd = 0;
-            if (findPoints) {
-                pointsToAdd = (findPoints.points || 0) * services.length;
-            }
-            // Upsert customer loyalty: create a new record with initial points or increment existing points
-            yield tx.customerLoyalty.upsert({
-                where: {
-                    userId_saloonOwnerId: {
-                        userId: userId,
-                        saloonOwnerId: saloonOwnerId,
-                    },
-                },
-                create: {
-                    userId: userId,
-                    saloonOwnerId: saloonOwnerId,
-                    totalPoints: pointsToAdd,
-                },
-                update: {
-                    totalPoints: { increment: pointsToAdd },
-                },
-            });
-            // Prisma schema may not define a composite unique input named customerId_saloonId,
-            // so perform a safe find-then-create/update to avoid using an unknown unique field.
-            // const existingVisit = await tx.customerVisit.findFirst({
-            //   where: {
-            //     customerId: userId,
-            //     saloonOwnerId: saloonOwnerId,
-            //   },
-            // });
-            yield tx.customerVisit.create({
-                data: {
-                    customerId: userId,
-                    saloonOwnerId: saloonOwnerId,
-                    visitDate: new Date(),
-                    amountSpent: price,
-                    serviceId: serviceRecords.map(s => s.id),
-                },
-            });
-        }
         if (isInQueue && booking) {
             // add payment status as PAID
             yield tx.payment.create({
@@ -441,7 +392,8 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
     return result;
 });
 const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const { fullName, email, phone, date, services, notes, bookingType } = data;
+    const { fullName, email, phone, date, services, notes, type } = data;
+    console.log('Creating queue booking for salon owner:', data);
     // appointmentAt may be omitted — we'll choose it based on barber free slots later.
     let appointmentAt = data.appointmentAt;
     // Helper: pick the earliest free slot start that can accommodate totalDuration (minutes).
@@ -501,9 +453,10 @@ const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter
             saloonOwnerId: saloonOwnerId,
         },
     });
+    console.log('Non-registered user created:', type);
     // 4. Find available barbers for walking-in (uses existing helper)
     // pass the newly created non-registered id as userId so queue/order info can include them
-    const availableBarbers = yield getAvailableBarbersForWalkingInFromDb1(nonRegisteredUser.id, saloonOwnerId, date, bookingType);
+    const availableBarbers = yield getAvailableBarbersForWalkingInFromDb1(nonRegisteredUser.id, saloonOwnerId, date, type);
     if (!availableBarbers ||
         !Array.isArray(availableBarbers) ||
         availableBarbers.length === 0) {
@@ -678,6 +631,7 @@ const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter
                 ],
             },
         });
+        console.log('Overlapping status:', barberId, overlappingStatus);
         const overlappingBooking = yield tx.booking.findFirst({
             where: {
                 barberId,
@@ -778,7 +732,7 @@ const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter
     return result;
 });
 const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const { date, services, notes, bookingType } = data;
+    const { date, services, notes, type } = data;
     let appointmentAt = data.appointmentAt;
     // Helper: pick the earliest free slot start that can accommodate totalDuration (minutes).
     const pickEarliestSlotForBarber = (freeSlots, totalDurationMinutes) => {
@@ -828,7 +782,7 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
     }
     const totalPrice = serviceRecords.reduce((sum, s) => sum + Number(s.price), 0);
     // 3. Find available barbers for walking-in
-    const availableBarbers = yield getAvailableBarbersForWalkingInFromDb(userId, saloonOwnerId, date);
+    const availableBarbers = yield getAvailableBarbersForWalkingInFromDb1(userId, saloonOwnerId, date, type);
     if (!availableBarbers ||
         !Array.isArray(availableBarbers) ||
         availableBarbers.length === 0) {
@@ -1038,49 +992,6 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
                 loyaltyUsed: false,
             },
         });
-        if (booking) {
-            // update the customer loyalty points as well as customer visit
-            //first find loyalty points for services
-            const findPoints = yield tx.loyaltyProgram.findFirst({
-                where: {
-                    userId: saloonOwnerId,
-                    serviceId: { in: services },
-                },
-                select: { points: true, id: true },
-            });
-            let pointsToAdd = 0;
-            if (findPoints) {
-                pointsToAdd = (findPoints.points || 0) * services.length;
-            }
-            // Upsert customer loyalty: create a new record with initial points or increment existing points
-            yield tx.customerLoyalty.upsert({
-                where: {
-                    userId_saloonOwnerId: {
-                        userId: userId,
-                        saloonOwnerId: saloonOwnerId,
-                    },
-                },
-                create: {
-                    userId: userId,
-                    saloonOwnerId: saloonOwnerId,
-                    totalPoints: pointsToAdd,
-                },
-                update: {
-                    totalPoints: { increment: pointsToAdd },
-                },
-            });
-            // Prisma schema may not define a composite unique input named customerId_saloonId,
-            // so perform a safe find-then-create/update to avoid using an unknown unique field.
-            yield tx.customerVisit.create({
-                data: {
-                    customerId: userId,
-                    saloonOwnerId: saloonOwnerId,
-                    visitDate: new Date(),
-                    amountSpent: totalPrice,
-                    serviceId: serviceRecords.map(s => s.id),
-                },
-            });
-        }
         yield tx.queueSlot.update({
             where: { id: queueSlot.id },
             data: {
@@ -1255,55 +1166,6 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                 loyaltyUsed: !!loyaltyUsed,
             },
         });
-        if (booking) {
-            // update the customer loyalty points as well as customer visit
-            //first find loyalty points for services
-            const findPoints = yield tx.loyaltyProgram.findFirst({
-                where: {
-                    userId: saloonOwnerId,
-                    serviceId: { in: services },
-                },
-                select: { points: true, id: true },
-            });
-            let pointsToAdd = 0;
-            if (findPoints) {
-                pointsToAdd = (findPoints.points || 0) * services.length;
-            }
-            // Upsert customer loyalty: create a new record with initial points or increment existing points
-            yield tx.customerLoyalty.upsert({
-                where: {
-                    userId_saloonOwnerId: {
-                        userId: userId,
-                        saloonOwnerId: saloonOwnerId,
-                    },
-                },
-                create: {
-                    userId: userId,
-                    saloonOwnerId: saloonOwnerId,
-                    totalPoints: pointsToAdd,
-                },
-                update: {
-                    totalPoints: { increment: pointsToAdd },
-                },
-            });
-            // Prisma schema may not define a composite unique input named customerId_saloonId,
-            // so perform a safe find-then-create/update to avoid using an unknown unique field.
-            // const existingVisit = await tx.customerVisit.findFirst({
-            //   where: {
-            //     customerId: userId,
-            //     saloonOwnerId: saloonOwnerId,
-            //   },
-            // });
-            yield tx.customerVisit.create({
-                data: {
-                    customerId: userId,
-                    saloonOwnerId: saloonOwnerId,
-                    visitDate: new Date(),
-                    amountSpent: totalPrice,
-                    serviceId: serviceRecords.map(s => s.id),
-                },
-            });
-        }
         // 4f. Attach loyalty redemptions to booking if any
         if (loyaltyUsed) {
             yield tx.loyaltyRedemption.update({
@@ -3137,63 +2999,66 @@ const updateBookingStatusIntoDb = (userId, data) => __awaiter(void 0, void 0, vo
             id: bookingId,
             saloonOwnerId: userId,
         },
+        include: {
+            queueSlot: true,
+        },
     });
     if (!booking) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Booking not found');
     }
-    if (!['CONFIRMED', 'RESCHEDULED', 'PENDING'].includes(status)) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid status. Allowed value is CONFIRMED');
+    if (!['CONFIRMED', 'RESCHEDULED', 'COMPLETED'].includes(status)) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid status. Allowed value is CONFIRMED, RESCHEDULED, or COMPLETED');
     }
-    // if (booking.status === BookingStatus.COMPLETED) {
-    //   const findBookingEndTime = await prisma.booking.findFirst({
-    //     where: {
-    //       id: bookingId,
-    //       saloonOwnerId: userId,
-    //     },
-    //     select: {
-    //       endDateTime: true,
-    //     },
-    //   });
-    //   if (findBookingEndTime && findBookingEndTime.endDateTime) {
-    //     const currentTime = new Date();
-    //     // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
-    //     const fifteenMinutesBeforeEnd = new Date(
-    //       findBookingEndTime.endDateTime.getTime() - 15 * 60 * 1000,
-    //     );
-    //     if (currentTime < fifteenMinutesBeforeEnd) {
-    //       throw new AppError(
-    //         httpStatus.BAD_REQUEST,
-    //         'Cannot change status to COMPLETED before 15 minutes prior to the booking end time',
-    //       );
-    //     }
-    //     throw new AppError(
-    //       httpStatus.BAD_REQUEST,
-    //       'Cannot change status to COMPLETED before the booking end time',
-    //     );
-    //   }
-    // }
+    if (booking.status === client_1.BookingStatus.COMPLETED) {
+        const findBookingEndTime = yield prisma_1.default.booking.findFirst({
+            where: {
+                id: bookingId,
+                saloonOwnerId: userId,
+            },
+            select: {
+                endDateTime: true,
+            },
+        });
+        if (findBookingEndTime && findBookingEndTime.endDateTime) {
+            const currentTime = new Date();
+            // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
+            const fifteenMinutesBeforeEnd = new Date(findBookingEndTime.endDateTime.getTime() - 15 * 60 * 1000);
+            if (currentTime < fifteenMinutesBeforeEnd) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot change status to COMPLETED before 15 minutes prior to the booking end time');
+            }
+            // replace the current block with this
+            if (status === client_1.BookingStatus.COMPLETED) {
+                const findBookingEndTime = yield prisma_1.default.booking.findFirst({
+                    where: {
+                        id: bookingId,
+                        saloonOwnerId: userId,
+                    },
+                    select: {
+                        endDateTime: true,
+                        BookedServices: {
+                            select: {
+                                serviceId: true,
+                                price: true,
+                            },
+                        },
+                    },
+                });
+                if (findBookingEndTime && findBookingEndTime.endDateTime) {
+                    const currentTime = new Date();
+                    const fifteenMinutesBeforeEnd = new Date(findBookingEndTime.endDateTime.getTime() - 15 * 60 * 1000);
+                    if (currentTime < fifteenMinutesBeforeEnd) {
+                        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot change status to COMPLETED before 15 minutes prior to the booking end time');
+                    }
+                }
+            }
+        }
+    }
     // If status is CANCELED or COMPLETED, update related records in a transaction
     // If CANCELED: delete queueSlot and barberRealTimeStatus, decrement queue currentPosition
     // If COMPLETED: delete barberRealTimeStatus, update queueSlot status to COMPLETED, decrement queue currentPosition
     // If CONFIRMED: just update the booking status
     // If RESCHEDULED: just update the booking status
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        // const updatedBooking = await tx.booking.update({
-        //   where: {
-        //     id: bookingId,
-        //     saloonOwnerId: userId,
-        //   },
-        //   data: {
-        //     status:
-        //       status === 'COMPLETED'
-        //         ? BookingStatus.COMPLETED
-        //         : BookingStatus.PENDING,
-        //   },
-        // });
-        // if (!updatedBooking) {
-        //   throw new AppError(httpStatus.BAD_REQUEST, 'Booking status not updated');
-        // }
-        // If status is COMPLETED, update barber's real-time status to available
         if (status === client_1.BookingStatus.CONFIRMED) {
             const checkPending = yield tx.booking.update({
                 where: {
@@ -3210,41 +3075,89 @@ const updateBookingStatusIntoDb = (userId, data) => __awaiter(void 0, void 0, vo
             }
             return checkPending;
         }
-        // If status is CANCELED, delete the queueSlot and barberRealTimeStatus
-        if (status === client_1.BookingStatus.PENDING) {
-            const checkConfirmed = yield tx.booking.findFirst({
-                where: {
-                    id: bookingId,
-                    saloonOwnerId: userId,
+        if (status === client_1.BookingStatus.COMPLETED) {
+            // Get booked services and calculate loyalty points
+            const bookingWithServices = yield tx.booking.findUnique({
+                where: { id: bookingId, saloonOwnerId: userId },
+                include: {
+                    BookedServices: {
+                        include: {
+                            service: true,
+                        },
+                    },
                 },
             });
-            if (checkConfirmed) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Bookings can not be set to PENDING by salon owner');
+            if (bookingWithServices) {
+                const serviceIds = bookingWithServices.BookedServices.map(bs => bs.serviceId);
+                const totalAmount = bookingWithServices.BookedServices.reduce((sum, bs) => sum + Number(bs.price), 0);
+                // Find loyalty points for services
+                const findPoints = yield tx.loyaltyProgram.findFirst({
+                    where: {
+                        userId: userId,
+                        serviceId: { in: serviceIds },
+                    },
+                    select: { points: true, id: true },
+                });
+                let pointsToAdd = 0;
+                if (findPoints) {
+                    pointsToAdd = (findPoints.points || 0) * serviceIds.length;
+                }
+                // Upsert customer loyalty
+                yield tx.customerLoyalty.upsert({
+                    where: {
+                        userId_saloonOwnerId: {
+                            userId: bookingWithServices.userId,
+                            saloonOwnerId: userId,
+                        },
+                    },
+                    create: {
+                        userId: bookingWithServices.userId,
+                        saloonOwnerId: userId,
+                        totalPoints: pointsToAdd,
+                    },
+                    update: {
+                        totalPoints: { increment: pointsToAdd },
+                    },
+                });
+                // Create customer visit record
+                yield tx.customerVisit.create({
+                    data: {
+                        customerId: bookingWithServices.userId,
+                        saloonOwnerId: userId,
+                        visitDate: new Date(),
+                        amountSpent: totalAmount,
+                        serviceId: serviceIds,
+                    },
+                });
+                // Update booking status to COMPLETED
+                const completedBooking = yield tx.booking.update({
+                    where: { id: bookingId, saloonOwnerId: userId },
+                    data: { status: client_1.BookingStatus.COMPLETED },
+                });
+                return completedBooking;
             }
-            return checkConfirmed;
         }
+        return null;
     }));
+    if (!result) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Failed to update booking status');
+    }
     return result;
 });
 const cancelBookingIntoDb = (userId, bookingId) => __awaiter(void 0, void 0, void 0, function* () {
-    // Only allow customer to cancel their own booking if it's in PENDING or CONFIRMED status
+    // Fetch the existing booking to verify ownership
     const booking = yield prisma_1.default.booking.findUnique({
         where: {
             id: bookingId,
             userId: userId,
         },
-        include: { queueSlot: true, barber: true, BookedServices: true },
+        include: {
+            queueSlot: true,
+        },
     });
     if (!booking) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Booking not found');
     }
-    if (![
-        client_1.BookingStatus.PENDING,
-        client_1.BookingStatus.CONFIRMED,
-    ].includes(booking.status)) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only bookings in PENDING or CONFIRMED status can be canceled');
-    }
-    console.log('Canceling booking with ID:', booking);
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         // 1. Update booking status to CANCELED
         const updatedBooking = yield tx.booking.update({

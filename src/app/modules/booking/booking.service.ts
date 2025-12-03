@@ -342,58 +342,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         loyaltyUsed: data.loyaltyProgramId ? true : false,
       },
     });
-    if (booking) {
-      // update the customer loyalty points as well as customer visit
-      //first find loyalty points for services
-      const findPoints = await tx.loyaltyProgram.findFirst({
-        where: {
-          userId: saloonOwnerId,
-          serviceId: { in: services },
-        },
-        select: { points: true, id: true },
-      });
-      let pointsToAdd = 0;
-      if (findPoints) {
-        pointsToAdd = (findPoints.points || 0) * services.length;
-      }
-
-      // Upsert customer loyalty: create a new record with initial points or increment existing points
-      await tx.customerLoyalty.upsert({
-        where: {
-          userId_saloonOwnerId: {
-            userId: userId,
-            saloonOwnerId: saloonOwnerId,
-          },
-        },
-        create: {
-          userId: userId,
-          saloonOwnerId: saloonOwnerId,
-          totalPoints: pointsToAdd,
-        },
-        update: {
-          totalPoints: { increment: pointsToAdd },
-        },
-      });
-
-      // Prisma schema may not define a composite unique input named customerId_saloonId,
-      // so perform a safe find-then-create/update to avoid using an unknown unique field.
-      // const existingVisit = await tx.customerVisit.findFirst({
-      //   where: {
-      //     customerId: userId,
-      //     saloonOwnerId: saloonOwnerId,
-      //   },
-      // });
-
-      await tx.customerVisit.create({
-        data: {
-          customerId: userId,
-          saloonOwnerId: saloonOwnerId,
-          visitDate: new Date(),
-          amountSpent: price,
-          serviceId: serviceRecords.map(s => s.id),
-        },
-      });
-    }
 
     if (isInQueue && booking) {
       // add payment status as PAID
@@ -548,7 +496,9 @@ const createQueueBookingForSalonOwnerIntoDb = async (
   saloonOwnerId: string,
   data: any,
 ) => {
-  const { fullName, email, phone, date, services, notes, bookingType } = data;
+  const { fullName, email, phone, date, services, notes, type } = data;
+
+  console.log('Creating queue booking for salon owner:', data);
   // appointmentAt may be omitted — we'll choose it based on barber free slots later.
   let appointmentAt: string | undefined = data.appointmentAt;
 
@@ -642,14 +592,17 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     },
   });
 
+  console.log('Non-registered user created:', type);
+
   // 4. Find available barbers for walking-in (uses existing helper)
   // pass the newly created non-registered id as userId so queue/order info can include them
   const availableBarbers = await getAvailableBarbersForWalkingInFromDb1(
     nonRegisteredUser.id,
     saloonOwnerId,
     date,
-    bookingType as BookingType,
+    type as BookingType,
   );
+  
 
   if (
     !availableBarbers ||
@@ -749,6 +702,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
           'No suitable future free slot found for any barber',
         );
       }
+
 
       chosen = found;
       chosenAppointmentAt = pickedTime;
@@ -870,6 +824,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
         ],
       },
     });
+    console.log('Overlapping status:', barberId, overlappingStatus);
 
     const overlappingBooking = await tx.booking.findFirst({
       where: {
@@ -994,7 +949,7 @@ const createQueueBookingForCustomerIntoDb = async (
   saloonOwnerId: string,
   data: any,
 ) => {
-  const { date, services, notes, bookingType } = data;
+  const { date, services, notes, type } = data;
   let appointmentAt: string | undefined = data.appointmentAt;
 
   // Helper: pick the earliest free slot start that can accommodate totalDuration (minutes).
@@ -1077,10 +1032,11 @@ const createQueueBookingForCustomerIntoDb = async (
   );
 
   // 3. Find available barbers for walking-in
-  const availableBarbers = await getAvailableBarbersForWalkingInFromDb(
+  const availableBarbers = await getAvailableBarbersForWalkingInFromDb1(
     userId,
     saloonOwnerId,
     date,
+    type as BookingType,
   );
 
   if (
@@ -1347,53 +1303,6 @@ const createQueueBookingForCustomerIntoDb = async (
       },
     });
 
-    if (booking) {
-      // update the customer loyalty points as well as customer visit
-      //first find loyalty points for services
-      const findPoints = await tx.loyaltyProgram.findFirst({
-        where: {
-          userId: saloonOwnerId,
-          serviceId: { in: services },
-        },
-        select: { points: true, id: true },
-      });
-      let pointsToAdd = 0;
-      if (findPoints) {
-        pointsToAdd = (findPoints.points || 0) * services.length;
-      }
-
-      // Upsert customer loyalty: create a new record with initial points or increment existing points
-      await tx.customerLoyalty.upsert({
-        where: {
-          userId_saloonOwnerId: {
-            userId: userId,
-            saloonOwnerId: saloonOwnerId,
-          },
-        },
-        create: {
-          userId: userId,
-          saloonOwnerId: saloonOwnerId,
-          totalPoints: pointsToAdd,
-        },
-        update: {
-          totalPoints: { increment: pointsToAdd },
-        },
-      });
-
-      // Prisma schema may not define a composite unique input named customerId_saloonId,
-      // so perform a safe find-then-create/update to avoid using an unknown unique field.
-
-      await tx.customerVisit.create({
-        data: {
-          customerId: userId,
-          saloonOwnerId: saloonOwnerId,
-          visitDate: new Date(),
-          amountSpent: totalPrice,
-          serviceId: serviceRecords.map(s => s.id),
-        },
-      });
-    }
-
     await tx.queueSlot.update({
       where: { id: queueSlot.id },
       data: {
@@ -1622,59 +1531,6 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         loyaltyUsed: !!loyaltyUsed,
       },
     });
-
-    if (booking) {
-      // update the customer loyalty points as well as customer visit
-      //first find loyalty points for services
-      const findPoints = await tx.loyaltyProgram.findFirst({
-        where: {
-          userId: saloonOwnerId,
-          serviceId: { in: services },
-        },
-        select: { points: true, id: true },
-      });
-      let pointsToAdd = 0;
-      if (findPoints) {
-        pointsToAdd = (findPoints.points || 0) * services.length;
-      }
-
-      // Upsert customer loyalty: create a new record with initial points or increment existing points
-      await tx.customerLoyalty.upsert({
-        where: {
-          userId_saloonOwnerId: {
-            userId: userId,
-            saloonOwnerId: saloonOwnerId,
-          },
-        },
-        create: {
-          userId: userId,
-          saloonOwnerId: saloonOwnerId,
-          totalPoints: pointsToAdd,
-        },
-        update: {
-          totalPoints: { increment: pointsToAdd },
-        },
-      });
-
-      // Prisma schema may not define a composite unique input named customerId_saloonId,
-      // so perform a safe find-then-create/update to avoid using an unknown unique field.
-      // const existingVisit = await tx.customerVisit.findFirst({
-      //   where: {
-      //     customerId: userId,
-      //     saloonOwnerId: saloonOwnerId,
-      //   },
-      // });
-
-      await tx.customerVisit.create({
-        data: {
-          customerId: userId,
-          saloonOwnerId: saloonOwnerId,
-          visitDate: new Date(),
-          amountSpent: totalPrice,
-          serviceId: serviceRecords.map(s => s.id),
-        },
-      });
-    }
 
     // 4f. Attach loyalty redemptions to booking if any
     if (loyaltyUsed) {
@@ -3849,45 +3705,74 @@ const updateBookingStatusIntoDb = async (
       id: bookingId,
       saloonOwnerId: userId,
     },
+    include: {
+      queueSlot: true,
+    },
   });
   if (!booking) {
     throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
   }
-  if (!['CONFIRMED', 'RESCHEDULED', 'PENDING'].includes(status)) {
+  if (!['CONFIRMED', 'RESCHEDULED', 'COMPLETED'].includes(status)) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Invalid status. Allowed value is CONFIRMED',
+      'Invalid status. Allowed value is CONFIRMED, RESCHEDULED, or COMPLETED',
     );
   }
 
-  // if (booking.status === BookingStatus.COMPLETED) {
-  //   const findBookingEndTime = await prisma.booking.findFirst({
-  //     where: {
-  //       id: bookingId,
-  //       saloonOwnerId: userId,
-  //     },
-  //     select: {
-  //       endDateTime: true,
-  //     },
-  //   });
-  //   if (findBookingEndTime && findBookingEndTime.endDateTime) {
-  //     const currentTime = new Date();
-  //     // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
-  //     const fifteenMinutesBeforeEnd = new Date(
-  //       findBookingEndTime.endDateTime.getTime() - 15 * 60 * 1000,
-  //     );
-  //     if (currentTime < fifteenMinutesBeforeEnd) {
-  //       throw new AppError(
-  //         httpStatus.BAD_REQUEST,
-  //         'Cannot change status to COMPLETED before 15 minutes prior to the booking end time',
-  //       );
-  //     }
-  //     throw new AppError(
-  //       httpStatus.BAD_REQUEST,
-  //       'Cannot change status to COMPLETED before the booking end time',
-  //     );
-  //   }
-  // }
+  if (booking.status === BookingStatus.COMPLETED) {
+    const findBookingEndTime = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        saloonOwnerId: userId,
+      },
+      select: {
+        endDateTime: true,
+      },
+    });
+    if (findBookingEndTime && findBookingEndTime.endDateTime) {
+      const currentTime = new Date();
+      // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
+      const fifteenMinutesBeforeEnd = new Date(
+        findBookingEndTime.endDateTime.getTime() - 15 * 60 * 1000,
+      );
+      if (currentTime < fifteenMinutesBeforeEnd) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Cannot change status to COMPLETED before 15 minutes prior to the booking end time',
+        );
+      }
+      // replace the current block with this
+      if (status === BookingStatus.COMPLETED) {
+        const findBookingEndTime = await prisma.booking.findFirst({
+          where: {
+            id: bookingId,
+            saloonOwnerId: userId,
+          },
+          select: {
+            endDateTime: true,
+            BookedServices: {
+              select: {
+                serviceId: true,
+                price: true,
+              },
+            },
+          },
+        });
+        if (findBookingEndTime && findBookingEndTime.endDateTime) {
+          const currentTime = new Date();
+          const fifteenMinutesBeforeEnd = new Date(
+            findBookingEndTime.endDateTime.getTime() - 15 * 60 * 1000,
+          );
+          if (currentTime < fifteenMinutesBeforeEnd) {
+            throw new AppError(
+              httpStatus.BAD_REQUEST,
+              'Cannot change status to COMPLETED before 15 minutes prior to the booking end time',
+            );
+          }
+        }
+      }
+    }
+  }
 
   // If status is CANCELED or COMPLETED, update related records in a transaction
   // If CANCELED: delete queueSlot and barberRealTimeStatus, decrement queue currentPosition
@@ -3896,22 +3781,6 @@ const updateBookingStatusIntoDb = async (
   // If RESCHEDULED: just update the booking status
 
   const result = await prisma.$transaction(async tx => {
-    // const updatedBooking = await tx.booking.update({
-    //   where: {
-    //     id: bookingId,
-    //     saloonOwnerId: userId,
-    //   },
-    //   data: {
-    //     status:
-    //       status === 'COMPLETED'
-    //         ? BookingStatus.COMPLETED
-    //         : BookingStatus.PENDING,
-    //   },
-    // });
-    // if (!updatedBooking) {
-    //   throw new AppError(httpStatus.BAD_REQUEST, 'Booking status not updated');
-    // }
-    // If status is COMPLETED, update barber's real-time status to available
     if (status === BookingStatus.CONFIRMED) {
       const checkPending = await tx.booking.update({
         where: {
@@ -3931,54 +3800,107 @@ const updateBookingStatusIntoDb = async (
       }
       return checkPending;
     }
-    // If status is CANCELED, delete the queueSlot and barberRealTimeStatus
-    if (status === BookingStatus.PENDING) {
-      const checkConfirmed = await tx.booking.findFirst({
-        where: {
-          id: bookingId,
-          saloonOwnerId: userId,
+    
+    if (status === BookingStatus.COMPLETED) {
+      // Get booked services and calculate loyalty points
+      const bookingWithServices = await tx.booking.findUnique({
+        where: { id: bookingId, saloonOwnerId: userId },
+        include: {
+          BookedServices: {
+            include: {
+              service: true,
+            },
+          },
         },
       });
-      if (checkConfirmed) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Bookings can not be set to PENDING by salon owner',
+
+      if (bookingWithServices) {
+        const serviceIds = bookingWithServices.BookedServices.map(bs => bs.serviceId);
+        const totalAmount = bookingWithServices.BookedServices.reduce(
+          (sum, bs) => sum + Number(bs.price),
+          0,
         );
+
+        // Find loyalty points for services
+        const findPoints = await tx.loyaltyProgram.findFirst({
+          where: {
+            userId: userId,
+            serviceId: { in: serviceIds },
+          },
+          select: { points: true, id: true },
+        });
+
+        let pointsToAdd = 0;
+        if (findPoints) {
+          pointsToAdd = (findPoints.points || 0) * serviceIds.length;
+        }
+
+        // Upsert customer loyalty
+        await tx.customerLoyalty.upsert({
+          where: {
+            userId_saloonOwnerId: {
+              userId: bookingWithServices.userId,
+              saloonOwnerId: userId,
+            },
+          },
+          create: {
+            userId: bookingWithServices.userId,
+            saloonOwnerId: userId,
+            totalPoints: pointsToAdd,
+          },
+          update: {
+            totalPoints: { increment: pointsToAdd },
+          },
+        });
+
+        // Create customer visit record
+        await tx.customerVisit.create({
+          data: {
+            customerId: bookingWithServices.userId,
+            saloonOwnerId: userId,
+            visitDate: new Date(),
+            amountSpent: totalAmount,
+            serviceId: serviceIds,
+          },
+        });
+
+        // Update booking status to COMPLETED
+        const completedBooking = await tx.booking.update({
+          where: { id: bookingId, saloonOwnerId: userId },
+          data: { status: BookingStatus.COMPLETED },
+        });
+
+          return completedBooking;
+        }
       }
-
-      return checkConfirmed;
+  
+      return null;
+    });
+  
+    if (!result) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Failed to update booking status');
     }
-  });
-
-  return result;
-};
-
-const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
-  // Only allow customer to cancel their own booking if it's in PENDING or CONFIRMED status
-  const booking = await prisma.booking.findUnique({
-    where: {
-      id: bookingId,
-      userId: userId,
-    },
-    include: { queueSlot: true, barber: true, BookedServices: true },
-  });
-  if (!booking) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
-  }
-  if (
-    ![
-      BookingStatus.PENDING as BookingStatus,
-      BookingStatus.CONFIRMED as BookingStatus,
-    ].includes(booking.status)
-  ) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Only bookings in PENDING or CONFIRMED status can be canceled',
-    );
-  }
-  console.log('Canceling booking with ID:', booking);
-
-  const result = await prisma.$transaction(async tx => {
+  
+    return result;
+  };
+  
+  const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
+    // Fetch the existing booking to verify ownership
+    const booking = await prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+        userId: userId,
+      },
+      include: {
+        queueSlot: true,
+      },
+    });
+  
+    if (!booking) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+    }
+  
+    const result = await prisma.$transaction(async tx => {
     // 1. Update booking status to CANCELED
     const updatedBooking = await tx.booking.update({
       where: {
@@ -4040,6 +3962,7 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
         }
       }
     }
+  
 
     // 3. Delete associated barberRealTimeStatus if exists
     await tx.barberRealTimeStatus.deleteMany({
@@ -4052,6 +3975,7 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
 
     return updatedBooking;
   });
+
 
   return result;
 };

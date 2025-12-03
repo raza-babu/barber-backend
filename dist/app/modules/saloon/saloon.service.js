@@ -26,15 +26,16 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
                 id: data.bookingId,
                 saloonOwnerId: userId,
             },
+            include: {
+                BookedServices: true,
+            },
         });
         if (!booking) {
             throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Booking not found');
         }
         const currentStatus = booking.status;
         const targetStatus = data.status;
-        const bookingEndTime = luxon_1.DateTime.fromJSDate(booking.endDateTime);
-        const now = luxon_1.DateTime.now();
-        // ---------- Status Transition Rules ----------
+        // ---------- Status Transition Validation ----------
         switch (targetStatus) {
             case client_1.BookingStatus.PENDING:
                 throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Status cannot be changed back to pending');
@@ -47,14 +48,12 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
                 if (currentStatus !== client_1.BookingStatus.CONFIRMED) {
                     throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only confirmed bookings can be marked as completed');
                 }
-                if (booking && booking.endDateTime) {
+                if (booking.endDateTime) {
                     const currentTime = new Date();
-                    // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
                     const fifteenMinutesBeforeEnd = new Date(booking.endDateTime.getTime() - 15 * 60 * 1000);
                     if (currentTime < fifteenMinutesBeforeEnd) {
-                        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot change status to COMPLETED before 15 minutes prior to the booking end time');
+                        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot complete booking before 15 minutes prior to end time');
                     }
-                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot change status to COMPLETED before the booking end time');
                 }
                 break;
             case client_1.BookingStatus.CANCELLED:
@@ -68,17 +67,6 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
             default:
                 throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid status transition');
         }
-        // ---------- Additional Rules ----------
-        if (currentStatus === client_1.BookingStatus.RESCHEDULED && now > bookingEndTime) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot change status of a missed booking');
-        }
-        // ---------- Refund Logic Placeholders ----------
-        if ((currentStatus === client_1.BookingStatus.CONFIRMED &&
-            targetStatus === client_1.BookingStatus.CANCELLED) ||
-            (currentStatus === client_1.BookingStatus.PENDING &&
-                targetStatus === client_1.BookingStatus.CANCELLED)) {
-            // Refund logic can be implemented here if needed
-        }
         // ---------- Update Booking ----------
         const updatedBooking = yield tx.booking.update({
             where: {
@@ -88,18 +76,73 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
             data: {
                 status: targetStatus,
             },
-            include: {
-                BookedServices: true,
-            },
         });
-        if (!updatedBooking) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking not found or not updated');
-        }
-        if (updatedBooking.status === client_1.BookingStatus.COMPLETED) {
-            // Increment loyalty points for the customer if a loyalty scheme exist for the saloon owner
-            // Get all unique serviceIds from the completed booking
-            const serviceIds = updatedBooking.BookedServices.map(bs => bs.serviceId);
-            // Find all loyalty programs for the saloon owner that match any of the booked services
+        // ---------- Handle Post-Completion Tasks ----------
+        if (targetStatus === client_1.BookingStatus.COMPLETED) {
+            // Delete barber real-time availability
+            if (updatedBooking.startDateTime && updatedBooking.endDateTime) {
+                const barberRealTimeStatus = yield tx.barberRealTimeStatus.findFirst({
+                    where: {
+                        barberId: booking.barberId,
+                        barber: {
+                            saloonOwnerId: userId,
+                        },
+                        startDateTime: updatedBooking.startDateTime,
+                        endDateTime: updatedBooking.endDateTime,
+                    },
+                });
+                if (barberRealTimeStatus) {
+                    console.log('Deleted barber real-time status for completed booking', barberRealTimeStatus.id);
+                    yield tx.barberRealTimeStatus.delete({
+                        where: {
+                            id: barberRealTimeStatus.id,
+                        },
+                    });
+                }
+            }
+            // Handle queue bookings
+            if (updatedBooking.bookingType === client_1.BookingType.QUEUE) {
+                const saloonQueue = yield tx.queue.findFirst({
+                    where: {
+                        saloonOwnerId: userId,
+                        barberId: booking.barberId,
+                        isActive: true,
+                        date: updatedBooking.date,
+                    },
+                });
+                if (saloonQueue && saloonQueue.currentPosition > 0) {
+                    yield tx.queue.update({
+                        where: {
+                            id: saloonQueue.id,
+                        },
+                        data: {
+                            currentPosition: { decrement: 1 },
+                        },
+                    });
+                    console.log('Updating queue slots for completed booking');
+                    yield tx.queueSlot.updateMany({
+                        where: {
+                            queueId: saloonQueue.id,
+                            bookingId: updatedBooking.id,
+                        },
+                        data: {
+                            status: client_1.QueueStatus.COMPLETED,
+                            position: 0,
+                        },
+                    });
+                }
+            }
+            // ---------- Handle Loyalty Points (Registered Users Only) ----------
+            // Check if the customer is a registered user
+            const checkRegUser = yield tx.user.findUnique({
+                where: { id: booking.userId },
+            });
+            // If user is not registered, skip loyalty points processing
+            if (!checkRegUser) {
+                return updatedBooking;
+            }
+            // User is registered, proceed with loyalty logic
+            const serviceIds = booking.BookedServices.map(bs => bs.serviceId);
             const loyaltyPrograms = yield tx.loyaltyProgram.findMany({
                 where: {
                     userId: userId,
@@ -111,45 +154,41 @@ const manageBookingsIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
                 if (totalPoints > 0) {
                     yield tx.customerLoyalty.create({
                         data: {
-                            userId: updatedBooking.userId,
+                            userId: booking.userId,
                             saloonOwnerId: userId,
                             totalPoints: totalPoints,
                         },
                     });
-                }
-                const updateVisitLog = yield tx.customerVisit.create({
-                    data: {
-                        customerId: updatedBooking.userId,
-                        saloonOwnerId: userId,
-                        serviceId: serviceIds,
-                        visitDate: new Date(),
-                        amountSpent: updatedBooking.totalPrice,
-                        earnedPoints: totalPoints,
-                    },
-                });
-                if (!updateVisitLog) {
-                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Failed to log customer visit');
-                }
-                const updatePointLog = yield tx.loyaltyPointLog.updateMany({
-                    where: {
-                        customerId: updatedBooking.userId,
-                        saloonId: userId,
-                        visitCount: { gt: 0 }
-                    },
-                    data: {
-                        visitCount: { increment: 1 },
-                    },
-                });
-                if (!updatePointLog) {
-                    const createPointLog = yield tx.loyaltyPointLog.create({
+                    yield tx.customerVisit.create({
                         data: {
-                            customerId: updatedBooking.userId,
-                            saloonId: userId,
-                            visitCount: 1,
+                            customerId: booking.userId,
+                            saloonOwnerId: userId,
+                            serviceId: serviceIds,
+                            visitDate: new Date(),
+                            amountSpent: booking.totalPrice,
+                            earnedPoints: totalPoints,
                         },
                     });
-                    if (!createPointLog) {
-                        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Failed to create loyalty point log');
+                    const existingLog = yield tx.loyaltyPointLog.findFirst({
+                        where: {
+                            customerId: booking.userId,
+                            saloonId: userId,
+                        },
+                    });
+                    if (existingLog) {
+                        yield tx.loyaltyPointLog.update({
+                            where: { id: existingLog.id },
+                            data: { visitCount: { increment: 1 } },
+                        });
+                    }
+                    else {
+                        yield tx.loyaltyPointLog.create({
+                            data: {
+                                customerId: booking.userId,
+                                saloonId: userId,
+                                visitCount: 1,
+                            },
+                        });
                     }
                 }
             }
@@ -285,10 +324,40 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
     const searchQuery = options.searchTerm
         ? {
             OR: [
-                { user: { fullName: { contains: options.searchTerm, mode: 'insensitive' } } },
-                { user: { email: { contains: options.searchTerm, mode: 'insensitive' } } },
-                { user: { phoneNumber: { contains: options.searchTerm, mode: 'insensitive' } } },
-                { barber: { user: { fullName: { contains: options.searchTerm, mode: 'insensitive' } } } },
+                {
+                    user: {
+                        fullName: {
+                            contains: options.searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    user: {
+                        email: {
+                            contains: options.searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    user: {
+                        phoneNumber: {
+                            contains: options.searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                },
+                {
+                    barber: {
+                        user: {
+                            fullName: {
+                                contains: options.searchTerm,
+                                mode: 'insensitive',
+                            },
+                        },
+                    },
+                },
             ],
         }
         : {};
@@ -296,7 +365,11 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
     const excludedStatuses = [client_1.BookingStatus.PENDING, client_1.BookingStatus.CONFIRMED];
     const excludedStatusStrings = excludedStatuses.map(s => s.toString());
     const statusFilter = options.status && Array.isArray(options.status)
-        ? { status: { in: options.status.filter(s => !excludedStatusStrings.includes(s)) } }
+        ? {
+            status: {
+                in: options.status.filter(s => !excludedStatusStrings.includes(s)),
+            },
+        }
         : options.status
             ? excludedStatusStrings.includes(options.status)
                 ? { status: { notIn: excludedStatuses } }
@@ -354,7 +427,13 @@ const getCustomerBookingsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [us
     const registeredUsers = customerIds.length > 0
         ? yield prisma_1.default.user.findMany({
             where: { id: { in: customerIds } },
-            select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+            select: {
+                id: true,
+                fullName: true,
+                image: true,
+                email: true,
+                phoneNumber: true,
+            },
         })
         : [];
     const regUserMap = registeredUsers.reduce((acc, u) => {
@@ -624,7 +703,23 @@ const getTransactionsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId
     // Build booking-level search conditions (used inside booking where)
     const bookingSearchOr = [];
     if (searchTerm) {
-        bookingSearchOr.push({ user: { fullName: { contains: searchTerm, mode: 'insensitive' } } }, { user: { email: { contains: searchTerm, mode: 'insensitive' } } }, { user: { phoneNumber: { contains: searchTerm, mode: 'insensitive' } } }, { barber: { user: { fullName: { contains: searchTerm, mode: 'insensitive' } } } }, {
+        bookingSearchOr.push({
+            user: {
+                fullName: { contains: searchTerm, mode: 'insensitive' },
+            },
+        }, {
+            user: { email: { contains: searchTerm, mode: 'insensitive' } },
+        }, {
+            user: {
+                phoneNumber: { contains: searchTerm, mode: 'insensitive' },
+            },
+        }, {
+            barber: {
+                user: {
+                    fullName: { contains: searchTerm, mode: 'insensitive' },
+                },
+            },
+        }, {
             BookedServices: {
                 some: {
                     service: {
@@ -702,7 +797,13 @@ const getTransactionsFromDb = (userId_1, ...args_1) => __awaiter(void 0, [userId
     const registeredUsers = filteredUserIds.length
         ? yield prisma_1.default.user.findMany({
             where: { id: { in: filteredUserIds } },
-            select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+            select: {
+                id: true,
+                fullName: true,
+                image: true,
+                email: true,
+                phoneNumber: true,
+            },
         })
         : [];
     const regMap = registeredUsers.reduce((acc, u) => {

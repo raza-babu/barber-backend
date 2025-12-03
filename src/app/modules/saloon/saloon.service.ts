@@ -1,6 +1,9 @@
+import { customerRoutes } from './../customer/customer.routes';
 import {
   BookingStatus,
+  BookingType,
   PaymentStatus,
+  QueueStatus,
 } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
@@ -25,6 +28,9 @@ const manageBookingsIntoDb = async (
         id: data.bookingId,
         saloonOwnerId: userId,
       },
+      include: {
+        BookedServices: true,
+      },
     });
 
     if (!booking) {
@@ -33,10 +39,8 @@ const manageBookingsIntoDb = async (
 
     const currentStatus = booking.status;
     const targetStatus = data.status;
-    const bookingEndTime = DateTime.fromJSDate(booking.endDateTime!);
-    const now = DateTime.now();
 
-    // ---------- Status Transition Rules ----------
+    // ---------- Status Transition Validation ----------
     switch (targetStatus) {
       case BookingStatus.PENDING:
         throw new AppError(
@@ -60,24 +64,18 @@ const manageBookingsIntoDb = async (
             'Only confirmed bookings can be marked as completed',
           );
         }
-        if (booking && booking.endDateTime) {
+        if (booking.endDateTime) {
           const currentTime = new Date();
-          // Allow COMPLETED status only if current time is within 15 minutes before or after endDateTime
           const fifteenMinutesBeforeEnd = new Date(
             booking.endDateTime.getTime() - 15 * 60 * 1000,
           );
           if (currentTime < fifteenMinutesBeforeEnd) {
             throw new AppError(
               httpStatus.BAD_REQUEST,
-              'Cannot change status to COMPLETED before 15 minutes prior to the booking end time',
+              'Cannot complete booking before 15 minutes prior to end time',
             );
           }
-          throw new AppError(
-            httpStatus.BAD_REQUEST,
-            'Cannot change status to COMPLETED before the booking end time',
-          );
         }
-
         break;
 
       case BookingStatus.CANCELLED:
@@ -99,24 +97,6 @@ const manageBookingsIntoDb = async (
         throw new AppError(httpStatus.BAD_REQUEST, 'Invalid status transition');
     }
 
-    // ---------- Additional Rules ----------
-    if (currentStatus === BookingStatus.RESCHEDULED && now > bookingEndTime) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Cannot change status of a missed booking',
-      );
-    }
-
-    // ---------- Refund Logic Placeholders ----------
-    if (
-      (currentStatus === BookingStatus.CONFIRMED &&
-        targetStatus === BookingStatus.CANCELLED) ||
-      (currentStatus === BookingStatus.PENDING &&
-        targetStatus === BookingStatus.CANCELLED)
-    ) {
-      // Refund logic can be implemented here if needed
-    }
-
     // ---------- Update Booking ----------
     const updatedBooking = await tx.booking.update({
       where: {
@@ -126,85 +106,137 @@ const manageBookingsIntoDb = async (
       data: {
         status: targetStatus,
       },
-      include: {
-        BookedServices: true,
-      },
     });
 
-    if (!updatedBooking) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Booking not found or not updated',
-      );
-    }
+    // ---------- Handle Post-Completion Tasks ----------
+    if (targetStatus === BookingStatus.COMPLETED) {
+      // Delete barber real-time availability
+      if (updatedBooking.startDateTime && updatedBooking.endDateTime) {
+        const barberRealTimeStatus = await tx.barberRealTimeStatus.findFirst({
+          where: {
+            barberId: booking.barberId,
+            barber: {
+              saloonOwnerId: userId,
+            },
+            startDateTime: updatedBooking.startDateTime,
+            endDateTime: updatedBooking.endDateTime,
+          },
+        });
+        if (barberRealTimeStatus) {
+          console.log(
+            'Deleted barber real-time status for completed booking',
+            barberRealTimeStatus.id,
+          );
+          await tx.barberRealTimeStatus.delete({
+            where: {
+              id: barberRealTimeStatus.id,
+            },
+          });
+        }
+      }
 
-    if (updatedBooking.status === BookingStatus.COMPLETED) {
-      // Increment loyalty points for the customer if a loyalty scheme exist for the saloon owner
-      // Get all unique serviceIds from the completed booking
-      const serviceIds = updatedBooking.BookedServices.map(bs => bs.serviceId);
+      // Handle queue bookings
+      if (updatedBooking.bookingType === BookingType.QUEUE) {
+        const saloonQueue = await tx.queue.findFirst({
+          where: {
+            saloonOwnerId: userId,
+            barberId: booking.barberId,
+            isActive: true,
+            date: updatedBooking.date,
+          },
+        });
+        if (saloonQueue && saloonQueue.currentPosition > 0) {
+          await tx.queue.update({
+            where: {
+              id: saloonQueue.id,
+            },
+            data: {
+              currentPosition: { decrement: 1 },
+            },
+          });
 
-      // Find all loyalty programs for the saloon owner that match any of the booked services
+          console.log('Updating queue slots for completed booking');
+
+          await tx.queueSlot.updateMany({
+            where: {
+              queueId: saloonQueue.id,
+              bookingId: updatedBooking.id,
+            },
+            data: {
+              status: QueueStatus.COMPLETED,
+              position: 0,
+            },
+          });
+        }
+      }
+
+      // ---------- Handle Loyalty Points (Registered Users Only) ----------
+      // Check if the customer is a registered user
+      const checkRegUser = await tx.user.findUnique({
+        where: { id: booking.userId },
+      });
+
+      // If user is not registered, skip loyalty points processing
+      if (!checkRegUser) {
+        return updatedBooking;
+      }
+
+      // User is registered, proceed with loyalty logic
+      const serviceIds = booking.BookedServices.map(bs => bs.serviceId);
+
       const loyaltyPrograms = await tx.loyaltyProgram.findMany({
         where: {
           userId: userId,
           serviceId: { in: serviceIds },
         },
       });
+
       if (loyaltyPrograms.length > 0) {
         const totalPoints = loyaltyPrograms.reduce(
           (sum, lp) => sum + lp.points,
           0,
         );
+
         if (totalPoints > 0) {
           await tx.customerLoyalty.create({
             data: {
-              userId: updatedBooking.userId,
+              userId: booking.userId,
               saloonOwnerId: userId,
               totalPoints: totalPoints,
             },
           });
-        }
 
-        const updateVisitLog = await tx.customerVisit.create({
-          data: {
-            customerId: updatedBooking.userId,
-            saloonOwnerId: userId,
-            serviceId: serviceIds,
-            visitDate: new Date(),
-            amountSpent: updatedBooking.totalPrice,
-            earnedPoints: totalPoints,
-          },
-        });
-        if (!updateVisitLog) {
-          throw new AppError(
-            httpStatus.BAD_REQUEST,
-            'Failed to log customer visit',
-          );
-        }
-
-        const updatePointLog = await tx.loyaltyPointLog.updateMany({
-          where: {
-            customerId: updatedBooking.userId,
-            saloonId: userId,
-            visitCount: { gt: 0}
-          },
-          data: {
-            visitCount: { increment: 1 },
-          },
-        });
-        if (!updatePointLog) {
-          const createPointLog = await tx.loyaltyPointLog.create({
+          await tx.customerVisit.create({
             data: {
-              customerId: updatedBooking.userId,
-              saloonId: userId,
-              visitCount: 1,
+              customerId: booking.userId,
+              saloonOwnerId: userId,
+              serviceId: serviceIds,
+              visitDate: new Date(),
+              amountSpent: booking.totalPrice,
+              earnedPoints: totalPoints,
             },
           });
-          if (!createPointLog) {
-            throw new AppError(
-              httpStatus.BAD_REQUEST,
-              'Failed to create loyalty point log',
-            );
+
+          const existingLog = await tx.loyaltyPointLog.findFirst({
+            where: {
+              customerId: booking.userId,
+              saloonId: userId,
+            },
+          });
+
+          if (existingLog) {
+            await tx.loyaltyPointLog.update({
+              where: { id: existingLog.id },
+              data: { visitCount: { increment: 1 } },
+            });
+          } else {
+            await tx.loyaltyPointLog.create({
+              data: {
+                customerId: booking.userId,
+                saloonId: userId,
+                visitCount: 1,
+              },
+            });
           }
         }
       }
@@ -262,7 +294,6 @@ const getBarberDashboardFromDb = async (userId: string) => {
       saloonOwnerId: userId,
     },
   });
-
 
   // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
   const startDate = DateTime.now()
@@ -358,10 +389,40 @@ const getCustomerBookingsFromDb = async (
   const searchQuery = options.searchTerm
     ? {
         OR: [
-          { user: { fullName: { contains: options.searchTerm, mode: 'insensitive' as const } } },
-          { user: { email: { contains: options.searchTerm, mode: 'insensitive' as const } } },
-          { user: { phoneNumber: { contains: options.searchTerm, mode: 'insensitive' as const } } },
-          { barber: { user: { fullName: { contains: options.searchTerm, mode: 'insensitive' as const } } } },
+          {
+            user: {
+              fullName: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            user: {
+              email: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            user: {
+              phoneNumber: {
+                contains: options.searchTerm,
+                mode: 'insensitive' as const,
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                fullName: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
         ],
       }
     : {};
@@ -371,13 +432,18 @@ const getCustomerBookingsFromDb = async (
   const excludedStatusStrings = excludedStatuses.map(s => s.toString());
   const statusFilter =
     options.status && Array.isArray(options.status)
-      ? { status: { in: (options.status as string[]).filter(s => !excludedStatusStrings.includes(s)) as BookingStatus[] } }
+      ? {
+          status: {
+            in: (options.status as string[]).filter(
+              s => !excludedStatusStrings.includes(s),
+            ) as BookingStatus[],
+          },
+        }
       : options.status
-      ? excludedStatusStrings.includes(options.status as string)
-        ? { status: { notIn: excludedStatuses } }
-        : { status: options.status as BookingStatus }
-      : { status: { notIn: excludedStatuses } };
- 
+        ? excludedStatusStrings.includes(options.status as string)
+          ? { status: { notIn: excludedStatuses } }
+          : { status: options.status as BookingStatus }
+        : { status: { notIn: excludedStatuses } };
 
   const whereClause = {
     saloonOwnerId: userId,
@@ -432,15 +498,24 @@ const getCustomerBookingsFromDb = async (
   ]);
 
   // 2) Collect unique customer ids from this page
-  const customerIds = Array.from(new Set(result.map(b => b.userId).filter(Boolean as any)));
+  const customerIds = Array.from(
+    new Set(result.map(b => b.userId).filter(Boolean as any)),
+  );
 
   // 3) Fetch registered users for these ids
-  const registeredUsers = customerIds.length > 0
-    ? await prisma.user.findMany({
-        where: { id: { in: customerIds } },
-        select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
-      })
-    : [];
+  const registeredUsers =
+    customerIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: customerIds } },
+          select: {
+            id: true,
+            fullName: true,
+            image: true,
+            email: true,
+            phoneNumber: true,
+          },
+        })
+      : [];
 
   const regUserMap = registeredUsers.reduce<Record<string, any>>((acc, u) => {
     acc[u.id] = u;
@@ -449,12 +524,13 @@ const getCustomerBookingsFromDb = async (
 
   // 4) Identify ids not present in registered users → query non-registered users
   const nonRegisteredIds = customerIds.filter(id => !regUserMap[id]);
-  const nonRegisteredUsers = nonRegisteredIds.length > 0
-    ? await prisma.nonRegisteredUser.findMany({
-        where: { id: { in: nonRegisteredIds } },
-        select: { id: true, fullName: true, email: true, phone: true },
-      })
-    : [];
+  const nonRegisteredUsers =
+    nonRegisteredIds.length > 0
+      ? await prisma.nonRegisteredUser.findMany({
+          where: { id: { in: nonRegisteredIds } },
+          select: { id: true, fullName: true, email: true, phone: true },
+        })
+      : [];
 
   const nonRegMap = nonRegisteredUsers.reduce<Record<string, any>>((acc, n) => {
     acc[n.id] = n;
@@ -521,7 +597,6 @@ const getCustomerBookingsFromDb = async (
 
   return formatPaginationResponse(bookings, total, page, limit);
 };
-
 
 const getRemainingBarbersToScheduleFromDb = async (
   userId: string,
@@ -766,10 +841,26 @@ const getTransactionsFromDb = async (
   const bookingSearchOr: any[] = [];
   if (searchTerm) {
     bookingSearchOr.push(
-      { user: { fullName: { contains: searchTerm, mode: 'insensitive' as const } } },
-      { user: { email: { contains: searchTerm, mode: 'insensitive' as const } } },
-      { user: { phoneNumber: { contains: searchTerm, mode: 'insensitive' as const } } },
-      { barber: { user: { fullName: { contains: searchTerm, mode: 'insensitive' as const } } } },
+      {
+        user: {
+          fullName: { contains: searchTerm, mode: 'insensitive' as const },
+        },
+      },
+      {
+        user: { email: { contains: searchTerm, mode: 'insensitive' as const } },
+      },
+      {
+        user: {
+          phoneNumber: { contains: searchTerm, mode: 'insensitive' as const },
+        },
+      },
+      {
+        barber: {
+          user: {
+            fullName: { contains: searchTerm, mode: 'insensitive' as const },
+          },
+        },
+      },
       {
         BookedServices: {
           some: {
@@ -854,11 +945,19 @@ const getTransactionsFromDb = async (
   );
 
   // Fetch registered users for those ids
-  const filteredUserIds = userIds.filter((id): id is string => typeof id === 'string');
+  const filteredUserIds = userIds.filter(
+    (id): id is string => typeof id === 'string',
+  );
   const registeredUsers = filteredUserIds.length
     ? await prisma.user.findMany({
         where: { id: { in: filteredUserIds } },
-        select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
+        select: {
+          id: true,
+          fullName: true,
+          image: true,
+          email: true,
+          phoneNumber: true,
+        },
       })
     : [];
 
@@ -868,7 +967,9 @@ const getTransactionsFromDb = async (
   }, {});
 
   // Find remaining ids that are not registered users -> non-registered users
-  const nonRegisteredIds = userIds.filter((id): id is string => id !== undefined && !regMap[id]);
+  const nonRegisteredIds = userIds.filter(
+    (id): id is string => id !== undefined && !regMap[id],
+  );
   const nonRegisteredUsers = nonRegisteredIds.length
     ? await prisma.nonRegisteredUser.findMany({
         where: { id: { in: nonRegisteredIds } },
@@ -876,10 +977,13 @@ const getTransactionsFromDb = async (
       })
     : [];
 
-  const nonRegMap = nonRegisteredUsers.reduce<Record<string, any>>((acc, nr) => {
-    acc[nr.id] = nr;
-    return acc;
-  }, {});
+  const nonRegMap = nonRegisteredUsers.reduce<Record<string, any>>(
+    (acc, nr) => {
+      acc[nr.id] = nr;
+      return acc;
+    },
+    {},
+  );
 
   // Map payments to transaction DTO
   const transactions = payments.map(payment => {
@@ -894,20 +998,20 @@ const getTransactionsFromDb = async (
             phoneNumber: regMap[b.userId].phoneNumber ?? null,
           }
         : nonRegMap[b.userId]
-        ? {
-            id: nonRegMap[b.userId].id,
-            fullName: nonRegMap[b.userId].fullName,
-            image: null,
-            email: nonRegMap[b.userId].email ?? null,
-            phoneNumber: nonRegMap[b.userId].phone ?? null,
-          }
-        : {
-            id: b.userId,
-            fullName: 'Unknown',
-            image: null,
-            email: null,
-            phoneNumber: null,
-          }
+          ? {
+              id: nonRegMap[b.userId].id,
+              fullName: nonRegMap[b.userId].fullName,
+              image: null,
+              email: nonRegMap[b.userId].email ?? null,
+              phoneNumber: nonRegMap[b.userId].phone ?? null,
+            }
+          : {
+              id: b.userId,
+              fullName: 'Unknown',
+              image: null,
+              email: null,
+              phoneNumber: null,
+            }
       : {
           id: null,
           fullName: null,
@@ -950,7 +1054,6 @@ const getTransactionsFromDb = async (
 
   return formatPaginationResponse(transactions, total, page, limit);
 };
-
 
 const getSaloonListFromDb = async (userId: string) => {
   const result = await prisma.saloonOwner.findMany();
@@ -1445,7 +1548,6 @@ const getScheduledBarbersFromDb = async (
   return scheduledBarbers;
 };
 
-
 const updateSaloonQueueControlIntoDb = async (userId: string) => {
   // Fetch current saloon record
   const saloon = await prisma.saloonOwner.findUnique({
@@ -1467,7 +1569,10 @@ const updateSaloonQueueControlIntoDb = async (userId: string) => {
   });
 
   if (!updatedSaloon) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon queue control not updated');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Saloon queue control not updated',
+    );
   }
 
   return updatedSaloon;
