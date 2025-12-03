@@ -59,6 +59,7 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
     const totalPrice = serviceRecords.reduce((sum, s) => sum + Number(s.price), 0);
     // 4. Get available barbers with free slots
     const availableBarbers = yield getAvailableBarbersForWalkingInFromDb1(userId, saloonOwnerId, date, client_1.BookingType.QUEUE);
+    console.log('Available barbers:', JSON.stringify(availableBarbers, null, 2));
     if (!availableBarbers ||
         !Array.isArray(availableBarbers) ||
         availableBarbers.length === 0) {
@@ -69,45 +70,82 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
     if (!selectedBarber) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Selected barber not available or not found');
     }
-    // 6. Pick earliest free slot that can accommodate totalDuration
-    const pickEarliestSlot = (freeSlots, totalDurationMinutes) => {
-        if (!freeSlots || freeSlots.length === 0)
-            return undefined;
+    console.log('Selected barber free slots:', selectedBarber.freeSlots);
+    console.log('Selected barber schedule:', selectedBarber.schedule);
+    // 6. Pick earliest available time slot
+    const pickEarliestSlot = (freeSlots, schedule, totalDurationMinutes) => {
         const nowLocal = luxon_1.DateTime.now().setZone('local');
+        console.log('Current time:', nowLocal.toFormat('yyyy-MM-dd hh:mm a'));
+        console.log('Required duration:', totalDurationMinutes, 'minutes');
+        if (!freeSlots || freeSlots.length === 0) {
+            console.log('No free slots available');
+            // FALLBACK: If no free slots but barber schedule exists and it's still within working hours
+            if (schedule) {
+                const closingTime = luxon_1.DateTime.fromFormat(`${date} ${schedule.end}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+                console.log('Barber closing time:', closingTime.toFormat('hh:mm a'));
+                // If current time is before closing time, allow booking from current time
+                if (nowLocal < closingTime) {
+                    const selectedTime = nowLocal.toFormat('hh:mm a');
+                    console.log('Using current time as fallback slot:', selectedTime);
+                    return selectedTime;
+                }
+            }
+            return undefined;
+        }
         for (const slot of freeSlots) {
+            console.log('Checking slot:', slot);
             const slotStart = luxon_1.DateTime.fromFormat(`${date} ${slot.start}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
             const slotEnd = luxon_1.DateTime.fromFormat(`${date} ${slot.end}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
-            if (!slotStart.isValid || !slotEnd.isValid)
+            console.log('Slot start valid:', slotStart.isValid, slotStart.toISO());
+            console.log('Slot end valid:', slotEnd.isValid, slotEnd.toISO());
+            if (!slotStart.isValid || !slotEnd.isValid) {
+                console.log('Invalid slot times, skipping');
                 continue;
-            // Skip past slots
-            if (slotStart < nowLocal.minus({ minutes: 1 }))
+            }
+            // Skip slots that have completely ended
+            if (slotEnd <= nowLocal) {
+                console.log('Slot has ended, skipping');
                 continue;
-            const slotMinutes = slotEnd.diff(slotStart, 'minutes').minutes;
-            if (slotMinutes >= totalDurationMinutes) {
-                return slotStart.toFormat('hh:mm a');
+            }
+            // If slot starts in the past but ends in the future, use current time as start
+            const effectiveStart = slotStart < nowLocal ? nowLocal : slotStart;
+            console.log('Effective start:', effectiveStart.toFormat('hh:mm a'));
+            const slotMinutes = slotEnd.diff(effectiveStart, 'minutes').minutes;
+            console.log('Available minutes in slot:', slotMinutes);
+            // For queue bookings, allow booking if there's any time available
+            if (slotMinutes > 0) {
+                const selectedTime = effectiveStart.toFormat('hh:mm a');
+                console.log('Selected time slot:', selectedTime);
+                return selectedTime;
             }
         }
-        // Fallback to first future slot
-        for (const slot of freeSlots) {
-            const slotStart = luxon_1.DateTime.fromFormat(`${date} ${slot.start}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
-            if (slotStart.isValid && slotStart >= nowLocal.minus({ minutes: 1 })) {
-                return slotStart.toFormat('hh:mm a');
+        console.log('No suitable slot found in free slots');
+        // FALLBACK: If all slots are in past but schedule allows, use current time
+        if (schedule) {
+            const closingTime = luxon_1.DateTime.fromFormat(`${date} ${schedule.end}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+            if (nowLocal < closingTime) {
+                const selectedTime = nowLocal.toFormat('hh:mm a');
+                console.log('Using current time as fallback (all slots past):', selectedTime);
+                return selectedTime;
             }
         }
         return undefined;
     };
-    const appointmentAt = pickEarliestSlot(selectedBarber.freeSlots, totalDuration);
+    const appointmentAt = pickEarliestSlot(selectedBarber.freeSlots, selectedBarber.schedule, totalDuration);
     if (!appointmentAt) {
-        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'No available time slot found for the selected barber');
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, `No available time remaining today. Current time: ${luxon_1.DateTime.now().setZone('local').toFormat('hh:mm a')}. Barber's working hours have ended or are fully booked. Please try again tomorrow.`);
     }
+    console.log('Final appointment time:', appointmentAt);
     // 7. Combine date and appointmentAt
     const localDateTime = luxon_1.DateTime.fromFormat(`${date} ${appointmentAt}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
     if (!localDateTime.isValid) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid date or time format');
     }
     const nowLocal = luxon_1.DateTime.now().setZone('local');
-    if (localDateTime < nowLocal) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Appointment time cannot be in the past');
+    const endLocal = localDateTime.plus({ minutes: totalDuration });
+    // Allow bookings that end in the future
+    if (endLocal < nowLocal) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Appointment time has already passed');
     }
     const utcDateTime = localDateTime.toUTC().toJSDate();
     // 8. Transaction for all DB operations
@@ -342,12 +380,18 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
         if (!barberSchedule) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Barber schedule not found for this day');
         }
-        const openingDateTime = luxon_1.DateTime.fromFormat(`${date} ${barberSchedule.openingTime}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' }).toUTC();
-        const closingDateTime = luxon_1.DateTime.fromFormat(`${date} ${barberSchedule.closingTime}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' }).toUTC();
-        if (localDateTime < openingDateTime ||
-            luxon_1.DateTime.fromJSDate(endDateTime) > closingDateTime) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Barber is not available during the requested time range');
+        const openingDateTime = luxon_1.DateTime.fromFormat(`${date} ${barberSchedule.openingTime}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+        const closingDateTime = luxon_1.DateTime.fromFormat(`${date} ${barberSchedule.closingTime}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+        // For QUEUE bookings: only check if START time is within working hours
+        // Allow the booking to extend beyond closing time
+        if (localDateTime < openingDateTime) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking cannot start before barber opening time');
         }
+        // Check that booking starts before closing time
+        if (localDateTime >= closingDateTime) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Booking must start before barber closing time');
+        }
+        // Check for overlapping barber status (keep this to prevent double booking)
         const overlappingStatus = yield tx.barberRealTimeStatus.findFirst({
             where: {
                 barberId,
@@ -449,7 +493,6 @@ const createQueueBookingForSalonOwnerIntoDb = (saloonOwnerId, data) => __awaiter
                 saloonOwnerId: saloonOwnerId,
             },
         });
-        console.log('Non-registered user created:', type);
         // 4. Find available barbers for walking-in
         const availableBarbers = yield getAvailableBarbersForWalkingInFromDb1(nonRegisteredUser.id, saloonOwnerId, date, type);
         if (!availableBarbers ||
@@ -705,20 +748,23 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
     const pickEarliestSlotForBarber = (freeSlots, totalDurationMinutes) => {
         if (!freeSlots || freeSlots.length === 0)
             return undefined;
+        const nowLocal = luxon_1.DateTime.now().setZone('local');
         for (const slot of freeSlots) {
             const slotStart = luxon_1.DateTime.fromFormat(`${date} ${slot.start}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
             const slotEnd = luxon_1.DateTime.fromFormat(`${date} ${slot.end}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
             if (!slotStart.isValid || !slotEnd.isValid)
                 continue;
-            const slotMinutes = slotEnd.diff(slotStart, 'minutes').minutes;
-            if (slotMinutes >= totalDurationMinutes) {
-                return slotStart.toFormat('hh:mm a');
+            // Skip slots that have completely ended
+            if (slotEnd <= nowLocal)
+                continue;
+            // If slot starts in the past but ends in the future, use current time as start
+            const effectiveStart = slotStart < nowLocal ? nowLocal : slotStart;
+            const slotMinutes = slotEnd.diff(effectiveStart, 'minutes').minutes;
+            // For queue bookings, allow booking if there's ANY time available
+            // (booking can extend beyond the free slot)
+            if (slotMinutes > 0) {
+                return effectiveStart.toFormat('hh:mm a');
             }
-        }
-        const first = freeSlots[0];
-        if (first) {
-            const fallback = luxon_1.DateTime.fromFormat(`${date} ${first.start}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
-            return fallback.isValid ? fallback.toFormat('hh:mm a') : undefined;
         }
         return undefined;
     };
@@ -750,7 +796,7 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
     const totalPrice = serviceRecords.reduce((sum, s) => sum + Number(s.price), 0);
     // 3. Find available barbers for walking-in
     const availableBarbers = yield getAvailableBarbersForWalkingInFromDb1(userId, saloonOwnerId, date, type);
-    console.log('Available barbers for walking-in for customer:', availableBarbers);
+    console.log('Available barbers for walking-in for customer:', JSON.stringify(availableBarbers, null, 2));
     if (!availableBarbers ||
         !Array.isArray(availableBarbers) ||
         availableBarbers.length === 0) {
@@ -775,16 +821,24 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
         for (const b of sorted) {
             if (!b)
                 continue;
+            console.log(`Checking barber ${b.barberId}, free slots:`, b.freeSlots);
             const slotStartStr = pickEarliestSlotForBarber(b.freeSlots, totalDuration);
+            console.log(`Selected slot for barber ${b.barberId}:`, slotStartStr);
             if (!slotStartStr)
                 continue;
             const slotDt = luxon_1.DateTime.fromFormat(`${date} ${slotStartStr}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
-            if (!slotDt.isValid)
+            if (!slotDt.isValid) {
+                console.log(`Invalid slot DateTime for barber ${b.barberId}`);
                 continue;
-            if (slotDt < nowLocal.minus({ minutes: 1 }))
+            }
+            // Allow slots that start now or in the future (5 minute grace period)
+            if (slotDt < nowLocal.minus({ minutes: 5 })) {
+                console.log(`Slot too far in past for barber ${b.barberId}`);
                 continue;
+            }
             candidates.push({ barber: b, slotStartStr, slotStartDt: slotDt });
         }
+        console.log(`Found ${candidates.length} candidate barbers`);
         if (candidates.length > 0) {
             candidates.sort((x, y) => {
                 if (!x.slotStartDt || !y.slotStartDt)
@@ -793,32 +847,40 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
             });
             chosen = candidates[0].barber;
             chosenAppointmentAt = candidates[0].slotStartStr;
+            console.log('Selected barber from candidates:', chosen.barberId);
         }
         else {
-            const nowLocalForFallback = luxon_1.DateTime.now().setZone('local');
-            let found = null;
-            let pickedTime = undefined;
+            // Fallback: find any barber with free slots that have any remaining time
+            console.log('No candidates found, trying fallback logic');
             for (const b of sorted) {
                 if (!b || !b.freeSlots || b.freeSlots.length === 0)
                     continue;
                 for (const slot of b.freeSlots) {
                     const slotStart = luxon_1.DateTime.fromFormat(`${date} ${slot.start}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
-                    if (!slotStart.isValid)
+                    const slotEnd = luxon_1.DateTime.fromFormat(`${date} ${slot.end}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
+                    if (!slotStart.isValid || !slotEnd.isValid)
                         continue;
-                    if (slotStart >= nowLocalForFallback.minus({ minutes: 1 })) {
-                        found = b;
-                        pickedTime = slotStart.toFormat('hh:mm a');
-                        break;
+                    // Check if slot is still valid (ends in the future)
+                    if (slotEnd > nowLocal) {
+                        // Use current time if slot started in the past
+                        const effectiveStart = slotStart < nowLocal ? nowLocal : slotStart;
+                        const remainingMinutes = slotEnd.diff(effectiveStart, 'minutes').minutes;
+                        console.log(`Fallback: Barber ${b.barberId}, slot ${slot.start}-${slot.end}, remaining: ${remainingMinutes}min`);
+                        // Allow booking if there's any time remaining
+                        if (remainingMinutes > 0) {
+                            chosen = b;
+                            chosenAppointmentAt = effectiveStart.toFormat('hh:mm a');
+                            console.log(`Fallback selected barber ${b.barberId} at ${chosenAppointmentAt}`);
+                            break;
+                        }
                     }
                 }
-                if (found)
+                if (chosen)
                     break;
             }
-            if (!found) {
-                throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'No suitable future free slot found for any barber');
+            if (!chosen) {
+                throw new AppError_1.default(http_status_1.default.NOT_FOUND, `No available time slots found. Current time: ${nowLocal.toFormat('hh:mm a')}. Available barbers checked: ${sorted.length}. Please try again later or contact the salon.`);
             }
-            chosen = found;
-            chosenAppointmentAt = pickedTime;
         }
     }
     else {
@@ -829,6 +891,7 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Could not auto-select a barber');
     }
     const barberId = chosen.barberId;
+    console.log(`Final selection: Barber ${barberId} at ${chosenAppointmentAt}`);
     // 5. Determine appointment time
     const useAppointmentAt = chosenAppointmentAt !== null && chosenAppointmentAt !== void 0 ? chosenAppointmentAt : luxon_1.DateTime.now().setZone('local').toFormat('hh:mm a');
     const localDateTime = luxon_1.DateTime.fromFormat(`${date} ${useAppointmentAt}`, 'yyyy-MM-dd hh:mm a', { zone: 'local' });
@@ -837,11 +900,12 @@ const createQueueBookingForCustomerIntoDb = (userId, saloonOwnerId, data) => __a
     }
     const nowLocal = luxon_1.DateTime.now().setZone('local');
     const endLocal = localDateTime.plus({ minutes: totalDuration });
-    if (endLocal < nowLocal.minus({ minutes: 1 })) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Appointment time cannot be in the past');
+    // Allow bookings that end in the future (even if they start slightly in the past due to processing time)
+    if (endLocal < nowLocal) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Appointment time has already passed');
     }
     const utcDateTime = localDateTime.toUTC().toJSDate();
-    // 6. Transaction: create/update queue, create queueSlot, booking, bookedServices, barberRealTimeStatus
+    // ...existing code for transaction...
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         yield tx.queue.deleteMany({
             where: {
@@ -1405,8 +1469,16 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate, 
     // Check if salon is closed
     const salon = yield prisma_1.default.saloonOwner.findUnique({
         where: { userId: saloonOwnerId },
-        select: { userId: true, isQueueEnabled: true, shopLogo: true, shopAddress: true, shopName: true,
-            ratingCount: true, avgRating: true, latitude: true, longitude: true
+        select: {
+            userId: true,
+            isQueueEnabled: true,
+            shopLogo: true,
+            shopAddress: true,
+            shopName: true,
+            ratingCount: true,
+            avgRating: true,
+            latitude: true,
+            longitude: true,
         },
     });
     if (!salon)
@@ -2054,7 +2126,6 @@ const getAvailableBarbersForWalkingInFromDb1 = (userId, saloonOwnerId, specificD
                 }
             }
         }
-        console.log('Free slots for barber', barber.userId, freeSlots);
         return {
             shopLogo: salon.shopLogo || null,
             barberId: barber.userId,
