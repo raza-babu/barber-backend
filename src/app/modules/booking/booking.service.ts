@@ -601,7 +601,6 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     date,
     type as BookingType,
   );
-  
 
   if (
     !availableBarbers ||
@@ -701,7 +700,6 @@ const createQueueBookingForSalonOwnerIntoDb = async (
           'No suitable future free slot found for any barber',
         );
       }
-
 
       chosen = found;
       chosenAppointmentAt = pickedTime;
@@ -1827,7 +1825,17 @@ const getAllBarbersForQueueFromDb = async (
   // Check if salon is closed
   const salon = await prisma.saloonOwner.findUnique({
     where: { userId: saloonOwnerId },
-    select: { userId: true, isQueueEnabled: true, shopLogo: true },
+    select: {
+      userId: true,
+      isQueueEnabled: true,
+      shopLogo: true,
+      shopAddress: true,
+      shopName: true,
+      latitude: true,
+      longitude: true,
+      ratingCount: true,
+      avgRating: true,
+    },
   });
   if (!salon) throw new AppError(httpStatus.NOT_FOUND, 'Salon not found');
 
@@ -1930,6 +1938,12 @@ const getAllBarbersForQueueFromDb = async (
   return {
     isQueueEnabled: salon.isQueueEnabled,
     shopLogo: salon.shopLogo || null,
+    shopName: salon.shopName || null,
+    shopAddress: salon.shopAddress || null,
+    latitude: salon.latitude || null,
+    longitude: salon.longitude || null,
+    ratingCount: salon.ratingCount || 0,
+    avgRating: salon.avgRating || 0,
     barbers: results.filter(r => r !== null),
   };
 };
@@ -3800,7 +3814,7 @@ const updateBookingStatusIntoDb = async (
       }
       return checkPending;
     }
-    
+
     if (status === BookingStatus.COMPLETED) {
       // Get booked services and calculate loyalty points
       const bookingWithServices = await tx.booking.findUnique({
@@ -3815,7 +3829,9 @@ const updateBookingStatusIntoDb = async (
       });
 
       if (bookingWithServices) {
-        const serviceIds = bookingWithServices.BookedServices.map(bs => bs.serviceId);
+        const serviceIds = bookingWithServices.BookedServices.map(
+          bs => bs.serviceId,
+        );
         const totalAmount = bookingWithServices.BookedServices.reduce(
           (sum, bs) => sum + Number(bs.price),
           0,
@@ -3870,37 +3886,40 @@ const updateBookingStatusIntoDb = async (
           data: { status: BookingStatus.COMPLETED },
         });
 
-          return completedBooking;
-        }
+        return completedBooking;
       }
-  
-      return null;
-    });
-  
-    if (!result) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Failed to update booking status');
     }
-  
-    return result;
-  };
-  
-  const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
-    // Fetch the existing booking to verify ownership
-    const booking = await prisma.booking.findUnique({
-      where: {
-        id: bookingId,
-        userId: userId,
-      },
-      include: {
-        queueSlot: true,
-      },
-    });
-  
-    if (!booking) {
-      throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
-    }
-  
-    const result = await prisma.$transaction(async tx => {
+
+    return null;
+  });
+
+  if (!result) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Failed to update booking status',
+    );
+  }
+
+  return result;
+};
+
+const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
+  // Fetch the existing booking to verify ownership
+  const booking = await prisma.booking.findUnique({
+    where: {
+      id: bookingId,
+      userId: userId,
+    },
+    include: {
+      queueSlot: true,
+    },
+  });
+
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+  }
+
+  const result = await prisma.$transaction(async tx => {
     // 1. Update booking status to CANCELED
     const updatedBooking = await tx.booking.update({
       where: {
@@ -3962,7 +3981,6 @@ const updateBookingStatusIntoDb = async (
         }
       }
     }
-  
 
     // 3. Delete associated barberRealTimeStatus if exists
     await tx.barberRealTimeStatus.deleteMany({
@@ -3975,7 +3993,6 @@ const updateBookingStatusIntoDb = async (
 
     return updatedBooking;
   });
-
 
   return result;
 };

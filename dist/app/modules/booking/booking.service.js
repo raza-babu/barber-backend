@@ -1437,7 +1437,17 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate, 
     // Check if salon is closed
     const salon = yield prisma_1.default.saloonOwner.findUnique({
         where: { userId: saloonOwnerId },
-        select: { userId: true, isQueueEnabled: true, shopLogo: true },
+        select: {
+            userId: true,
+            isQueueEnabled: true,
+            shopLogo: true,
+            shopAddress: true,
+            shopName: true,
+            latitude: true,
+            longitude: true,
+            ratingCount: true,
+            avgRating: true,
+        },
     });
     if (!salon)
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Salon not found');
@@ -1527,6 +1537,12 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate, 
     return {
         isQueueEnabled: salon.isQueueEnabled,
         shopLogo: salon.shopLogo || null,
+        shopName: salon.shopName || null,
+        shopAddress: salon.shopAddress || null,
+        latitude: salon.latitude || null,
+        longitude: salon.longitude || null,
+        ratingCount: salon.ratingCount || 0,
+        avgRating: salon.avgRating || 0,
         barbers: results.filter(r => r !== null),
     };
 });
