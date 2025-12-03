@@ -204,7 +204,7 @@ const getBarberByIdFromDb = (userId, barberId) => __awaiter(void 0, void 0, void
     }
     // without user
     const { user } = result, rest = __rest(result, ["user"]);
-    return Object.assign(Object.assign({ isMe: userId === barberId }, rest), { barberName: result.user.fullName, followerCount: result.user.followerCount, followingCount: result.user.followingCount, isFollowing: isFollowing ? true : false });
+    return Object.assign(Object.assign({ isMe: userId === barberId }, rest), { user, followerCount: result.user.followerCount, followingCount: result.user.followingCount, isFollowing: isFollowing ? true : false });
 });
 const updateBarberIntoDb = (userId, barberId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.barber.update({
