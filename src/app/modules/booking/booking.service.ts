@@ -13,7 +13,6 @@ import httpStatus from 'http-status';
 import { DateTime } from 'luxon';
 import { calculatePagination } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
-import { nullable } from 'zod';
 
 const createQueueBookingIntoDb = async (userId: string, data: any) => {
   const {
@@ -2251,6 +2250,7 @@ const getAvailableBarbersForWalkingInFromDb = async (
 
   return results.filter(Boolean);
 };
+
 const getAvailableBarbersForWalkingInFromDb1 = async (
   userId: string,
   saloonOwnerId: string,

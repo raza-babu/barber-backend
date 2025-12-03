@@ -3,7 +3,7 @@ import validateRequest from '../../middlewares/validateRequest';
 import { bookingController } from './booking.controller';
 import { bookingValidation } from './booking.validation';
 import { UserRoleEnum } from '@prisma/client';
-import auth  from '../../middlewares/auth';
+import auth from '../../middlewares/auth';
 
 const router = express.Router();
 
@@ -88,6 +88,6 @@ router.get(
   '/loyalty-schemes/:id',
   auth(UserRoleEnum.CUSTOMER),
   bookingController.getLoyaltySchemesForACustomer,
-)
+);
 
 export const bookingRoutes = router;

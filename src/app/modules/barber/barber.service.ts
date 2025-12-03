@@ -202,6 +202,7 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
   return {
     isMe: userId === barberId,
     ...rest,
+    barberName: result.user.fullName,
     followerCount: result.user.followerCount,
     followingCount: result.user.followingCount,
     isFollowing: isFollowing ? true : false,
