@@ -1,11 +1,9 @@
-import { start } from 'repl';
 import prisma from '../../utils/prisma';
 import {
   BookingStatus,
   BookingType,
   PaymentStatus,
   ScheduleType,
-  User,
   UserRoleEnum,
 } from '@prisma/client';
 import AppError from '../../errors/AppError';
@@ -18,7 +16,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   const {
     barberId,
     saloonOwnerId,
-    appointmentAt,
     date,
     services,
     notes,
@@ -45,8 +42,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Salon owner not found');
   }
 
-  // 2. Convert date and time to UTC DateTime
-  // Enforce that the provided date MUST be today's date (local)
+  // 2. Validate and enforce current date only
   const dateObj = DateTime.fromISO(date, { zone: 'local' });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
@@ -56,28 +52,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date must be the current date');
   }
 
-  // Combine date and appointmentAt (e.g., "2025-08-20" + "11:00 AM")
-  const localDateTime = DateTime.fromFormat(
-    `${date} ${appointmentAt}`,
-    'yyyy-MM-dd hh:mm a',
-    { zone: 'local' },
-  );
-  if (!localDateTime.isValid) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
-  }
-
-  // appointmentAt cannot be in the past (local time)
-  const nowLocal = DateTime.now().setZone('local');
-  if (localDateTime < nowLocal) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Appointment time cannot be in the past',
-    );
-  }
-
-  const utcDateTime = localDateTime.toUTC().toJSDate();
-
-  // 3. Calculate total price using service model
+  // 3. Calculate total price and duration using service model
   const serviceRecords = await prisma.service.findMany({
     where: { id: { in: services } },
     select: { id: true, price: true, duration: true },
@@ -86,7 +61,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Some services not found');
   }
   const totalDuration = serviceRecords.reduce(
-    (sum, s) => sum + (s.duration || 0), // assuming each service has a 'duration' in minutes
+    (sum, s) => sum + (s.duration || 0),
     0,
   );
   if (totalDuration <= 0) {
@@ -100,9 +75,119 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     0,
   );
 
-  // 4. Transaction for all DB operations
+  // 4. Get available barbers with free slots
+  const availableBarbers = await getAvailableBarbersForWalkingInFromDb1(
+    userId,
+    saloonOwnerId,
+    date,
+    BookingType.QUEUE,
+  );
+
+  if (
+    !availableBarbers ||
+    !Array.isArray(availableBarbers) ||
+    availableBarbers.length === 0
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'No available barbers found for queue on this date',
+    );
+  }
+
+  // 5. Find the specified barber
+  const selectedBarber = availableBarbers.find(
+    (b: any) => b && b.barberId === barberId,
+  );
+
+  if (!selectedBarber) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Selected barber not available or not found',
+    );
+  }
+
+  // 6. Pick earliest free slot that can accommodate totalDuration
+  const pickEarliestSlot = (
+    freeSlots: { start: string; end: string }[] | undefined,
+    totalDurationMinutes: number,
+  ): string | undefined => {
+    if (!freeSlots || freeSlots.length === 0) return undefined;
+    
+    const nowLocal = DateTime.now().setZone('local');
+    
+    for (const slot of freeSlots) {
+      const slotStart = DateTime.fromFormat(
+        `${date} ${slot.start}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'local' },
+      );
+      const slotEnd = DateTime.fromFormat(
+        `${date} ${slot.end}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'local' },
+      );
+      
+      if (!slotStart.isValid || !slotEnd.isValid) continue;
+      
+      // Skip past slots
+      if (slotStart < nowLocal.minus({ minutes: 1 })) continue;
+      
+      const slotMinutes = slotEnd.diff(slotStart, 'minutes').minutes;
+      if (slotMinutes >= totalDurationMinutes) {
+        return slotStart.toFormat('hh:mm a');
+      }
+    }
+    
+    // Fallback to first future slot
+    for (const slot of freeSlots) {
+      const slotStart = DateTime.fromFormat(
+        `${date} ${slot.start}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'local' },
+      );
+      if (slotStart.isValid && slotStart >= nowLocal.minus({ minutes: 1 })) {
+        return slotStart.toFormat('hh:mm a');
+      }
+    }
+    
+    return undefined;
+  };
+
+  const appointmentAt = pickEarliestSlot(
+    selectedBarber.freeSlots,
+    totalDuration,
+  );
+
+  if (!appointmentAt) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'No available time slot found for the selected barber',
+    );
+  }
+
+  // 7. Combine date and appointmentAt
+  const localDateTime = DateTime.fromFormat(
+    `${date} ${appointmentAt}`,
+    'yyyy-MM-dd hh:mm a',
+    { zone: 'local' },
+  );
+  if (!localDateTime.isValid) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
+  }
+
+  const nowLocal = DateTime.now().setZone('local');
+  if (localDateTime < nowLocal) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Appointment time cannot be in the past',
+    );
+  }
+
+  const utcDateTime = localDateTime.toUTC().toJSDate();
+
+  // 8. Transaction for all DB operations
   const result = await prisma.$transaction(async tx => {
-    // 4a. Check if barber exists and is available
+    // Check if barber exists
     const barber = await tx.barber.findUnique({
       where: { userId: barberId },
       select: {
@@ -119,7 +204,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     if (!barber) {
       throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
     }
-    // 4b. Check if barber is on holiday or not
+
+    // Check if barber is on holiday
     const barberHoliday = await tx.barberDayOff.findFirst({
       where: {
         barberId: barber.id,
@@ -131,27 +217,19 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       throw new AppError(httpStatus.BAD_REQUEST, 'Barber is on holiday');
     }
 
-    // Check if the booking time overlaps with the barber's lunch/break time (time only, ignore date)
+    // Check lunch/break time overlap
     const barberBreak = await tx.lunch.findFirst({
       where: {
         saloonOwnerId: saloonOwnerId,
       },
     });
 
-    if (barberBreak) {
-      // Extract only the time part from the booking start and end
+    if (barberBreak && barberBreak.startTime && barberBreak.endTime) {
       const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
         zone: 'local',
       });
       const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
 
-      // Parse lunch break start and end times (time only, ignore date)
-      if (!barberBreak.startTime || !barberBreak.endTime) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Barber break start or end time is missing',
-        );
-      }
       const breakStartTime = DateTime.fromFormat(
         barberBreak.startTime,
         'hh:mm a',
@@ -161,7 +239,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         zone: 'local',
       });
 
-      // Check for overlap (time only)
       if (
         (bookingStartTime >= breakStartTime &&
           bookingStartTime < breakEndTime) ||
@@ -174,13 +251,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         );
       }
     }
-    // 4a. If queue is enabled, create queue and queueSlot
-    let queue = null;
-    let queueSlot = null;
-    // if (saloonOwner.isQueueEnabled && isInQueue) {
-    // Find the current max position in the queue for this barber and date
-    // Delete any existing queue for this barber for previous days (before today)
-    // console.log('Queue found:');
+
+    // Clean up old queues
     await tx.queue.deleteMany({
       where: {
         barberId,
@@ -190,8 +262,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       },
     });
 
-    // Try to find an existing queue for this barber and date (only one per day allowed)
-    queue = await tx.queue.findFirst({
+    // Find or create queue
+    let queue = await tx.queue.findFirst({
       where: {
         barberId,
         saloonOwnerId,
@@ -200,7 +272,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     });
 
     if (!queue) {
-      // If not found, create a new queue for the given date (today or any future date)
       queue = await tx.queue.create({
         data: {
           barberId,
@@ -209,60 +280,41 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
           currentPosition: 1,
         },
       });
-      if (!queue) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Error creating queue');
-      }
     } else {
-      // If found, increment currentPosition
       queue = await tx.queue.update({
         where: { id: queue.id },
         data: {
           currentPosition: queue.currentPosition + 1,
         },
       });
-      if (!queue) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Error updating queue');
-      }
     }
 
-    // Find all existing queueSlots for this queue, ordered by startedAt
+    // Get existing slots and determine insert position
     const existingSlots = await tx.queueSlot.findMany({
       where: { queueId: queue.id },
       orderBy: { startedAt: 'asc' },
     });
 
-    // Find the correct position for the new slot based on startedAt (utcDateTime)
     let insertPosition = 1;
     for (let i = 0; i < existingSlots.length; i++) {
       const slot = existingSlots[i];
-      if (
-        slot &&
-        slot.startedAt !== null &&
-        slot.startedAt !== undefined &&
-        utcDateTime > slot.startedAt
-      ) {
-        insertPosition = i + 2; // +2 because positions are 1-based and we want to insert after this slot
+      if (slot && slot.startedAt && utcDateTime > slot.startedAt) {
+        insertPosition = i + 2;
       } else {
         break;
       }
     }
 
-    // Shift positions of slots that come after the new slot
+    // Shift positions
     for (let i = existingSlots.length - 1; i >= insertPosition - 1; i--) {
       await tx.queueSlot.update({
         where: { id: existingSlots[i].id },
         data: { position: existingSlots[i].position + 1 },
       });
-      if (!queueSlot) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Error updating queue slot position',
-        );
-      }
     }
 
-    // Create the new queueSlot at the correct position
-    queueSlot = await tx.queueSlot.create({
+    // Create queue slot
+    const queueSlot = await tx.queueSlot.create({
       data: {
         queueId: queue.id,
         customerId: userId,
@@ -271,39 +323,36 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         startedAt: utcDateTime,
       },
     });
-    if (!queueSlot) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Error creating queue slot');
-    }
-    // }
 
+    // Handle loyalty
     let price = totalPrice;
     let loyaltyUsed = null;
 
     if (loyaltySchemeId) {
-      // Verify the loyalty scheme exists and belongs to the saloon owner
       const loyaltyScheme = await tx.loyaltyScheme.findUnique({
         where: { id: loyaltySchemeId, userId: saloonOwnerId },
       });
       if (!loyaltyScheme) {
         throw new AppError(httpStatus.NOT_FOUND, 'Loyalty scheme not found');
       }
-      // Check if the customer has enough points
+
       const customerLoyalty = await tx.customerLoyalty.findFirst({
         where: { userId: userId, saloonOwnerId: saloonOwnerId },
         select: { id: true, totalPoints: true },
       });
+
       if (
         !customerLoyalty ||
         (customerLoyalty.totalPoints || 0) < loyaltyScheme.pointThreshold
       ) {
         throw new AppError(httpStatus.BAD_REQUEST, 'Not enough loyalty points');
       }
-      // Deduct points from customerLoyalty by id (safe unique identifier)
+
       await tx.customerLoyalty.update({
         where: { id: customerLoyalty.id },
         data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
       });
-      // Add a record to loyaltyRedemption
+
       loyaltyUsed = await tx.loyaltyRedemption.create({
         data: {
           customerId: userId,
@@ -312,12 +361,11 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         },
       });
 
-      // Reduce the totalPrice by the discountAmount
       price = totalPrice - totalPrice * (loyaltyScheme.percentage / 100);
       if (price < 0) price = 0;
     }
 
-    // 4b. Create booking
+    // Create booking
     const booking = await tx.booking.create({
       data: {
         userId,
@@ -337,13 +385,13 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         endTime: DateTime.fromJSDate(utcDateTime)
           .plus({ minutes: totalDuration })
           .toFormat('hh:mm a'),
-        loyaltySchemeId: data.loyaltySchemeId || null,
-        loyaltyUsed: data.loyaltyProgramId ? true : false,
+        loyaltySchemeId: loyaltySchemeId || null,
+        loyaltyUsed: !!loyaltyUsed,
       },
     });
 
+    // Create payment if in queue
     if (isInQueue && booking) {
-      // add payment status as PAID
       await tx.payment.create({
         data: {
           userId: userId,
@@ -355,16 +403,15 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       });
     }
 
+    // Update loyalty redemption with bookingId
     if (loyaltyUsed) {
-      if (booking && booking.loyaltySchemeId) {
-        await tx.loyaltyRedemption.update({
-          where: { id: loyaltyUsed.id, customerId: userId, bookingId: null },
-          data: { bookingId: booking.id },
-        });
-      }
+      await tx.loyaltyRedemption.update({
+        where: { id: loyaltyUsed.id },
+        data: { bookingId: booking.id },
+      });
     }
 
-    // 4c. Create bookedService records
+    // Create booked services
     await Promise.all(
       serviceRecords.map(service =>
         tx.bookedServices.create({
@@ -378,32 +425,22 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       ),
     );
 
-    if (queueSlot && queueSlot.id) {
-      queueSlot = await tx.queueSlot.update({
-        where: { id: queueSlot.id },
-        data: {
-          bookingId: booking.id,
-          completedAt: DateTime.fromJSDate(utcDateTime)
-            .plus({ minutes: totalDuration })
-            .toJSDate(),
-        },
-      });
-      if (!queueSlot) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Error updating queue slot');
-      }
-    }
+    // Update queue slot with booking details
+    await tx.queueSlot.update({
+      where: { id: queueSlot.id },
+      data: {
+        bookingId: booking.id,
+        completedAt: DateTime.fromJSDate(utcDateTime)
+          .plus({ minutes: totalDuration })
+          .toJSDate(),
+      },
+    });
 
-    // 4d. Add barberRealTimeStatus
-    // Calculate endDateTime by adding totalServiceTime (in minutes) to utcDateTime
-    const totalServiceTime = serviceRecords.reduce(
-      (sum, s) => sum + (s.duration || 0),
-      0,
-    ); // assuming each service has a 'duration' in minutes
+    // Create barber real-time status
     const endDateTime = DateTime.fromJSDate(utcDateTime)
-      .plus({ minutes: totalServiceTime })
+      .plus({ minutes: totalDuration })
       .toJSDate();
-    // Check if the barber is scheduled to work during the requested time range
-    // Get the day name (e.g., 'monday') from the appointment date
+
     const dayName = DateTime.fromJSDate(utcDateTime)
       .toFormat('cccc')
       .toLowerCase();
@@ -423,7 +460,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         'Barber schedule not found for this day',
       );
     }
-    // Parse openingTime and closingTime (e.g., "09:00 AM") into DateTime objects on the same date as the booking
+
     const openingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.openingTime}`,
       'yyyy-MM-dd hh:mm a',
@@ -445,7 +482,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       );
     }
 
-    // Check if there is already a barberRealTimeStatus for this barber that overlaps with the requested time slot
     const overlappingStatus = await tx.barberRealTimeStatus.findFirst({
       where: {
         barberId,
@@ -484,7 +520,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       booking,
       queue,
       queueSlot,
-      totalPrice,
+      totalPrice: price,
+      appointmentAt: localDateTime.toFormat('hh:mm a'),
     };
   });
 
@@ -1035,6 +1072,8 @@ const createQueueBookingForCustomerIntoDb = async (
     date,
     type as BookingType,
   );
+
+  console.log('Available barbers for walking-in for customer:', availableBarbers);
 
   if (
     !availableBarbers ||
@@ -1825,17 +1864,9 @@ const getAllBarbersForQueueFromDb = async (
   // Check if salon is closed
   const salon = await prisma.saloonOwner.findUnique({
     where: { userId: saloonOwnerId },
-    select: {
-      userId: true,
-      isQueueEnabled: true,
-      shopLogo: true,
-      shopAddress: true,
-      shopName: true,
-      latitude: true,
-      longitude: true,
-      ratingCount: true,
-      avgRating: true,
-    },
+    select: { userId: true, isQueueEnabled: true, shopLogo: true, shopAddress: true, shopName: true,
+      ratingCount: true, avgRating: true, latitude: true, longitude: true
+     },
   });
   if (!salon) throw new AppError(httpStatus.NOT_FOUND, 'Salon not found');
 
@@ -1937,13 +1968,14 @@ const getAllBarbersForQueueFromDb = async (
 
   return {
     isQueueEnabled: salon.isQueueEnabled,
+    saloonOwnerId: salon.userId,
     shopLogo: salon.shopLogo || null,
     shopName: salon.shopName || null,
     shopAddress: salon.shopAddress || null,
-    latitude: salon.latitude || null,
-    longitude: salon.longitude || null,
     ratingCount: salon.ratingCount || 0,
     avgRating: salon.avgRating || 0,
+    latitude: salon.latitude || null,
+    longitude: salon.longitude || null,
     barbers: results.filter(r => r !== null),
   };
 };
