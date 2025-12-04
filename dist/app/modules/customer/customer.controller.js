@@ -181,6 +181,16 @@ const getVisitedSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(v
         meta: result.meta,
     });
 }));
+const getMyLoyaltyOffers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield customer_service_1.customerService.getMyLoyaltyOffersFromDb(user.id, req.params.id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Loyalty offers retrieved successfully',
+        data: result,
+    });
+}));
 const getCustomerById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const result = yield customer_service_1.customerService.getCustomerByIdFromDb(user.id, req.params.id);
@@ -218,6 +228,7 @@ exports.customerController = {
     getTopRatedSaloons,
     getSaloonAllServicesList,
     getVisitedSaloonList,
+    getMyLoyaltyOffers,
     addSaloonToFavorites,
     getFavoriteSaloons,
     removeSaloonFromFavorites,

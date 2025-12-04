@@ -417,7 +417,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       loyaltyUsed = await tx.loyaltyRedemption.create({
         data: {
           customerId: userId,
-          customerLoyaltyId: customerLoyalty.id,
+          loyaltySchemeId: customerLoyalty.id,
           pointsUsed: loyaltyScheme.pointThreshold,
         },
       });
@@ -1630,7 +1630,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
       loyaltyUsed = await tx.loyaltyRedemption.create({
         data: {
           customerId: userId,
-          customerLoyaltyId: customerLoyalty.id,
+          loyaltySchemeId: customerLoyalty.id,
           pointsUsed: loyaltyScheme.pointThreshold,
         },
       });
@@ -1997,10 +1997,12 @@ const getAllBarbersForQueueFromDb = async (
     },
   });
 
+
   // Only barbers with schedules
   const barberIdsWithSchedule = await prisma.barberSchedule.findMany({
     where: {
       barber: { saloonOwnerId: saloonOwnerId },
+      isActive: true,
       type:
         type === ScheduleType.QUEUE ? ScheduleType.QUEUE : ScheduleType.BOOKING,
     },
@@ -2026,6 +2028,11 @@ const getAllBarbersForQueueFromDb = async (
       const schedule = await prisma.barberSchedule.findFirst({
         where: {
           barberId: barber.userId,
+          isActive: true,
+          type:
+            type === ScheduleType.QUEUE
+              ? ScheduleType.QUEUE
+              : ScheduleType.BOOKING,
           dayName: date.toFormat('cccc').toLowerCase(),
         },
       });
@@ -2739,6 +2746,7 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
           ? { start: schedule.openingTime, end: schedule.closingTime }
           : null,
         bookings: bookings.map(b => ({
+          customerId: b.userId,
           customerName: (b as any).user?.fullName || null,
           customerImage: (b as any).user?.image || null,
           // Prefer the stored startTime/endTime strings (they reflect the intended local times);

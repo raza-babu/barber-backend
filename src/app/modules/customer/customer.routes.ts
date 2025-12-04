@@ -61,6 +61,12 @@ router.get(
   customerController.getVisitedSaloonList,
 )
 
+router.get(
+  '/my-loyalty-offers/:id',
+  auth(UserRoleEnum.CUSTOMER),
+  customerController.getMyLoyaltyOffers,
+)
+
 router.get('/:id', auth(), customerController.getCustomerById);
 
 router.put(

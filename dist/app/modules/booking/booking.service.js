@@ -292,7 +292,7 @@ const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, voi
             loyaltyUsed = yield tx.loyaltyRedemption.create({
                 data: {
                     customerId: userId,
-                    customerLoyaltyId: customerLoyalty.id,
+                    loyaltySchemeId: customerLoyalty.id,
                     pointsUsed: loyaltyScheme.pointThreshold,
                 },
             });
@@ -1169,7 +1169,7 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
             loyaltyUsed = yield tx.loyaltyRedemption.create({
                 data: {
                     customerId: userId,
-                    customerLoyaltyId: customerLoyalty.id,
+                    loyaltySchemeId: customerLoyalty.id,
                     pointsUsed: loyaltyScheme.pointThreshold,
                 },
             });
@@ -1507,6 +1507,7 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate, 
     const barberIdsWithSchedule = yield prisma_1.default.barberSchedule.findMany({
         where: {
             barber: { saloonOwnerId: saloonOwnerId },
+            isActive: true,
             type: type === client_1.ScheduleType.QUEUE ? client_1.ScheduleType.QUEUE : client_1.ScheduleType.BOOKING,
         },
         select: { barberId: true },
@@ -1529,6 +1530,10 @@ const getAllBarbersForQueueFromDb = (userId, saloonOwnerId, type, specificDate, 
         const schedule = yield prisma_1.default.barberSchedule.findFirst({
             where: {
                 barberId: barber.userId,
+                isActive: true,
+                type: type === client_1.ScheduleType.QUEUE
+                    ? client_1.ScheduleType.QUEUE
+                    : client_1.ScheduleType.BOOKING,
                 dayName: date.toFormat('cccc').toLowerCase(),
             },
         });
@@ -2139,6 +2144,7 @@ const getAvailableBarbersForWalkingInFromDb1 = (userId, saloonOwnerId, specificD
             bookings: bookings.map(b => {
                 var _a, _b, _c, _d;
                 return ({
+                    customerId: b.userId,
                     customerName: ((_a = b.user) === null || _a === void 0 ? void 0 : _a.fullName) || null,
                     customerImage: ((_b = b.user) === null || _b === void 0 ? void 0 : _b.image) || null,
                     // Prefer the stored startTime/endTime strings (they reflect the intended local times);

@@ -445,7 +445,6 @@ model CustomerLoyalty {
   userId         String   @db.ObjectId
   saloonOwnerId  String   @db.ObjectId
   totalPoints    Int      @default(0)
-  redeemedPoints Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -453,7 +452,6 @@ model CustomerLoyalty {
   user        User                @relation(fields: [userId], references: [id])
   saloonOwner SaloonOwner         @relation(fields: [saloonOwnerId], references: [userId])
   visits      CustomerVisit[]
-  redemptions LoyaltyRedemption[]
 
   @@unique([userId, saloonOwnerId])
   @@map("customer_loyalty")
@@ -658,20 +656,20 @@ model LoyaltyProgram {
 
 
 model LoyaltyRedemption {
-  id                String           @id @default(auto()) @map("_id") @db.ObjectId
-  customerId        String           @db.ObjectId
-  customerLoyaltyId String?          @db.ObjectId
-  bookingId         String?          @db.ObjectId // If applied to a booking
-  pointsUsed        Int
-  status            RedemptionStatus @default(PENDING)
-  redeemedAt        DateTime         @default(now())
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  customerId      String           @db.ObjectId
+  loyaltySchemeId String          @db.ObjectId
+  bookingId       String?          @db.ObjectId // If applied to a booking
+  pointsUsed      Int
+  status          RedemptionStatus @default(PENDING)
+  redeemedAt      DateTime         @default(now())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   // Relationships
-  customer        User             @relation(fields: [customerId], references: [id])
-  booking         Booking?         @relation(fields: [bookingId], references: [id])
-  CustomerLoyalty CustomerLoyalty? @relation(fields: [customerLoyaltyId], references: [id])
+  customer      User          @relation(fields: [customerId], references: [id])
+  booking       Booking?      @relation(fields: [bookingId], references: [id])
+  LoyaltyScheme LoyaltyScheme @relation(fields: [loyaltySchemeId], references: [id])
 
   @@map("loyalty_redemptions")
 }
@@ -689,6 +687,7 @@ model LoyaltyScheme {
   // Relationships
   user      User              @relation(fields: [userId], references: [id])
   bookings  Booking[]
+  loyaltyRedemptions LoyaltyRedemption[]
 
 
   @@unique([userId, pointThreshold, percentage])

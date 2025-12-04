@@ -3,7 +3,6 @@ model CustomerLoyalty {
   userId         String   @db.ObjectId
   saloonOwnerId  String   @db.ObjectId
   totalPoints    Int      @default(0)
-  redeemedPoints Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -11,7 +10,6 @@ model CustomerLoyalty {
   user        User                @relation(fields: [userId], references: [id])
   saloonOwner SaloonOwner         @relation(fields: [saloonOwnerId], references: [userId])
   visits      CustomerVisit[]
-  redemptions LoyaltyRedemption[]
 
   @@unique([userId, saloonOwnerId])
   @@map("customer_loyalty")

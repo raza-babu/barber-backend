@@ -801,6 +801,53 @@ const getVisitedSaloonListFromDb = async (
   };
 };
 
+const getMyLoyaltyOffersFromDb = async (userId: string, saloonOwnerId: string) => {
+  // Get all loyalty applicable offers available from a saloon for me as a customer 
+  const existingPoints = await prisma.customerLoyalty.findMany({
+    where: {
+      userId,
+      saloonOwnerId,
+    },
+    select: {
+      totalPoints: true,
+    },
+  });
+  // sum up total points
+  const totalPoints = existingPoints.reduce((sum, rec) => sum + (rec.totalPoints || 0), 0);
+
+  const loyaltySchemes = await prisma.loyaltyScheme.findMany({
+    where: {
+      userId: saloonOwnerId,
+    },
+    select: {
+      pointThreshold: true,
+      percentage: true,
+    },
+    orderBy: {
+      pointThreshold: 'desc',
+    },
+  });
+
+  // Build offers array with eligibility info
+  const offers = loyaltySchemes.map((sch) => {
+    const threshold = Number(sch.pointThreshold ?? 0);
+    const percentage = Number(sch.percentage ?? 0);
+    const eligible = totalPoints >= threshold;
+    return {
+      pointThreshold: threshold,
+      percentage,
+      eligible,
+      pointsNeeded: Math.max(0, threshold - totalPoints),
+    };
+  });
+
+  return {
+    totalPoints,
+    offers,
+  };
+  
+}
+
 const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
   const result = await prisma.user.findUnique({
     where: {
@@ -863,6 +910,7 @@ export const customerService = {
   getSaloonAllServicesListFromDb,
   getCustomerByIdFromDb,
   getVisitedSaloonListFromDb,
+  getMyLoyaltyOffersFromDb,
   addSaloonToFavoritesInDb,
   getFavoriteSaloonsFromDb,
   removeSaloonFromFavoritesInDb,

@@ -10,6 +10,7 @@ model LoyaltyScheme {
   // Relationships
   user      User              @relation(fields: [userId], references: [id])
   bookings  Booking[]
+  loyaltyRedemptions LoyaltyRedemption[]
 
 
   @@unique([userId, pointThreshold, percentage])

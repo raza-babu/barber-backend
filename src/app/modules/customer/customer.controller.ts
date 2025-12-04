@@ -215,6 +215,19 @@ const getVisitedSaloonList = catchAsync(async (req, res) => {
   });
 });
 
+const getMyLoyaltyOffers = catchAsync(async (req, res) => {
+  const user = req.user as any;
+
+  const result = await customerService.getMyLoyaltyOffersFromDb(user.id, req.params.id);
+  
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Loyalty offers retrieved successfully',
+    data: result,
+  });
+});
+
 const getCustomerById = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await customerService.getCustomerByIdFromDb(
@@ -265,6 +278,7 @@ export const customerController = {
   getTopRatedSaloons,
   getSaloonAllServicesList,
   getVisitedSaloonList,
+  getMyLoyaltyOffers,
   addSaloonToFavorites,
   getFavoriteSaloons,
   removeSaloonFromFavorites,

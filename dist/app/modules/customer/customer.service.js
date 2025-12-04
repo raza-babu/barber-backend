@@ -667,6 +667,49 @@ const getVisitedSaloonListFromDb = (userId_1, ...args_1) => __awaiter(void 0, [u
         },
     };
 });
+const getMyLoyaltyOffersFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
+    // Get all loyalty applicable offers available from a saloon for me as a customer 
+    const existingPoints = yield prisma_1.default.customerLoyalty.findMany({
+        where: {
+            userId,
+            saloonOwnerId,
+        },
+        select: {
+            totalPoints: true,
+        },
+    });
+    // sum up total points
+    const totalPoints = existingPoints.reduce((sum, rec) => sum + (rec.totalPoints || 0), 0);
+    const loyaltySchemes = yield prisma_1.default.loyaltyScheme.findMany({
+        where: {
+            userId: saloonOwnerId,
+        },
+        select: {
+            pointThreshold: true,
+            percentage: true,
+        },
+        orderBy: {
+            pointThreshold: 'desc',
+        },
+    });
+    // Build offers array with eligibility info
+    const offers = loyaltySchemes.map((sch) => {
+        var _a, _b;
+        const threshold = Number((_a = sch.pointThreshold) !== null && _a !== void 0 ? _a : 0);
+        const percentage = Number((_b = sch.percentage) !== null && _b !== void 0 ? _b : 0);
+        const eligible = totalPoints >= threshold;
+        return {
+            pointThreshold: threshold,
+            percentage,
+            eligible,
+            pointsNeeded: Math.max(0, threshold - totalPoints),
+        };
+    });
+    return {
+        totalPoints,
+        offers,
+    };
+});
 const getCustomerByIdFromDb = (userId, customerId) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.user.findUnique({
         where: {
@@ -719,6 +762,7 @@ exports.customerService = {
     getSaloonAllServicesListFromDb,
     getCustomerByIdFromDb,
     getVisitedSaloonListFromDb,
+    getMyLoyaltyOffersFromDb,
     addSaloonToFavoritesInDb,
     getFavoriteSaloonsFromDb,
     removeSaloonFromFavoritesInDb,
