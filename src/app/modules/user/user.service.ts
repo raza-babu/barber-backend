@@ -350,7 +350,7 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
   // Lazy require to avoid adding top-level imports
 
   const form = new FormData();
-  form.append('barber_codes', userId);
+  form.append('barber_code', userId);
 
   // Accept multer files (disk or memory storage). Support both buffer and path.
   for (let i = 0; i < images.length; i++) {

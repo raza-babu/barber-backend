@@ -18,6 +18,18 @@ const createJobApplicationsIntoDb = async (userId: string, data: any) => {
   if (!saloonDetails) {
     throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
   }
+  // Check if barber exists and is active
+  const barber = await prisma.barber.findUnique({
+    where: {
+      userId: userId,
+    },
+    include: {
+      user: true,
+    },
+  });
+  if (!barber || barber.user.status !== UserStatus.ACTIVE) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Barber professional profile not found or inactive');
+  }
 
   const result = await prisma.jobApplication.create({
     data: {
@@ -113,6 +125,7 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
       },
     ];
   }
+
 
   const [jobApplications, total] = await Promise.all([
     prisma.jobApplication.findMany({

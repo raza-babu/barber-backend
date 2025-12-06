@@ -200,7 +200,10 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
 
       if (nowLocal < closingTime) {
         const selectedTime = nowLocal.toFormat('hh:mm a');
-        console.log('Using current time as fallback (all slots past):', selectedTime);
+        console.log(
+          'Using current time as fallback (all slots past):',
+          selectedTime,
+        );
         return selectedTime;
       }
     }
@@ -1057,7 +1060,7 @@ const createQueueBookingForCustomerIntoDb = async (
       const effectiveStart = slotStart < nowLocal ? nowLocal : slotStart;
 
       const slotMinutes = slotEnd.diff(effectiveStart, 'minutes').minutes;
-      
+
       // For queue bookings, allow booking if there's ANY time available
       // (booking can extend beyond the free slot)
       if (slotMinutes > 0) {
@@ -1163,33 +1166,33 @@ const createQueueBookingForCustomerIntoDb = async (
     for (const b of sorted) {
       if (!b) continue;
       console.log(`Checking barber ${b.barberId}, free slots:`, b.freeSlots);
-      
+
       const slotStartStr = pickEarliestSlotForBarber(
         b.freeSlots,
         totalDuration,
       );
-      
+
       console.log(`Selected slot for barber ${b.barberId}:`, slotStartStr);
-      
+
       if (!slotStartStr) continue;
-      
+
       const slotDt = DateTime.fromFormat(
         `${date} ${slotStartStr}`,
         'yyyy-MM-dd hh:mm a',
         { zone: 'local' },
       );
-      
+
       if (!slotDt.isValid) {
         console.log(`Invalid slot DateTime for barber ${b.barberId}`);
         continue;
       }
-      
+
       // Allow slots that start now or in the future (5 minute grace period)
       if (slotDt < nowLocal.minus({ minutes: 5 })) {
         console.log(`Slot too far in past for barber ${b.barberId}`);
         continue;
       }
-      
+
       candidates.push({ barber: b, slotStartStr, slotStartDt: slotDt });
     }
 
@@ -1206,7 +1209,7 @@ const createQueueBookingForCustomerIntoDb = async (
     } else {
       // Fallback: find any barber with free slots that have any remaining time
       console.log('No candidates found, trying fallback logic');
-      
+
       for (const b of sorted) {
         if (!b || !b.freeSlots || b.freeSlots.length === 0) continue;
 
@@ -1233,13 +1236,17 @@ const createQueueBookingForCustomerIntoDb = async (
               'minutes',
             ).minutes;
 
-            console.log(`Fallback: Barber ${b.barberId}, slot ${slot.start}-${slot.end}, remaining: ${remainingMinutes}min`);
+            console.log(
+              `Fallback: Barber ${b.barberId}, slot ${slot.start}-${slot.end}, remaining: ${remainingMinutes}min`,
+            );
 
             // Allow booking if there's any time remaining
             if (remainingMinutes > 0) {
               chosen = b;
               chosenAppointmentAt = effectiveStart.toFormat('hh:mm a');
-              console.log(`Fallback selected barber ${b.barberId} at ${chosenAppointmentAt}`);
+              console.log(
+                `Fallback selected barber ${b.barberId} at ${chosenAppointmentAt}`,
+              );
               break;
             }
           }
@@ -1996,7 +2003,6 @@ const getAllBarbersForQueueFromDb = async (
       user: { select: { id: true, fullName: true, image: true, status: true } },
     },
   });
-
 
   // Only barbers with schedules
   const barberIdsWithSchedule = await prisma.barberSchedule.findMany({

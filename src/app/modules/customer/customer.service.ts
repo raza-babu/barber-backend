@@ -829,21 +829,53 @@ const getMyLoyaltyOffersFromDb = async (userId: string, saloonOwnerId: string) =
   });
 
   // Build offers array with eligibility info
-  const offers = loyaltySchemes.map((sch) => {
-    const threshold = Number(sch.pointThreshold ?? 0);
-    const percentage = Number(sch.percentage ?? 0);
-    const eligible = totalPoints >= threshold;
-    return {
-      pointThreshold: threshold,
-      percentage,
-      eligible,
-      pointsNeeded: Math.max(0, threshold - totalPoints),
-    };
+  const offers = loyaltySchemes
+    .filter((sch) => {
+      const threshold = Number(sch.pointThreshold ?? 0);
+      return totalPoints >= threshold;
+    })
+    .map((sch) => {
+      const threshold = Number(sch.pointThreshold ?? 0);
+      const percentage = Number(sch.percentage ?? 0);
+      const eligible = true;
+      return {
+        pointThreshold: threshold,
+        percentage,
+        eligible,
+        pointsNeeded: 0,
+      };
+    });
+
+  // filter with availed offers already to include only those not yet availed
+  const availedOffers = await prisma.loyaltyRedemption.findMany({
+    where: {
+      customerId: userId,
+      LoyaltyScheme: {
+        userId: saloonOwnerId,
+      },
+    },
+    select: {
+      LoyaltyScheme: {
+        select: {
+          pointThreshold: true,
+          percentage: true,
+        },
+      },
+    },
+  });
+
+  const availedSet = new Set(
+    availedOffers.map((ao) => `${ao.LoyaltyScheme.pointThreshold}#${ao.LoyaltyScheme.percentage}`)
+  );
+
+  const filteredOffers = offers.filter((offer) => {
+    const key = `${offer.pointThreshold}#${offer.percentage}`;
+    return !availedSet.has(key);
   });
 
   return {
     totalPoints,
-    offers,
+    filteredOffers,
   };
   
 }

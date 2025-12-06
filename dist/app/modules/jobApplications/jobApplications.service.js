@@ -31,6 +31,18 @@ const createJobApplicationsIntoDb = (userId, data) => __awaiter(void 0, void 0, 
     if (!saloonDetails) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Saloon not found');
     }
+    // Check if barber exists and is active
+    const barber = yield prisma_1.default.barber.findUnique({
+        where: {
+            userId: userId,
+        },
+        include: {
+            user: true,
+        },
+    });
+    if (!barber || barber.user.status !== client_1.UserStatus.ACTIVE) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Barber professional profile not found or inactive');
+    }
     const result = yield prisma_1.default.jobApplication.create({
         data: Object.assign(Object.assign({}, data), { userId: userId, saloonOwnerId: saloonDetails.saloonOwnerId }),
     });

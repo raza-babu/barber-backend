@@ -108,7 +108,7 @@ const updateSaloonOwner = (0, catchAsync_1.default)((req, res) => __awaiter(void
     });
 }));
 const updateBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     const user = req.user;
     const { files, body } = req;
     const uploads = {
@@ -130,16 +130,13 @@ const updateBarber = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
     // Best practice: perform external API calls from the service layer.
     // Here we call a service function which should build the form-data (images + barber_codes)
     // and POST to http://127.0.0.1:8080/upload_reference.
-    // if (uploads.portfolioImages.length) {
-    //   if(!fileGroups.portfolioImages?.length) {
-    //     throw new AppError(
-    //       httpStatus.BAD_REQUEST,
-    //       'No portfolio images found to send to AI service.',
-    //     );
-    //   }
-    //   // Send the original uploaded files (not the uploaded URLs) to the AI service
-    //   await UserServices.sendReferenceImagesToAI(user.id, fileGroups.portfolioImages);
-    // }
+    if (uploads.portfolioImages.length) {
+        if (!((_b = fileGroups.portfolioImages) === null || _b === void 0 ? void 0 : _b.length)) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'No portfolio images found to send to AI service.');
+        }
+        // Send the original uploaded files (not the uploaded URLs) to the AI service
+        yield user_service_1.UserServices.sendReferenceImagesToAI(user.id, fileGroups.portfolioImages);
+    }
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
         message: 'Barber registered successfully (reference images sent to AI)',
