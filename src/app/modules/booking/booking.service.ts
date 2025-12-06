@@ -3,6 +3,7 @@ import {
   BookingStatus,
   BookingType,
   PaymentStatus,
+  RedemptionStatus,
   ScheduleType,
   UserRoleEnum,
 } from '@prisma/client';
@@ -11,6 +12,7 @@ import httpStatus from 'http-status';
 import { DateTime } from 'luxon';
 import { calculatePagination } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { customerService } from '../customer/customer.service';
 
 const createQueueBookingIntoDb = async (userId: string, data: any) => {
   const {
@@ -1615,30 +1617,44 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         throw new AppError(httpStatus.NOT_FOUND, 'Loyalty scheme not found');
       }
 
-      const customerLoyalty = await tx.customerLoyalty.findFirst({
-        where: { userId: userId, saloonOwnerId: saloonOwnerId },
-        select: { id: true, totalPoints: true },
-      });
-
-      if (
-        !customerLoyalty ||
-        (customerLoyalty.totalPoints || 0) < loyaltyScheme.pointThreshold
-      ) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Not enough loyalty points');
+      const customerLoyalty = await customerService.getMyLoyaltyOffersFromDb(
+        userId,
+        saloonOwnerId,
+      );
+      if (!customerLoyalty) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Customer has no loyalty offers for this saloon',
+        );
       }
 
-      // Deduct points (use the record's id so the where type matches Prisma's expectations)
-      await tx.customerLoyalty.update({
-        where: { id: customerLoyalty.id },
-        data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
-      });
+      // check redemption point to get the current points bt deduction
+      // const totalRedeemed = await tx.loyaltyRedemption.aggregate({
+      //   where: {
+      //     customerId: userId,
+      //     LoyaltyScheme: { userId: saloonOwnerId },
+      //   },
+      //   _sum: { pointsUsed: true },
+      // });
+
+      // const pointsRedeemed = totalRedeemed._sum.pointsUsed || 0;
+      // const currentPoints = customerLoyalty.totalPoints - pointsRedeemed;
+      const currentPoints = customerLoyalty.totalPoints;
+      if (currentPoints < loyaltyScheme.pointThreshold) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Insufficient loyalty points for this redemption',
+        );
+      }
 
       // Create redemption record
       loyaltyUsed = await tx.loyaltyRedemption.create({
         data: {
           customerId: userId,
-          loyaltySchemeId: customerLoyalty.id,
+          loyaltySchemeId: loyaltyScheme.id,
           pointsUsed: loyaltyScheme.pointThreshold,
+          status: RedemptionStatus.APPLIED,
+          redeemedAt: new Date(),
         },
       });
 

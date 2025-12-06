@@ -639,8 +639,10 @@ const getVisitedSaloonListFromDb = (userId_1, ...args_1) => __awaiter(void 0, [u
         });
         // Only the offers customer can actually use right now
         const applicableOffers = offers.filter((o) => o.eligible);
-        const offerEligible = !!(loyalty && scheme && loyalty.totalPoints >= scheme.pointThreshold);
-        const offerPercentage = offerEligible ? (_b = scheme.percentage) !== null && _b !== void 0 ? _b : 0 : 0;
+        const offerEligible = !!(loyalty &&
+            scheme &&
+            loyalty.totalPoints >= scheme.pointThreshold);
+        const offerPercentage = offerEligible ? ((_b = scheme.percentage) !== null && _b !== void 0 ? _b : 0) : 0;
         return {
             saloonOwnerId: sid,
             shopName: (_d = (_c = visit === null || visit === void 0 ? void 0 : visit.saloon) === null || _c === void 0 ? void 0 : _c.shopName) !== null && _d !== void 0 ? _d : null,
@@ -668,7 +670,7 @@ const getVisitedSaloonListFromDb = (userId_1, ...args_1) => __awaiter(void 0, [u
     };
 });
 const getMyLoyaltyOffersFromDb = (userId, saloonOwnerId) => __awaiter(void 0, void 0, void 0, function* () {
-    // Get all loyalty applicable offers available from a saloon for me as a customer 
+    // Get all loyalty applicable offers available from a saloon for me as a customer
     const existingPoints = yield prisma_1.default.customerLoyalty.findMany({
         where: {
             userId,
@@ -679,12 +681,13 @@ const getMyLoyaltyOffersFromDb = (userId, saloonOwnerId) => __awaiter(void 0, vo
         },
     });
     // sum up total points
-    const totalPoints = existingPoints.reduce((sum, rec) => sum + (rec.totalPoints || 0), 0);
+    let totalPoints = existingPoints.reduce((sum, rec) => sum + (rec.totalPoints || 0), 0);
     const loyaltySchemes = yield prisma_1.default.loyaltyScheme.findMany({
         where: {
             userId: saloonOwnerId,
         },
         select: {
+            id: true,
             pointThreshold: true,
             percentage: true,
         },
@@ -694,17 +697,18 @@ const getMyLoyaltyOffersFromDb = (userId, saloonOwnerId) => __awaiter(void 0, vo
     });
     // Build offers array with eligibility info
     const offers = loyaltySchemes
-        .filter((sch) => {
+        .filter(sch => {
         var _a;
         const threshold = Number((_a = sch.pointThreshold) !== null && _a !== void 0 ? _a : 0);
         return totalPoints >= threshold;
     })
-        .map((sch) => {
+        .map(sch => {
         var _a, _b;
         const threshold = Number((_a = sch.pointThreshold) !== null && _a !== void 0 ? _a : 0);
         const percentage = Number((_b = sch.percentage) !== null && _b !== void 0 ? _b : 0);
         const eligible = true;
         return {
+            id: sch.id,
             pointThreshold: threshold,
             percentage,
             eligible,
@@ -722,15 +726,29 @@ const getMyLoyaltyOffersFromDb = (userId, saloonOwnerId) => __awaiter(void 0, vo
         select: {
             LoyaltyScheme: {
                 select: {
+                    id: true,
                     pointThreshold: true,
                     percentage: true,
                 },
             },
         },
     });
-    const availedSet = new Set(availedOffers.map((ao) => `${ao.LoyaltyScheme.pointThreshold}#${ao.LoyaltyScheme.percentage}`));
-    const filteredOffers = offers.filter((offer) => {
-        const key = `${offer.pointThreshold}#${offer.percentage}`;
+    const totalPointsUsed = yield prisma_1.default.loyaltyRedemption.aggregate({
+        where: {
+            customerId: userId,
+            LoyaltyScheme: {
+                userId: saloonOwnerId,
+            },
+        },
+        _sum: {
+            pointsUsed: true,
+        },
+    });
+    const usedPoints = totalPointsUsed._sum.pointsUsed || 0;
+    totalPoints = totalPoints - usedPoints;
+    const availedSet = new Set(availedOffers.map(ao => `${ao.LoyaltyScheme.id}#${ao.LoyaltyScheme.pointThreshold}#${ao.LoyaltyScheme.percentage}`));
+    const filteredOffers = offers.filter(offer => {
+        const key = `${offer.id}#${offer.pointThreshold}#${offer.percentage}`;
         return !availedSet.has(key);
     });
     return {

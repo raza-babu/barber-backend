@@ -19,6 +19,7 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const luxon_1 = require("luxon");
 const pagination_1 = require("../../utils/pagination");
+const customer_service_1 = require("../customer/customer.service");
 const createQueueBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const { barberId, saloonOwnerId, date, services, notes, isInQueue, loyaltySchemeId, } = data;
     const saloonStatus = yield prisma_1.default.saloonOwner.findUnique({
@@ -1152,25 +1153,32 @@ const createBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
             if (!loyaltyScheme) {
                 throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Loyalty scheme not found');
             }
-            const customerLoyalty = yield tx.customerLoyalty.findFirst({
-                where: { userId: userId, saloonOwnerId: saloonOwnerId },
-                select: { id: true, totalPoints: true },
-            });
-            if (!customerLoyalty ||
-                (customerLoyalty.totalPoints || 0) < loyaltyScheme.pointThreshold) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Not enough loyalty points');
+            const customerLoyalty = yield customer_service_1.customerService.getMyLoyaltyOffersFromDb(userId, saloonOwnerId);
+            if (!customerLoyalty) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Customer has no loyalty offers for this saloon');
             }
-            // Deduct points (use the record's id so the where type matches Prisma's expectations)
-            yield tx.customerLoyalty.update({
-                where: { id: customerLoyalty.id },
-                data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
-            });
+            // check redemption point to get the current points bt deduction
+            // const totalRedeemed = await tx.loyaltyRedemption.aggregate({
+            //   where: {
+            //     customerId: userId,
+            //     LoyaltyScheme: { userId: saloonOwnerId },
+            //   },
+            //   _sum: { pointsUsed: true },
+            // });
+            // const pointsRedeemed = totalRedeemed._sum.pointsUsed || 0;
+            // const currentPoints = customerLoyalty.totalPoints - pointsRedeemed;
+            const currentPoints = customerLoyalty.totalPoints;
+            if (currentPoints < loyaltyScheme.pointThreshold) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Insufficient loyalty points for this redemption');
+            }
             // Create redemption record
             loyaltyUsed = yield tx.loyaltyRedemption.create({
                 data: {
                     customerId: userId,
-                    loyaltySchemeId: customerLoyalty.id,
+                    loyaltySchemeId: loyaltyScheme.id,
                     pointsUsed: loyaltyScheme.pointThreshold,
+                    status: client_1.RedemptionStatus.APPLIED,
+                    redeemedAt: new Date(),
                 },
             });
             // Apply discount

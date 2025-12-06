@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import httpStatus from 'http-status';
 import AppError from '../errors/AppError';
+import { UserRoleEnum } from '@prisma/client';
 
 export const checkPermissions = (...requiredPermissions: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -8,6 +9,10 @@ export const checkPermissions = (...requiredPermissions: string[]) => {
     if (req.user.isSuperAdmin) {
       return next();
     }
+    
+    // if(req.user.role === UserRoleEnum.CUSTOMER){
+    //   return next()
+    // }
 
     // Check if user has all required permissions
     const hasAllPermissions = requiredPermissions.every(permission =>

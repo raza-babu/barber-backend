@@ -12,6 +12,9 @@ const checkPermissions = (...requiredPermissions) => {
         if (req.user.isSuperAdmin) {
             return next();
         }
+        // if(req.user.role === UserRoleEnum.CUSTOMER){
+        //   return next()
+        // }
         // Check if user has all required permissions
         const hasAllPermissions = requiredPermissions.every(permission => req.user.permissions.includes(permission));
         console.log(`User Permissions: ${req.user.permissions}`);
