@@ -356,7 +356,25 @@ const toggleJobPostActiveIntoDb = (userId, jobPostId) => __awaiter(void 0, void 
     return updatedJobPost;
 });
 const deleteJobPostItemFromDb = (userId, jobPostId) => __awaiter(void 0, void 0, void 0, function* () {
-    console.log('Deleting Job Post ID:', jobPostId, 'for User ID:', userId);
+    // check if job post exists
+    const jobPost = yield prisma_1.default.jobPost.findUnique({
+        where: {
+            id: jobPostId,
+            saloonOwnerId: userId,
+        },
+    });
+    if (!jobPost) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'JobPost not found');
+    }
+    // check if there are any applications for this job post
+    const applicationsCount = yield prisma_1.default.jobApplication.count({
+        where: {
+            jobPostId: jobPostId,
+        },
+    });
+    if (applicationsCount > 0) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot delete job post with existing applications');
+    }
     const deletedItem = yield prisma_1.default.jobPost.delete({
         where: {
             id: jobPostId,

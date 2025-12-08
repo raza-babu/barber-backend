@@ -404,6 +404,20 @@ const updateJobApplicationsIntoDb = (userId, jobApplicationsId, data) => __await
     return result;
 });
 const deleteJobApplicationsItemFromDb = (userId, jobApplicationsId) => __awaiter(void 0, void 0, void 0, function* () {
+    // Verify existence
+    const existingApplication = yield prisma_1.default.jobApplication.findUnique({
+        where: {
+            id: jobApplicationsId,
+            OR: [{ userId: userId }, { saloonOwnerId: userId }],
+        },
+    });
+    if (!existingApplication) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Job application not found or you do not have permission to delete it');
+    }
+    // check if barbers applied here or not. If not then only allow delete
+    if (existingApplication.status !== client_1.JobApplicationStatus.PENDING) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only job applications with PENDING status can be deleted');
+    }
     const deletedItem = yield prisma_1.default.jobApplication.delete({
         where: {
             id: jobApplicationsId,

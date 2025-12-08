@@ -68,6 +68,10 @@ router.patch(
   jobPostController.toggleJobPostActive,
 );
 
-router.delete('/:id', auth(), jobPostController.deleteJobPost);
+router.delete(
+  '/:id',
+  auth(UserRoleEnum.SALOON_OWNER),
+  jobPostController.deleteJobPost,
+);
 
 export const jobPostRoutes = router;

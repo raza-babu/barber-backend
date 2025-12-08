@@ -36,5 +36,5 @@ router.patch('/:id',
 // parseBody,
 (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(jobPost_validation_1.jobPostValidation.updateJobPostSchema), jobPost_controller_1.jobPostController.updateJobPost);
 router.patch('/:jobPostId/active', (0, auth_1.default)(client_1.UserRoleEnum.ADMIN, client_1.UserRoleEnum.SUPER_ADMIN, client_1.UserRoleEnum.SALOON_OWNER), jobPost_controller_1.jobPostController.toggleJobPostActive);
-router.delete('/:id', (0, auth_1.default)(), jobPost_controller_1.jobPostController.deleteJobPost);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), jobPost_controller_1.jobPostController.deleteJobPost);
 exports.jobPostRoutes = router;

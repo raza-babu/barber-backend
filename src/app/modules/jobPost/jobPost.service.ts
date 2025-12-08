@@ -446,7 +446,31 @@ const toggleJobPostActiveIntoDb = async (userId: string, jobPostId: string) => {
 };
 
 const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
-  console.log('Deleting Job Post ID:', jobPostId, 'for User ID:', userId);
+
+  // check if job post exists
+  const jobPost = await prisma.jobPost.findUnique({
+    where: {
+      id: jobPostId,
+      saloonOwnerId: userId,
+    },
+  });
+  if (!jobPost) {
+    throw new AppError(httpStatus.NOT_FOUND, 'JobPost not found');
+  }
+
+  // check if there are any applications for this job post
+  const applicationsCount = await prisma.jobApplication.count({
+    where: {
+      jobPostId: jobPostId,
+    },
+  });
+  if (applicationsCount > 0) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Cannot delete job post with existing applications',
+    );
+  }
+
   const deletedItem = await prisma.jobPost.delete({
     where: {
       id: jobPostId,

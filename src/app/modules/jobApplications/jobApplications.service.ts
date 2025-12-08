@@ -439,6 +439,29 @@ const deleteJobApplicationsItemFromDb = async (
   userId: string,
   jobApplicationsId: string,
 ) => {
+
+  // Verify existence
+  const existingApplication = await prisma.jobApplication.findUnique({
+    where: {
+      id: jobApplicationsId,
+      OR: [{ userId: userId }, { saloonOwnerId: userId }],
+    },
+  });
+  if (!existingApplication) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Job application not found or you do not have permission to delete it',
+    );
+  }
+
+  // check if barbers applied here or not. If not then only allow delete
+  if (existingApplication.status !== JobApplicationStatus.PENDING) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Only job applications with PENDING status can be deleted',
+    );
+  }
+
   const deletedItem = await prisma.jobApplication.delete({
     where: {
       id: jobApplicationsId,
