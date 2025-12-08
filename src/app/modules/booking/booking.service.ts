@@ -3716,9 +3716,9 @@ const getBookingByIdFromDbForSalon = async (
   };
 };
 
-const updateBookingIntoDb = async (userId: string, data: any) => {
+const updateBookingIntoDb = async (userId: string, data: any, bookingId: string) => {
   // Only allow customer to update the schedule (date and appointmentAt/time)
-  const { bookingId, date, appointmentAt } = data;
+  const { barberId, date, appointmentAt } = data;
 
   if (!date || !appointmentAt) {
     throw new AppError(
@@ -3732,13 +3732,14 @@ const updateBookingIntoDb = async (userId: string, data: any) => {
     where: {
       id: bookingId,
       userId: userId,
+      bookingType: BookingType.BOOKING,
     },
     include: {
       BookedServices: {
         select: { serviceId: true, service: { select: { duration: true } } },
       },
-      queueSlot: true,
-      barber: true,
+      // queueSlot: true,
+      // barber: true,
     },
   });
 
@@ -3795,44 +3796,43 @@ const updateBookingIntoDb = async (userId: string, data: any) => {
         userId: userId,
       },
       data: {
+        barberId: barberId || existingBooking.barberId,
         date: new Date(date),
         appointmentAt: utcDateTime,
         startDateTime: utcDateTime,
         endDateTime: endDateTime,
         startTime: localDateTime.toFormat('hh:mm a'),
         endTime: DateTime.fromJSDate(endDateTime).toFormat('hh:mm a'),
-        loyaltySchemeId: data.loyaltySchemeId || null,
-        loyaltyUsed: data.loyaltyProgramId ? true : false,
       },
     });
 
     // 2. Update queueSlot if exists
-    if (existingBooking.queueSlot) {
-      // Update the current slot's startedAt before reordering
-      await tx.queueSlot.update({
-        where: { id: existingBooking.queueSlot[0].id },
-        data: {
-          startedAt: utcDateTime,
-          completedAt: endDateTime,
-        },
-      });
+    // if (existingBooking.queueSlot) {
+    //   // Update the current slot's startedAt before reordering
+    //   await tx.queueSlot.update({
+    //     where: { id: existingBooking.queueSlot[0].id },
+    //     data: {
+    //       startedAt: utcDateTime,
+    //       completedAt: endDateTime,
+    //     },
+    //   });
 
-      // Fetch all slots again, ordered by startedAt
-      const queueSlots = await tx.queueSlot.findMany({
-        where: {
-          queueId: existingBooking.queueSlot[0]?.queueId,
-        },
-        orderBy: { startedAt: 'asc' },
-      });
+    //   // Fetch all slots again, ordered by startedAt
+    //   const queueSlots = await tx.queueSlot.findMany({
+    //     where: {
+    //       queueId: existingBooking.queueSlot[0]?.queueId,
+    //     },
+    //     orderBy: { startedAt: 'asc' },
+    //   });
 
-      // Re-assign positions sequentially based on startedAt
-      for (let i = 0; i < queueSlots.length; i++) {
-        await tx.queueSlot.update({
-          where: { id: queueSlots[i].id },
-          data: { position: i + 1 },
-        });
-      }
-    }
+    //   // Re-assign positions sequentially based on startedAt
+    //   for (let i = 0; i < queueSlots.length; i++) {
+    //     await tx.queueSlot.update({
+    //       where: { id: queueSlots[i].id },
+    //       data: { position: i + 1 },
+    //     });
+    //   }
+    // }
 
     // 3. Update barberRealTimeStatus for this booking if exists
     await tx.barberRealTimeStatus.deleteMany({

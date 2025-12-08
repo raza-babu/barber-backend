@@ -25,17 +25,14 @@ const createBookingSchema = z.object({
 
 const updateBookingSchema = z.object({
   body: z.object({
+    barberId: z.string().min(1, 'Barber ID is required').optional(),
     appointmentAt: z.string().optional(), // e.g., "2025-08-20T11:00:00"
     date: z.string().optional(), // e.g., "2025-08-20"
     startDateTime: z.string().optional(), // e.g., "2025-08-20T11:00:00"
     endDateTime: z.string().optional(), // e.g., "2025-08-20T11:30:00"
     startTime: z.string().optional(), // e.g., "11:00 AM"
     endTime: z.string().optional(), // e.g., "11:30 AM"
-    totalPrice: z.number().optional(),
     notes: z.string().optional(),
-    isInQueue: z.boolean().optional(),
-    barberName: z.string().optional(),
-    barberImage: z.string().optional(),
     loyaltySchemeId: z.string().optional(),
     type: z
       .enum(['BOOKING', 'QUEUE'], {

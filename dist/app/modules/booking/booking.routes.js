@@ -23,7 +23,7 @@ router.get('/barbers/:saloonId/:barberId', (0, auth_1.default)(client_1.UserRole
 booking_controller_1.bookingController.getAvailableABarberForWalkingIn);
 router.get('/customers/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.getBookingById);
 router.get('/salons/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.getBookingByIdForSalonOwner);
-router.put('/reschedule', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.updateBookingSchema), booking_controller_1.bookingController.updateBooking);
+router.put('/reschedule/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER, client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.updateBookingSchema), booking_controller_1.bookingController.updateBooking);
 router.put('/schedule-status', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), (0, validateRequest_1.default)(booking_validation_1.bookingValidation.updateBookingStatusSchema), booking_controller_1.bookingController.updateBookingStatus);
 router.patch('/cancel/:id', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), booking_controller_1.bookingController.cancelBooking);
 router.delete('/:id', (0, auth_1.default)(client_1.UserRoleEnum.SALOON_OWNER), booking_controller_1.bookingController.deleteBooking);

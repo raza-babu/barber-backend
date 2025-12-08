@@ -223,7 +223,7 @@ const getBookingById = catchAsync(async (req, res) => {
 
 const updateBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.updateBookingIntoDb(user.id, req.body);
+  const result = await bookingService.updateBookingIntoDb(user.id, req.body, req.params.id);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

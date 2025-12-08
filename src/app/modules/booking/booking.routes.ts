@@ -59,7 +59,7 @@ router.get(
 );
 
 router.put(
-  '/reschedule',
+  '/reschedule/:id',
   auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER),
   validateRequest(bookingValidation.updateBookingSchema),
   bookingController.updateBooking,

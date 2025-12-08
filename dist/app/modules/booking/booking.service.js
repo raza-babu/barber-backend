@@ -2933,9 +2933,9 @@ const getBookingByIdFromDbForSalon = (userId, bookingId) => __awaiter(void 0, vo
         status: result.status || null,
     };
 });
-const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
+const updateBookingIntoDb = (userId, data, bookingId) => __awaiter(void 0, void 0, void 0, function* () {
     // Only allow customer to update the schedule (date and appointmentAt/time)
-    const { bookingId, date, appointmentAt } = data;
+    const { barberId, date, appointmentAt } = data;
     if (!date || !appointmentAt) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only date and appointmentAt can be updated');
     }
@@ -2944,13 +2944,14 @@ const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
         where: {
             id: bookingId,
             userId: userId,
+            bookingType: client_1.BookingType.BOOKING,
         },
         include: {
             BookedServices: {
                 select: { serviceId: true, service: { select: { duration: true } } },
             },
-            queueSlot: true,
-            barber: true,
+            // queueSlot: true,
+            // barber: true,
         },
     });
     if (!existingBooking) {
@@ -2984,7 +2985,6 @@ const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
     }
     // Transaction to update booking, queueSlot, and barberRealTimeStatus
     const result = yield prisma_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
         // 1. Update booking
         const updatedBooking = yield tx.booking.update({
             where: {
@@ -2992,41 +2992,40 @@ const updateBookingIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, 
                 userId: userId,
             },
             data: {
+                barberId: barberId || existingBooking.barberId,
                 date: new Date(date),
                 appointmentAt: utcDateTime,
                 startDateTime: utcDateTime,
                 endDateTime: endDateTime,
                 startTime: localDateTime.toFormat('hh:mm a'),
                 endTime: luxon_1.DateTime.fromJSDate(endDateTime).toFormat('hh:mm a'),
-                loyaltySchemeId: data.loyaltySchemeId || null,
-                loyaltyUsed: data.loyaltyProgramId ? true : false,
             },
         });
         // 2. Update queueSlot if exists
-        if (existingBooking.queueSlot) {
-            // Update the current slot's startedAt before reordering
-            yield tx.queueSlot.update({
-                where: { id: existingBooking.queueSlot[0].id },
-                data: {
-                    startedAt: utcDateTime,
-                    completedAt: endDateTime,
-                },
-            });
-            // Fetch all slots again, ordered by startedAt
-            const queueSlots = yield tx.queueSlot.findMany({
-                where: {
-                    queueId: (_a = existingBooking.queueSlot[0]) === null || _a === void 0 ? void 0 : _a.queueId,
-                },
-                orderBy: { startedAt: 'asc' },
-            });
-            // Re-assign positions sequentially based on startedAt
-            for (let i = 0; i < queueSlots.length; i++) {
-                yield tx.queueSlot.update({
-                    where: { id: queueSlots[i].id },
-                    data: { position: i + 1 },
-                });
-            }
-        }
+        // if (existingBooking.queueSlot) {
+        //   // Update the current slot's startedAt before reordering
+        //   await tx.queueSlot.update({
+        //     where: { id: existingBooking.queueSlot[0].id },
+        //     data: {
+        //       startedAt: utcDateTime,
+        //       completedAt: endDateTime,
+        //     },
+        //   });
+        //   // Fetch all slots again, ordered by startedAt
+        //   const queueSlots = await tx.queueSlot.findMany({
+        //     where: {
+        //       queueId: existingBooking.queueSlot[0]?.queueId,
+        //     },
+        //     orderBy: { startedAt: 'asc' },
+        //   });
+        //   // Re-assign positions sequentially based on startedAt
+        //   for (let i = 0; i < queueSlots.length; i++) {
+        //     await tx.queueSlot.update({
+        //       where: { id: queueSlots[i].id },
+        //       data: { position: i + 1 },
+        //     });
+        //   }
+        // }
         // 3. Update barberRealTimeStatus for this booking if exists
         yield tx.barberRealTimeStatus.deleteMany({
             where: {
