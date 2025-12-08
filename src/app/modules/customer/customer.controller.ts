@@ -14,6 +14,20 @@ const createCustomer = catchAsync(async (req, res) => {
   });
 });
 
+const analyzeSaloonFromImage = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await customerService.analyzeSaloonFromImageInDb(
+    user.id,
+    req.file,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Saloon analyzed successfully',
+    data: result,
+  });
+});
+
 const getAllSaloonList = catchAsync(async (req, res) => {
   const user = req.user as any;
   const { searchTerm, page, limit, sortBy, minRating, latitude, longitude, radius, topRated } = req.query;
@@ -273,6 +287,7 @@ const deleteCustomer = catchAsync(async (req, res) => {
 
 export const customerController = {
   createCustomer,
+  analyzeSaloonFromImage,
   getAllSaloonList,
   getMyNearestSaloonList,
   getTopRatedSaloons,

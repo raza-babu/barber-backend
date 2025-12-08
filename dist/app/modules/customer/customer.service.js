@@ -37,6 +37,19 @@ const createCustomerIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
     }
     return result;
 });
+const analyzeSaloonFromImageInDb = (userId, file) => __awaiter(void 0, void 0, void 0, function* () {
+    // Dummy implementation for image analysis
+    if (!file) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'No image file provided');
+    }
+    // In real scenario, you would process the image and extract saloon details
+    return {
+        message: 'Image analyzed successfully',
+        fileName: file.originalname,
+        fileSize: file.size,
+        fileType: file.mimetype,
+    };
+});
 const getAllSaloonListFromDb = (userId, query) => __awaiter(void 0, void 0, void 0, function* () {
     const { searchTerm = '', page = 1, limit = 10, sortBy = 'name', minRating, } = query;
     const skip = (page - 1) * limit;
@@ -802,6 +815,7 @@ const deleteCustomerItemFromDb = (userId, customerId) => __awaiter(void 0, void 
 });
 exports.customerService = {
     createCustomerIntoDb,
+    analyzeSaloonFromImageInDb,
     getAllSaloonListFromDb,
     getMyNearestSaloonListFromDb,
     getTopRatedSaloonsFromDb,

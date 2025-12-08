@@ -10,8 +10,11 @@ const validateRequest_1 = __importDefault(require("../../middlewares/validateReq
 const customer_controller_1 = require("./customer.controller");
 const customer_validation_1 = require("./customer.validation");
 const client_1 = require("@prisma/client");
+const multipleFile_1 = require("../../utils/multipleFile");
+const parseBody_1 = require("../../middlewares/parseBody");
 const router = express_1.default.Router();
 router.post('/', (0, auth_1.default)(), (0, validateRequest_1.default)(customer_validation_1.customerValidation.createSchema), customer_controller_1.customerController.createCustomer);
+router.post('/analyze-saloon', multipleFile_1.multerUploadMultiple.single('image'), parseBody_1.parseBody, (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), customer_controller_1.customerController.analyzeSaloonFromImage);
 router.get('/all-saloons', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), customer_controller_1.customerController.getAllSaloonList);
 router.get('/nearest-saloons', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), customer_controller_1.customerController.getMyNearestSaloonList);
 router.get('/top-rated-saloons', (0, auth_1.default)(client_1.UserRoleEnum.CUSTOMER), customer_controller_1.customerController.getTopRatedSaloons);

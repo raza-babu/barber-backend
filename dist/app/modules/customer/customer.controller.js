@@ -27,6 +27,16 @@ const createCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
         data: result,
     });
 }));
+const analyzeSaloonFromImage = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const result = yield customer_service_1.customerService.analyzeSaloonFromImageInDb(user.id, req.file);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Saloon analyzed successfully',
+        data: result,
+    });
+}));
 const getAllSaloonList = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const { searchTerm, page, limit, sortBy, minRating, latitude, longitude, radius, topRated } = req.query;
@@ -223,6 +233,7 @@ const deleteCustomer = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 }));
 exports.customerController = {
     createCustomer,
+    analyzeSaloonFromImage,
     getAllSaloonList,
     getMyNearestSaloonList,
     getTopRatedSaloons,

@@ -4,6 +4,8 @@ import validateRequest from '../../middlewares/validateRequest';
 import { customerController } from './customer.controller';
 import { customerValidation } from './customer.validation';
 import { UserRoleEnum } from '@prisma/client';
+import { multerUploadMultiple } from '../../utils/multipleFile';
+import { parseBody } from '../../middlewares/parseBody';
 
 const router = express.Router();
 
@@ -13,6 +15,14 @@ router.post(
   validateRequest(customerValidation.createSchema),
   customerController.createCustomer,
 );
+
+router.post(
+  '/analyze-saloon',
+  multerUploadMultiple.single('image'),
+  parseBody,
+  auth(UserRoleEnum.CUSTOMER),
+  customerController.analyzeSaloonFromImage,
+)
 
 router.get(
   '/all-saloons',

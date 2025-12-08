@@ -16,6 +16,23 @@ const createCustomerIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
+const analyzeSaloonFromImageInDb = async (
+  userId: string,
+  file: Express.Multer.File,
+) => {
+  // Dummy implementation for image analysis
+  if (!file) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'No image file provided');
+  }
+  // In real scenario, you would process the image and extract saloon details
+  return {
+    message: 'Image analyzed successfully',
+
+    fileName: file.originalname,
+    fileSize: file.size,
+    fileType: file.mimetype,
+  };
+};
 const getAllSaloonListFromDb = async (
   userId: string,
   query: {
@@ -965,6 +982,7 @@ const deleteCustomerItemFromDb = async (userId: string, customerId: string) => {
 
 export const customerService = {
   createCustomerIntoDb,
+  analyzeSaloonFromImageInDb,
   getAllSaloonListFromDb,
   getMyNearestSaloonListFromDb,
   getTopRatedSaloonsFromDb,
