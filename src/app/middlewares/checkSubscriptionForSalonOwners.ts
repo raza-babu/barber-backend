@@ -7,8 +7,8 @@ import { SubscriptionPlanStatus, UserRoleEnum } from '@prisma/client';
 const checkSubscriptionForSalonOwners = () => {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
-      const userId = req.user?.id;
-      const role = req.user?.role as UserRoleEnum;
+      const userId = req.user.id;
+      const role = req.user.role as UserRoleEnum;
 
       if (!userId) {
         throw new AppError(

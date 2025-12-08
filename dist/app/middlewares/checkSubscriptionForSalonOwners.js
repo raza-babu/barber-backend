@@ -18,10 +18,9 @@ const prisma_1 = __importDefault(require("../utils/prisma"));
 const client_1 = require("@prisma/client");
 const checkSubscriptionForSalonOwners = () => {
     return (req, _res, next) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a, _b;
         try {
-            const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
-            const role = (_b = req.user) === null || _b === void 0 ? void 0 : _b.role;
+            const userId = req.user.id;
+            const role = req.user.role;
             if (!userId) {
                 throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'User not found in request');
             }

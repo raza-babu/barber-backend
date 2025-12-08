@@ -257,7 +257,7 @@ const updateFeedIntoDb = (userId, feedId, data, existingImages) => __awaiter(voi
         where: { id: feedId },
     });
     if (!feed) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, "Feed not found");
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Feed not found');
     }
     // Update DB
     const result = yield prisma_1.default.feed.update({
@@ -271,11 +271,34 @@ const updateFeedIntoDb = (userId, feedId, data, existingImages) => __awaiter(voi
     const removedImages = (feed.images || []).filter(img => !data.images.includes(img));
     for (const img of removedImages) {
         yield (0, deleteImage_1.deleteFileFromSpace)(img); // your DO Spaces delete helper
-        console.log("Deleted feed image from space:", img);
+        console.log('Deleted feed image from space:', img);
     }
     return result;
 });
 const deleteFeedItemFromDb = (userId, feedId) => __awaiter(void 0, void 0, void 0, function* () {
+    // find feed to get images for deletion
+    const feed = yield prisma_1.default.feed.findUnique({
+        where: { id: feedId },
+    });
+    if (!feed) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Feed not found');
+    }
+    // Delete images from space
+    for (const img of feed.images || []) {
+        yield (0, deleteImage_1.deleteFileFromSpace)(img); // your DO Spaces delete helper
+        console.log('Deleted feed image from space:', img);
+    }
+    // delete from other tables if any (e.g., favorites) before deleting feed itself
+    const deleteFavorites = yield prisma_1.default.favoriteFeed.findMany({
+        where: { feedId: feedId },
+    });
+    for (const fav of deleteFavorites) {
+        yield prisma_1.default.favoriteFeed.delete({
+            where: { id: fav.id },
+        });
+        console.log('Deleted favorite feed entry:', fav.id);
+    }
+    // Delete feed from DB
     const deletedItem = yield prisma_1.default.feed.delete({
         where: {
             id: feedId,

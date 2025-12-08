@@ -134,8 +134,23 @@ const getJobPostListFromDb = (options, barberId) => __awaiter(void 0, void 0, vo
             datePosted: Object.assign(Object.assign({}, (options.startDate && { gte: new Date(options.startDate) })), (options.endDate && { lte: new Date(options.endDate) })),
         }
         : {};
+    // find current owner
+    const barber = yield prisma_1.default.barber.findUnique({
+        where: {
+            userId: barberId,
+        },
+    });
     // Combine all queries
-    const whereClause = Object.assign(Object.assign(Object.assign(Object.assign({ isActive: true, startDate: { lte: new Date() }, endDate: { gte: new Date() } }, filterQuery), salaryRangeQuery), dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
+    const whereClause = Object.assign(Object.assign(Object.assign(Object.assign({ isActive: true, startDate: { lte: new Date() }, endDate: { gte: new Date() }, 
+        // saloonOwnerId: {not: barber?.saloonOwnerId},
+        saloonOwner: {
+            Barber: {
+                some: {
+                    // status: UserStatus.ACTIVE,
+                    userId: barber === null || barber === void 0 ? void 0 : barber.userId
+                },
+            },
+        } }, filterQuery), salaryRangeQuery), dateRangeQuery), (Object.keys(searchQuery).length > 0 && searchQuery));
     // Exclude job posts the barber already applied to (if barberId provided)
     // Assumes a relation field "JobApplication" on jobPost and that each application has a "userId" field.
     // Adjust field names ("JobApplication" / "userId") to match your Prisma schema if different.

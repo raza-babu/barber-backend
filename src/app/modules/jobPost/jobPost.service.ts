@@ -1,3 +1,4 @@
+import { Barber } from './../../../../node_modules/.prisma/client/index.d';
 import prisma from '../../utils/prisma';
 import {
   SubscriptionPlanStatus,
@@ -164,11 +165,27 @@ const getJobPostListFromDb = async (
         }
       : {};
 
+    // find current owner
+    const barber = await prisma.barber.findUnique({
+      where: {
+        userId: barberId,
+      },
+    });
+
   // Combine all queries
   const whereClause: any = {
     isActive: true,
     startDate: { lte: new Date() },
     endDate: { gte: new Date() },
+    // saloonOwnerId: {not: barber?.saloonOwnerId},
+    saloonOwner: {
+      Barber: {
+        some: {
+          // status: UserStatus.ACTIVE,
+          userId: barber?.userId
+        },
+      },
+    },
     ...filterQuery,
     ...salaryRangeQuery,
     ...dateRangeQuery,

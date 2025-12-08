@@ -96,7 +96,9 @@ const getFeedListFromDb = async (
       })
     : [];
 
-  const favoriteFeedIds = favorites.map((fav: { feedId: string }) => fav.feedId);
+  const favoriteFeedIds = favorites.map(
+    (fav: { feedId: string }) => fav.feedId,
+  );
 
   const items = result.map(feed => ({
     id: feed.id,
@@ -132,16 +134,15 @@ const getFeedListFromDb = async (
       totalPages: Math.ceil(total / take),
     },
   };
-}
+};
 
 // ...existing code...
 
-
 const getMyFeedsFromDb = async (userId: string) => {
-  if(!userId) {
+  if (!userId) {
     throw new AppError(httpStatus.UNAUTHORIZED, 'User not authenticated');
   }
- 
+
   const result = await prisma.feed.findMany({
     where: {
       userId: userId,
@@ -267,14 +268,14 @@ const updateFeedIntoDb = async (
   userId: string,
   feedId: string,
   data: any,
-  existingImages: string[]
+  existingImages: string[],
 ) => {
   const feed = await prisma.feed.findUnique({
     where: { id: feedId },
   });
 
   if (!feed) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Feed not found");
+    throw new AppError(httpStatus.BAD_REQUEST, 'Feed not found');
   }
 
   // Update DB
@@ -290,19 +291,44 @@ const updateFeedIntoDb = async (
 
   // Delete images removed by the client
   const removedImages = (feed.images || []).filter(
-    img => !data.images.includes(img)
+    img => !data.images.includes(img),
   );
 
   for (const img of removedImages) {
     await deleteFileFromSpace(img); // your DO Spaces delete helper
-    console.log("Deleted feed image from space:", img);
+    console.log('Deleted feed image from space:', img);
   }
 
   return result;
 };
 
-
 const deleteFeedItemFromDb = async (userId: string, feedId: string) => {
+  // find feed to get images for deletion
+  const feed = await prisma.feed.findUnique({
+    where: { id: feedId },
+  });
+
+  if (!feed) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Feed not found');
+  }
+
+  // Delete images from space
+  for (const img of feed.images || []) {
+    await deleteFileFromSpace(img); // your DO Spaces delete helper
+    console.log('Deleted feed image from space:', img);
+  }
+  // delete from other tables if any (e.g., favorites) before deleting feed itself
+  const deleteFavorites = await prisma.favoriteFeed.findMany({
+    where: { feedId: feedId },
+  });
+  for (const fav of deleteFavorites) {
+    await prisma.favoriteFeed.delete({
+      where: { id: fav.id },
+    });
+    console.log('Deleted favorite feed entry:', fav.id);
+  }
+
+  // Delete feed from DB
   const deletedItem = await prisma.feed.delete({
     where: {
       id: feedId,
