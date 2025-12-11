@@ -328,62 +328,143 @@ const updateBarberIntoDB = (userId, payload) => __awaiter(void 0, void 0, void 0
     return updatedBarber;
 });
 const sendReferenceImagesToAI = (userId, images) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     if (!userId) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'userId is required');
     }
     if (!images || images.length === 0) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'At least one image is required');
     }
-    // Lazy require to avoid adding top-level imports
     const form = new form_data_1.default();
     form.append('barber_code', userId);
-    // Accept multer files (disk or memory storage). Support both buffer and path.
-    for (let i = 0; i < images.length; i++) {
-        const file = images[i];
-        if (!file) {
-            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Invalid file at index ${i}`);
-        }
-        // If using memoryStorage, multer provides a buffer
-        if (file.buffer && file.buffer.length > 0) {
-            form.append('images', file.buffer, {
-                filename: file.originalname || `image_${i}`,
-                contentType: file.mimetype || 'application/octet-stream',
-            });
-            continue;
-        }
-        // If using diskStorage, multer provides a path
-        if (file.path) {
-            const resolvedPath = path_1.default.isAbsolute(file.path)
-                ? file.path
-                : path_1.default.resolve(process.cwd(), file.path);
-            if (!fs_1.default.existsSync(resolvedPath)) {
-                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Uploaded file not found at index ${i}: ${resolvedPath}`);
-            }
-            form.append('images', fs_1.default.createReadStream(resolvedPath), {
-                filename: file.originalname || path_1.default.basename(resolvedPath),
-                contentType: file.mimetype || 'application/octet-stream',
-            });
-            continue;
-        }
-        // Neither buffer nor path available — unsupported multer configuration
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Unsupported multer file at index ${i}. Ensure you use diskStorage or memoryStorage.`);
-    }
+    console.log(form);
+    const filesToCleanup = [];
     try {
+        // Accept multer files (disk or memory storage). Support both buffer and path.
+        for (let i = 0; i < images.length; i++) {
+            const file = images[i];
+            if (!file) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Invalid file at index ${i}`);
+            }
+            // If using memoryStorage, multer provides a buffer
+            if (file.buffer && file.buffer.length > 0) {
+                form.append('images', file.buffer, {
+                    filename: file.originalname || `image_${i}.jpg`,
+                    contentType: file.mimetype || 'image/jpeg',
+                });
+                console.log(`Added buffer file ${i}:`, file.originalname, `(${file.buffer.length} bytes)`);
+                continue;
+            }
+            // If using diskStorage, multer provides a path
+            if (file.path) {
+                const resolvedPath = path_1.default.isAbsolute(file.path)
+                    ? file.path
+                    : path_1.default.resolve(process.cwd(), file.path);
+                if (!fs_1.default.existsSync(resolvedPath)) {
+                    throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Uploaded file not found at index ${i}: ${resolvedPath}`);
+                }
+                filesToCleanup.push(resolvedPath);
+                // Read file as buffer instead of stream for better reliability
+                const fileBuffer = fs_1.default.readFileSync(resolvedPath);
+                form.append('images', fileBuffer, {
+                    filename: file.originalname || path_1.default.basename(resolvedPath),
+                    contentType: file.mimetype || 'image/jpeg',
+                });
+                console.log(`Added file ${i}:`, file.originalname, `(${fileBuffer.length} bytes)`);
+                continue;
+            }
+            // Neither buffer nor path available — unsupported multer configuration
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Unsupported multer file at index ${i}. Ensure you use diskStorage or memoryStorage.`);
+        }
         const url = 'https://reyai.dsrt321.online/upload_reference';
-        const headers = form.getHeaders();
+        // Get form-data headers (includes Content-Type with boundary)
+        const headers = Object.assign({}, form.getHeaders());
+        console.log('=== AI Upload Request ===');
+        console.log('URL:', url);
+        console.log('Headers:', headers);
+        console.log('Barber Code:', userId);
+        console.log('Number of images:', images.length);
+        console.log('Form data size:', form.getLengthSync ? form.getLengthSync() : 'unknown');
         const resp = yield axios_1.default.post(url, form, {
             headers,
             maxContentLength: Infinity,
             maxBodyLength: Infinity,
-            timeout: 30000,
+            timeout: 120000, // Increased to 120 seconds
+            validateStatus: (status) => status < 500,
         });
+        console.log('=== AI Upload Response ===');
+        console.log('Status:', resp.status);
+        console.log('Response data:', JSON.stringify(resp.data, null, 2));
+        // Handle non-success status codes
+        if (resp.status === 400) {
+            const errorMessage = ((_a = resp.data) === null || _a === void 0 ? void 0 : _a.message) || ((_b = resp.data) === null || _b === void 0 ? void 0 : _b.error) || 'Bad request to AI service';
+            console.error('400 Error details:', resp.data);
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `AI service error: ${errorMessage}`);
+        }
+        if (resp.status === 401 || resp.status === 403) {
+            throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'Authentication failed with AI service');
+        }
+        if (resp.status === 404) {
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'AI upload endpoint not found');
+        }
+        if (resp.status >= 400) {
+            throw new AppError_1.default(http_status_1.default.BAD_GATEWAY, `AI service returned error: ${resp.status}`);
+        }
+        // Verify the upload was successful
+        if (resp.data && resp.data.success) {
+            console.log(`✅ Successfully uploaded ${resp.data.total_images} images for barber ${userId}`);
+            // Optional: Verify the upload by calling the GET API
+            try {
+                const verifyResp = yield axios_1.default.get('https://reyai.dsrt321.online/get_barbers', {
+                    timeout: 10000,
+                });
+                console.log('=== Verification Check ===');
+                const barberData = (_d = (_c = verifyResp.data) === null || _c === void 0 ? void 0 : _c.barbers) === null || _d === void 0 ? void 0 : _d.find((b) => b.barber_code === userId);
+                if (barberData) {
+                    console.log(`✅ Barber ${userId} found in get_barbers with ${((_e = barberData.reference_images) === null || _e === void 0 ? void 0 : _e.length) || 0} images`);
+                }
+                else {
+                    console.log(`⚠️ Barber ${userId} not found in get_barbers yet (might take a moment to sync)`);
+                }
+            }
+            catch (verifyErr) {
+                console.error('Verification check failed:', verifyErr);
+            }
+        }
         console.log(`AI service response for barberId ${userId}:`, resp.data);
         return resp.data;
     }
     catch (err) {
-        const message = (_c = (_b = (_a = err === null || err === void 0 ? void 0 : err.response) === null || _a === void 0 ? void 0 : _a.data) !== null && _b !== void 0 ? _b : err === null || err === void 0 ? void 0 : err.message) !== null && _c !== void 0 ? _c : 'Unknown error';
+        console.error('=== AI Upload Error ===');
+        console.error('Error type:', err.constructor.name);
+        console.error('Error message:', err.message);
+        if (err.response) {
+            console.error('Response status:', err.response.status);
+            console.error('Response data:', err.response.data);
+            console.error('Response headers:', err.response.headers);
+        }
+        if (err.request) {
+            console.error('Request was made but no response received');
+        }
+        if (err instanceof AppError_1.default) {
+            throw err;
+        }
+        const message = ((_g = (_f = err === null || err === void 0 ? void 0 : err.response) === null || _f === void 0 ? void 0 : _f.data) === null || _g === void 0 ? void 0 : _g.message) || ((_j = (_h = err === null || err === void 0 ? void 0 : err.response) === null || _h === void 0 ? void 0 : _h.data) === null || _j === void 0 ? void 0 : _j.error) || (err === null || err === void 0 ? void 0 : err.message) || 'Unknown error';
         throw new AppError_1.default(http_status_1.default.BAD_GATEWAY, `AI service error: ${message}`);
+    }
+    finally {
+        // Clean up temporary files if using disk storage
+        for (const filePath of filesToCleanup) {
+            try {
+                if (fs_1.default.existsSync(filePath)) {
+                    fs_1.default.unlinkSync(filePath);
+                    console.log(`Cleaned up temp file: ${filePath}`);
+                }
+            }
+            catch (cleanupErr) {
+                console.error(`Failed to cleanup file ${filePath}:`, cleanupErr);
+            }
+        }
     }
 });
 const getMyProfileFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {

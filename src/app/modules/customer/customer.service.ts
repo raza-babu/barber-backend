@@ -2,6 +2,10 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { BookingStatus, BookingType, Prisma } from '@prisma/client';
+import FormData from 'form-data';
+import fs from 'fs';
+import path from 'path';
+import axios from 'axios';
 
 const createCustomerIntoDb = async (userId: string, data: any) => {
   const result = await prisma.saloonOwner.create({
@@ -20,19 +24,292 @@ const analyzeSaloonFromImageInDb = async (
   userId: string,
   file: Express.Multer.File,
 ) => {
-  // Dummy implementation for image analysis
   if (!file) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'No image file provided');
+    throw new AppError(httpStatus.BAD_REQUEST, 'Image file is required');
   }
-  // In real scenario, you would process the image and extract saloon details
-  return {
-    message: 'Image analyzed successfully',
 
-    fileName: file.originalname,
-    fileSize: file.size,
-    fileType: file.mimetype,
-  };
+  const form = new FormData();
+
+  // Handle both buffer (memoryStorage) and path (diskStorage)
+  if (file.buffer && file.buffer.length > 0) {
+    form.append('image', file.buffer, {
+      filename: file.originalname || 'customer_image.jpg',
+      contentType: file.mimetype || 'image/jpeg',
+    });
+  } else if (file.path) {
+    const resolvedPath = path.isAbsolute(file.path)
+      ? file.path
+      : path.resolve(process.cwd(), file.path);
+
+    if (!fs.existsSync(resolvedPath)) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Uploaded file not found: ${resolvedPath}`,
+      );
+    }
+
+    form.append('image', fs.createReadStream(resolvedPath), {
+      filename: file.originalname || path.basename(resolvedPath),
+      contentType: file.mimetype || 'image/jpeg',
+    });
+  } else {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Unsupported file format. Please upload a valid image.',
+    );
+  }
+
+  try {
+    // Call the third-party AI API
+    const url = 'https://reyai.dsrt321.online/analyze';
+    const headers = form.getHeaders();
+
+    console.log('=== AI Analysis Request ===');
+    console.log('URL:', url);
+    console.log('Headers:', headers);
+    console.log('File info:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      hasBuffer: !!file.buffer,
+      hasPath: !!file.path,
+    });
+
+    const response = await axios.post(url, form, {
+      headers,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      timeout: 60000, // 60 seconds timeout
+      validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+    });
+
+    console.log('=== AI Analysis Response ===');
+    console.log('Status:', response.status);
+    console.log('Response data:', JSON.stringify(response.data, null, 2));
+
+    // Handle non-success status codes
+    if (response.status === 400) {
+      const errorMessage = response.data?.message || response.data?.error || 'Bad request to AI service';
+      console.error('400 Error details:', response.data);
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `AI service error: ${errorMessage}`,
+      );
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new AppError(
+        httpStatus.UNAUTHORIZED,
+        'Authentication failed with AI service',
+      );
+    }
+
+    if (response.status === 404) {
+      throw new AppError(
+        httpStatus.NOT_FOUND,
+        'AI analysis endpoint not found',
+      );
+    }
+
+    if (response.status >= 400) {
+      throw new AppError(
+        httpStatus.BAD_GATEWAY,
+        `AI service returned error: ${response.status}`,
+      );
+    }
+
+    if (!response.data || !response.data.success) {
+      throw new AppError(
+        httpStatus.BAD_GATEWAY,
+        'AI analysis failed. Please try again.',
+      );
+    }
+
+    const {
+      all_matches = [],
+      best_match_per_barber = [],
+      input_description,
+      recommended_barber,
+    } = response.data;
+
+    // Get all unique barber codes
+    const allBarberCodes = [
+      ...new Set([
+        ...all_matches.map((m: any) => m.barber_code),
+        ...best_match_per_barber.map((m: any) => m.barber_code),
+      ]),
+    ].filter(Boolean);
+
+    console.log('Extracted barber codes:', allBarberCodes);
+
+    if (allBarberCodes.length === 0) {
+      return {
+        success: true,
+        message: 'No matching barbers found for your style',
+        input_description,
+        all_matches: [],
+        best_match_per_barber: [],
+        recommended_barber: null,
+        total_matches: 0,
+      };
+    }
+
+    // Fetch barber details from database
+    const barbers = await prisma.barber.findMany({
+      where: {
+        userId: { in: allBarberCodes },
+      },
+      select: {
+        id: true,
+        userId: true,
+        saloonOwnerId: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            image: true,
+            phoneNumber: true,
+          },
+        },
+        saloonOwner: {
+          select: {
+            userId: true,
+            shopName: true,
+            shopAddress: true,
+            shopLogo: true,
+            shopImages: true,
+            latitude: true,
+            longitude: true,
+            avgRating: true,
+            ratingCount: true,
+          },
+        },
+      },
+    });
+
+    console.log(`Found ${barbers.length} barbers in database`);
+
+    // Create a map of barber details by userId
+    const barberDetailsMap = new Map(
+      barbers.map(barber => [
+        barber.userId,
+        {
+          barberId: barber.id,
+          barberUserId: barber.userId,
+          barberName: barber.user?.fullName || null,
+          barberEmail: barber.user?.email || null,
+          barberImage: barber.user?.image || null,
+          barberPhone: barber.user?.phoneNumber || null,
+          saloon: barber.saloonOwnerId
+            ? {
+                saloonOwnerId: barber.saloonOwner?.userId || null,
+                shopName: barber.saloonOwner?.shopName || null,
+                shopAddress: barber.saloonOwner?.shopAddress || null,
+                shopLogo: barber.saloonOwner?.shopLogo || null,
+                shopImages: barber.saloonOwner?.shopImages || [],
+                latitude: barber.saloonOwner?.latitude
+                  ? Number(barber.saloonOwner.latitude)
+                  : null,
+                longitude: barber.saloonOwner?.longitude
+                  ? Number(barber.saloonOwner.longitude)
+                  : null,
+                avgRating: barber.saloonOwner?.avgRating
+                  ? Number(barber.saloonOwner.avgRating)
+                  : 0,
+                ratingCount: barber.saloonOwner?.ratingCount || 0,
+              }
+            : null,
+        },
+      ]),
+    );
+
+    // Enrich all_matches with barber details
+    const enrichedAllMatches = all_matches
+      .map((match: any) => {
+        const barberDetails = barberDetailsMap.get(match.barber_code);
+        if (!barberDetails) {
+          console.log(`Barber ${match.barber_code} not found in database`);
+          return null;
+        }
+
+        return {
+          barber_code: match.barber_code,
+          image: match.image,
+          similarity: match.similarity || 0,
+          ...barberDetails,
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => b.similarity - a.similarity);
+
+    // Enrich best_match_per_barber with barber details
+    const enrichedBestMatches = best_match_per_barber
+      .map((match: any) => {
+        const barberDetails = barberDetailsMap.get(match.barber_code);
+        if (!barberDetails) {
+          console.log(`Barber ${match.barber_code} not found in database`);
+          return null;
+        }
+
+        return {
+          barber_code: match.barber_code,
+          image: match.image,
+          similarity: match.similarity || 0,
+          ...barberDetails,
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => b.similarity - a.similarity);
+
+    // Get recommended barber details
+    let recommendedBarberDetails = null;
+    if (recommended_barber) {
+      recommendedBarberDetails = barberDetailsMap.get(recommended_barber);
+    }
+
+    return {
+      success: true,
+      input_description: input_description || null,
+      all_matches: enrichedAllMatches,
+      best_match_per_barber: enrichedBestMatches,
+      recommended_barber: recommendedBarberDetails
+        ? {
+            barber_code: recommended_barber,
+            ...recommendedBarberDetails,
+          }
+        : null,
+      total_matches: enrichedAllMatches.length,
+    };
+  } catch (err: any) {
+    console.error('=== AI Analysis Error ===');
+    console.error('Error type:', err.constructor.name);
+    console.error('Error message:', err.message);
+    
+    if (err.response) {
+      console.error('Response status:', err.response.status);
+      console.error('Response data:', err.response.data);
+      console.error('Response headers:', err.response.headers);
+    }
+    
+    if (err.request) {
+      console.error('Request was made but no response received');
+    }
+
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    const message =
+      err?.response?.data?.message ||
+      err?.response?.data?.error ||
+      err?.message ||
+      'Failed to analyze image. Please try again.';
+    
+    throw new AppError(httpStatus.BAD_GATEWAY, message);
+  }
 };
+
 const getAllSaloonListFromDb = async (
   userId: string,
   query: {
@@ -104,6 +381,7 @@ const getAllSaloonListFromDb = async (
       Booking: {
         where: {
           bookingType: BookingType.QUEUE,
+          date: new Date(),
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
           },
@@ -208,6 +486,7 @@ const getMyNearestSaloonListFromDb = async (
       Booking: {
         where: {
           bookingType: BookingType.QUEUE,
+          date: new Date(),
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
           },
@@ -341,6 +620,7 @@ const getTopRatedSaloonsFromDb = async (
       Booking: {
         where: {
           bookingType: BookingType.QUEUE,
+          date: new Date(),
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
           },
@@ -935,6 +1215,14 @@ const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
   if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'customer not found');
   }
+
+   // check following or not
+  const isFollowing = await prisma.follow.findFirst({
+    where: {
+      userId: userId,
+      followingId: customerId,
+    },
+  });
   return {
     isMe: result.id === userId,
     id: result.id,
@@ -943,6 +1231,7 @@ const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
     phoneNumber: result.phoneNumber,
     image: result.image,
     address: result.address,
+    isFollowing: isFollowing ? true : false,
   };
 };
 

@@ -13,6 +13,7 @@ import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import { Type } from '@aws-sdk/client-s3';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -347,73 +348,180 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
     throw new AppError(httpStatus.BAD_REQUEST, 'At least one image is required');
   }
 
-  // Lazy require to avoid adding top-level imports
-
   const form = new FormData();
   form.append('barber_code', userId);
 
-  // Accept multer files (disk or memory storage). Support both buffer and path.
-  for (let i = 0; i < images.length; i++) {
-    const file = images[i] as Express.Multer.File;
+  console.log(form)
 
-    if (!file) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Invalid file at index ${i}`,
-      );
-    }
+  const filesToCleanup: string[] = [];
 
-    // If using memoryStorage, multer provides a buffer
-    if (file.buffer && file.buffer.length > 0) {
-      form.append('images', file.buffer, {
-        filename: file.originalname || `image_${i}`,
-        contentType: file.mimetype || 'application/octet-stream',
-      });
-      continue;
-    }
+  try {
+    // Accept multer files (disk or memory storage). Support both buffer and path.
+    for (let i = 0; i < images.length; i++) {
+      const file = images[i] as Express.Multer.File;
 
-    // If using diskStorage, multer provides a path
-    if (file.path) {
-      const resolvedPath = path.isAbsolute(file.path)
-        ? file.path
-        : path.resolve(process.cwd(), file.path);
-
-      if (!fs.existsSync(resolvedPath)) {
+      if (!file) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
-          `Uploaded file not found at index ${i}: ${resolvedPath}`,
+          `Invalid file at index ${i}`,
         );
       }
 
-      form.append('images', fs.createReadStream(resolvedPath), {
-        filename: file.originalname || path.basename(resolvedPath),
-        contentType: file.mimetype || 'application/octet-stream',
-      });
-      continue;
+      // If using memoryStorage, multer provides a buffer
+      if (file.buffer && file.buffer.length > 0) {
+        form.append('images', file.buffer, {
+          filename: file.originalname || `image_${i}.jpg`,
+          contentType: file.mimetype || 'image/jpeg',
+        });
+        console.log(`Added buffer file ${i}:`, file.originalname, `(${file.buffer.length} bytes)`);
+        continue;
+      }
+
+      // If using diskStorage, multer provides a path
+      if (file.path) {
+        const resolvedPath = path.isAbsolute(file.path)
+          ? file.path
+          : path.resolve(process.cwd(), file.path);
+
+        if (!fs.existsSync(resolvedPath)) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            `Uploaded file not found at index ${i}: ${resolvedPath}`,
+          );
+        }
+
+        filesToCleanup.push(resolvedPath);
+
+        // Read file as buffer instead of stream for better reliability
+        const fileBuffer = fs.readFileSync(resolvedPath);
+        form.append('images', fileBuffer, {
+          filename: file.originalname || path.basename(resolvedPath),
+          contentType: file.mimetype || 'image/jpeg',
+        });
+        console.log(`Added file ${i}:`, file.originalname, `(${fileBuffer.length} bytes)`);
+        continue;
+      }
+
+      // Neither buffer nor path available — unsupported multer configuration
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Unsupported multer file at index ${i}. Ensure you use diskStorage or memoryStorage.`,
+      );
     }
 
-    // Neither buffer nor path available — unsupported multer configuration
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `Unsupported multer file at index ${i}. Ensure you use diskStorage or memoryStorage.`,
-    );
-  }
-
-  try {
     const url = 'https://reyai.dsrt321.online/upload_reference';
-    const headers = form.getHeaders();
+    
+    // Get form-data headers (includes Content-Type with boundary)
+    const headers = {
+      ...form.getHeaders(),
+    };
+
+    console.log('=== AI Upload Request ===');
+    console.log('URL:', url);
+    console.log('Headers:', headers);
+    console.log('Barber Code:', userId);
+    console.log('Number of images:', images.length);
+    console.log('Form data size:', form.getLengthSync ? form.getLengthSync() : 'unknown');
+
     const resp = await axios.post(url, form, {
       headers,
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
-      timeout: 30000,
+      timeout: 120000, // Increased to 120 seconds
+      validateStatus: (status) => status < 500,
     });
+
+    console.log('=== AI Upload Response ===');
+    console.log('Status:', resp.status);
+    console.log('Response data:', JSON.stringify(resp.data, null, 2));
+
+    // Handle non-success status codes
+    if (resp.status === 400) {
+      const errorMessage = resp.data?.message || resp.data?.error || 'Bad request to AI service';
+      console.error('400 Error details:', resp.data);
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `AI service error: ${errorMessage}`,
+      );
+    }
+
+    if (resp.status === 401 || resp.status === 403) {
+      throw new AppError(
+        httpStatus.UNAUTHORIZED,
+        'Authentication failed with AI service',
+      );
+    }
+
+    if (resp.status === 404) {
+      throw new AppError(
+        httpStatus.NOT_FOUND,
+        'AI upload endpoint not found',
+      );
+    }
+
+    if (resp.status >= 400) {
+      throw new AppError(
+        httpStatus.BAD_GATEWAY,
+        `AI service returned error: ${resp.status}`,
+      );
+    }
+
+    // Verify the upload was successful
+    if (resp.data && resp.data.success) {
+      console.log(`✅ Successfully uploaded ${resp.data.total_images} images for barber ${userId}`);
+      
+      // Optional: Verify the upload by calling the GET API
+      try {
+        const verifyResp = await axios.get('https://reyai.dsrt321.online/get_barbers', {
+          timeout: 10000,
+        });
+        console.log('=== Verification Check ===');
+        const barberData = verifyResp.data?.barbers?.find((b: any) => b.barber_code === userId);
+        if (barberData) {
+          console.log(`✅ Barber ${userId} found in get_barbers with ${barberData.reference_images?.length || 0} images`);
+        } else {
+          console.log(`⚠️ Barber ${userId} not found in get_barbers yet (might take a moment to sync)`);
+        }
+      } catch (verifyErr) {
+        console.error('Verification check failed:', verifyErr);
+      }
+    }
 
     console.log(`AI service response for barberId ${userId}:`, resp.data);
     return resp.data;
-  } catch (err) {
-    const message = (err as any)?.response?.data ?? (err as any)?.message ?? 'Unknown error';
+  } catch (err: any) {
+    console.error('=== AI Upload Error ===');
+    console.error('Error type:', err.constructor.name);
+    console.error('Error message:', err.message);
+    
+    if (err.response) {
+      console.error('Response status:', err.response.status);
+      console.error('Response data:', err.response.data);
+      console.error('Response headers:', err.response.headers);
+    }
+    
+    if (err.request) {
+      console.error('Request was made but no response received');
+    }
+
+    if (err instanceof AppError) {
+      throw err;
+    }
+
+    const message = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Unknown error';
     throw new AppError(httpStatus.BAD_GATEWAY, `AI service error: ${message}`);
+  } finally {
+    // Clean up temporary files if using disk storage
+    for (const filePath of filesToCleanup) {
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`Cleaned up temp file: ${filePath}`);
+        }
+      } catch (cleanupErr) {
+        console.error(`Failed to cleanup file ${filePath}:`, cleanupErr);
+      }
+    }
   }
 };
 

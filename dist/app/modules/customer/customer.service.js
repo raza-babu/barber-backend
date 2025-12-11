@@ -28,6 +28,10 @@ const prisma_1 = __importDefault(require("../../utils/prisma"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const http_status_1 = __importDefault(require("http-status"));
 const client_1 = require("@prisma/client");
+const form_data_1 = __importDefault(require("form-data"));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const axios_1 = __importDefault(require("axios"));
 const createCustomerIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield prisma_1.default.saloonOwner.create({
         data: Object.assign(Object.assign({}, data), { userId: userId }),
@@ -38,17 +42,223 @@ const createCustomerIntoDb = (userId, data) => __awaiter(void 0, void 0, void 0,
     return result;
 });
 const analyzeSaloonFromImageInDb = (userId, file) => __awaiter(void 0, void 0, void 0, function* () {
-    // Dummy implementation for image analysis
+    var _a, _b, _c, _d, _e, _f;
     if (!file) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'No image file provided');
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Image file is required');
     }
-    // In real scenario, you would process the image and extract saloon details
-    return {
-        message: 'Image analyzed successfully',
-        fileName: file.originalname,
-        fileSize: file.size,
-        fileType: file.mimetype,
-    };
+    const form = new form_data_1.default();
+    // Handle both buffer (memoryStorage) and path (diskStorage)
+    if (file.buffer && file.buffer.length > 0) {
+        form.append('image', file.buffer, {
+            filename: file.originalname || 'customer_image.jpg',
+            contentType: file.mimetype || 'image/jpeg',
+        });
+    }
+    else if (file.path) {
+        const resolvedPath = path_1.default.isAbsolute(file.path)
+            ? file.path
+            : path_1.default.resolve(process.cwd(), file.path);
+        if (!fs_1.default.existsSync(resolvedPath)) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Uploaded file not found: ${resolvedPath}`);
+        }
+        form.append('image', fs_1.default.createReadStream(resolvedPath), {
+            filename: file.originalname || path_1.default.basename(resolvedPath),
+            contentType: file.mimetype || 'image/jpeg',
+        });
+    }
+    else {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Unsupported file format. Please upload a valid image.');
+    }
+    try {
+        // Call the third-party AI API
+        const url = 'https://reyai.dsrt321.online/analyze';
+        const headers = form.getHeaders();
+        console.log('=== AI Analysis Request ===');
+        console.log('URL:', url);
+        console.log('Headers:', headers);
+        console.log('File info:', {
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size,
+            hasBuffer: !!file.buffer,
+            hasPath: !!file.path,
+        });
+        const response = yield axios_1.default.post(url, form, {
+            headers,
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+            timeout: 60000, // 60 seconds timeout
+            validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+        });
+        console.log('=== AI Analysis Response ===');
+        console.log('Status:', response.status);
+        console.log('Response data:', JSON.stringify(response.data, null, 2));
+        // Handle non-success status codes
+        if (response.status === 400) {
+            const errorMessage = ((_a = response.data) === null || _a === void 0 ? void 0 : _a.message) || ((_b = response.data) === null || _b === void 0 ? void 0 : _b.error) || 'Bad request to AI service';
+            console.error('400 Error details:', response.data);
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `AI service error: ${errorMessage}`);
+        }
+        if (response.status === 401 || response.status === 403) {
+            throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'Authentication failed with AI service');
+        }
+        if (response.status === 404) {
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'AI analysis endpoint not found');
+        }
+        if (response.status >= 400) {
+            throw new AppError_1.default(http_status_1.default.BAD_GATEWAY, `AI service returned error: ${response.status}`);
+        }
+        if (!response.data || !response.data.success) {
+            throw new AppError_1.default(http_status_1.default.BAD_GATEWAY, 'AI analysis failed. Please try again.');
+        }
+        const { all_matches = [], best_match_per_barber = [], input_description, recommended_barber, } = response.data;
+        // Get all unique barber codes
+        const allBarberCodes = [
+            ...new Set([
+                ...all_matches.map((m) => m.barber_code),
+                ...best_match_per_barber.map((m) => m.barber_code),
+            ]),
+        ].filter(Boolean);
+        console.log('Extracted barber codes:', allBarberCodes);
+        if (allBarberCodes.length === 0) {
+            return {
+                success: true,
+                message: 'No matching barbers found for your style',
+                input_description,
+                all_matches: [],
+                best_match_per_barber: [],
+                recommended_barber: null,
+                total_matches: 0,
+            };
+        }
+        // Fetch barber details from database
+        const barbers = yield prisma_1.default.barber.findMany({
+            where: {
+                userId: { in: allBarberCodes },
+            },
+            select: {
+                id: true,
+                userId: true,
+                saloonOwnerId: true,
+                user: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        image: true,
+                        phoneNumber: true,
+                    },
+                },
+                saloonOwner: {
+                    select: {
+                        userId: true,
+                        shopName: true,
+                        shopAddress: true,
+                        shopLogo: true,
+                        shopImages: true,
+                        latitude: true,
+                        longitude: true,
+                        avgRating: true,
+                        ratingCount: true,
+                    },
+                },
+            },
+        });
+        console.log(`Found ${barbers.length} barbers in database`);
+        // Create a map of barber details by userId
+        const barberDetailsMap = new Map(barbers.map(barber => {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+            return [
+                barber.userId,
+                {
+                    barberId: barber.id,
+                    barberUserId: barber.userId,
+                    barberName: ((_a = barber.user) === null || _a === void 0 ? void 0 : _a.fullName) || null,
+                    barberEmail: ((_b = barber.user) === null || _b === void 0 ? void 0 : _b.email) || null,
+                    barberImage: ((_c = barber.user) === null || _c === void 0 ? void 0 : _c.image) || null,
+                    barberPhone: ((_d = barber.user) === null || _d === void 0 ? void 0 : _d.phoneNumber) || null,
+                    saloon: barber.saloonOwnerId
+                        ? {
+                            saloonOwnerId: ((_e = barber.saloonOwner) === null || _e === void 0 ? void 0 : _e.userId) || null,
+                            shopName: ((_f = barber.saloonOwner) === null || _f === void 0 ? void 0 : _f.shopName) || null,
+                            shopAddress: ((_g = barber.saloonOwner) === null || _g === void 0 ? void 0 : _g.shopAddress) || null,
+                            shopLogo: ((_h = barber.saloonOwner) === null || _h === void 0 ? void 0 : _h.shopLogo) || null,
+                            shopImages: ((_j = barber.saloonOwner) === null || _j === void 0 ? void 0 : _j.shopImages) || [],
+                            latitude: ((_k = barber.saloonOwner) === null || _k === void 0 ? void 0 : _k.latitude)
+                                ? Number(barber.saloonOwner.latitude)
+                                : null,
+                            longitude: ((_l = barber.saloonOwner) === null || _l === void 0 ? void 0 : _l.longitude)
+                                ? Number(barber.saloonOwner.longitude)
+                                : null,
+                            avgRating: ((_m = barber.saloonOwner) === null || _m === void 0 ? void 0 : _m.avgRating)
+                                ? Number(barber.saloonOwner.avgRating)
+                                : 0,
+                            ratingCount: ((_o = barber.saloonOwner) === null || _o === void 0 ? void 0 : _o.ratingCount) || 0,
+                        }
+                        : null,
+                },
+            ];
+        }));
+        // Enrich all_matches with barber details
+        const enrichedAllMatches = all_matches
+            .map((match) => {
+            const barberDetails = barberDetailsMap.get(match.barber_code);
+            if (!barberDetails) {
+                console.log(`Barber ${match.barber_code} not found in database`);
+                return null;
+            }
+            return Object.assign({ barber_code: match.barber_code, image: match.image, similarity: match.similarity || 0 }, barberDetails);
+        })
+            .filter(Boolean)
+            .sort((a, b) => b.similarity - a.similarity);
+        // Enrich best_match_per_barber with barber details
+        const enrichedBestMatches = best_match_per_barber
+            .map((match) => {
+            const barberDetails = barberDetailsMap.get(match.barber_code);
+            if (!barberDetails) {
+                console.log(`Barber ${match.barber_code} not found in database`);
+                return null;
+            }
+            return Object.assign({ barber_code: match.barber_code, image: match.image, similarity: match.similarity || 0 }, barberDetails);
+        })
+            .filter(Boolean)
+            .sort((a, b) => b.similarity - a.similarity);
+        // Get recommended barber details
+        let recommendedBarberDetails = null;
+        if (recommended_barber) {
+            recommendedBarberDetails = barberDetailsMap.get(recommended_barber);
+        }
+        return {
+            success: true,
+            input_description: input_description || null,
+            all_matches: enrichedAllMatches,
+            best_match_per_barber: enrichedBestMatches,
+            recommended_barber: recommendedBarberDetails
+                ? Object.assign({ barber_code: recommended_barber }, recommendedBarberDetails) : null,
+            total_matches: enrichedAllMatches.length,
+        };
+    }
+    catch (err) {
+        console.error('=== AI Analysis Error ===');
+        console.error('Error type:', err.constructor.name);
+        console.error('Error message:', err.message);
+        if (err.response) {
+            console.error('Response status:', err.response.status);
+            console.error('Response data:', err.response.data);
+            console.error('Response headers:', err.response.headers);
+        }
+        if (err.request) {
+            console.error('Request was made but no response received');
+        }
+        if (err instanceof AppError_1.default) {
+            throw err;
+        }
+        const message = ((_d = (_c = err === null || err === void 0 ? void 0 : err.response) === null || _c === void 0 ? void 0 : _c.data) === null || _d === void 0 ? void 0 : _d.message) ||
+            ((_f = (_e = err === null || err === void 0 ? void 0 : err.response) === null || _e === void 0 ? void 0 : _e.data) === null || _f === void 0 ? void 0 : _f.error) ||
+            (err === null || err === void 0 ? void 0 : err.message) ||
+            'Failed to analyze image. Please try again.';
+        throw new AppError_1.default(http_status_1.default.BAD_GATEWAY, message);
+    }
 });
 const getAllSaloonListFromDb = (userId, query) => __awaiter(void 0, void 0, void 0, function* () {
     const { searchTerm = '', page = 1, limit = 10, sortBy = 'name', minRating, } = query;
@@ -99,6 +309,7 @@ const getAllSaloonListFromDb = (userId, query) => __awaiter(void 0, void 0, void
             Booking: {
                 where: {
                     bookingType: client_1.BookingType.QUEUE,
+                    date: new Date(),
                     status: {
                         in: [client_1.BookingStatus.CONFIRMED, client_1.BookingStatus.PENDING],
                     },
@@ -176,6 +387,7 @@ const getMyNearestSaloonListFromDb = (userId_1, latitude_1, longitude_1, ...args
             Booking: {
                 where: {
                     bookingType: client_1.BookingType.QUEUE,
+                    date: new Date(),
                     status: {
                         in: [client_1.BookingStatus.CONFIRMED, client_1.BookingStatus.PENDING],
                     },
@@ -275,6 +487,7 @@ const getTopRatedSaloonsFromDb = (userId, query) => __awaiter(void 0, void 0, vo
             Booking: {
                 where: {
                     bookingType: client_1.BookingType.QUEUE,
+                    date: new Date(),
                     status: {
                         in: [client_1.BookingStatus.CONFIRMED, client_1.BookingStatus.PENDING],
                     },
@@ -778,6 +991,13 @@ const getCustomerByIdFromDb = (userId, customerId) => __awaiter(void 0, void 0, 
     if (!result) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'customer not found');
     }
+    // check following or not
+    const isFollowing = yield prisma_1.default.follow.findFirst({
+        where: {
+            userId: userId,
+            followingId: customerId,
+        },
+    });
     return {
         isMe: result.id === userId,
         id: result.id,
@@ -786,6 +1006,7 @@ const getCustomerByIdFromDb = (userId, customerId) => __awaiter(void 0, void 0, 
         phoneNumber: result.phoneNumber,
         image: result.image,
         address: result.address,
+        isFollowing: isFollowing ? true : false,
     };
 });
 const updateCustomerIntoDb = (userId, customerId, data) => __awaiter(void 0, void 0, void 0, function* () {

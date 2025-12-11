@@ -18,7 +18,7 @@ const analyzeSaloonFromImage = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await customerService.analyzeSaloonFromImageInDb(
     user.id,
-    req.file,
+    req.file as Express.Multer.File,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

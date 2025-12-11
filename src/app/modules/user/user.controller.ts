@@ -162,9 +162,9 @@ const updateBarber = catchAsync(async (req, res) => {
     portfolioImages: [],
   };
 
-  const fileGroups = files as {
+  const fileGroups: {
     portfolioImages?: Express.Multer.File[];
-  } || {};
+  } = (files as any) || {};
 
   // Upload portfolio images (optional)
   if (fileGroups?.portfolioImages?.length) {
