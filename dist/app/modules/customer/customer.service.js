@@ -261,6 +261,7 @@ const analyzeSaloonFromImageInDb = (userId, file) => __awaiter(void 0, void 0, v
     }
 });
 const getAllSaloonListFromDb = (userId, query) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     const { searchTerm = '', page = 1, limit = 10, sortBy = 'name', minRating, } = query;
     const skip = (page - 1) * limit;
     // Build where clause
@@ -309,7 +310,10 @@ const getAllSaloonListFromDb = (userId, query) => __awaiter(void 0, void 0, void
             Booking: {
                 where: {
                     bookingType: client_1.BookingType.QUEUE,
-                    date: new Date(),
+                    date: {
+                        gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                        lt: new Date(new Date().setHours(23, 59, 59, 999)),
+                    },
                     status: {
                         in: [client_1.BookingStatus.CONFIRMED, client_1.BookingStatus.PENDING],
                     },
@@ -336,6 +340,7 @@ const getAllSaloonListFromDb = (userId, query) => __awaiter(void 0, void 0, void
             delete saloon.FavoriteShop;
         });
     }
+    console.log(Array.isArray((_a = result[0]) === null || _a === void 0 ? void 0 : _a.Booking) ? (_b = result[0]) === null || _b === void 0 ? void 0 : _b.Booking.length : 0);
     const saloons = result.map((_a) => {
         var { Booking } = _a, rest = __rest(_a, ["Booking"]);
         return (Object.assign(Object.assign({}, rest), { distance: 0, queue: Array.isArray(Booking) ? Booking.length : 0 }));

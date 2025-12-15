@@ -381,7 +381,10 @@ const getAllSaloonListFromDb = async (
       Booking: {
         where: {
           bookingType: BookingType.QUEUE,
-          date: new Date(),
+          date: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)), 
+            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+          },
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
           },
@@ -409,6 +412,8 @@ const getAllSaloonListFromDb = async (
     });
   }
 
+  console.log(Array.isArray(result[0]?.Booking) ? result[0]?.Booking.length : 0);
+  
   const saloons = result.map(({ Booking, ...rest }) => ({
     ...rest,
     distance: 0,
