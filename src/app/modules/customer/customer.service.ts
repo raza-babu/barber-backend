@@ -604,6 +604,81 @@ const getMyNearestSaloonListFromDb = async (
     return R * c; // Distance in km
   };
 
+  // Helper function to check if shop is open
+  const isShopOpen = (
+    schedules: any[],
+    holidays: any[],
+  ): { isOpen: boolean; reason?: string } => {
+    const now = new Date();
+    const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const currentTime = now.getHours() * 60 + now.getMinutes(); // in minutes
+
+    // Check if today is a holiday
+    const todayDate = now.toISOString().split('T')[0];
+    const isHoliday = holidays.some(h => {
+      const holidayDate = new Date(h.date).toISOString().split('T')[0];
+      return holidayDate === todayDate;
+    });
+
+    if (isHoliday) {
+      return { isOpen: false, reason: 'Holiday' };
+    }
+
+    // Find today's schedule
+    const todaySchedule = schedules.find(s => s.dayOfWeek === today);
+    if (!todaySchedule) {
+      return { isOpen: false, reason: 'No schedule for today' };
+    }
+
+    // Parse opening and closing times
+    const openingTime = todaySchedule.openingTime
+      ? new Date(`1970-01-01T${todaySchedule.openingTime}Z`)
+      : null;
+    const closingTime = todaySchedule.closingTime
+      ? new Date(`1970-01-01T${todaySchedule.closingTime}Z`)
+      : null;
+
+    if (!openingTime || !closingTime) {
+      return { isOpen: false, reason: 'Invalid schedule times' };
+    }
+
+    const openingMinutes = openingTime.getUTCHours() * 60 + openingTime.getUTCMinutes();
+    const closingMinutes = closingTime.getUTCHours() * 60 + closingTime.getUTCMinutes();
+
+    if (currentTime >= openingMinutes && currentTime <= closingMinutes) {
+      return { isOpen: true };
+    }
+
+    return { isOpen: false, reason: 'Outside operating hours' };
+  };
+
+  // Helper function to check if barber is available today
+  const isBarberAvailableToday = (barberSchedules: any[]): boolean => {
+    const now = new Date();
+    const today = now.getDay();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+
+    const todaySchedule = barberSchedules.find(
+      s => s.dayOfWeek === today && s.isActive,
+    );
+
+    if (!todaySchedule) return false;
+
+    const openingTime = todaySchedule.openingTime
+      ? new Date(`1970-01-01T${todaySchedule.openingTime}Z`)
+      : null;
+    const closingTime = todaySchedule.closingTime
+      ? new Date(`1970-01-01T${todaySchedule.closingTime}Z`)
+      : null;
+
+    if (!openingTime || !closingTime) return false;
+
+    const openingMinutes = openingTime.getUTCHours() * 60 + openingTime.getUTCMinutes();
+    const closingMinutes = closingTime.getUTCHours() * 60 + closingTime.getUTCMinutes();
+
+    return currentTime >= openingMinutes && currentTime <= closingMinutes;
+  };
+
   // Filter and sort saloons by distance
   const nearbySaloons = allSaloons
     .map(saloon => {
@@ -614,12 +689,51 @@ const getMyNearestSaloonListFromDb = async (
         Number(saloon.longitude),
       );
 
-      const { Booking, ...rest } = saloon;
+      const { Booking, SaloonSchedule, SaloonHoliday, user, ...rest } = saloon;
+
+      // Check if shop is open
+      const shopOpenStatus = isShopOpen(
+        SaloonSchedule || [],
+        SaloonHoliday || [],
+      );
+
+      // Process barbers
+      const barbers = (user?.HiredBarber || [])
+        .map((hiredBarber: any) => {
+          const barber = hiredBarber.barber;
+          if (!barber) return null;
+
+          const barberSchedules = barber.BarberSchedule || [];
+          
+          // Check if barber is available today
+          if (!isBarberAvailableToday(barberSchedules)) {
+            return null;
+          }
+
+          // Get today's schedule type
+          const today = new Date().getDay();
+          const todaySchedule = barberSchedules.find(
+            (s: any) => s.dayOfWeek === today && s.isActive,
+          );
+
+          return {
+            barberId: barber.user?.id || null,
+            barberName: barber.user?.fullName || null,
+            barberImage: barber.user?.image || null,
+            type: todaySchedule?.type || null,
+            queue: Array.isArray(barber.Booking) ? barber.Booking.length : 0,
+            isAvailable: true,
+          };
+        })
+        .filter(Boolean); // Remove null entries
+
       return {
         ...rest,
-        distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
-        queue: Array.isArray(Booking) ? Booking.length : 0,
-        // isFavoriteShop: (rest as any).isFavorite || false,
+        distance: Math.round(distance * 100) / 100,
+        totalQueue: Array.isArray(Booking) ? Booking.length : 0,
+        isOpen: shopOpenStatus.isOpen,
+        openStatusReason: shopOpenStatus.reason || null,
+        barbers,
       };
     })
     .filter(saloon => saloon.distance <= radiusInKm)
