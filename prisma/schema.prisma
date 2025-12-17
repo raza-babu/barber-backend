@@ -658,7 +658,7 @@ model LoyaltyProgram {
 model LoyaltyRedemption {
   id              String           @id @default(auto()) @map("_id") @db.ObjectId
   customerId      String           @db.ObjectId
-  loyaltySchemeId String          @db.ObjectId
+  loyaltySchemeId String           @db.ObjectId
   bookingId       String?          @db.ObjectId // If applied to a booking
   pointsUsed      Int
   status          RedemptionStatus @default(PENDING)
