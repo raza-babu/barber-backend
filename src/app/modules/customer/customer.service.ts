@@ -1,7 +1,7 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { BookingStatus, BookingType, Prisma } from '@prisma/client';
+import { BookingStatus, BookingType, Prisma, User } from '@prisma/client';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
@@ -80,7 +80,7 @@ const analyzeSaloonFromImageInDb = async (
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
       timeout: 60000, // 60 seconds timeout
-      validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+      validateStatus: status => status < 500, // Don't throw on 4xx errors
     });
 
     console.log('=== AI Analysis Response ===');
@@ -89,7 +89,10 @@ const analyzeSaloonFromImageInDb = async (
 
     // Handle non-success status codes
     if (response.status === 400) {
-      const errorMessage = response.data?.message || response.data?.error || 'Bad request to AI service';
+      const errorMessage =
+        response.data?.message ||
+        response.data?.error ||
+        'Bad request to AI service';
       console.error('400 Error details:', response.data);
       throw new AppError(
         httpStatus.BAD_REQUEST,
@@ -285,13 +288,13 @@ const analyzeSaloonFromImageInDb = async (
     console.error('=== AI Analysis Error ===');
     console.error('Error type:', err.constructor.name);
     console.error('Error message:', err.message);
-    
+
     if (err.response) {
       console.error('Response status:', err.response.status);
       console.error('Response data:', err.response.data);
       console.error('Response headers:', err.response.headers);
     }
-    
+
     if (err.request) {
       console.error('Request was made but no response received');
     }
@@ -305,7 +308,7 @@ const analyzeSaloonFromImageInDb = async (
       err?.response?.data?.error ||
       err?.message ||
       'Failed to analyze image. Please try again.';
-    
+
     throw new AppError(httpStatus.BAD_GATEWAY, message);
   }
 };
@@ -382,7 +385,7 @@ const getAllSaloonListFromDb = async (
         where: {
           bookingType: BookingType.QUEUE,
           date: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)), 
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
             lt: new Date(new Date().setHours(23, 59, 59, 999)),
           },
           status: {
@@ -412,8 +415,10 @@ const getAllSaloonListFromDb = async (
     });
   }
 
-  console.log(Array.isArray(result[0]?.Booking) ? result[0]?.Booking.length : 0);
-  
+  console.log(
+    Array.isArray(result[0]?.Booking) ? result[0]?.Booking.length : 0,
+  );
+
   const saloons = result.map(({ Booking, ...rest }) => ({
     ...rest,
     distance: 0,
@@ -494,6 +499,70 @@ const getMyNearestSaloonListFromDb = async (
           date: new Date(),
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+          },
+        },
+      },
+      SaloonSchedule: {
+        select: {
+          dayOfWeek: true,
+          openingDateTime: true,
+          closingDateTime: true,
+          openingTime: true,
+          closingTime: true,
+        },
+      },
+      SaloonHoliday: {
+        select: {
+          id: true,
+          date: true,
+          description: true,
+          holidayName: true,
+          isRecurring: true,
+        },
+      },
+      user: {
+        select: {
+          HiredBarber: {
+            select: {
+              id: true,
+              barberId: true,
+              barber: {
+                select: {
+                  user: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                      image: true,
+                      // email: true,
+                      // phoneNumber: true,
+                    },
+                  },
+                  Booking: {
+                    where: {
+                      bookingType: BookingType.QUEUE,
+                      date: {
+                        gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                        lt: new Date(new Date().setHours(23, 59, 59, 999)),
+                      },
+                      status: {
+                        in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+                      },
+                    },
+                  },
+                  BarberSchedule: {
+                    select: {
+                      dayOfWeek: true,
+                      openingDateTime: true,
+                      closingDateTime: true,
+                      openingTime: true,
+                      closingTime: true,
+                      isActive: true,
+                      type: true,
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -1196,7 +1265,8 @@ const getMyLoyaltyOffersFromDb = async (
 
   const availedSet = new Set(
     availedOffers.map(
-      ao => `${ao.LoyaltyScheme.id}#${ao.LoyaltyScheme.pointThreshold}#${ao.LoyaltyScheme.percentage}`,
+      ao =>
+        `${ao.LoyaltyScheme.id}#${ao.LoyaltyScheme.pointThreshold}#${ao.LoyaltyScheme.percentage}`,
     ),
   );
 
@@ -1221,7 +1291,7 @@ const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'customer not found');
   }
 
-   // check following or not
+  // check following or not
   const isFollowing = await prisma.follow.findFirst({
     where: {
       userId: userId,

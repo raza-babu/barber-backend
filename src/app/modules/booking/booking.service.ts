@@ -1728,50 +1728,181 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getBookingListFromDb = async (userId: string) => {
-  const result = await prisma.booking.findMany({
-    where: {
-      userId: userId,
-    },
-    select: {
-      id: true,
-      userId: true,
-      barberId: true,
-      saloonOwnerId: true,
-      date: true,
-      notes: true,
-      bookingType: true,
-      isInQueue: true,
-      totalPrice: true,
-      startTime: true,
-      endTime: true,
-      status: true,
-      queueSlot: {
-        select: {
-          id: true,
-          queueId: true,
-          customerId: true,
-          barberId: true,
-          position: true,
-          startedAt: true,
-          bookingId: true,
-          barberStatus: {
-            select: {
-              id: true,
-              barberId: true,
-              isAvailable: true,
-              startTime: true,
-              endTime: true,
+const getBookingListFromDb = async (
+  userId: string,
+  query: {
+    searchTerm?: string;
+    type?: BookingType;
+    status?: BookingStatus;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: 'date' | 'createdAt' | 'price';
+    sortOrder?: 'asc' | 'desc';
+  } = {},
+) => {
+  const {
+    searchTerm,
+    type,
+    status,
+    date,
+    startDate,
+    endDate,
+    page = 1,
+    limit = 10,
+    sortBy = 'date',
+    sortOrder = 'desc',
+  } = query;
+
+  // Build where clause
+  const whereConditions: any = {
+    userId,
+  };
+
+  // Filter by booking type
+  if (type) {
+    whereConditions.bookingType = type;
+  }
+
+  // Filter by status
+  if (status) {
+    whereConditions.status = status;
+  }
+
+  // Filter by specific date
+  if (date) {
+    const dateObj = DateTime.fromISO(date, { zone: 'local' });
+    if (dateObj.isValid) {
+      const startOfDay = dateObj.startOf('day').toJSDate();
+      const endOfDay = dateObj.endOf('day').toJSDate();
+      whereConditions.date = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
+    }
+  }
+
+  // Filter by date range
+  if (startDate && endDate) {
+    const start = DateTime.fromISO(startDate, { zone: 'local' });
+    const end = DateTime.fromISO(endDate, { zone: 'local' });
+    if (start.isValid && end.isValid) {
+      whereConditions.date = {
+        gte: start.startOf('day').toJSDate(),
+        lte: end.endOf('day').toJSDate(),
+      };
+    }
+  } else if (startDate) {
+    const start = DateTime.fromISO(startDate, { zone: 'local' });
+    if (start.isValid) {
+      whereConditions.date = {
+        gte: start.startOf('day').toJSDate(),
+      };
+    }
+  } else if (endDate) {
+    const end = DateTime.fromISO(endDate, { zone: 'local' });
+    if (end.isValid) {
+      whereConditions.date = {
+        lte: end.endOf('day').toJSDate(),
+      };
+    }
+  }
+
+  // Search term (search in notes, barber name, salon name)
+  if (searchTerm) {
+    whereConditions.OR = [
+      {
+        notes: {
+          contains: searchTerm,
+          mode: 'insensitive',
+        },
+      },
+      {
+        barber: {
+          user: {
+            fullName: {
+              contains: searchTerm,
+              mode: 'insensitive',
             },
           },
         },
       },
-      BookedServices: {
+      {
+        saloonOwner: {
+          shopName: {
+            contains: searchTerm,
+            mode: 'insensitive',
+          },
+        },
+      },
+    ];
+  }
+
+  // Sorting
+  const orderBy: any = {};
+  if (sortBy === 'date') {
+    orderBy.date = sortOrder;
+  } else if (sortBy === 'createdAt') {
+    orderBy.createdAt = sortOrder;
+  } else if (sortBy === 'price') {
+    orderBy.totalPrice = sortOrder;
+  }
+
+  // Pagination
+  const skip = (page - 1) * limit;
+
+  // Get total count
+  const total = await prisma.booking.count({
+    where: whereConditions,
+  });
+
+  // Get bookings with relations
+  const bookings = await prisma.booking.findMany({
+    where: whereConditions,
+    skip,
+    take: limit,
+    orderBy,
+    include: {
+      user: {
         select: {
           id: true,
-          serviceId: true,
-          customerId: true,
-          price: true,
+          fullName: true,
+          email: true,
+          image: true,
+          phoneNumber: true,
+        },
+      },
+      barber: {
+        select: {
+          id: true,
+          userId: true,
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              image: true,
+              phoneNumber: true,
+            },
+          },
+        },
+      },
+      saloonOwner: {
+        select: {
+          userId: true,
+          shopName: true,
+          shopAddress: true,
+          shopLogo: true,
+          latitude: true,
+          longitude: true,
+          avgRating: true,
+          ratingCount: true,
+        },
+      },
+      BookedServices: {
+        include: {
           service: {
             select: {
               id: true,
@@ -1782,85 +1913,99 @@ const getBookingListFromDb = async (userId: string) => {
           },
         },
       },
-      barber: {
-        select: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              image: true,
-            },
-          },
-        },
-      },
-      user: {
+      Payment: {
         select: {
           id: true,
-          fullName: true,
-          email: true,
-          image: true,
-          phoneNumber: true,
+          paymentAmount: true,
+          status: true,
+          paymentDate: true,
         },
       },
-      saloonOwner: {
+      loyaltyScheme: {
         select: {
-          shopName: true,
-          shopAddress: true,
-          shopLogo: true,
+          id: true,
+          percentage: true,
+          pointThreshold: true,
+        },
+      },
+      queueSlot: {
+        select: {
+          id: true,
+          position: true,
         },
       },
     },
-    orderBy: { date: 'desc' },
   });
-  if (result.length === 0) {
-    return [];
-  }
-  // Flatten the result to include barber and booked services details at the top level
-  return result.map(booking => {
-    // Calculate estimatedWaitTime as the difference in minutes between startTime and now
-    let estimatedWaitTime: number | null = null;
-    if (booking.startTime) {
-      // booking.date is a Date object, booking.startTime is a string like "11:00 AM"
-      const startDateTime = DateTime.fromFormat(
-        `${DateTime.fromJSDate(booking.date).toFormat('yyyy-MM-dd')} ${booking.startTime}`,
-        'yyyy-MM-dd hh:mm a',
-      );
-      if (startDateTime.isValid) {
-        estimatedWaitTime = Math.max(
-          0,
-          Math.round(startDateTime.diffNow('minutes').minutes),
-        );
-      }
-    }
 
-    return {
-      bookingId: booking.id,
-      customerId: booking.userId,
-      barberId: booking.barberId,
-      bookingType: booking.bookingType,
-      saloonOwnerId: booking.saloonOwnerId,
-      saloonName: booking.saloonOwner?.shopName || null,
-      saloonAddress: booking.saloonOwner?.shopAddress || null,
-      saloonLogo: booking.saloonOwner?.shopLogo || null,
-      totalPrice: booking.totalPrice,
-      notes: booking.notes,
-      customerImage: booking.user?.image || null,
-      customerName: booking.user?.fullName || null,
-      customerEmail: booking.user?.email || null,
-      customerContact: booking.user?.phoneNumber || null,
-      date: booking.date,
-      time: booking.startTime,
-      estimatedWaitTime,
-      position: booking.queueSlot[0]?.position || null,
-      serviceNames:
-        booking.BookedServices?.map(bs => bs.service?.serviceName) || [],
-      serviceDurations:
-        booking.BookedServices?.map(bs => bs.service?.duration) || [],
-      barberName: booking.barber?.user?.fullName || null,
-      barberImage: booking.barber?.user?.image || null,
-      status: booking.status || null,
-    };
-  });
+  const formattedBookings = bookings.map(b => ({
+    bookingId: b.id,
+    customerId: b.userId,
+    barberId: b.barberId,
+    saloonOwnerId: b.saloonOwnerId,
+    saloonName: b.saloonOwner?.shopName || null,
+    saloonAddress: b.saloonOwner?.shopAddress || null,
+    saloonLogo: b.saloonOwner?.shopLogo || null,
+    totalPrice: b.totalPrice,
+    notes: b.notes,
+    customerImage: b.user?.image || null,
+    customerName: b.user?.fullName || null,
+    customerEmail: b.user?.email || null,
+    customerContact: b.user?.phoneNumber || null,
+    date: b.date,
+    appointmentAt: b.appointmentAt,
+    startTime: b.startTime,
+    endTime: b.endTime,
+    bookingType: b.bookingType,
+    // isInQueue: b.isInQueue,
+    status: b.status,
+    createdAt: b.createdAt,
+    barberName: b.barber?.user?.fullName || null,
+    barberImage: b.barber?.user?.image || null,
+    position: b.queueSlot[0]?.position || null,
+    serviceNames: b.BookedServices?.map(bs => bs.service?.serviceName) || [],
+    serviceDurations: b.BookedServices?.map(bs => bs.service?.duration) || [],
+    payment:
+      b.Payment && b.Payment.length > 0
+        ? {
+            id: b.Payment[0].id,
+            paymentAmount: b.Payment[0].paymentAmount,
+            status: b.Payment[0].status,
+            paymentDate: b.Payment[0].paymentDate,
+          }
+        : null,
+    loyaltyScheme: b.loyaltyScheme
+      ? {
+          id: b.loyaltyScheme.id,
+          percentage: b.loyaltyScheme.percentage,
+          pointThreshold: b.loyaltyScheme.pointThreshold,
+        }
+      : null,
+  }));
+
+  // Calculate pagination metadata
+  const totalPages = Math.ceil(total / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
+
+  return {
+    formattedBookings,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNextPage,
+      hasPrevPage,
+    },
+    filters: {
+      type: type || null,
+      status: status || null,
+      date: date || null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      searchTerm: searchTerm || null,
+    },
+  };
 };
 
 const getBookingByIdFromDb = async (userId: string, bookingId: string) => {
@@ -3716,7 +3861,11 @@ const getBookingByIdFromDbForSalon = async (
   };
 };
 
-const updateBookingIntoDb = async (userId: string, data: any, bookingId: string) => {
+const updateBookingIntoDb = async (
+  userId: string,
+  data: any,
+  bookingId: string,
+) => {
   // Only allow customer to update the schedule (date and appointmentAt/time)
   const { barberId, date, appointmentAt } = data;
 

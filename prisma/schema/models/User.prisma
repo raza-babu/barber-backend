@@ -71,8 +71,8 @@ model User {
   CustomerVisit       CustomerVisit[]
   LoyaltyPointLog     LoyaltyPointLog[]
   LoyaltyRedemption   LoyaltyRedemption[]
-  QueueSlots         QueueSlot[]           @relation("QueueSlotCustomerUser")
-  FavoriteShop       FavoriteShop[]
+  QueueSlots          QueueSlot[]           @relation("QueueSlotCustomerUser")
+  FavoriteShop        FavoriteShop[]
   HiredBarber         HiredBarber[]
   adminAccessFunction AdminAccessFunction[]
   QueueCapacity       QueueCapacity[]

@@ -62,12 +62,29 @@ const createBooking = catchAsync(async (req, res) => {
 
 const getBookingList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.getBookingListFromDb(user.id);
+  
+  // Extract query parameters
+  const filters = pickValidFields(req.query, [
+    'searchTerm',
+    'type',
+    'status',
+    'date',
+    'startDate',
+    'endDate',
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+  ]);
+
+  const result = await bookingService.getBookingListFromDb(user.id, filters);
+  
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Booking list retrieved successfully',
-    data: result,
+    data: result.formattedBookings,
+    meta: result.pagination,
   });
 });
 

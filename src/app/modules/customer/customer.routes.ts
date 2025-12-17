@@ -47,6 +47,7 @@ router.post(
   auth(UserRoleEnum.CUSTOMER),
   customerController.addSaloonToFavorites,
 )
+
 router.get(
   '/favorite-saloons',
   auth(UserRoleEnum.CUSTOMER),
