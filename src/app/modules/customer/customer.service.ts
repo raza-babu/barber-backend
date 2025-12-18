@@ -331,8 +331,6 @@ const getAllSaloonListFromDb = async (
     minRating,
   } = query;
 
-  const skip = (page - 1) * limit;
-
   // Build where clause
   const where: any = {
     isVerified: true,
@@ -362,11 +360,8 @@ const getAllSaloonListFromDb = async (
       orderBy = { shopName: 'asc' };
   }
 
-  // Get total count
-  const total = await prisma.saloonOwner.count({ where });
-
-  // Get paginated results
-  const result = await prisma.saloonOwner.findMany({
+  // Get all saloons
+  const allSaloons = await prisma.saloonOwner.findMany({
     where,
     select: {
       id: true,
@@ -374,7 +369,6 @@ const getAllSaloonListFromDb = async (
       shopName: true,
       shopAddress: true,
       shopImages: true,
-      isVerified: true,
       shopLogo: true,
       shopVideo: true,
       latitude: true,
@@ -392,52 +386,368 @@ const getAllSaloonListFromDb = async (
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
           },
         },
+        select: {
+          id: true,
+          barberId: true,
+        },
+      },
+      user: {
+        select: {
+          phoneNumber: true,
+          email: true,
+          HiredBarber: {
+            select: {
+              barberId: true,
+              barber: {
+                select: {
+                  userId: true,
+                  user: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                      image: true,
+                    },
+                  },
+                  Booking: {
+                    where: {
+                      bookingType: BookingType.QUEUE,
+                      date: {
+                        gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                        lt: new Date(new Date().setHours(23, 59, 59, 999)),
+                      },
+                      status: {
+                        in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+                      },
+                    },
+                    select: {
+                      id: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       FavoriteShop: { select: { id: true, userId: true } },
     },
     orderBy,
-    skip,
-    take: limit,
   });
 
-  // check for favorite shop or not
-  let isFavoriteShop = false;
-  if (userId) {
-    result.forEach(saloon => {
-      isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
-      (saloon as any).isFavorite = isFavoriteShop;
-      delete (saloon as any).FavoriteShop;
-    });
-  } else {
-    result.forEach(saloon => {
-      (saloon as any).isFavorite = false;
-      delete (saloon as any).FavoriteShop;
-    });
-  }
+  // Process saloons with shop status and barber availability
+  const processedSaloons = await Promise.all(
+    allSaloons.map(async saloon => {
+      // Check if user favorited this shop
+      const isFavorite = userId
+        ? saloon.FavoriteShop.some(fav => fav.userId === userId)
+        : false;
 
-  console.log(
-    Array.isArray(result[0]?.Booking) ? result[0]?.Booking.length : 0,
+      // Check shop open/closed status using models
+      const shopStatus = await checkShopStatus(saloon.userId);
+
+      // Calculate total queue for the shop
+      const totalShopQueue = Array.isArray(saloon.Booking)
+        ? saloon.Booking.length
+        : 0;
+
+      // Process barbers
+      const availableBarbers = await Promise.all(
+        (saloon.user?.HiredBarber || []).map(async (hiredBarber: any) => {
+          const barber = hiredBarber.barber;
+          if (!barber) return null;
+
+          const availability = await checkBarberAvailability(barber.userId);
+
+          // Skip barbers not available today
+          if (!availability.isAvailableToday) {
+            return null;
+          }
+
+          const barberQueueCount = Array.isArray(barber.Booking)
+            ? barber.Booking.length
+            : 0;
+
+          return {
+            barberId: barber.userId,
+            barberName: barber.user?.fullName || 'Unknown',
+            barberImage: barber.user?.image || null,
+            queueCount: barberQueueCount,
+            availableForQueue: availability.availableForQueue,
+            availableForBooking: availability.availableForBooking,
+            serviceType: availability.type, // 'QUEUE' or 'BOOKING'
+            workingHours: {
+              openingTime: availability.openingTime || null,
+              closingTime: availability.closingTime || null,
+            },
+          };
+        }),
+      );
+
+      const filteredBarbers = availableBarbers.filter(Boolean);
+
+      return {
+        // Shop Details
+        shopId: saloon.id,
+        saloonOwnerId: saloon.userId,
+        shopName: saloon.shopName,
+        shopAddress: saloon.shopAddress,
+        shopLogo: saloon.shopLogo,
+        shopImages: saloon.shopImages || [],
+        shopVideo: saloon.shopVideo || [],
+        phoneNumber: saloon.user?.phoneNumber || null,
+        email: saloon.user?.email || null,
+
+        // Location
+        latitude: Number(saloon.latitude),
+        longitude: Number(saloon.longitude),
+        distance: 0, // No distance calculation for all saloons list
+
+        // Ratings
+        avgRating: saloon.avgRating ? Number(saloon.avgRating) : 0,
+        ratingCount: saloon.ratingCount || 0,
+
+        // Status
+        isOpen: shopStatus.isOpen,
+        shopStatus: shopStatus.status,
+        statusReason: shopStatus.reason || null,
+        todayWorkingHours: {
+          openingTime: shopStatus.openingTime || null,
+          closingTime: shopStatus.closingTime || null,
+        },
+
+        // Queue Info
+        totalQueueCount: totalShopQueue,
+
+        // Barbers
+        availableBarbers: filteredBarbers,
+        totalAvailableBarbers: filteredBarbers.length,
+
+        // User specific
+        isFavorite,
+      };
+    }),
   );
 
-  const saloons = result.map(({ Booking, ...rest }) => ({
-    ...rest,
-    distance: 0,
-    queue: Array.isArray(Booking) ? Booking.length : 0,
-    // isFavoriteShop: (rest as any).isFavorite || false,
-  }));
+  // Apply sorting based on sortBy parameter
+  let sortedSaloons = [...processedSaloons];
+  switch (sortBy) {
+    case 'rating':
+      sortedSaloons.sort((a, b) => b.avgRating - a.avgRating);
+      break;
+    case 'name':
+      sortedSaloons.sort((a, b) => a.shopName.localeCompare(b.shopName));
+      break;
+    // 'newest' is already sorted by the query orderBy
+    default:
+      break;
+  }
+
+  // Apply pagination
+  const total = sortedSaloons.length;
+  const skip = (page - 1) * limit;
+  const paginatedSaloons = sortedSaloons.slice(skip, skip + limit);
+  const hasNextPage = page < total / limit;
+  const hasPrevPage = page > 1;
 
   return {
-    data: saloons,
+    data: paginatedSaloons,
     meta: {
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      hasNextPage,
+      hasPrevPage,
     },
   };
 };
 
-// All saloons near get within a radius
+
+// Helper function to parse time string to minutes
+const timeToMinutes = (timeStr: string): number => {
+  try {
+    console.log('Parsing time string:', timeStr);
+    
+    // Format 1: "hh:mm a" or "hh:mm AM/PM" (e.g., "09:00 AM", "06:00 PM")
+    const time12h = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (time12h) {
+      let hours = parseInt(time12h[1], 10);
+      const minutes = parseInt(time12h[2], 10);
+      const meridiem = time12h[3].toUpperCase();
+      
+      // Convert to 24-hour format
+      if (meridiem === 'PM' && hours !== 12) {
+        hours += 12; // 1 PM = 13, 2 PM = 14, etc.
+      } else if (meridiem === 'AM' && hours === 12) {
+        hours = 0; // 12 AM = 0 (midnight)
+      }
+      // Note: 12 PM stays as 12 (noon)
+      
+      const totalMinutes = hours * 60 + minutes;
+      console.log(`Parsed ${timeStr} to ${totalMinutes} minutes (${hours}:${minutes.toString().padStart(2, '0')} in 24h)`);
+      return totalMinutes;
+    }
+    
+    // Format 2: "HH:MM:SS" or "HH:MM" (e.g., "09:00:00", "18:00")
+    if (timeStr.includes(':')) {
+      const parts = timeStr.split(':');
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      
+      if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours < 24) {
+        const totalMinutes = hours * 60 + minutes;
+        console.log(`Parsed ${timeStr} to ${totalMinutes} minutes (24h format)`);
+        return totalMinutes;
+      }
+    }
+    
+    // Format 3: ISO time string (fallback)
+    const time = new Date(`1970-01-01T${timeStr}Z`);
+    if (!isNaN(time.getTime())) {
+      const totalMinutes = time.getUTCHours() * 60 + time.getUTCMinutes();
+      console.log(`Parsed ${timeStr} to ${totalMinutes} minutes (ISO format)`);
+      return totalMinutes;
+    }
+    
+    console.error(`Failed to parse time string: ${timeStr}`);
+    return 0;
+  } catch (error) {
+    console.error(`Error parsing time string: ${timeStr}`, error);
+    return 0;
+  }
+};
+
+// Helper function to check if shop is open using SaloonSchedule and SaloonHoliday models
+const checkShopStatus = async (
+  saloonOwnerId: string,
+): Promise<{
+  isOpen: boolean;
+  status: 'open' | 'closed';
+  reason?: string;
+  openingTime?: string;
+  closingTime?: string;
+}> => {
+  const now = new Date();
+  const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayDate = now.toISOString().split('T')[0];
+
+  console.log('=== Shop Status Check ===');
+  console.log('Saloon Owner ID:', saloonOwnerId);
+  console.log('Today:', today, '(0=Sunday, 6=Saturday)');
+  console.log('Current time minutes:', currentTimeMinutes);
+
+  // Check if today is a holiday using SaloonHoliday model
+  const todayHoliday = await prisma.saloonHoliday.findFirst({
+    where: {
+      userId: saloonOwnerId,
+      date: {
+        gte: new Date(todayDate + 'T00:00:00.000Z'),
+        lt: new Date(todayDate + 'T23:59:59.999Z'),
+      },
+    },
+  });
+
+  if (todayHoliday) {
+    console.log('Shop is closed - Holiday:', todayHoliday.holidayName);
+    return {
+      isOpen: false,
+      status: 'closed',
+      reason: todayHoliday.holidayName || 'Holiday',
+    };
+  }
+
+  // Find today's schedule using SaloonSchedule model
+  const todaySchedule = await prisma.saloonSchedule.findFirst({
+    where: {
+      saloonOwnerId: saloonOwnerId,
+      dayOfWeek: today,
+      isActive: true,
+    },
+  });
+
+  console.log('Today Schedule:', JSON.stringify(todaySchedule, null, 2));
+
+  if (!todaySchedule || !todaySchedule.openingTime || !todaySchedule.closingTime) {
+    console.log('No schedule found for today');
+    return {
+      isOpen: false,
+      status: 'closed',
+      reason: 'No schedule for today',
+    };
+  }
+
+  console.log('Opening time string:', todaySchedule.openingTime);
+  console.log('Closing time string:', todaySchedule.closingTime);
+
+  const openingMinutes = timeToMinutes(todaySchedule.openingTime);
+  const closingMinutes = timeToMinutes(todaySchedule.closingTime);
+
+  console.log(`Parsed times - Opening: ${openingMinutes}min, Closing: ${closingMinutes}min`);
+  console.log(`Current time in minutes: ${currentTimeMinutes}, Opening: ${openingMinutes}, Closing: ${closingMinutes}`);
+
+  const isOpen = currentTimeMinutes >= openingMinutes && currentTimeMinutes < closingMinutes;
+
+  console.log(`Shop is currently ${isOpen ? 'open' : 'closed'}`);
+
+  return {
+    isOpen,
+    status: isOpen ? 'open' : 'closed',
+    reason: isOpen ? undefined : 'Outside operating hours',
+    openingTime: todaySchedule.openingTime,
+    closingTime: todaySchedule.closingTime,
+  };
+};
+
+// Helper function to check barber availability using BarberSchedule model
+const checkBarberAvailability = async (
+  barberId: string,
+): Promise<{
+  isAvailableToday: boolean;
+  availableForQueue: boolean;
+  availableForBooking: boolean;
+  type: string | null;
+  openingTime?: string;
+  closingTime?: string;
+}> => {
+  const now = new Date();
+  const today = now.getDay();
+  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const todaySchedule = await prisma.barberSchedule.findFirst({
+    where: {
+      barberId: barberId,
+      dayOfWeek: today,
+      isActive: true,
+    },
+  });
+
+  if (!todaySchedule || !todaySchedule.openingTime || !todaySchedule.closingTime) {
+    return {
+      isAvailableToday: false,
+      availableForQueue: false,
+      availableForBooking: false,
+      type: null,
+    };
+  }
+
+  const openingMinutes = timeToMinutes(todaySchedule.openingTime);
+  const closingMinutes = timeToMinutes(todaySchedule.closingTime);
+
+  const isWithinWorkingHours =
+    currentTimeMinutes >= openingMinutes && currentTimeMinutes < closingMinutes;
+
+  return {
+    isAvailableToday: isWithinWorkingHours,
+    availableForQueue: isWithinWorkingHours && todaySchedule.type === 'QUEUE',
+    availableForBooking: isWithinWorkingHours && todaySchedule.type === 'BOOKING',
+    type: todaySchedule.type || null,
+    openingTime: todaySchedule.openingTime,
+    closingTime: todaySchedule.closingTime,
+  };
+};
+
+// Update the main function
 const getMyNearestSaloonListFromDb = async (
   userId: string,
   latitude: number,
@@ -496,45 +806,34 @@ const getMyNearestSaloonListFromDb = async (
       Booking: {
         where: {
           bookingType: BookingType.QUEUE,
-          date: new Date(),
+          date: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+          },
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
           },
         },
-      },
-      SaloonSchedule: {
-        select: {
-          dayOfWeek: true,
-          openingDateTime: true,
-          closingDateTime: true,
-          openingTime: true,
-          closingTime: true,
-        },
-      },
-      SaloonHoliday: {
         select: {
           id: true,
-          date: true,
-          description: true,
-          holidayName: true,
-          isRecurring: true,
+          barberId: true,
         },
       },
       user: {
         select: {
+          phoneNumber: true,
+          email: true,
           HiredBarber: {
             select: {
-              id: true,
               barberId: true,
               barber: {
                 select: {
+                  userId: true,
                   user: {
                     select: {
                       id: true,
                       fullName: true,
                       image: true,
-                      // email: true,
-                      // phoneNumber: true,
                     },
                   },
                   Booking: {
@@ -548,16 +847,8 @@ const getMyNearestSaloonListFromDb = async (
                         in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
                       },
                     },
-                  },
-                  BarberSchedule: {
                     select: {
-                      dayOfWeek: true,
-                      openingDateTime: true,
-                      closingDateTime: true,
-                      openingTime: true,
-                      closingTime: true,
-                      isActive: true,
-                      type: true,
+                      id: true,
                     },
                   },
                 },
@@ -569,20 +860,6 @@ const getMyNearestSaloonListFromDb = async (
       FavoriteShop: { select: { id: true, userId: true } },
     },
   });
-  // check for favorite shop or not
-  let isFavoriteShop = false;
-  if (userId) {
-    allSaloons.forEach(saloon => {
-      isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
-      (saloon as any).isFavorite = isFavoriteShop;
-      delete (saloon as any).FavoriteShop;
-    });
-  } else {
-    allSaloons.forEach(saloon => {
-      (saloon as any).isFavorite = false;
-      delete (saloon as any).FavoriteShop;
-    });
-  }
 
   // Haversine formula to calculate distance
   const calculateDistance = (
@@ -604,84 +881,9 @@ const getMyNearestSaloonListFromDb = async (
     return R * c; // Distance in km
   };
 
-  // Helper function to check if shop is open
-  const isShopOpen = (
-    schedules: any[],
-    holidays: any[],
-  ): { isOpen: boolean; reason?: string } => {
-    const now = new Date();
-    const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const currentTime = now.getHours() * 60 + now.getMinutes(); // in minutes
-
-    // Check if today is a holiday
-    const todayDate = now.toISOString().split('T')[0];
-    const isHoliday = holidays.some(h => {
-      const holidayDate = new Date(h.date).toISOString().split('T')[0];
-      return holidayDate === todayDate;
-    });
-
-    if (isHoliday) {
-      return { isOpen: false, reason: 'Holiday' };
-    }
-
-    // Find today's schedule
-    const todaySchedule = schedules.find(s => s.dayOfWeek === today);
-    if (!todaySchedule) {
-      return { isOpen: false, reason: 'No schedule for today' };
-    }
-
-    // Parse opening and closing times
-    const openingTime = todaySchedule.openingTime
-      ? new Date(`1970-01-01T${todaySchedule.openingTime}Z`)
-      : null;
-    const closingTime = todaySchedule.closingTime
-      ? new Date(`1970-01-01T${todaySchedule.closingTime}Z`)
-      : null;
-
-    if (!openingTime || !closingTime) {
-      return { isOpen: false, reason: 'Invalid schedule times' };
-    }
-
-    const openingMinutes = openingTime.getUTCHours() * 60 + openingTime.getUTCMinutes();
-    const closingMinutes = closingTime.getUTCHours() * 60 + closingTime.getUTCMinutes();
-
-    if (currentTime >= openingMinutes && currentTime <= closingMinutes) {
-      return { isOpen: true };
-    }
-
-    return { isOpen: false, reason: 'Outside operating hours' };
-  };
-
-  // Helper function to check if barber is available today
-  const isBarberAvailableToday = (barberSchedules: any[]): boolean => {
-    const now = new Date();
-    const today = now.getDay();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-    const todaySchedule = barberSchedules.find(
-      s => s.dayOfWeek === today && s.isActive,
-    );
-
-    if (!todaySchedule) return false;
-
-    const openingTime = todaySchedule.openingTime
-      ? new Date(`1970-01-01T${todaySchedule.openingTime}Z`)
-      : null;
-    const closingTime = todaySchedule.closingTime
-      ? new Date(`1970-01-01T${todaySchedule.closingTime}Z`)
-      : null;
-
-    if (!openingTime || !closingTime) return false;
-
-    const openingMinutes = openingTime.getUTCHours() * 60 + openingTime.getUTCMinutes();
-    const closingMinutes = closingTime.getUTCHours() * 60 + closingTime.getUTCMinutes();
-
-    return currentTime >= openingMinutes && currentTime <= closingMinutes;
-  };
-
   // Filter and sort saloons by distance
-  const nearbySaloons = allSaloons
-    .map(saloon => {
+  const nearbySaloons = await Promise.all(
+    allSaloons.map(async saloon => {
       const distance = calculateDistance(
         latitude,
         longitude,
@@ -689,60 +891,106 @@ const getMyNearestSaloonListFromDb = async (
         Number(saloon.longitude),
       );
 
-      const { Booking, SaloonSchedule, SaloonHoliday, user, ...rest } = saloon;
+      // Check if user favorited this shop
+      const isFavorite = userId
+        ? saloon.FavoriteShop.some(fav => fav.userId === userId)
+        : false;
 
-      // Check if shop is open
-      const shopOpenStatus = isShopOpen(
-        SaloonSchedule || [],
-        SaloonHoliday || [],
-      );
+      // Check shop open/closed status using models
+      const shopStatus = await checkShopStatus(saloon.userId);
+
+      // Calculate total queue for the shop
+      const totalShopQueue = Array.isArray(saloon.Booking) ? saloon.Booking.length : 0;
 
       // Process barbers
-      const barbers = (user?.HiredBarber || [])
-        .map((hiredBarber: any) => {
+      const availableBarbers = await Promise.all(
+        (saloon.user?.HiredBarber || []).map(async (hiredBarber: any) => {
           const barber = hiredBarber.barber;
           if (!barber) return null;
 
-          const barberSchedules = barber.BarberSchedule || [];
-          
-          // Check if barber is available today
-          if (!isBarberAvailableToday(barberSchedules)) {
+          const availability = await checkBarberAvailability(barber.userId);
+
+          // Skip barbers not available today
+          if (!availability.isAvailableToday) {
             return null;
           }
 
-          // Get today's schedule type
-          const today = new Date().getDay();
-          const todaySchedule = barberSchedules.find(
-            (s: any) => s.dayOfWeek === today && s.isActive,
-          );
+          const barberQueueCount = Array.isArray(barber.Booking)
+            ? barber.Booking.length
+            : 0;
 
           return {
-            barberId: barber.user?.id || null,
-            barberName: barber.user?.fullName || null,
+            barberId: barber.userId,
+            barberName: barber.user?.fullName || 'Unknown',
             barberImage: barber.user?.image || null,
-            type: todaySchedule?.type || null,
-            queue: Array.isArray(barber.Booking) ? barber.Booking.length : 0,
-            isAvailable: true,
+            queueCount: barberQueueCount,
+            availableForQueue: availability.availableForQueue,
+            availableForBooking: availability.availableForBooking,
+            serviceType: availability.type, // 'QUEUE' or 'BOOKING'
+            workingHours: {
+              openingTime: availability.openingTime || null,
+              closingTime: availability.closingTime || null,
+            },
           };
-        })
-        .filter(Boolean); // Remove null entries
+        }),
+      );
+
+      const filteredBarbers = availableBarbers.filter(Boolean);
 
       return {
-        ...rest,
+        // Shop Details
+        shopId: saloon.id,
+        saloonOwnerId: saloon.userId,
+        shopName: saloon.shopName,
+        shopAddress: saloon.shopAddress,
+        shopLogo: saloon.shopLogo,
+        shopImages: saloon.shopImages || [],
+        shopVideo: saloon.shopVideo || [],
+        phoneNumber: saloon.user?.phoneNumber || null,
+        email: saloon.user?.email || null,
+
+        // Location
+        latitude: Number(saloon.latitude),
+        longitude: Number(saloon.longitude),
         distance: Math.round(distance * 100) / 100,
-        totalQueue: Array.isArray(Booking) ? Booking.length : 0,
-        isOpen: shopOpenStatus.isOpen,
-        openStatusReason: shopOpenStatus.reason || null,
-        barbers,
+
+        // Ratings
+        avgRating: saloon.avgRating ? Number(saloon.avgRating) : 0,
+        ratingCount: saloon.ratingCount || 0,
+
+        // Status
+        isOpen: shopStatus.isOpen,
+        shopStatus: shopStatus.status,
+        statusReason: shopStatus.reason || null,
+        todayWorkingHours: {
+          openingTime: shopStatus.openingTime || null,
+          closingTime: shopStatus.closingTime || null,
+        },
+
+        // Queue Info
+        totalQueueCount: totalShopQueue,
+
+        // Barbers
+        availableBarbers: filteredBarbers,
+        totalAvailableBarbers: filteredBarbers.length,
+
+        // User specific
+        isFavorite,
       };
-    })
+    }),
+  );
+
+  // Filter by radius and sort
+  const filteredSaloons = nearbySaloons
     .filter(saloon => saloon.distance <= radiusInKm)
     .sort((a, b) => a.distance - b.distance);
 
   // Apply pagination
-  const total = nearbySaloons.length;
+  const total = filteredSaloons.length;
   const skip = (page - 1) * limit;
-  const paginatedSaloons = nearbySaloons.slice(skip, skip + limit);
+  const paginatedSaloons = filteredSaloons.slice(skip, skip + limit);
+  const hasNextPage = page < total / limit;
+  const hasPrevPage = page > 1;
 
   return {
     data: paginatedSaloons,
@@ -751,6 +999,9 @@ const getMyNearestSaloonListFromDb = async (
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      hasNextPage,
+      hasPrevPage,
+
     },
   };
 };
@@ -782,11 +1033,8 @@ const getTopRatedSaloonsFromDb = async (
     where.avgRating = { gte: minRating };
   }
 
-  // Get total count
-  const total = await prisma.saloonOwner.count({ where });
-
-  // Get results
-  const result = await prisma.saloonOwner.findMany({
+  // Get all saloons
+  const allSaloons = await prisma.saloonOwner.findMany({
     where,
     select: {
       id: true,
@@ -800,93 +1048,172 @@ const getTopRatedSaloonsFromDb = async (
       longitude: true,
       ratingCount: true,
       avgRating: true,
-      Review: {
-        select: {
-          rating: true,
-        },
-      },
       Booking: {
         where: {
           bookingType: BookingType.QUEUE,
-          date: new Date(),
+          date: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+          },
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+          },
+        },
+        select: {
+          id: true,
+          barberId: true,
+        },
+      },
+      user: {
+        select: {
+          phoneNumber: true,
+          email: true,
+          HiredBarber: {
+            select: {
+              barberId: true,
+              barber: {
+                select: {
+                  userId: true,
+                  user: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                      image: true,
+                    },
+                  },
+                  Booking: {
+                    where: {
+                      bookingType: BookingType.QUEUE,
+                      date: {
+                        gte: new Date(new Date().setHours(0, 0, 0, 0)),
+                        lt: new Date(new Date().setHours(23, 59, 59, 999)),
+                      },
+                      status: {
+                        in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+                      },
+                    },
+                    select: {
+                      id: true,
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
       FavoriteShop: { select: { id: true, userId: true } },
     },
+    orderBy: {
+      avgRating: 'desc', // Sort by rating descending
+    },
   });
-  // check for favorite shop or not
-  let isFavoriteShop = false;
-  if (userId) {
-    result.forEach(saloon => {
-      isFavoriteShop = saloon.FavoriteShop.some(fav => fav.userId === userId);
-      (saloon as any).isFavorite = isFavoriteShop;
-      delete (saloon as any).FavoriteShop;
-    });
-  } else {
-    result.forEach(saloon => {
-      (saloon as any).isFavorite = false;
-      delete (saloon as any).FavoriteShop;
-    });
-  }
 
-  // Normalize output to the requested format and sort by avgRating desc
-  const saloonsWithAvgRatings = result
-    .map(saloon => {
-      const reviews = Array.isArray((saloon as any).Review)
-        ? (saloon as any).Review
-        : [];
+  // Process saloons with shop status and barber availability
+  const processedSaloons = await Promise.all(
+    allSaloons.map(async saloon => {
+      // Check if user favorited this shop
+      const isFavorite = userId
+        ? saloon.FavoriteShop.some(fav => fav.userId === userId)
+        : false;
 
-      const ratingsArray = reviews
-        .map((r: any) => {
-          const val = r && typeof r.rating !== 'undefined' ? r.rating : null;
-          return typeof val === 'number' ? val : Number(val);
-        })
-        .filter((n: number) => !isNaN(n));
+      // Check shop open/closed status using models
+      const shopStatus = await checkShopStatus(saloon.userId);
 
-      const computedAvg =
-        ratingsArray.length > 0
-          ? ratingsArray.reduce((s: number, v: number) => s + v, 0) /
-            ratingsArray.length
-          : typeof saloon.avgRating === 'number'
-            ? saloon.avgRating
+      // Calculate total queue for the shop
+      const totalShopQueue = Array.isArray(saloon.Booking)
+        ? saloon.Booking.length
+        : 0;
+
+      // Process barbers
+      const availableBarbers = await Promise.all(
+        (saloon.user?.HiredBarber || []).map(async (hiredBarber: any) => {
+          const barber = hiredBarber.barber;
+          if (!barber) return null;
+
+          const availability = await checkBarberAvailability(barber.userId);
+
+          // Skip barbers not available today
+          if (!availability.isAvailableToday) {
+            return null;
+          }
+
+          const barberQueueCount = Array.isArray(barber.Booking)
+            ? barber.Booking.length
             : 0;
 
-      const ratingCount =
-        typeof saloon.ratingCount === 'number'
-          ? saloon.ratingCount
-          : ratingsArray.length;
+          return {
+            barberId: barber.userId,
+            barberName: barber.user?.fullName || 'Unknown',
+            barberImage: barber.user?.image || null,
+            queueCount: barberQueueCount,
+            availableForQueue: availability.availableForQueue,
+            availableForBooking: availability.availableForBooking,
+            serviceType: availability.type, // 'QUEUE' or 'BOOKING'
+            workingHours: {
+              openingTime: availability.openingTime || null,
+              closingTime: availability.closingTime || null,
+            },
+          };
+        }),
+      );
+
+      const filteredBarbers = availableBarbers.filter(Boolean);
 
       return {
-        id: saloon.id,
-        userId: saloon.userId,
+        // Shop Details
+        shopId: saloon.id,
+        saloonOwnerId: saloon.userId,
         shopName: saloon.shopName,
         shopAddress: saloon.shopAddress,
-        shopImages: saloon.shopImages ?? [],
-        shopLogo: saloon.shopLogo ?? null,
-        shopVideo: saloon.shopVideo ?? [],
-        latitude:
-          saloon.latitude !== null && typeof saloon.latitude !== 'undefined'
-            ? Number(saloon.latitude)
-            : null,
-        longitude:
-          saloon.longitude !== null && typeof saloon.longitude !== 'undefined'
-            ? Number(saloon.longitude)
-            : null,
-        ratingCount: ratingCount,
-        avgRating: Math.round(computedAvg * 100) / 100,
-        distance: 0,
-        queue: saloon.Booking.length,
-        isFavorite: (saloon as any).isFavorite || false,
+        shopLogo: saloon.shopLogo,
+        shopImages: saloon.shopImages || [],
+        shopVideo: saloon.shopVideo || [],
+        phoneNumber: saloon.user?.phoneNumber || null,
+        email: saloon.user?.email || null,
+
+        // Location
+        latitude: Number(saloon.latitude),
+        longitude: Number(saloon.longitude),
+        distance: 0, // No distance calculation for top-rated
+
+        // Ratings
+        avgRating: saloon.avgRating ? Number(saloon.avgRating) : 0,
+        ratingCount: saloon.ratingCount || 0,
+
+        // Status
+        isOpen: shopStatus.isOpen,
+        shopStatus: shopStatus.status,
+        statusReason: shopStatus.reason || null,
+        todayWorkingHours: {
+          openingTime: shopStatus.openingTime || null,
+          closingTime: shopStatus.closingTime || null,
+        },
+
+        // Queue Info
+        totalQueueCount: totalShopQueue,
+
+        // Barbers
+        availableBarbers: filteredBarbers,
+        totalAvailableBarbers: filteredBarbers.length,
+
+        // User specific
+        isFavorite,
       };
-    })
-    .sort((a, b) => b.avgRating - a.avgRating);
+    }),
+  );
+
+  // Sort by avgRating descending (already sorted in query, but ensure it)
+  const sortedSaloons = processedSaloons.sort(
+    (a, b) => b.avgRating - a.avgRating,
+  );
 
   // Apply pagination
+  const total = sortedSaloons.length;
   const skip = (page - 1) * limit;
-  const paginatedSaloons = saloonsWithAvgRatings.slice(skip, skip + limit);
+  const paginatedSaloons = sortedSaloons.slice(skip, skip + limit);
+  const hasNextPage = page < total / limit;
+  const hasPrevPage = page > 1;
 
   return {
     data: paginatedSaloons,
@@ -895,6 +1222,8 @@ const getTopRatedSaloonsFromDb = async (
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      hasNextPage,
+      hasPrevPage,
     },
   };
 };
