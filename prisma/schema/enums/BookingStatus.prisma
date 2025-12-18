@@ -6,4 +6,5 @@ enum BookingStatus {
   RESCHEDULED
   NO_SHOW
   REFUNDED
+  STARTED
 }
