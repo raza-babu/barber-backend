@@ -487,8 +487,8 @@ const getAllSaloonListFromDb = async (
 
       return {
         // Shop Details
-        shopId: saloon.id,
-        saloonOwnerId: saloon.userId,
+        // userId: saloon.id,
+        userId: saloon.userId,
         shopName: saloon.shopName,
         shopAddress: saloon.shopAddress,
         shopLogo: saloon.shopLogo,
@@ -939,8 +939,8 @@ const getMyNearestSaloonListFromDb = async (
 
       return {
         // Shop Details
-        shopId: saloon.id,
-        saloonOwnerId: saloon.userId,
+        // userId: saloon.id,
+        userId: saloon.userId,
         shopName: saloon.shopName,
         shopAddress: saloon.shopAddress,
         shopLogo: saloon.shopLogo,
@@ -1162,8 +1162,8 @@ const getTopRatedSaloonsFromDb = async (
 
       return {
         // Shop Details
-        shopId: saloon.id,
-        saloonOwnerId: saloon.userId,
+        // shopId: saloon.id,
+        userId: saloon.userId,
         shopName: saloon.shopName,
         shopAddress: saloon.shopAddress,
         shopLogo: saloon.shopLogo,
