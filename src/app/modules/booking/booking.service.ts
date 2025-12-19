@@ -1932,6 +1932,12 @@ const getBookingListFromDb = async (
         select: {
           id: true,
           position: true,
+          queue: {
+            select: {
+              id: true,
+              currentPosition: true,
+            },
+          },
         },
       },
     },
@@ -1962,6 +1968,7 @@ const getBookingListFromDb = async (
     barberName: b.barber?.user?.fullName || null,
     barberImage: b.barber?.user?.image || null,
     position: b.queueSlot[0]?.position || null,
+    currentPosition: b.queueSlot[0]?.queue?.currentPosition || null,
     serviceNames: b.BookedServices?.map(bs => bs.service?.serviceName) || [],
     serviceDurations: b.BookedServices?.map(bs => bs.service?.duration) || [],
     payment:
