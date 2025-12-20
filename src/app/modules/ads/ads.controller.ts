@@ -2,7 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { adsService } from './ads.service';
-import { uploadFileToSpace } from '../../utils/multipleFile';
+import { uploadFileToS3 } from '../../utils/multipleFile';
 import AppError from '../../errors/AppError';
 
 const createAds = catchAsync(async (req, res) => {
@@ -24,7 +24,7 @@ const createAds = catchAsync(async (req, res) => {
   // Upload images
   if (fileGroups.images?.length) {
     const imageUploads = await Promise.all(
-      fileGroups.images.map(file => uploadFileToSpace(file, 'ads-images'))
+      fileGroups.images.map(file => uploadFileToS3(file, 'ads-images'))
     );
     uploads.images.push(...imageUploads);
   }
@@ -77,7 +77,7 @@ const updateAds = catchAsync(async (req, res) => {
   let newUploads: string[] = [];
   if (fileGroups.images?.length) {
     newUploads = await Promise.all(
-      fileGroups.images.map(file => uploadFileToSpace(file, "ads-images"))
+      fileGroups.images.map(file => uploadFileToS3(file, "ads-images"))
     );
   }
 

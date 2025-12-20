@@ -2,7 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { adminAccessFunctionService } from './adminAccessFunction.service';
-import { uploadFileToSpace } from '../../utils/multipleFile';
+import { uploadFileToS3 } from '../../utils/multipleFile';
 import AppError from '../../errors/AppError';
 import { pickValidFields } from '../../utils/pickValidFields';
 
@@ -15,7 +15,7 @@ const createAdminAccessFunction = catchAsync(async (req, res) => {
   }
 
   // Upload to DigitalOcean
-  const fileUrl = await uploadFileToSpace(file, 'admin-profile-images');
+  const fileUrl = await uploadFileToS3(file, 'admin-profile-images');
   const accessFunctionData = {
     ...body,
     image: fileUrl,

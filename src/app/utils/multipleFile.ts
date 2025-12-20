@@ -8,39 +8,69 @@ import config from '../../config';
 import multer from 'multer';
 
 // Configure DigitalOcean Spaces
-const s3 = new S3Client({
-  region: 'nyc3',
-  endpoint: config.s3.do_space_endpoint,
+// const s3 = new S3Client({
+//   region: 'nyc3',
+//   endpoint: config.s3.do_space_endpoint,
+//   credentials: {
+//     accessKeyId: config.s3.do_space_accesskey || '', // Ensure this is never undefined
+//     secretAccessKey: config.s3.do_space_secret_key || '', // Ensure this is never undefined
+//   },
+// });
+
+// // Function to upload a file to DigitalOcean Space
+// export const uploadFileToSpace = async (
+//   file: Express.Multer.File,
+//   folder: string,
+// ) => {
+//   if (!process.env.DO_SPACE_BUCKET) {
+//     throw new Error(
+//       'DO_SPACE_BUCKET is not defined in the environment variables.',
+//     );
+//   }
+
+//   const params = {
+//     Bucket: process.env.DO_SPACE_BUCKET, // Your Space name
+//     Key: `${folder}/${Date.now()}_${file.originalname}`, // Object key in the Space
+//     Body: file.buffer, // Use the buffer from the memory storage
+//     ContentType: file.mimetype,
+//     ACL: 'public-read' as ObjectCannedACL, // Make the object publicly accessible
+//   };
+//   // console.log(params,"check params")
+
+//   try {
+//     const result = await s3.send(new PutObjectCommand(params));
+//     // console.log(result,"check result")
+//     return `https://${config.s3.do_space_bucket}.${(config.s3.do_space_endpoint || 'nyc3.digitaloceanspaces.com').replace('https://', '')}/${params.Key}`;
+//   } catch (error) {
+//     console.error('Error uploading file:', error);
+//     throw error;
+//   }
+// };
+
+export const aws = new S3Client({
+  region: config.aws.aws_region,
   credentials: {
-    accessKeyId: config.s3.do_space_accesskey || '', // Ensure this is never undefined
-    secretAccessKey: config.s3.do_space_secret_key || '', // Ensure this is never undefined
+    accessKeyId: config.aws.aws_access_key_id || '',
+    secretAccessKey: config.aws.aws_secret_access_key || '',
   },
 });
 
-// Function to upload a file to DigitalOcean Space
-export const uploadFileToSpace = async (
-  file: Express.Multer.File,
-  folder: string,
-) => {
-  if (!process.env.DO_SPACE_BUCKET) {
-    throw new Error(
-      'DO_SPACE_BUCKET is not defined in the environment variables.',
-    );
+export const uploadFileToS3 = async (file: Express.Multer.File, folder: string) => {
+  if (!process.env.AWS_S3_BUCKET) {
+    throw new Error('AWS_S3_BUCKET is not defined in environment variables.');
   }
 
   const params = {
-    Bucket: process.env.DO_SPACE_BUCKET, // Your Space name
-    Key: `${folder}/${Date.now()}_${file.originalname}`, // Object key in the Space
-    Body: file.buffer, // Use the buffer from the memory storage
+    Bucket: process.env.AWS_S3_BUCKET,
+    Key: `${folder}/${Date.now()}_${file.originalname}`,
+    Body: file.buffer,
     ContentType: file.mimetype,
-    ACL: 'public-read' as ObjectCannedACL, // Make the object publicly accessible
+    ACL: 'public-read' as ObjectCannedACL,
   };
-  // console.log(params,"check params")
 
   try {
-    const result = await s3.send(new PutObjectCommand(params));
-    // console.log(result,"check result")
-    return `https://${config.s3.do_space_bucket}.${(config.s3.do_space_endpoint || 'nyc3.digitaloceanspaces.com').replace('https://', '')}/${params.Key}`;
+    await aws.send(new PutObjectCommand(params));
+    return `https://${process.env.AWS_S3_BUCKET}.s3.${config.aws.aws_region}.amazonaws.com/${params.Key}`;
   } catch (error) {
     console.error('Error uploading file:', error);
     throw error;

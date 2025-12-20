@@ -2,7 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { feedService } from './feed.service';
-import { uploadFileToSpace } from '../../utils/multipleFile';
+import { uploadFileToS3 } from '../../utils/multipleFile';
 
 const createFeed = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -20,7 +20,7 @@ const createFeed = catchAsync(async (req, res) => {
   // Upload images
   if (fileGroups.images?.length) {
     const imageUploads = await Promise.all(
-      fileGroups.images.map(file => uploadFileToSpace(file, 'feed-images'))
+      fileGroups.images.map(file => uploadFileToS3(file, 'feed-images'))
     );
     uploads.images.push(...imageUploads);
   }
@@ -92,7 +92,7 @@ const updateFeed = catchAsync(async (req, res) => {
   let newUploads: string[] = [];
   if (fileGroups.images?.length) {
     newUploads = await Promise.all(
-      fileGroups.images.map(file => uploadFileToSpace(file, "feed-images"))
+      fileGroups.images.map(file => uploadFileToS3(file, "feed-images"))
     );
   }
 

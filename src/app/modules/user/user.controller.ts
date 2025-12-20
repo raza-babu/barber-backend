@@ -3,7 +3,7 @@ import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { UserServices } from '../user/user.service';
 import AppError from '../../errors/AppError';
-import { uploadFileToSpace } from '../../utils/multipleFile';
+import { uploadFileToS3 } from '../../utils/multipleFile';
 import { log } from 'node:console';
 
 const registerUser = catchAsync(async (req, res) => {
@@ -46,7 +46,7 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
 
   // Upload shop logo
   if (fileGroups.shop_logo?.[0]) {
-    uploads.shopLogo = await uploadFileToSpace(
+    uploads.shopLogo = await uploadFileToS3(
       fileGroups.shop_logo[0],
       'saloon-logos',
     );
@@ -56,7 +56,7 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
   if (fileGroups.shop_images?.length) {
     const imageUploads = await Promise.all(
       fileGroups.shop_images.map(file =>
-        uploadFileToSpace(file, 'saloon-images'),
+        uploadFileToS3(file, 'saloon-images'),
       ),
     );
     uploads.shopImages.push(...imageUploads);
@@ -66,7 +66,7 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
   if (fileGroups.shop_videos?.length) {
     const videoUploads = await Promise.all(
       fileGroups.shop_videos.map(file =>
-        uploadFileToSpace(file, 'saloon-videos'),
+        uploadFileToS3(file, 'saloon-videos'),
       ),
     );
     uploads.shopVideos.push(...videoUploads);
@@ -106,7 +106,7 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
   } || {};
   // Upload shop logo (optional)
   if (fileGroups.shop_logo?.[0]) {
-    uploads.shopLogo = await uploadFileToSpace(
+    uploads.shopLogo = await uploadFileToS3(
       fileGroups.shop_logo[0],
       'saloon-logos',
     );
@@ -115,7 +115,7 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
   if (fileGroups.shop_images?.length) {
     const imageUploads = await Promise.all(
       fileGroups.shop_images.map(file =>
-        uploadFileToSpace(file, 'saloon-images'),
+        uploadFileToS3(file, 'saloon-images'),
       ),
     );
     uploads.shopImages.push(...imageUploads);
@@ -124,7 +124,7 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
   if (fileGroups.shop_videos?.length) {
     const videoUploads = await Promise.all(
       fileGroups.shop_videos.map(file =>
-        uploadFileToSpace(file, 'saloon-videos'),
+        uploadFileToS3(file, 'saloon-videos'),
       ),
     );
     uploads.shopVideos.push(...videoUploads);
@@ -170,7 +170,7 @@ const updateBarber = catchAsync(async (req, res) => {
   if (fileGroups?.portfolioImages?.length) {
     const uploadedImages = await Promise.all(
       fileGroups.portfolioImages.map(file =>
-        uploadFileToSpace(file, 'barber-portfolio'),
+        uploadFileToS3(file, 'barber-portfolio'),
       ),
     );
     uploads.portfolioImages.push(...uploadedImages);
@@ -355,7 +355,7 @@ const updateProfileImage = catchAsync(async (req, res) => {
   }
 
   // Upload to DigitalOcean
-  const fileUrl = await uploadFileToSpace(file, 'user-profile-images');
+  const fileUrl = await uploadFileToS3(file, 'user-profile-images');
 
   // Update DB
   const result = await UserServices.updateProfileImageIntoDB(user.id, fileUrl);

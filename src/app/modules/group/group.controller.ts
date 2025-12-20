@@ -3,7 +3,7 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { groupService } from './group.service';
 import AppError from '../../errors/AppError';
-import { uploadFileToSpaceForUpdate } from '../../utils/updateMulterUpload';
+import { uploadFileToS3 } from '../../utils/multipleFile';
 
 const createGroup = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -13,7 +13,7 @@ const createGroup = catchAsync(async (req, res) => {
   if (!file) {
     throw new AppError(httpStatus.CONFLICT, 'file not found');
   }
-  const fileUrl = await uploadFileToSpaceForUpdate(file, 'retire-professional');
+  const fileUrl = await uploadFileToS3(file, 'retire-professional');
 
   const groupData = {
     data,
@@ -59,7 +59,7 @@ const updateGroup = catchAsync(async (req, res) => {
   let groupData: { data: any; groupImage?: string } = { data };
 
   if (file) {
-    const fileUrl = await uploadFileToSpaceForUpdate(
+    const fileUrl = await uploadFileToS3(
       file,
       'retire-professional',
     );
@@ -98,7 +98,7 @@ const imageToLink = catchAsync(async (req, res) => {
   if (!file) {
     throw new AppError(httpStatus.CONFLICT, 'file not found');
   }
-  const fileUrl = await uploadFileToSpaceForUpdate(file, 'retire-professional');
+  const fileUrl = await uploadFileToS3(file, 'retire-professional');
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

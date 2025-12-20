@@ -3,7 +3,7 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { reviewService } from './review.service';
 import { UserRoleEnum } from '@prisma/client';
-import { uploadFileToSpace } from '../../utils/multipleFile';
+import { uploadFileToS3 } from '../../utils/multipleFile';
 
 const createReview = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -22,7 +22,7 @@ const createReview = catchAsync(async (req, res) => {
     if (fileGroups?.reviewImages?.length) {
       const uploadedImages = await Promise.all(
         fileGroups.reviewImages.map(file =>
-          uploadFileToSpace(file, 'booking-review-images'),
+          uploadFileToS3(file, 'booking-review-images'),
         ),
       );
       uploads.reviewImages.push(...uploadedImages);
@@ -126,7 +126,7 @@ const updateReview = catchAsync(async (req, res) => {
     if (fileGroups?.reviewImages?.length) {
       const uploadedImages = await Promise.all(
         fileGroups.reviewImages.map(file =>
-          uploadFileToSpace(file, 'booking-review-images'),
+          uploadFileToS3(file, 'booking-review-images'),
         ),
       );
       uploads.reviewImages.push(...uploadedImages);
