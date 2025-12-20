@@ -209,6 +209,55 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
   };
 };
 
+const updateBookingStatusIntoDb = async (
+  userId: string,
+  bookingId: string,
+  data: { status: BookingStatus },
+) => {
+  const existingBooking = await prisma.booking.findUnique({
+    where: {
+      id: bookingId,
+      barberId: userId,
+      status: { in : [BookingStatus.CONFIRMED, BookingStatus.PENDING, BookingStatus.STARTED, BookingStatus.ENDED] },
+    },
+  });
+
+  if (!existingBooking) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+  }
+
+  const now = new Date();
+  const startTime = new Date(existingBooking.startDateTime!);
+  const endTime = new Date(existingBooking.endDateTime!);
+  const twentyMinsBeforeStart = new Date(startTime.getTime() - 20 * 60000);
+  const twentyMinsBeforeEnd = new Date(endTime.getTime() - 20 * 60000);
+
+  // Check if trying to start booking - can only start 20 mins before or after start time
+  if (data.status === BookingStatus.STARTED && now < twentyMinsBeforeStart) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Cannot start booking before 20 minutes of scheduled time');
+  }
+
+  // Check if trying to end booking - can only end 20 mins before end time or after
+  if (data.status === BookingStatus.ENDED && now < twentyMinsBeforeEnd) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Cannot end booking before 20 minutes of scheduled end time');
+  }
+
+  const result = await prisma.booking.update({
+    where: {
+      id: bookingId,
+    },
+    data: {
+      status: data.status,
+    },
+  });
+
+  if (!result) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Booking status not updated');
+  }
+
+  return result;
+};
+
 const updateBarberIntoDb = async (
   userId: string,
   barberId: string,
@@ -249,6 +298,7 @@ export const barberService = {
   getBarberListFromDb,
   getMyBookingsFromDb,
   getBarberByIdFromDb,
+  updateBookingStatusIntoDb,
   updateBarberIntoDb,
   deleteBarberItemFromDb,
 };

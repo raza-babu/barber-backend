@@ -14,7 +14,16 @@ const updateSchema = z.object({
     }),
 });
 
+const updateBookingStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['STARTED', 'ENDED'], {
+      required_error: 'Status is required',
+    }),
+  }),
+});
+
 export const barberValidation = {
 createSchema,
 updateSchema,
+updateBookingStatusSchema,
 };

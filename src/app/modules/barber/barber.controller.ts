@@ -58,6 +58,22 @@ const getBarberById = catchAsync(async (req, res) => {
   });
 });
 
+const updateBookingStatus = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await barberService.updateBookingStatusIntoDb(
+    user.id,
+    req.params.id,
+    req.body,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Booking status updated successfully',
+    data: result,
+  });
+});
+
+
 const updateBarber = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await barberService.updateBarberIntoDb(user.id, req.params.id, req.body);
@@ -86,6 +102,7 @@ export const barberController = {
   getBarberList,
   getBarberById,
   getMyBookings,
+  updateBookingStatus,
   updateBarber,
   deleteBarber,
 };

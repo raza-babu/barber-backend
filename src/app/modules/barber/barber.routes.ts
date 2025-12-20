@@ -30,6 +30,13 @@ router.get(
 
 router.get('/:id', auth(), barberController.getBarberById);
 
+router.patch(
+  '/update-booking-status/:id',
+  auth(UserRoleEnum.BARBER),
+  validateRequest(barberValidation.updateBookingStatusSchema),
+  barberController.updateBookingStatus,
+);
+
 router.put(
   '/:id',
   auth(),

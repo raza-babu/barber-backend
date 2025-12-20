@@ -1932,62 +1932,86 @@ const getBookingListFromDb = async (
         select: {
           id: true,
           position: true,
-          queue: {
-            select: {
-              id: true,
-              currentPosition: true,
-            },
-          },
+          // queue: {
+          //   select: {
+          //     id: true,
+          //     currentPosition: true,
+          //   },
+          // },
         },
       },
     },
   });
 
-  const formattedBookings = bookings.map(b => ({
-    bookingId: b.id,
-    customerId: b.userId,
-    barberId: b.barberId,
-    saloonOwnerId: b.saloonOwnerId,
-    saloonName: b.saloonOwner?.shopName || null,
-    saloonAddress: b.saloonOwner?.shopAddress || null,
-    saloonLogo: b.saloonOwner?.shopLogo || null,
-    totalPrice: b.totalPrice,
-    notes: b.notes,
-    customerImage: b.user?.image || null,
-    customerName: b.user?.fullName || null,
-    customerEmail: b.user?.email || null,
-    customerContact: b.user?.phoneNumber || null,
-    date: b.date,
-    appointmentAt: b.appointmentAt,
-    startTime: b.startTime,
-    endTime: b.endTime,
-    bookingType: b.bookingType,
-    // isInQueue: b.isInQueue,
-    status: b.status,
-    createdAt: b.createdAt,
-    barberName: b.barber?.user?.fullName || null,
-    barberImage: b.barber?.user?.image || null,
-    position: b.queueSlot[0]?.position || null,
-    currentPosition: b.queueSlot[0]?.queue?.currentPosition || null,
-    serviceNames: b.BookedServices?.map(bs => bs.service?.serviceName) || [],
-    serviceDurations: b.BookedServices?.map(bs => bs.service?.duration) || [],
-    payment:
-      b.Payment && b.Payment.length > 0
+  const formattedBookings = bookings.map(b => {
+    // Get the current time
+    const now = DateTime.now().setZone('local');
+    
+    // Parse booking start and end times
+    const bookingStart = DateTime.fromJSDate(b.startDateTime || new Date()).setZone('local');
+    const bookingEnd = DateTime.fromJSDate(b.endDateTime || new Date()).setZone('local');
+
+    console.log(`Booking ID: ${b.id}, Now: ${now.toISO()}, Start: ${bookingStart.toISO()}, End: ${bookingEnd.toISO()}`);
+    
+    // Determine current position in queue based on current time
+    let currentPosition = null;
+    if ( b.queueSlot && b.queueSlot.length > 0) {
+      if (now <= bookingStart && now < bookingEnd) {
+        currentPosition = 1;
+      }
+      else if (now > bookingStart && now < bookingEnd) {
+        currentPosition = b.queueSlot[0]?.position || null;
+      }
+      else {
+        currentPosition = 'Completed';
+      }
+    }
+
+    return {
+      bookingId: b.id,
+      customerId: b.userId,
+      barberId: b.barberId,
+      saloonOwnerId: b.saloonOwnerId,
+      saloonName: b.saloonOwner?.shopName || null,
+      saloonAddress: b.saloonOwner?.shopAddress || null,
+      saloonLogo: b.saloonOwner?.shopLogo || null,
+      totalPrice: b.totalPrice,
+      notes: b.notes,
+      customerImage: b.user?.image || null,
+      customerName: b.user?.fullName || null,
+      customerEmail: b.user?.email || null,
+      customerContact: b.user?.phoneNumber || null,
+      date: b.date,
+      appointmentAt: b.appointmentAt,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      bookingType: b.bookingType,
+      status: b.status,
+      createdAt: b.createdAt,
+      barberName: b.barber?.user?.fullName || null,
+      barberImage: b.barber?.user?.image || null,
+      position: b.queueSlot[0]?.position || null,
+      currentPosition: currentPosition,
+      serviceNames: b.BookedServices?.map(bs => bs.service?.serviceName) || [],
+      serviceDurations: b.BookedServices?.map(bs => bs.service?.duration) || [],
+      payment:
+        b.Payment && b.Payment.length > 0
+          ? {
+              id: b.Payment[0].id,
+              paymentAmount: b.Payment[0].paymentAmount,
+              status: b.Payment[0].status,
+              paymentDate: b.Payment[0].paymentDate,
+            }
+          : null,
+      loyaltyScheme: b.loyaltyScheme
         ? {
-            id: b.Payment[0].id,
-            paymentAmount: b.Payment[0].paymentAmount,
-            status: b.Payment[0].status,
-            paymentDate: b.Payment[0].paymentDate,
+            id: b.loyaltyScheme.id,
+            percentage: b.loyaltyScheme.percentage,
+            pointThreshold: b.loyaltyScheme.pointThreshold,
           }
         : null,
-    loyaltyScheme: b.loyaltyScheme
-      ? {
-          id: b.loyaltyScheme.id,
-          percentage: b.loyaltyScheme.percentage,
-          pointThreshold: b.loyaltyScheme.pointThreshold,
-        }
-      : null,
-  }));
+    };
+  });
 
   // Calculate pagination metadata
   const totalPages = Math.ceil(total / limit);
