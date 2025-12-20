@@ -1946,23 +1946,27 @@ const getBookingListFromDb = async (
   const formattedBookings = bookings.map(b => {
     // Get the current time
     const now = DateTime.now().setZone('local');
-    
-    // Parse booking start and end times
-    const bookingStart = DateTime.fromJSDate(b.startDateTime || new Date()).setZone('local');
-    const bookingEnd = DateTime.fromJSDate(b.endDateTime || new Date()).setZone('local');
 
-    console.log(`Booking ID: ${b.id}, Now: ${now.toISO()}, Start: ${bookingStart.toISO()}, End: ${bookingEnd.toISO()}`);
-    
+    // Parse booking start and end times
+    const bookingStart = DateTime.fromJSDate(
+      b.startDateTime || new Date(),
+    ).setZone('local');
+    const bookingEnd = DateTime.fromJSDate(b.endDateTime || new Date()).setZone(
+      'local',
+    );
+
+    console.log(
+      `Booking ID: ${b.id}, Now: ${now.toISO()}, Start: ${bookingStart.toISO()}, End: ${bookingEnd.toISO()}`,
+    );
+
     // Determine current position in queue based on current time
     let currentPosition = null;
-    if ( b.queueSlot && b.queueSlot.length > 0) {
+    if (b.queueSlot && b.queueSlot.length > 0) {
       if (now <= bookingStart && now < bookingEnd) {
         currentPosition = 1;
-      }
-      else if (now > bookingStart && now < bookingEnd) {
+      } else if (now > bookingStart && now < bookingEnd) {
         currentPosition = b.queueSlot[0]?.position || null;
-      }
-      else {
+      } else {
         currentPosition = 'Completed';
       }
     }

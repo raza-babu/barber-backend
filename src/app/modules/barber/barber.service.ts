@@ -65,21 +65,25 @@ const getMyBookingsFromDb = async (userId: string) => {
         { status: BookingStatus.CONFIRMED },
         { status: BookingStatus.COMPLETED },
         { status: BookingStatus.PENDING },
-      ] 
+      ],
     },
     include: {
-          BookedServices: {
+      BookedServices: {
+        select: {
+          id: true,
+          service: {
             select: {
               id: true,
-              service: {
-                select: { id: true, serviceName: true, duration: true, availableTo: true, price: true },
-              },
+              serviceName: true,
+              duration: true,
+              availableTo: true,
+              price: true,
             },
           },
         },
-        orderBy: { startDateTime: 'asc' },
-      
-    
+      },
+    },
+    orderBy: { startDateTime: 'asc' },
   });
 
   if (bookings.length === 0) {
@@ -87,50 +91,62 @@ const getMyBookingsFromDb = async (userId: string) => {
   }
 
   const bookingUserIds = Array.from(
-        new Set(bookings.map(b => b.userId).filter(Boolean)),
-      );
+    new Set(bookings.map(b => b.userId).filter(Boolean)),
+  );
 
-      const registeredUsersMap: Record<string, any> = {};
-      if (bookingUserIds.length > 0) {
-        const registeredUsers = await prisma.user.findMany({
-          where: { id: { in: bookingUserIds } },
-          // include email and phoneNumber so we don't lose those fields when replacing the user object
-          select: { id: true, fullName: true, image: true, email: true, phoneNumber: true },
-        });
-        for (const u of registeredUsers) {
-          registeredUsersMap[u.id] = u;
-        }
-      }
+  const registeredUsersMap: Record<string, any> = {};
+  if (bookingUserIds.length > 0) {
+    const registeredUsers = await prisma.user.findMany({
+      where: { id: { in: bookingUserIds } },
+      // include email and phoneNumber so we don't lose those fields when replacing the user object
+      select: {
+        id: true,
+        fullName: true,
+        image: true,
+        email: true,
+        phoneNumber: true,
+      },
+    });
+    for (const u of registeredUsers) {
+      registeredUsersMap[u.id] = u;
+    }
+  }
 
-      const nonRegisteredUsersMap: Record<string, any> = {};
-      const nonRegIds = bookingUserIds.filter(id => !registeredUsersMap[id]);
-      if (nonRegIds.length > 0) {
-        const nonRegisteredUsers = await prisma.nonRegisteredUser.findMany({
-          where: { id: { in: nonRegIds } },
-          // include phoneNumber and image if available, and email
-          select: { id: true, fullName: true, email: true, phone: true },
-        });
-        for (const nr of nonRegisteredUsers) {
-          nonRegisteredUsersMap[nr.id] = nr;
-        }
-      }
+  const nonRegisteredUsersMap: Record<string, any> = {};
+  const nonRegIds = bookingUserIds.filter(id => !registeredUsersMap[id]);
+  if (nonRegIds.length > 0) {
+    const nonRegisteredUsers = await prisma.nonRegisteredUser.findMany({
+      where: { id: { in: nonRegIds } },
+      // include phoneNumber and image if available, and email
+      select: { id: true, fullName: true, email: true, phone: true },
+    });
+    for (const nr of nonRegisteredUsers) {
+      nonRegisteredUsersMap[nr.id] = nr;
+    }
+  }
 
-      bookings = bookings.map(b => {
-        const uid = b.userId as string | null;
-        const userObj = (uid && registeredUsersMap[uid]) ||
-          (uid && nonRegisteredUsersMap[uid]) || {
-            id: null,
-            fullName: null,
-            email: null,
-            phoneNumber: null,
-            image: null,
-          };
-        return { ...b, user: userObj };
-      });
-      bookings = bookings.map(b => ({
-        ...b,
-        user: (b as any).user ?? { id: null, fullName: null, email: null, phoneNumber: null, image: null },
-      }));
+  bookings = bookings.map(b => {
+    const uid = b.userId as string | null;
+    const userObj = (uid && registeredUsersMap[uid]) ||
+      (uid && nonRegisteredUsersMap[uid]) || {
+        id: null,
+        fullName: null,
+        email: null,
+        phoneNumber: null,
+        image: null,
+      };
+    return { ...b, user: userObj };
+  });
+  bookings = bookings.map(b => ({
+    ...b,
+    user: (b as any).user ?? {
+      id: null,
+      fullName: null,
+      email: null,
+      phoneNumber: null,
+      image: null,
+    },
+  }));
 
   return bookings.map(booking => ({
     bookingId: booking.id,
@@ -218,7 +234,14 @@ const updateBookingStatusIntoDb = async (
     where: {
       id: bookingId,
       barberId: userId,
-      status: { in : [BookingStatus.CONFIRMED, BookingStatus.PENDING, BookingStatus.STARTED, BookingStatus.ENDED] },
+      status: {
+        in: [
+          BookingStatus.CONFIRMED,
+          BookingStatus.PENDING,
+          BookingStatus.STARTED,
+          BookingStatus.ENDED,
+        ],
+      },
     },
   });
 
@@ -234,12 +257,18 @@ const updateBookingStatusIntoDb = async (
 
   // Check if trying to start booking - can only start 20 mins before or after start time
   if (data.status === BookingStatus.STARTED && now < twentyMinsBeforeStart) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Cannot start booking before 20 minutes of scheduled time');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Cannot start booking before 20 minutes of scheduled time',
+    );
   }
 
   // Check if trying to end booking - can only end 20 mins before end time or after
   if (data.status === BookingStatus.ENDED && now < twentyMinsBeforeEnd) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Cannot end booking before 20 minutes of scheduled end time');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Cannot end booking before 20 minutes of scheduled end time',
+    );
   }
 
   const result = await prisma.booking.update({
