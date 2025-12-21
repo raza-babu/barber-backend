@@ -1102,6 +1102,41 @@ const createQueueBookingForCustomerIntoDb = async (
   if (serviceRecords.length !== services.length) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Some services not found');
   }
+  //////////
+  const serviceIds = serviceRecords.map(s => s.id);
+
+  // need to check from the queueTime model to get the total duration if exists of related services
+  const avgDuration = await prisma.queueTime.findMany({
+    where: {
+      serviceIds: {
+        hasEvery: serviceIds, // Must contain all service IDs
+        equals: serviceIds, // Must be exact match
+      },
+    },
+    select: {
+      serviceIds: true,
+      averageMin: true,
+    },
+  });
+  if (avgDuration && avgDuration.length > 0) {
+    
+    const matched = avgDuration.find(qt => {
+      if (
+        qt.serviceIds.length === serviceIds.length &&
+        qt.serviceIds.every(id => serviceIds.includes(id))
+      ) {
+        return true;
+      }
+      return false;
+    });
+    if (matched) {
+      // override the serviceRecords duration with averageMin from queueTime
+      serviceRecords.forEach(s => {
+        s.duration = matched.averageMin;
+      });
+    }
+  }
+/////////
   const totalDuration = serviceRecords.reduce(
     (sum, s) => sum + (s.duration || 0),
     0,

@@ -243,45 +243,153 @@ const updateBookingStatusIntoDb = async (
         ],
       },
     },
+    include: {
+      BookedServices: {
+        select: {
+          serviceId: true,
+        },
+      },
+    },
   });
 
   if (!existingBooking) {
     throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
   }
 
+  // Validate status transitions
+  if (data.status === BookingStatus.ENDED) {
+    if (existingBooking.status !== BookingStatus.STARTED) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Booking must be in STARTED status to end it',
+      );
+    }
+  }
+
   const now = new Date();
-  const startTime = new Date(existingBooking.startDateTime!);
-  const endTime = new Date(existingBooking.endDateTime!);
-  const twentyMinsBeforeStart = new Date(startTime.getTime() - 20 * 60000);
-  const twentyMinsBeforeEnd = new Date(endTime.getTime() - 20 * 60000);
-
-  // Check if trying to start booking - can only start 20 mins before or after start time
-  if (data.status === BookingStatus.STARTED && now < twentyMinsBeforeStart) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Cannot start booking before 20 minutes of scheduled time',
-    );
+  
+  // Time validation for STARTED status
+  if (data.status === BookingStatus.STARTED) {
+    const startTime = new Date(existingBooking.startDateTime!);
+    const twentyMinsBeforeStart = new Date(startTime.getTime() - 20 * 60000);
+    
+    if (now < twentyMinsBeforeStart) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Cannot start booking before 20 minutes of scheduled time',
+      );
+    }
   }
 
-  // Check if trying to end booking - can only end 20 mins before end time or after
-  if (data.status === BookingStatus.ENDED && now < twentyMinsBeforeEnd) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Cannot end booking before 20 minutes of scheduled end time',
-    );
+  // Time validation for ENDED status
+  if (data.status === BookingStatus.ENDED) {
+    const endTime = new Date(existingBooking.endDateTime!);
+    const twentyMinsBeforeEnd = new Date(endTime.getTime() - 20 * 60000);
+    
+    if (now < twentyMinsBeforeEnd) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Cannot end booking before 20 minutes of scheduled end time',
+      );
+    }
   }
 
+  // Prepare update data
+  const updateData: any = {
+    status: data.status,
+  };
+
+  // // Track actual start time
+  // if (data.status === BookingStatus.STARTED) {
+  //   updateData.actualStartTime = now;
+  // }
+
+  // // Track actual end time
+  // if (data.status === BookingStatus.ENDED) {
+  //   updateData.actualEndTime = now;
+  // }
+
+  // Update booking
   const result = await prisma.booking.update({
-    where: {
-      id: bookingId,
-    },
-    data: {
-      status: data.status,
-    },
+    where: { id: bookingId },
+    data: updateData,
   });
 
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Booking status not updated');
+  }
+
+  // Calculate and save queue time when booking ends
+  if (result.status === BookingStatus.ENDED && result.startDateTime) {
+    const actualStartTime = new Date(result.startDateTime);
+    const actualEndTime = new Date(result.endDateTime!);
+    
+    // Calculate actual service duration in minutes (end time - start time)
+    const actualDurationMinutes = Math.round(
+      (actualEndTime.getTime() - actualStartTime.getTime()) / 60000,
+    );
+
+    console.log(
+      `Booking ${bookingId} completed in ${actualDurationMinutes} minutes`,
+    );
+
+    // Get sorted service IDs for consistent matching
+    const serviceIds = existingBooking.BookedServices
+      .map(bs => bs.serviceId)
+      .sort();
+
+    // Find existing queue time for this service combination
+    const existingQueueTime = await prisma.queueTime.findFirst({
+      where: {
+        saloonId: result.saloonOwnerId,
+        barberId: userId,
+        serviceIds: {
+          hasEvery: serviceIds, // Must contain all service IDs
+          equals: serviceIds,    // Must be exact match
+        },
+      },
+    });
+
+    if (existingQueueTime) {
+      // Only update if new time is LESS than existing time
+      if (actualDurationMinutes < existingQueueTime.averageMin) {
+        await prisma.queueTime.update({
+          where: { id: existingQueueTime.id },
+          data: {
+            averageMin: actualDurationMinutes,
+            bookingId: bookingId, // Update to latest booking
+          },
+        });
+
+        console.log(
+          `✅ Updated queue time: ${existingQueueTime.averageMin}min → ${actualDurationMinutes}min (faster!)`,
+        );
+      } else {
+        console.log(
+          `⏭️ Keeping existing queue time: ${existingQueueTime.averageMin}min (new time ${actualDurationMinutes}min is not faster)`,
+        );
+      }
+    } else {
+      // Create new queue time record
+      await prisma.queueTime.create({
+        data: {
+          saloonId: result.saloonOwnerId,
+          barberId: userId,
+          serviceIds: serviceIds,
+          bookingId: bookingId,
+          averageMin: actualDurationMinutes,
+          // totalBookings: 1,
+        },
+      });
+
+      console.log(
+        `✅ Created new queue time: ${actualDurationMinutes}min for services [${serviceIds.join(', ')}]`,
+      );
+    }
+  } else if (result.status === BookingStatus.ENDED && !result.startDateTime) {
+    console.warn(
+      `⚠️ Booking ${bookingId} ended but no actualStartTime found. Cannot calculate queue time.`,
+    );
   }
 
   return result;

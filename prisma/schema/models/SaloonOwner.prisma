@@ -39,6 +39,7 @@ model SaloonOwner {
   Support                    Support[]
   Review                     Review[]
   LoyaltyPointLog            LoyaltyPointLog[]
+  QueueTime                  QueueTime[]
 
   @@map("saloon_owners")
 }

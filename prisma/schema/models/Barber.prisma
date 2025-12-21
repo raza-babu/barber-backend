@@ -31,6 +31,7 @@ model Barber {
   QueueSlot            QueueSlot[]
   BarberLunch          BarberLunch[]
   // Lunch                Lunch[]
+  QueueTime            QueueTime[]
   TerminateBarber      TerminateBarber[]
 
   @@map("barbers")
