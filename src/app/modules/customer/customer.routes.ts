@@ -21,6 +21,7 @@ router.post(
   multerUploadMultiple.single('image'),
   parseBody,
   auth(UserRoleEnum.CUSTOMER),
+  validateRequest(customerValidation.analyzeSaloonSchema),
   customerController.analyzeSaloonFromImage,
 )
 

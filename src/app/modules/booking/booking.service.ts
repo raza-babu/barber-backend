@@ -1114,12 +1114,13 @@ const createQueueBookingForCustomerIntoDb = async (
       },
     },
     select: {
+      saloonId: true,
+      barberId: true,
       serviceIds: true,
       averageMin: true,
     },
   });
   if (avgDuration && avgDuration.length > 0) {
-    
     const matched = avgDuration.find(qt => {
       if (
         qt.serviceIds.length === serviceIds.length &&
@@ -1136,7 +1137,7 @@ const createQueueBookingForCustomerIntoDb = async (
       });
     }
   }
-/////////
+  /////////
   const totalDuration = serviceRecords.reduce(
     (sum, s) => sum + (s.duration || 0),
     0,

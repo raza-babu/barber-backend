@@ -373,6 +373,7 @@ const updateBookingStatusIntoDb = async (
       // Create new queue time record
       await prisma.queueTime.create({
         data: {
+          customerId: result.userId!,
           saloonId: result.saloonOwnerId,
           barberId: userId,
           serviceIds: serviceIds,
