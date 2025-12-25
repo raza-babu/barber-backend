@@ -24,7 +24,7 @@ const createNonRegisteredBookingIntoDb = async (
   } = data;
 
   // Validate and parse date
-  const dateObj = DateTime.fromISO(date, { zone: 'local' });
+  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
@@ -38,7 +38,7 @@ const createNonRegisteredBookingIntoDb = async (
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'local' },
+    { zone: 'Asia/Dhaka' },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
@@ -168,7 +168,7 @@ const createNonRegisteredBookingIntoDb = async (
       const breakStartTime = DateTime.fromFormat(
         barberBreak.startTime,
         'hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
         zone: 'local',
@@ -336,12 +336,12 @@ const createNonRegisteredBookingIntoDb = async (
     const openingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.openingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'local' },
+      { zone: 'Asia/Dhaka' },
     ).toUTC();
     const closingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.closingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'local' },
+      { zone: 'Asia/Dhaka' },
     ).toUTC();
 
     if (

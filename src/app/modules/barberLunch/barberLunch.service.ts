@@ -16,7 +16,7 @@ const createBarberLunchIntoDb = async (
 ) => {
   const { barberId, date, startTime, endTime } = data;
 
-  const baseDate = DateTime.fromISO(date, { zone: 'local' });
+  const baseDate = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
   if (!baseDate.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
@@ -59,12 +59,12 @@ const createBarberLunchIntoDb = async (
 
     const opening =
       schedule.openingDateTime instanceof Date
-        ? DateTime.fromJSDate(schedule.openingDateTime).setZone('local')
-        : DateTime.fromISO(String(schedule.openingDateTime), { zone: 'local' });
+        ? DateTime.fromJSDate(schedule.openingDateTime).setZone('Asia/Dhaka')
+        : DateTime.fromISO(String(schedule.openingDateTime), { zone: 'Asia/Dhaka' });
     const closing =
       schedule.closingDateTime instanceof Date
-        ? DateTime.fromJSDate(schedule.closingDateTime).setZone('local')
-        : DateTime.fromISO(String(schedule.closingDateTime), { zone: 'local' });
+        ? DateTime.fromJSDate(schedule.closingDateTime).setZone('Asia/Dhaka')
+        : DateTime.fromISO(String(schedule.closingDateTime), { zone: 'Asia/Dhaka' });
 
     const workStart = baseDate
       .set({ hour: opening.hour, minute: opening.minute })
@@ -211,8 +211,8 @@ const createBarberLunchIntoDb = async (
         data: {
           startDateTime: newStart.toJSDate(),
           endDateTime: newEnd.toJSDate(),
-          startTime: newStart.setZone('local').toFormat('hh:mm a'),
-          endTime: newEnd.setZone('local').toFormat('hh:mm a'),
+          startTime: newStart.setZone('Asia/Dhaka').toFormat('hh:mm a'),
+          endTime: newEnd.setZone('Asia/Dhaka').toFormat('hh:mm a'),
         },
       });
 
@@ -263,8 +263,8 @@ const createBarberLunchIntoDb = async (
           data: {
             startDateTime: newStart.toJSDate(),
             endDateTime: newEnd.toJSDate(),
-            startTime: newStart.setZone('local').toFormat('hh:mm a'),
-            endTime: newEnd.setZone('local').toFormat('hh:mm a'),
+            startTime: newStart.setZone('Asia/Dhaka').toFormat('hh:mm a'),
+            endTime: newEnd.setZone('Asia/Dhaka').toFormat('hh:mm a'),
           },
         });
       }
@@ -317,8 +317,8 @@ const getBarberLunchListFromDb = async (userId: string) => {
     barberId: item.barberId,
     lunchStart: DateTime.fromJSDate(item.lunchStart).toUTC().toISO(),
     lunchEnd: DateTime.fromJSDate(item.lunchEnd).toUTC().toISO(),
-    startTime: DateTime.fromJSDate(item.lunchStart).setZone('local').toFormat('hh:mm a'),
-    endTime: DateTime.fromJSDate(item.lunchEnd).setZone('local').toFormat('hh:mm a'),
+    startTime: DateTime.fromJSDate(item.lunchStart).setZone('Asia/Dhaka').toFormat('hh:mm a'),
+    endTime: DateTime.fromJSDate(item.lunchEnd).setZone('Asia/Dhaka').toFormat('hh:mm a'),
   }));
 };
 
@@ -366,8 +366,8 @@ const getBarberLunchByIdFromDb = async (
     barberPhone: result.barber.user.phoneNumber,
     lunchStart: DateTime.fromJSDate(result.lunchStart).toUTC().toISO(),
     lunchEnd: DateTime.fromJSDate(result.lunchEnd).toUTC().toISO(),
-    startTime: DateTime.fromJSDate(result.lunchStart).setZone('local').toFormat('hh:mm a'),
-    endTime: DateTime.fromJSDate(result.lunchEnd).setZone('local').toFormat('hh:mm a'),
+    startTime: DateTime.fromJSDate(result.lunchStart).setZone('Asia/Dhaka').toFormat('hh:mm a'),
+    endTime: DateTime.fromJSDate(result.lunchEnd).setZone('Asia/Dhaka').toFormat('hh:mm a'),
   };
 };
 

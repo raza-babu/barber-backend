@@ -58,8 +58,8 @@ const createSaloonScheduleIntoDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Invalid schedule data format');
     }
 
-    const openingDateTime = DateTime.fromFormat(schedule.openingTime, 'hh:mm a', { zone: 'local' }).toUTC().toJSDate();
-    const closingDateTime = DateTime.fromFormat(schedule.closingTime, 'hh:mm a', { zone: 'local' }).toUTC().toJSDate();
+    const openingDateTime = DateTime.fromFormat(schedule.openingTime, 'hh:mm a', { zone: 'Asia/Dhaka' }).toUTC().toJSDate();
+    const closingDateTime = DateTime.fromFormat(schedule.closingTime, 'hh:mm a', { zone: 'Asia/Dhaka' }).toUTC().toJSDate();
 
     return {
       saloonOwnerId: userId,

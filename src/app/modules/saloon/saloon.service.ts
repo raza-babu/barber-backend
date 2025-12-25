@@ -671,7 +671,7 @@ const getFreeBarbersOnADateFromDb = async (
   if (!date) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date is required');
   }
-  const targetDate = DateTime.fromISO(date, { zone: 'local' });
+  const targetDate = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
   if (!targetDate.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }

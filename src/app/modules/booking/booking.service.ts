@@ -14,7 +14,7 @@ import { calculatePagination } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { customerService } from '../customer/customer.service';
 
-const createQueueBookingIntoDb = async (userId: string, data: any) => {
+const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
   const {
     barberId,
     saloonOwnerId,
@@ -45,11 +45,11 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   }
 
   // 2. Validate and enforce current date only
-  const dateObj = DateTime.fromISO(date, { zone: 'local' });
+  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayISO = DateTime.now().setZone('local').toISODate();
+  const todayISO = DateTime.now().setZone('Asia/Dhaka').toISODate();
   if (dateObj.toISODate() !== todayISO) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date must be the current date');
   }
@@ -119,7 +119,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     schedule: { start: string; end: string } | null,
     totalDurationMinutes: number,
   ): string | undefined => {
-    const nowLocal = DateTime.now().setZone('local');
+    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
     console.log('Current time:', nowLocal.toFormat('yyyy-MM-dd hh:mm a'));
     console.log('Required duration:', totalDurationMinutes, 'minutes');
 
@@ -131,7 +131,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         const closingTime = DateTime.fromFormat(
           `${date} ${schedule.end}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'local' },
+          { zone: 'Asia/Dhaka' },
         );
 
         console.log('Barber closing time:', closingTime.toFormat('hh:mm a'));
@@ -153,12 +153,12 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
 
       console.log('Slot start valid:', slotStart.isValid, slotStart.toISO());
@@ -197,7 +197,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       const closingTime = DateTime.fromFormat(
         `${date} ${schedule.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
 
       if (nowLocal < closingTime) {
@@ -222,7 +222,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   if (!appointmentAt) {
     throw new AppError(
       httpStatus.NOT_FOUND,
-      `No available time remaining today. Current time: ${DateTime.now().setZone('local').toFormat('hh:mm a')}. Barber's working hours have ended or are fully booked. Please try again tomorrow.`,
+      `No available time remaining today. Current time: ${DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a')}. Barber's working hours have ended or are fully booked. Please try again tomorrow.`,
     );
   }
 
@@ -232,13 +232,13 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'local' },
+    { zone: 'Asia/Dhaka' },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
   }
 
-  const nowLocal = DateTime.now().setZone('local');
+  const nowLocal = DateTime.now().setZone('Asia/Dhaka');
   const endLocal = localDateTime.plus({ minutes: totalDuration });
 
   // Allow bookings that end in the future
@@ -299,7 +299,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       const breakStartTime = DateTime.fromFormat(
         barberBreak.startTime,
         'hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
         zone: 'local',
@@ -530,12 +530,637 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     const openingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.openingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'local' },
+      { zone: 'Asia/Dhaka' },
     );
     const closingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.closingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'local' },
+      { zone: 'Asia/Dhaka' },
+    );
+
+    // For QUEUE bookings: only check if START time is within working hours
+    // Allow the booking to extend beyond closing time
+    if (localDateTime < openingDateTime) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Booking cannot start before barber opening time',
+      );
+    }
+
+    // Check that booking starts before closing time
+    if (localDateTime >= closingDateTime) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Booking must start before barber closing time',
+      );
+    }
+
+    // Check for overlapping barber status (keep this to prevent double booking)
+    const overlappingStatus = await tx.barberRealTimeStatus.findFirst({
+      where: {
+        barberId,
+        OR: [
+          {
+            startDateTime: {
+              lt: endDateTime,
+            },
+            endDateTime: {
+              gt: utcDateTime,
+            },
+          },
+        ],
+      },
+    });
+
+    if (overlappingStatus) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Barber already has a booking or is unavailable during the requested time slot',
+      );
+    }
+
+    await tx.barberRealTimeStatus.create({
+      data: {
+        barberId,
+        startDateTime: utcDateTime,
+        endDateTime: endDateTime,
+        isAvailable: false,
+        startTime: localDateTime.toFormat('hh:mm a'),
+        endTime: DateTime.fromJSDate(endDateTime).toFormat('hh:mm a'),
+      },
+    });
+
+    return {
+      booking,
+      queue,
+      queueSlot,
+      totalPrice: price,
+      appointmentAt: localDateTime.toFormat('hh:mm a'),
+    };
+  });
+
+  return result;
+};
+
+const createQueueBookingIntoDb = async (userId: string, data: any) => {
+  const {
+    barberId,
+    saloonOwnerId,
+    date,
+    services,
+    notes,
+    isInQueue,
+    loyaltySchemeId,
+  } = data;
+
+  const saloonStatus = await prisma.saloonOwner.findUnique({
+    where: { userId: saloonOwnerId, isVerified: true },
+  });
+  if (!saloonStatus) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Saloon not found or not verified',
+    );
+  }
+
+  // 1. Fetch saloonOwner to check queue status
+  const saloonOwner = await prisma.saloonOwner.findUnique({
+    where: { userId: saloonOwnerId },
+    select: { isQueueEnabled: true },
+  });
+  if (!saloonOwner) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Salon owner not found');
+  }
+
+  // 2. Validate and enforce current date only
+  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  if (!dateObj.isValid) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
+  }
+  const todayISO = DateTime.now().setZone('Asia/Dhaka').toISODate();
+  if (dateObj.toISODate() !== todayISO) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Date must be the current date');
+  }
+
+  // 3. Calculate total price and duration using service model
+  const serviceRecords = await prisma.service.findMany({
+    where: { id: { in: services } },
+    select: { id: true, price: true, duration: true },
+  });
+  if (serviceRecords.length !== services.length) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Some services not found');
+  }
+
+  const serviceIds = serviceRecords.map(s => s.id).sort(); // Sort for consistent matching
+
+  // Calculate default total duration from services
+  let totalDuration = serviceRecords.reduce(
+    (sum, s) => sum + (s.duration || 0),
+    0,
+  );
+
+  console.log('=== Duration Calculation (createQueueBookingIntoDb) ===');
+  console.log('Service IDs:', serviceIds);
+  console.log('Default total duration from services:', totalDuration);
+
+  // 🔥 Check QueueTime model for this barber + saloon + service combination
+  const queueTimeRecord = await prisma.queueTime.findFirst({
+    where: {
+      saloonId: saloonOwnerId,
+      barberId: barberId,
+      serviceIds: {
+        hasEvery: serviceIds, // Must contain all service IDs
+        // equals: serviceIds,    // Must be exact match
+      },
+    },
+    select: {
+      saloonId: true,
+      barberId: true,
+      serviceIds: true,
+      averageMin: true,
+    },
+  });
+
+  // Use historical average duration if available
+  if (queueTimeRecord?.averageMin) {
+    totalDuration = queueTimeRecord.averageMin;
+    console.log(`Using historical duration: ${totalDuration}min (${queueTimeRecord.serviceIds?.length || 0} services matched)`);
+  } else {
+    console.log(`Using default service duration: ${totalDuration}min (no historical data)`);
+  }
+
+  if (totalDuration <= 0) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Total service duration must be greater than zero',
+    );
+  }
+
+  const totalPrice = serviceRecords.reduce(
+    (sum, s) => sum + Number(s.price),
+    0,
+  );
+
+  // 4. Get available barbers with free slots
+  const availableBarbers = await getAvailableBarbersForWalkingInFromDb1(
+    userId,
+    saloonOwnerId,
+    date,
+    BookingType.QUEUE,
+  );
+
+  console.log('Available barbers:', JSON.stringify(availableBarbers, null, 2));
+
+  if (
+    !availableBarbers ||
+    !Array.isArray(availableBarbers) ||
+    availableBarbers.length === 0
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'No available barbers found for queue on this date',
+    );
+  }
+
+  // 5. Find the specified barber
+  const selectedBarber = availableBarbers.find(
+    (b: any) => b && b.barberId === barberId,
+  );
+
+  if (!selectedBarber) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Selected barber not available or not found',
+    );
+  }
+
+  console.log('Selected barber free slots:', selectedBarber.freeSlots);
+  console.log('Selected barber schedule:', selectedBarber.schedule);
+
+  // 6. Pick earliest available time slot
+  const pickEarliestSlot = (
+    freeSlots: { start: string; end: string }[] | undefined,
+    schedule: { start: string; end: string } | null,
+    totalDurationMinutes: number,
+  ): string | undefined => {
+    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+    console.log('Current time:', nowLocal.toFormat('yyyy-MM-dd hh:mm a'));
+    console.log('Required duration:', totalDurationMinutes, 'minutes');
+
+    if (!freeSlots || freeSlots.length === 0) {
+      console.log('No free slots available');
+
+      // FALLBACK: If no free slots but barber schedule exists and it's still within working hours
+      if (schedule) {
+        const closingTime = DateTime.fromFormat(
+          `${date} ${schedule.end}`,
+          'yyyy-MM-dd hh:mm a',
+          { zone: 'Asia/Dhaka' },
+        );
+
+        console.log('Barber closing time:', closingTime.toFormat('hh:mm a'));
+
+        // If current time is before closing time, allow booking from current time
+        if (nowLocal < closingTime) {
+          const selectedTime = nowLocal.toFormat('hh:mm a');
+          console.log('Using current time as fallback slot:', selectedTime);
+          return selectedTime;
+        }
+      }
+
+      return undefined;
+    }
+
+    for (const slot of freeSlots) {
+      console.log('Checking slot:', slot);
+
+      const slotStart = DateTime.fromFormat(
+        `${date} ${slot.start}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'Asia/Dhaka' },
+      );
+      const slotEnd = DateTime.fromFormat(
+        `${date} ${slot.end}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'Asia/Dhaka' },
+      );
+
+      console.log('Slot start valid:', slotStart.isValid, slotStart.toISO());
+      console.log('Slot end valid:', slotEnd.isValid, slotEnd.toISO());
+
+      if (!slotStart.isValid || !slotEnd.isValid) {
+        console.log('Invalid slot times, skipping');
+        continue;
+      }
+
+      // Skip slots that have completely ended
+      if (slotEnd <= nowLocal) {
+        console.log('Slot has ended, skipping');
+        continue;
+      }
+
+      // If slot starts in the past but ends in the future, use current time as start
+      const effectiveStart = slotStart < nowLocal ? nowLocal : slotStart;
+      console.log('Effective start:', effectiveStart.toFormat('hh:mm a'));
+
+      const slotMinutes = slotEnd.diff(effectiveStart, 'minutes').minutes;
+      console.log('Available minutes in slot:', slotMinutes);
+
+      // For queue bookings, allow booking if there's any time available
+      if (slotMinutes > 0) {
+        const selectedTime = effectiveStart.toFormat('hh:mm a');
+        console.log('Selected time slot:', selectedTime);
+        return selectedTime;
+      }
+    }
+
+    console.log('No suitable slot found in free slots');
+
+    // FALLBACK: If all slots are in past but schedule allows, use current time
+    if (schedule) {
+      const closingTime = DateTime.fromFormat(
+        `${date} ${schedule.end}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: 'Asia/Dhaka' },
+      );
+
+      if (nowLocal < closingTime) {
+        const selectedTime = nowLocal.toFormat('hh:mm a');
+        console.log(
+          'Using current time as fallback (all slots past):',
+          selectedTime,
+        );
+        return selectedTime;
+      }
+    }
+
+    return undefined;
+  };
+
+  const appointmentAt = pickEarliestSlot(
+    selectedBarber.freeSlots,
+    selectedBarber.schedule,
+    totalDuration,
+  );
+
+  if (!appointmentAt) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      `No available time remaining today. Current time: ${DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a')}. Barber's working hours have ended or are fully booked. Please try again tomorrow.`,
+    );
+  }
+
+  console.log('Final appointment time:', appointmentAt);
+  console.log('Final total duration:', totalDuration, 'minutes');
+
+  // 7. Combine date and appointmentAt
+  const localDateTime = DateTime.fromFormat(
+    `${date} ${appointmentAt}`,
+    'yyyy-MM-dd hh:mm a',
+    { zone: 'Asia/Dhaka' },
+  );
+  if (!localDateTime.isValid) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
+  }
+
+  const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+  const endLocal = localDateTime.plus({ minutes: totalDuration });
+
+  // Allow bookings that end in the future
+  if (endLocal < nowLocal) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Appointment time has already passed',
+    );
+  }
+
+  const utcDateTime = localDateTime.toUTC().toJSDate();
+
+  // 8. Transaction for all DB operations
+  const result = await prisma.$transaction(async tx => {
+    // Check if barber exists
+    const barber = await tx.barber.findUnique({
+      where: { userId: barberId },
+      select: {
+        id: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            image: true,
+          },
+        },
+      },
+    });
+    if (!barber) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
+    }
+
+    // Check if barber is on holiday
+    const barberHoliday = await tx.barberDayOff.findFirst({
+      where: {
+        barberId: barber.id,
+        date: localDateTime.toJSDate(),
+        saloonOwnerId: saloonOwnerId,
+      },
+    });
+    if (barberHoliday) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Barber is on holiday');
+    }
+
+    // Check lunch/break time overlap
+    const barberBreak = await tx.lunch.findFirst({
+      where: {
+        saloonOwnerId: saloonOwnerId,
+      },
+    });
+
+    if (barberBreak && barberBreak.startTime && barberBreak.endTime) {
+      const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
+        zone: 'Asia/Dhaka',
+      });
+      const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
+
+      const breakStartTime = DateTime.fromFormat(
+        barberBreak.startTime,
+        'hh:mm a',
+        { zone: 'Asia/Dhaka' },
+      );
+      const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
+        zone: 'Asia/Dhaka',
+      });
+
+      if (
+        (bookingStartTime >= breakStartTime &&
+          bookingStartTime < breakEndTime) ||
+        (bookingEndTime > breakStartTime && bookingEndTime <= breakEndTime) ||
+        (bookingStartTime <= breakStartTime && bookingEndTime >= breakEndTime)
+      ) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Barber is unavailable during break/lunch time',
+        );
+      }
+    }
+
+    // Clean up old queues
+    await tx.queue.deleteMany({
+      where: {
+        barberId,
+        saloonOwnerId,
+        isActive: false,
+        date: { lt: new Date() },
+      },
+    });
+
+    // Find or create queue
+    let queue = await tx.queue.findFirst({
+      where: {
+        barberId,
+        saloonOwnerId,
+        date: new Date(date),
+      },
+    });
+
+    if (!queue) {
+      queue = await tx.queue.create({
+        data: {
+          barberId,
+          saloonOwnerId,
+          date: new Date(date),
+          currentPosition: 1,
+        },
+      });
+    } else {
+      queue = await tx.queue.update({
+        where: { id: queue.id },
+        data: {
+          currentPosition: queue.currentPosition + 1,
+        },
+      });
+    }
+
+    // Get existing slots and determine insert position
+    const existingSlots = await tx.queueSlot.findMany({
+      where: { queueId: queue.id },
+      orderBy: { startedAt: 'asc' },
+    });
+
+    let insertPosition = 1;
+    for (let i = 0; i < existingSlots.length; i++) {
+      const slot = existingSlots[i];
+      if (slot && slot.startedAt && utcDateTime > slot.startedAt) {
+        insertPosition = i + 2;
+      } else {
+        break;
+      }
+    }
+
+    // Shift positions
+    for (let i = existingSlots.length - 1; i >= insertPosition - 1; i--) {
+      await tx.queueSlot.update({
+        where: { id: existingSlots[i].id },
+        data: { position: existingSlots[i].position + 1 },
+      });
+    }
+
+    // Create queue slot
+    const queueSlot = await tx.queueSlot.create({
+      data: {
+        queueId: queue.id,
+        customerId: userId,
+        barberId: barberId,
+        position: insertPosition,
+        startedAt: utcDateTime,
+      },
+    });
+
+    // Handle loyalty
+    let price = totalPrice;
+    let loyaltyUsed = null;
+
+    if (loyaltySchemeId) {
+      const loyaltyScheme = await tx.loyaltyScheme.findUnique({
+        where: { id: loyaltySchemeId, userId: saloonOwnerId },
+      });
+      if (!loyaltyScheme) {
+        throw new AppError(httpStatus.NOT_FOUND, 'Loyalty scheme not found');
+      }
+
+      const customerLoyalty = await tx.customerLoyalty.findFirst({
+        where: { userId: userId, saloonOwnerId: saloonOwnerId },
+        select: { id: true, totalPoints: true },
+      });
+
+      if (
+        !customerLoyalty ||
+        (customerLoyalty.totalPoints || 0) < loyaltyScheme.pointThreshold
+      ) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Not enough loyalty points');
+      }
+
+      await tx.customerLoyalty.update({
+        where: { id: customerLoyalty.id },
+        data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
+      });
+
+      loyaltyUsed = await tx.loyaltyRedemption.create({
+        data: {
+          customerId: userId,
+          loyaltySchemeId: customerLoyalty.id,
+          pointsUsed: loyaltyScheme.pointThreshold,
+        },
+      });
+
+      price = totalPrice - totalPrice * (loyaltyScheme.percentage / 100);
+      if (price < 0) price = 0;
+    }
+
+    // Create booking
+    const booking = await tx.booking.create({
+      data: {
+        userId,
+        barberId,
+        saloonOwnerId,
+        appointmentAt: utcDateTime,
+        date: new Date(date),
+        notes,
+        bookingType: BookingType.QUEUE,
+        isInQueue: !!(saloonOwner.isQueueEnabled && isInQueue),
+        totalPrice: price,
+        startDateTime: utcDateTime,
+        endDateTime: DateTime.fromJSDate(utcDateTime)
+          .plus({ minutes: totalDuration })
+          .toJSDate(),
+        startTime: localDateTime.toFormat('hh:mm a'),
+        endTime: DateTime.fromJSDate(utcDateTime)
+          .plus({ minutes: totalDuration })
+          .toFormat('hh:mm a'),
+        loyaltySchemeId: loyaltySchemeId || null,
+        loyaltyUsed: !!loyaltyUsed,
+      },
+    });
+
+    // Create payment if in queue
+    if (isInQueue && booking) {
+      await tx.payment.create({
+        data: {
+          userId: userId,
+          bookingId: booking.id,
+          paymentAmount: price,
+          status: PaymentStatus.COMPLETED,
+          paymentDate: new Date(),
+        },
+      });
+    }
+
+    // Update loyalty redemption with bookingId
+    if (loyaltyUsed) {
+      await tx.loyaltyRedemption.update({
+        where: { id: loyaltyUsed.id },
+        data: { bookingId: booking.id },
+      });
+    }
+
+    // Create booked services
+    await Promise.all(
+      serviceRecords.map(service =>
+        tx.bookedServices.create({
+          data: {
+            bookingId: booking.id,
+            customerId: userId,
+            serviceId: service.id,
+            price: service.price,
+          },
+        }),
+      ),
+    );
+
+    // Update queue slot with booking details
+    await tx.queueSlot.update({
+      where: { id: queueSlot.id },
+      data: {
+        bookingId: booking.id,
+        completedAt: DateTime.fromJSDate(utcDateTime)
+          .plus({ minutes: totalDuration })
+          .toJSDate(),
+      },
+    });
+
+    // Create barber real-time status
+    const endDateTime = DateTime.fromJSDate(utcDateTime)
+      .plus({ minutes: totalDuration })
+      .toJSDate();
+
+    const dayName = DateTime.fromJSDate(utcDateTime)
+      .toFormat('cccc')
+      .toLowerCase();
+
+    const barberSchedule = await tx.barberSchedule.findFirst({
+      where: {
+        barberId: barberId,
+        dayName: dayName,
+        isActive: true,
+        type: ScheduleType.QUEUE,
+      },
+    });
+
+    if (!barberSchedule) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Barber schedule not found for this day',
+      );
+    }
+
+    const openingDateTime = DateTime.fromFormat(
+      `${date} ${barberSchedule.openingTime}`,
+      'yyyy-MM-dd hh:mm a',
+      { zone: 'Asia/Dhaka' },
+    );
+    const closingDateTime = DateTime.fromFormat(
+      `${date} ${barberSchedule.closingTime}`,
+      'yyyy-MM-dd hh:mm a',
+      { zone: 'Asia/Dhaka' },
     );
 
     // For QUEUE bookings: only check if START time is within working hours
@@ -621,12 +1246,12 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       if (!slotStart.isValid || !slotEnd.isValid) continue;
       const slotMinutes = slotEnd.diff(slotStart, 'minutes').minutes;
@@ -640,7 +1265,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       const fallback = DateTime.fromFormat(
         `${date} ${first.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       return fallback.isValid ? fallback.toFormat('hh:mm a') : undefined;
     }
@@ -656,11 +1281,11 @@ const createQueueBookingForSalonOwnerIntoDb = async (
   }
 
   // Only allow queue for the current local date
-  const dateObj = DateTime.fromISO(date, { zone: 'local' });
+  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayLocal = DateTime.now().setZone('local').toISODate();
+  const todayLocal = DateTime.now().setZone('Asia/Dhaka').toISODate();
   if (dateObj.toISODate() !== todayLocal) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -736,7 +1361,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     });
 
     if (!appointmentAt) {
-      const nowLocal = DateTime.now().setZone('local');
+      const nowLocal = DateTime.now().setZone('Asia/Dhaka');
 
       type Candidate = {
         barber: any;
@@ -757,7 +1382,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
         const slotDt = DateTime.fromFormat(
           `${date} ${slotStartStr}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'local' },
+          { zone: 'Asia/Dhaka' },
         );
         if (!slotDt.isValid) continue;
         if (slotDt < nowLocal.minus({ minutes: 1 })) continue;
@@ -772,7 +1397,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
         chosen = candidates[0].barber;
         chosenAppointmentAt = candidates[0].slotStartStr;
       } else {
-        const nowLocalForFallback = DateTime.now().setZone('local');
+        const nowLocalForFallback = DateTime.now().setZone('Asia/Dhaka');
         let found = null as any | null;
         let pickedTime: string | undefined = undefined;
 
@@ -782,7 +1407,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
             const slotStart = DateTime.fromFormat(
               `${date} ${slot.start}`,
               'yyyy-MM-dd hh:mm a',
-              { zone: 'local' },
+              { zone: 'Asia/Dhaka' },
             );
             if (!slotStart.isValid) continue;
             if (slotStart >= nowLocalForFallback.minus({ minutes: 1 })) {
@@ -821,12 +1446,12 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     // 6. Determine appointment time
     const useAppointmentAt =
       chosenAppointmentAt ??
-      DateTime.now().setZone('local').toFormat('hh:mm a');
+      DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
 
     const localDateTime = DateTime.fromFormat(
       `${date} ${useAppointmentAt}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'local' },
+      { zone: 'Asia/Dhaka' },
     );
     if (!localDateTime.isValid) {
       throw new AppError(
@@ -835,7 +1460,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       );
     }
 
-    const nowLocal = DateTime.now().setZone('local');
+    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
     const endLocal = localDateTime.plus({ minutes: totalDuration });
     if (endLocal < nowLocal.minus({ minutes: 1 })) {
       throw new AppError(
@@ -1039,18 +1664,18 @@ const createQueueBookingForCustomerIntoDb1 = async (
   ): string | undefined => {
     if (!freeSlots || freeSlots.length === 0) return undefined;
 
-    const nowLocal = DateTime.now().setZone('local');
+    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
 
     for (const slot of freeSlots) {
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
 
       if (!slotStart.isValid || !slotEnd.isValid) continue;
@@ -1082,11 +1707,11 @@ const createQueueBookingForCustomerIntoDb1 = async (
   }
 
   // Only allow queue for the current local date
-  const dateObj = DateTime.fromISO(date, { zone: 'local' });
+  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayLocal = DateTime.now().setZone('local').toISODate();
+  const todayLocal = DateTime.now().setZone('Asia/Dhaka').toISODate();
   if (dateObj.toISODate() !== todayLocal) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -1191,7 +1816,7 @@ const createQueueBookingForCustomerIntoDb1 = async (
   });
 
   if (!appointmentAt) {
-    const nowLocal = DateTime.now().setZone('local');
+    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
 
     type Candidate = {
       barber: any;
@@ -1217,7 +1842,7 @@ const createQueueBookingForCustomerIntoDb1 = async (
       const slotDt = DateTime.fromFormat(
         `${date} ${slotStartStr}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
 
       if (!slotDt.isValid) {
@@ -1255,12 +1880,12 @@ const createQueueBookingForCustomerIntoDb1 = async (
           const slotStart = DateTime.fromFormat(
             `${date} ${slot.start}`,
             'yyyy-MM-dd hh:mm a',
-            { zone: 'local' },
+            { zone: 'Asia/Dhaka' },
           );
           const slotEnd = DateTime.fromFormat(
             `${date} ${slot.end}`,
             'yyyy-MM-dd hh:mm a',
-            { zone: 'local' },
+            { zone: 'Asia/Dhaka' },
           );
 
           if (!slotStart.isValid || !slotEnd.isValid) continue;
@@ -1318,12 +1943,12 @@ const createQueueBookingForCustomerIntoDb1 = async (
 
   // 5. Determine appointment time
   const useAppointmentAt =
-    chosenAppointmentAt ?? DateTime.now().setZone('local').toFormat('hh:mm a');
+    chosenAppointmentAt ?? DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
 
   const localDateTime = DateTime.fromFormat(
     `${date} ${useAppointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'local' },
+    { zone: 'Asia/Dhaka' },
   );
   if (!localDateTime.isValid) {
     throw new AppError(
@@ -1332,7 +1957,7 @@ const createQueueBookingForCustomerIntoDb1 = async (
     );
   }
 
-  const nowLocal = DateTime.now().setZone('local');
+  const nowLocal = DateTime.now().setZone('Asia/Dhaka');
   const endLocal = localDateTime.plus({ minutes: totalDuration });
 
   // Allow bookings that end in the future (even if they start slightly in the past due to processing time)
@@ -1540,18 +2165,18 @@ const createQueueBookingForCustomerIntoDb = async (
   ): string | undefined => {
     if (!freeSlots || freeSlots.length === 0) return undefined;
 
-    const nowLocal = DateTime.now().setZone('local');
+    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
 
     for (const slot of freeSlots) {
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
 
       if (!slotStart.isValid || !slotEnd.isValid) continue;
@@ -1582,11 +2207,11 @@ const createQueueBookingForCustomerIntoDb = async (
   }
 
   // Only allow queue for the current local date
-  const dateObj = DateTime.fromISO(date, { zone: 'local' });
+  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayLocal = DateTime.now().setZone('local').toISODate();
+  const todayLocal = DateTime.now().setZone('Asia/Dhaka').toISODate();
   if (dateObj.toISODate() !== todayLocal) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -1653,7 +2278,7 @@ const createQueueBookingForCustomerIntoDb = async (
   });
 
   if (!appointmentAt) {
-    const nowLocal = DateTime.now().setZone('local');
+    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
 
     type Candidate = {
       barber: any;
@@ -1707,7 +2332,7 @@ const createQueueBookingForCustomerIntoDb = async (
       const slotDt = DateTime.fromFormat(
         `${date} ${slotStartStr}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
 
       if (!slotDt.isValid) {
@@ -1772,12 +2397,12 @@ const createQueueBookingForCustomerIntoDb = async (
           const slotStart = DateTime.fromFormat(
             `${date} ${slot.start}`,
             'yyyy-MM-dd hh:mm a',
-            { zone: 'local' },
+            { zone: 'Asia/Dhaka' },
           );
           const slotEnd = DateTime.fromFormat(
             `${date} ${slot.end}`,
             'yyyy-MM-dd hh:mm a',
-            { zone: 'local' },
+            { zone: 'Asia/Dhaka' },
           );
 
           if (!slotStart.isValid || !slotEnd.isValid) continue;
@@ -1869,12 +2494,12 @@ const createQueueBookingForCustomerIntoDb = async (
 
   // 6. Determine appointment time
   const useAppointmentAt =
-    chosenAppointmentAt ?? DateTime.now().setZone('local').toFormat('hh:mm a');
+    chosenAppointmentAt ?? DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
 
   const localDateTime = DateTime.fromFormat(
     `${date} ${useAppointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'local' },
+    { zone: 'Asia/Dhaka' },
   );
   if (!localDateTime.isValid) {
     throw new AppError(
@@ -1883,7 +2508,7 @@ const createQueueBookingForCustomerIntoDb = async (
     );
   }
 
-  const nowLocal = DateTime.now().setZone('local');
+  const nowLocal = DateTime.now().setZone('Asia/Dhaka');
   const endLocal = localDateTime.plus({ minutes: totalDuration });
 
   // Allow bookings that end in the future
@@ -2099,7 +2724,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   }
 
   // 2. Validate date / time inputs
-  const dateObj = DateTime.fromISO(date, { zone: 'local' });
+  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
   const today = DateTime.now().startOf('day');
   if (!dateObj.isValid || dateObj < today) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date cannot be in the past');
@@ -2108,7 +2733,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'local' },
+    { zone: 'Asia/Dhaka' },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
@@ -2364,7 +2989,7 @@ const getBookingListFromDb = async (
 
   // Filter by specific date
   if (date) {
-    const dateObj = DateTime.fromISO(date, { zone: 'local' });
+    const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
     if (dateObj.isValid) {
       const startOfDay = dateObj.startOf('day').toJSDate();
       const endOfDay = dateObj.endOf('day').toJSDate();
@@ -2377,8 +3002,8 @@ const getBookingListFromDb = async (
 
   // Filter by date range
   if (startDate && endDate) {
-    const start = DateTime.fromISO(startDate, { zone: 'local' });
-    const end = DateTime.fromISO(endDate, { zone: 'local' });
+    const start = DateTime.fromISO(startDate, { zone: 'Asia/Dhaka' });
+    const end = DateTime.fromISO(endDate, { zone: 'Asia/Dhaka' });
     if (start.isValid && end.isValid) {
       whereConditions.date = {
         gte: start.startOf('day').toJSDate(),
@@ -2386,14 +3011,14 @@ const getBookingListFromDb = async (
       };
     }
   } else if (startDate) {
-    const start = DateTime.fromISO(startDate, { zone: 'local' });
+    const start = DateTime.fromISO(startDate, { zone: 'Asia/Dhaka' });
     if (start.isValid) {
       whereConditions.date = {
         gte: start.startOf('day').toJSDate(),
       };
     }
   } else if (endDate) {
-    const end = DateTime.fromISO(endDate, { zone: 'local' });
+    const end = DateTime.fromISO(endDate, { zone: 'Asia/Dhaka' });
     if (end.isValid) {
       whereConditions.date = {
         lte: end.endOf('day').toJSDate(),
@@ -2530,12 +3155,12 @@ const getBookingListFromDb = async (
 
   const formattedBookings = bookings.map(b => {
     // Get the current time
-    const now = DateTime.now().setZone('local');
+    const now = DateTime.now().setZone('Asia/Dhaka');
 
     // Parse booking start and end times
     const bookingStart = DateTime.fromJSDate(
       b.startDateTime || new Date(),
-    ).setZone('local');
+    ).setZone('Asia/Dhaka');
     const bookingEnd = DateTime.fromJSDate(b.endDateTime || new Date()).setZone(
       'local',
     );
@@ -2737,7 +3362,7 @@ const getAllBarbersForQueueFromDb = async (
 ) => {
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'local' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -2883,7 +3508,7 @@ const getAvailableBarbersForWalkingInFromDb = async (
   // Always use today's date or provided specificDate (local)
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'local' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -2969,8 +3594,8 @@ const getAvailableBarbersForWalkingInFromDb = async (
 
       // Estimate wait time = sum of current bookings lengths (use local zone consistently)
       const estimatedWaitTime = bookings.reduce((sum, b) => {
-        const start = DateTime.fromJSDate(b.startDateTime!).setZone('local');
-        const end = DateTime.fromJSDate(b.endDateTime!).setZone('local');
+        const start = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
+        const end = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
         return sum + end.diff(start, 'minutes').minutes;
       }, 0);
 
@@ -3048,12 +3673,12 @@ const getAvailableBarbersForWalkingInFromDb = async (
         const opening = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'local' },
+          { zone: 'Asia/Dhaka' },
         );
         const closing = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'local' },
+          { zone: 'Asia/Dhaka' },
         );
 
         // Build an array of busy intervals (sorted) — convert and clamp to [opening, closing]
@@ -3067,20 +3692,20 @@ const getAvailableBarbersForWalkingInFromDb = async (
               s = DateTime.fromFormat(
                 `${date.toFormat('yyyy-MM-dd')} ${b.startTime}`,
                 'yyyy-MM-dd hh:mm a',
-                { zone: 'local' },
+                { zone: 'Asia/Dhaka' },
               );
             } else {
-              s = DateTime.fromJSDate(b.startDateTime!).setZone('local');
+              s = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
             }
 
             if (b.endTime) {
               e = DateTime.fromFormat(
                 `${date.toFormat('yyyy-MM-dd')} ${b.endTime}`,
                 'yyyy-MM-dd hh:mm a',
-                { zone: 'local' },
+                { zone: 'Asia/Dhaka' },
               );
             } else if (b.endDateTime) {
-              e = DateTime.fromJSDate(b.endDateTime!).setZone('local');
+              e = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
             } else {
               // fallback: compute end using services duration sum
               const totalTime = b.BookedServices.reduce(
@@ -3170,12 +3795,12 @@ const getAvailableBarbersForWalkingInFromDb = async (
           startTime:
             b.startTime ??
             DateTime.fromJSDate(b.startDateTime!)
-              .setZone('local')
+              .setZone('Asia/Dhaka')
               .toFormat('hh:mm a'),
           endTime:
             b.endTime ??
             DateTime.fromJSDate(b.endDateTime!)
-              .setZone('local')
+              .setZone('Asia/Dhaka')
               .toFormat('hh:mm a'),
           services: b.BookedServices.map(bs => bs.service?.serviceName),
           totalTime: b.BookedServices.reduce(
@@ -3201,7 +3826,7 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
   // Always use today's date or provided specificDate (local)
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'local' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -3339,8 +3964,8 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
 
       // Estimate wait time = sum of current bookings lengths (use local zone consistently)
       const estimatedWaitTime = bookings.reduce((sum, b) => {
-        const start = DateTime.fromJSDate(b.startDateTime!).setZone('local');
-        const end = DateTime.fromJSDate(b.endDateTime!).setZone('local');
+        const start = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
+        const end = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
         return sum + end.diff(start, 'minutes').minutes;
       }, 0);
 
@@ -3418,12 +4043,12 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
         const opening = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'local' },
+          { zone: 'Asia/Dhaka' },
         );
         const closing = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'local' },
+          { zone: 'Asia/Dhaka' },
         );
 
         // Build an array of busy intervals (sorted) — convert and clamp to [opening, closing]
@@ -3437,20 +4062,20 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
               s = DateTime.fromFormat(
                 `${date.toFormat('yyyy-MM-dd')} ${b.startTime}`,
                 'yyyy-MM-dd hh:mm a',
-                { zone: 'local' },
+                { zone: 'Asia/Dhaka' },
               );
             } else {
-              s = DateTime.fromJSDate(b.startDateTime!).setZone('local');
+              s = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
             }
 
             if (b.endTime) {
               e = DateTime.fromFormat(
                 `${date.toFormat('yyyy-MM-dd')} ${b.endTime}`,
                 'yyyy-MM-dd hh:mm a',
-                { zone: 'local' },
+                { zone: 'Asia/Dhaka' },
               );
             } else if (b.endDateTime) {
-              e = DateTime.fromJSDate(b.endDateTime!).setZone('local');
+              e = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
             } else {
               // fallback: compute end using services duration sum
               const totalTime = b.BookedServices.reduce(
@@ -3539,12 +4164,12 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
           startTime:
         b.startTime ??
         DateTime.fromJSDate(b.startDateTime!)
-          .setZone('local')
+          .setZone('Asia/Dhaka')
           .toFormat('hh:mm a'),
           endTime:
         b.endTime ??
         DateTime.fromJSDate(b.endDateTime!)
-          .setZone('local')
+          .setZone('Asia/Dhaka')
           .toFormat('hh:mm a'),
           services: b.BookedServices.map(bs => bs.service?.serviceName),
           totalTime: b.BookedServices.reduce(
@@ -3557,14 +4182,14 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
         const slotStart = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${slot.start}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'local' },
+          { zone: 'Asia/Dhaka' },
         );
         const slotEnd = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${slot.end}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'local' },
+          { zone: 'Asia/Dhaka' },
         );
-        const nowLocal = DateTime.now().setZone('local');
+        const nowLocal = DateTime.now().setZone('Asia/Dhaka');
 
         // If slot has ended, skip it
         if (slotEnd <= nowLocal) return null;
@@ -3663,7 +4288,7 @@ const getAvailableBarbersFromDb = async (
     );
   }
 
-  const requestedLocal = requestedUtc.setZone('local');
+  const requestedLocal = requestedUtc.setZone('Asia/Dhaka');
   const requestedEndLocal = requestedLocal.plus({
     minutes: data.totalServiceTime,
   });
@@ -3687,7 +4312,7 @@ const getAvailableBarbersFromDb = async (
           month: requestedLocal.month,
           day: requestedLocal.day,
         },
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       ).toJSDate(),
     },
   });
@@ -3733,7 +4358,7 @@ const getAvailableBarbersFromDb = async (
               month: requestedLocal.month,
               day: requestedLocal.day,
             },
-            { zone: 'local' },
+            { zone: 'Asia/Dhaka' },
           ).toJSDate(),
         },
       });
@@ -3755,12 +4380,12 @@ const getAvailableBarbersFromDb = async (
       const openingLocal = DateTime.fromFormat(
         `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       const closingLocal = DateTime.fromFormat(
         `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       if (
         !openingLocal.isValid ||
@@ -3838,8 +4463,8 @@ const getAvailableBarbersForQueueFromDb = async (
   }
 
   // Only allow queue queries for the current local date
-  const requestedLocalDay = requestedUtc.setZone('local').toISODate();
-  const todayLocalDay = DateTime.now().setZone('local').toISODate();
+  const requestedLocalDay = requestedUtc.setZone('Asia/Dhaka').toISODate();
+  const todayLocalDay = DateTime.now().setZone('Asia/Dhaka').toISODate();
   if (requestedLocalDay !== todayLocalDay) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -3848,7 +4473,7 @@ const getAvailableBarbersForQueueFromDb = async (
   }
 
   // Convert to local zone and compute end times
-  const requestedLocal = requestedUtc.setZone('local');
+  const requestedLocal = requestedUtc.setZone('Asia/Dhaka');
   const requestedEndLocal = requestedLocal.plus({
     minutes: data.totalServiceTime,
   });
@@ -3872,7 +4497,7 @@ const getAvailableBarbersForQueueFromDb = async (
           month: requestedLocal.month,
           day: requestedLocal.day,
         },
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       ).toJSDate(),
     },
   });
@@ -3917,7 +4542,7 @@ const getAvailableBarbersForQueueFromDb = async (
               month: requestedLocal.month,
               day: requestedLocal.day,
             },
-            { zone: 'local' },
+            { zone: 'Asia/Dhaka' },
           ).toJSDate(),
         },
       });
@@ -3939,12 +4564,12 @@ const getAvailableBarbersForQueueFromDb = async (
       const openingLocal = DateTime.fromFormat(
         `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       const closingLocal = DateTime.fromFormat(
         `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'local' },
+        { zone: 'Asia/Dhaka' },
       );
       if (
         !openingLocal.isValid ||
@@ -4552,7 +5177,7 @@ const updateBookingIntoDb = async (
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'local' },
+    { zone: 'Asia/Dhaka' },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
