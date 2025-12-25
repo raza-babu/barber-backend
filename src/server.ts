@@ -5,7 +5,7 @@ import config from './config';
 // import { setupWebSocket } from './app/utils/websocket';
 import { setupSocketIO } from './app/utils/socketio';
 
-const port = config.port || 5000;
+const port = config.port || 8080;
 
 async function main() {
   const server: Server = app.listen(port, () => {
