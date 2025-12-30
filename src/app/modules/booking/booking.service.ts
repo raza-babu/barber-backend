@@ -5153,6 +5153,9 @@ const updateBookingIntoDb = async (
       id: bookingId,
       userId: userId,
       bookingType: BookingType.BOOKING,
+      status: {
+        in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED],
+      }
     },
     include: {
       BookedServices: {
@@ -5193,6 +5196,7 @@ const updateBookingIntoDb = async (
   const overlappingBooking = await prisma.booking.findFirst({
     where: {
       barberId: existingBooking.barberId,
+      status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED] },
       id: { not: bookingId },
       AND: [
         { startDateTime: { lt: endDateTime } },

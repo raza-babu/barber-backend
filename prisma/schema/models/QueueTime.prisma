@@ -10,10 +10,10 @@ model QueueTime {
   updatedAt  DateTime @updatedAt
 
   // Relationships
-  saloon  SaloonOwner @relation(fields: [saloonId], references: [id])
-  barber  Barber      @relation(fields: [barberId], references: [userId])
-  booking Booking?    @relation(fields: [bookingId], references: [id])
-  customer User       @relation(fields: [customerId], references: [id])
+  saloon   SaloonOwner @relation(fields: [saloonId], references: [id])
+  barber   Barber      @relation(fields: [barberId], references: [userId])
+  booking  Booking?    @relation(fields: [bookingId], references: [id])
+  customer User        @relation(fields: [customerId], references: [id])
 
   @@map("queue_times")
 }
