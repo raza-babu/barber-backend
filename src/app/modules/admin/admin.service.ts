@@ -421,7 +421,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
         [sortBy]: sortOrder,
       },
       select: {
-        // id: true,
+        id: true,
         fullName: true,
         email: true,
         phoneNumber: true,
@@ -453,10 +453,10 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
 
   // Flatten the response so that Barber fields are at the top level
   const flattenedBarbers = barbers.map(barber => {
-    const { Barber, ...userFields } = barber;
+    const {Barber, ...userFields } = barber;
     return {
       ...userFields,
-      userId: Barber?.userId,
+      userId: Barber?.userId || userFields.id,
       portfolio: Barber?.portfolio,
       experienceYears: Barber?.experienceYears,
       skills: Barber?.skills,

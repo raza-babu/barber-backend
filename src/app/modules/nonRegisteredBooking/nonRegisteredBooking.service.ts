@@ -161,7 +161,7 @@ const createNonRegisteredBookingIntoDb = async (
         );
       }
       const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
-        zone: 'local',
+        zone: 'Asia/Dhaka',
       });
       const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
 
@@ -171,7 +171,7 @@ const createNonRegisteredBookingIntoDb = async (
         { zone: 'Asia/Dhaka' },
       );
       const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
-        zone: 'local',
+        zone: 'Asia/Dhaka',
       });
 
       // time-only overlap checks

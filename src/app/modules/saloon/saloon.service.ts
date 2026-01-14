@@ -602,10 +602,61 @@ const getRemainingBarbersToScheduleFromDb = async (
   userId: string,
   options: ISearchAndFilterOptions = {},
 ) => {
-  // First, get all hired barbers for this saloon owner
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Build search query for barber name, phone, address, or email
+  const searchQuery = options.searchTerm
+    ? {
+        OR: [
+          {
+            barber: {
+              user: {
+                fullName: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                phoneNumber: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                address: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+          {
+            barber: {
+              user: {
+                email: {
+                  contains: options.searchTerm,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          },
+        ],
+      }
+    : {};
+
+  // First, get all hired barbers for this saloon owner with search filter
   const hiredBarbers = await prisma.hiredBarber.findMany({
     where: {
       userId: userId,
+      ...(Object.keys(searchQuery).length > 0 && searchQuery),
     },
     select: {
       barberId: true,
@@ -618,6 +669,7 @@ const getRemainingBarbersToScheduleFromDb = async (
               image: true,
               phoneNumber: true,
               address: true,
+              email: true,
             },
           },
         },
@@ -626,7 +678,7 @@ const getRemainingBarbersToScheduleFromDb = async (
   });
 
   if (hiredBarbers.length === 0) {
-    return { message: 'No hired barbers found' };
+    return formatPaginationResponse([], 0, page, limit);
   }
 
   const hiredBarberIds = hiredBarbers.map(hb => hb.barberId);
@@ -646,21 +698,39 @@ const getRemainingBarbersToScheduleFromDb = async (
   const scheduledBarberIds = barbersWithSchedules.map(bs => bs.barberId);
 
   // Barbers without schedules are those hired but not in the scheduled list
-  const remainingBarbers = hiredBarbers
+  const allRemainingBarbers = hiredBarbers
     .filter(hb => !scheduledBarberIds.includes(hb.barberId))
     .map(hb => ({
       barberId: hb.barberId,
       barberName: hb.barber.user.fullName,
       barberImage: hb.barber.user.image,
+      barberEmail: hb.barber.user.email,
       barberPhone: hb.barber.user.phoneNumber,
       barberAddress: hb.barber.user.address,
     }));
 
-  if (remainingBarbers.length === 0) {
-    return { message: 'All hired barbers have schedules' };
+  const total = allRemainingBarbers.length;
+
+  if (total === 0) {
+    return formatPaginationResponse([], 0, page, limit);
   }
 
-  return remainingBarbers;
+  // Apply sorting
+  const sortedBarbers = allRemainingBarbers.sort((a, b) => {
+    const aValue = a[sortBy as keyof typeof a] ?? '';
+    const bValue = b[sortBy as keyof typeof b] ?? '';
+    
+    if (sortOrder === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
+    }
+  });
+
+  // Apply pagination
+  const paginatedBarbers = sortedBarbers.slice(skip, skip + limit);
+
+  return formatPaginationResponse(paginatedBarbers, total, page, limit);
 };
 
 const getFreeBarbersOnADateFromDb = async (

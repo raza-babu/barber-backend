@@ -292,7 +292,7 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
 
     if (barberBreak && barberBreak.startTime && barberBreak.endTime) {
       const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
-        zone: 'local',
+        zone: 'Asia/Dhaka',
       });
       const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
 
@@ -302,7 +302,7 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
         { zone: 'Asia/Dhaka' },
       );
       const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
-        zone: 'local',
+        zone: 'Asia/Dhaka',
       });
 
       if (
@@ -4615,127 +4615,209 @@ const getAvailableBarbersForQueueFromDb = async (
 
   return availableBarbers.filter(Boolean);
 };
-
+// image missing while UploadPartOutputFilterSensitiveLog;
 // getBookingListForSalonOwnerFromDb (fixed)
 const getBookingListForSalonOwnerFromDb = async (
   userId: string,
-  options: ISearchAndFilterOptions = {},
+  query: {
+    searchTerm?: string;
+    type?: BookingType;
+    status?: BookingStatus;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: string | number;
+    limit?: string | number;
+    sortBy?: 'date' | 'createdAt' | 'price';
+    sortOrder?: 'asc' | 'desc';
+  } = {},
 ) => {
-  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  const {
+    searchTerm,
+    type,
+    status,
+    date,
+    startDate,
+    endDate,
+    page = 1,
+    limit = 10,
+    sortBy = 'date',
+    sortOrder = 'desc',
+  } = query;
 
-  const searchTerm = options.searchTerm?.trim();
-  const searchClause = searchTerm
-    ? {
-        OR: [
-          {
-            user: {
-              fullName: { contains: searchTerm, mode: 'insensitive' as const },
-            },
-          },
-          {
-            user: {
-              email: { contains: searchTerm, mode: 'insensitive' as const },
-            },
-          },
-          {
-            user: {
-              phoneNumber: {
-                contains: searchTerm,
-                mode: 'insensitive' as const,
-              },
-            },
-          },
-          {
-            barber: {
-              user: {
-                fullName: {
-                  contains: searchTerm,
-                  mode: 'insensitive' as const,
-                },
-              },
-            },
-          },
-        ],
-      }
-    : {};
+  // Convert page and limit to numbers
+  const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+  const limitNum = Math.max(1, parseInt(String(limit), 10) || 10);
 
-  const allowedStatuses = [BookingStatus.CONFIRMED, BookingStatus.PENDING];
-
-  const date = options.date
-    ? (() => {
-        // appointmentAt is stored as UTC; build local-day range then convert to UTC bounds
-        const localStart = DateTime.fromISO(String(options.date), {
-          zone: 'local',
-        }).startOf('day');
-        const localEnd = localStart.plus({ days: 1 });
-        return {
-          appointmentAt: {
-            gte: localStart.toUTC().toJSDate(),
-            lt: localEnd.toUTC().toJSDate(),
-          },
-        };
-      })()
-    : {};
-
-  const whereClause: any = {
+  // Build where clause
+  const whereConditions: any = {
     saloonOwnerId: userId,
-    status: { in: allowedStatuses },
-    ...searchClause,
-    ...date,
   };
 
-  // 1) fetch bookings; NOTE: do NOT select the `user` relation here to avoid Prisma's "required relation returned null" problem.
-  const [bookings, total] = await Promise.all([
-    prisma.booking.findMany({
-      where: whereClause,
-      skip,
-      take: limit,
-      orderBy: { [sortBy]: sortOrder },
-      select: {
-        id: true,
-        userId: true, // keep the scalar id
-        barberId: true,
-        saloonOwnerId: true,
-        date: true,
-        notes: true,
-        isInQueue: true,
-        totalPrice: true,
-        startTime: true,
-        endTime: true,
-        status: true,
-        queueSlot: {
-          select: { id: true, position: true },
-          orderBy: { position: 'asc' },
+  // Filter by booking type
+  if (type) {
+    whereConditions.bookingType = type;
+  }
+
+  // Filter by status
+  if (status) {
+    whereConditions.status = status;
+  }
+
+  // Filter by specific date
+  if (date) {
+    const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+    if (dateObj.isValid) {
+      const startOfDay = dateObj.startOf('day').toJSDate();
+      const endOfDay = dateObj.endOf('day').toJSDate();
+      whereConditions.date = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
+    }
+  }
+
+  // Filter by date range
+  if (startDate && endDate) {
+    const start = DateTime.fromISO(startDate, { zone: 'Asia/Dhaka' });
+    const end = DateTime.fromISO(endDate, { zone: 'Asia/Dhaka' });
+    if (start.isValid && end.isValid) {
+      whereConditions.date = {
+        gte: start.startOf('day').toJSDate(),
+        lte: end.endOf('day').toJSDate(),
+      };
+    }
+  } else if (startDate) {
+    const start = DateTime.fromISO(startDate, { zone: 'Asia/Dhaka' });
+    if (start.isValid) {
+      whereConditions.date = {
+        gte: start.startOf('day').toJSDate(),
+      };
+    }
+  } else if (endDate) {
+    const end = DateTime.fromISO(endDate, { zone: 'Asia/Dhaka' });
+    if (end.isValid) {
+      whereConditions.date = {
+        lte: end.endOf('day').toJSDate(),
+      };
+    }
+  }
+
+  // Search term (search in notes, customer name, barber name, customer email, phone)
+  if (searchTerm) {
+    whereConditions.OR = [
+      {
+        notes: {
+          contains: searchTerm,
+          mode: 'insensitive',
         },
-        BookedServices: {
-          select: {
-            id: true,
-            service: {
-              select: {
-                id: true,
-                price: true,
-                availableTo: true,
-                serviceName: true,
-              },
-            },
-          },
-        },
-        barber: {
-          select: {
-            user: { select: { id: true, fullName: true, image: true } },
+      },
+      {
+        user: {
+          fullName: {
+            contains: searchTerm,
+            mode: 'insensitive',
           },
         },
       },
-    }),
-    prisma.booking.count({ where: whereClause }),
-  ]);
+      {
+        user: {
+          email: {
+            contains: searchTerm,
+            mode: 'insensitive',
+          },
+        },
+      },
+      {
+        user: {
+          phoneNumber: {
+            contains: searchTerm,
+            mode: 'insensitive',
+          },
+        },
+      },
+      {
+        barber: {
+          user: {
+            fullName: {
+              contains: searchTerm,
+              mode: 'insensitive',
+            },
+          },
+        },
+      },
+    ];
+  }
 
-  // 2) collect unique userIds present in bookings
+  // Sorting
+  const orderBy: any = {};
+  if (sortBy === 'date') {
+    orderBy.date = sortOrder;
+  } else if (sortBy === 'createdAt') {
+    orderBy.createdAt = sortOrder;
+  } else if (sortBy === 'price') {
+    orderBy.totalPrice = sortOrder;
+  }
+
+  // Pagination
+  const skip = (pageNum - 1) * limitNum;
+
+  // Get total count
+  const total = await prisma.booking.count({
+    where: whereConditions,
+  });
+
+  // Get bookings with relations
+  const bookings = await prisma.booking.findMany({
+    where: whereConditions,
+    skip,
+    take: limitNum,
+    orderBy,
+    select: {
+      id: true,
+      userId: true,
+      barberId: true,
+      saloonOwnerId: true,
+      date: true,
+      notes: true,
+      isInQueue: true,
+      totalPrice: true,
+      startTime: true,
+      endTime: true,
+      status: true,
+      bookingType: true,
+      createdAt: true,
+      queueSlot: {
+        select: { id: true, position: true },
+        orderBy: { position: 'asc' },
+      },
+      BookedServices: {
+        select: {
+          id: true,
+          service: {
+            select: {
+              id: true,
+              price: true,
+              availableTo: true,
+              serviceName: true,
+            },
+          },
+        },
+      },
+      barber: {
+        select: {
+          user: { select: { id: true, fullName: true, image: true } },
+        },
+      },
+    },
+  });
+
+  // Collect unique userIds present in bookings
   const userIds = Array.from(
     new Set(bookings.map(b => b.userId).filter(Boolean)),
   );
 
-  // 3) fetch registered users that match those ids
+  // Fetch registered users that match those ids
   const registeredUsers = userIds.length
     ? await prisma.user.findMany({
         where: { id: { in: userIds } },
@@ -4754,7 +4836,7 @@ const getBookingListForSalonOwnerFromDb = async (
     return acc;
   }, {});
 
-  // 4) remaining ids -> non-registered users
+  // Remaining ids -> non-registered users
   const nonRegisteredIds = userIds.filter(id => !regUserMap[id]);
   const nonRegisteredUsers = nonRegisteredIds.length
     ? await prisma.nonRegisteredUser.findMany({
@@ -4771,7 +4853,7 @@ const getBookingListForSalonOwnerFromDb = async (
     {},
   );
 
-  // 5) map bookings to response shape using the lookup maps
+  // Map bookings to response shape using the lookup maps
   const mapped = bookings.map(b => {
     const userInfo = regUserMap[b.userId]
       ? {
@@ -4811,6 +4893,7 @@ const getBookingListForSalonOwnerFromDb = async (
       bookingDate: b.date,
       startTime: b.startTime,
       endTime: b.endTime,
+      bookingType: b.bookingType,
       services: b.BookedServices.map(s => ({
         serviceId: s.service.id,
         serviceName: s.service.serviceName,
@@ -4824,13 +4907,28 @@ const getBookingListForSalonOwnerFromDb = async (
     };
   });
 
+  // Calculate pagination metadata
+  const totalPages = Math.ceil(total / limitNum);
+  const hasNextPage = pageNum < totalPages;
+  const hasPrevPage = pageNum > 1;
+
   return {
     data: mapped,
     meta: {
       total,
-      page,
-      limit,
-      pageCount: Math.ceil(total / limit),
+      page: pageNum,
+      limit: limitNum,
+      totalPages,
+      hasNextPage,
+      hasPrevPage,
+    },
+    filters: {
+      type: type || null,
+      status: status || null,
+      date: date || null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      searchTerm: searchTerm || null,
     },
   };
 };
@@ -4871,7 +4969,7 @@ const getBookingListForBarberFromDb = async (
   const date = options.date
     ? (() => {
         const localStart = DateTime.fromISO(String(options.date), {
-          zone: 'local',
+          zone: 'Asia/Dhaka',
         }).startOf('day');
         const localEnd = localStart.plus({ days: 1 });
         return {

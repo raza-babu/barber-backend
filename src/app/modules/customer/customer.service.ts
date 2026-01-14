@@ -746,10 +746,10 @@ const checkShopStatus = async (
   const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
   const todayDate = now.toISOString().split('T')[0];
 
-  console.log('=== Shop Status Check ===');
-  console.log('Saloon Owner ID:', saloonOwnerId);
-  console.log('Today:', today, '(0=Sunday, 6=Saturday)');
-  console.log('Current time minutes:', currentTimeMinutes);
+  // console.log('=== Shop Status Check ===');
+  // console.log('Saloon Owner ID:', saloonOwnerId);
+  // console.log('Today:', today, '(0=Sunday, 6=Saturday)');
+  // console.log('Current time minutes:', currentTimeMinutes);
 
   // Check if today is a holiday using SaloonHoliday model
   const todayHoliday = await prisma.saloonHoliday.findFirst({

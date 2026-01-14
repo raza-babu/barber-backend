@@ -101,6 +101,7 @@ const getBookingListForSalonOwner = catchAsync(async (req, res) => {
     'status',
     'appointmentAt',
     'date',
+    'type'
   ]);
 
   if (user.role === UserRoleEnum.SALOON_OWNER) {

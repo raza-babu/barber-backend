@@ -326,6 +326,7 @@ const getHiredBarbersListFromDb = async (userId: string, options: ISearchAndFilt
                 email: true,
                 phoneNumber: true,
                 image: true,
+                address: true,
               },
             },
           },
@@ -345,9 +346,10 @@ const getHiredBarbersListFromDb = async (userId: string, options: ISearchAndFilt
     createdAt: hired.createdAt,
     updatedAt: hired.updatedAt,
     barberId: hired.barber?.user?.id,
-    barberFullName: hired.barber?.user?.fullName,
+    barberName: hired.barber?.user?.fullName,
     barberEmail: hired.barber?.user?.email,
-    barberPhoneNumber: hired.barber?.user?.phoneNumber,
+    barberAddress: hired.barber?.user?.address,
+    barberPhone: hired.barber?.user?.phoneNumber,
     barberImage: hired.barber?.user?.image,
   }));
 

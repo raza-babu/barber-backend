@@ -5,7 +5,6 @@ import globalErrorHandler from "./app/middlewares/globalErrorHandler";
 import router from "./app/routes";
 import { logger, loggerConsole } from "./app/middlewares/logger";
 import path from "path";
-import bodyParser from "body-parser";
 import { PaymentController } from "./app/modules/payment/payment.controller";
 
 const app: Application = express();

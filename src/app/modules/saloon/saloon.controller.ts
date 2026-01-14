@@ -120,8 +120,8 @@ const getRemainingBarbersToSchedule = catchAsync(async (req, res) => {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Remaining barbers to schedule retrieved successfully',
-    data: result,
-    // meta: result.meta,
+    data: result.data,
+    meta: result.meta,
   });
 });
 
