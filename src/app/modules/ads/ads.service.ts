@@ -3,6 +3,11 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
 import { deleteFileFromSpace } from '../../utils/deleteImage';
 
 const createAdsIntoDb = async (userId: string, data: any) => {
@@ -44,12 +49,48 @@ const createAdsIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getAdsListFromDb = async () => {
-  const result = await prisma.ads.findMany();
-  if (result.length === 0) {
-    return [];
+const getAdsListFromDb = async (options: ISearchAndFilterOptions = {}) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  // Build search query for description
+  const searchQuery = options.searchTerm
+    ? {
+        description: {
+          contains: options.searchTerm,
+          mode: 'insensitive' as const,
+        },
+      }
+    : {};
+
+  // Date range filter
+  const dateFilter: any = {};
+  if (options.startDate) {
+    dateFilter.startDate = {
+      gte: new Date(options.startDate as string),
+    };
   }
-  return result;
+  if (options.endDate) {
+    dateFilter.endDate = {
+      lte: new Date(options.endDate as string),
+    };
+  }
+
+  const whereClause = {
+    ...(Object.keys(searchQuery).length > 0 && searchQuery),
+    ...dateFilter,
+  };
+
+  const [result, total] = await Promise.all([
+    prisma.ads.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder },
+    }),
+    prisma.ads.count({ where: whereClause }),
+  ]);
+
+  return formatPaginationResponse(result, total, page, limit);
 };
 
 const getAdsByIdFromDb = async (adsId: string) => {
