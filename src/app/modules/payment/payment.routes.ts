@@ -89,4 +89,16 @@ router.post(
   PaymentController.tipPaymentToBarber,
 );
 
+router.post(
+  '/payout-barber',
+  auth(UserRoleEnum.BARBER),
+  PaymentController.payoutToBarber,
+);
+
+router.post(
+  '/withdraw-funds',
+  auth(UserRoleEnum.BARBER),
+  PaymentController.withdrawFundsFromStripe,
+)
+
 export const PaymentRoutes = router;

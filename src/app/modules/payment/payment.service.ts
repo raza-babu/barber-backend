@@ -916,6 +916,64 @@ const tipPaymentToBarberService = async (
   });
 };
 
+const payoutToBarberService = async (payload: {
+  barberId: string;
+  amount: number;
+  currency: string;
+}) => {
+  // try {
+  //   const { barberId, amount, currency } = payload;
+
+  //   // Fetch barber's Stripe account ID from your database
+  //   const barber = await prisma.user.findUnique({
+  //     where: { id: barberId },
+  //   });
+
+  //   if (!barber || !barber.stripeAccountId) {
+  //     throw new AppError(httpStatus.NOT_FOUND, 'Barber or Stripe account not found');
+  //   }
+
+  //   // Create a payout to the barber's Stripe account
+  //   const transfer = await stripe.transfers.create({
+  //     amount: Math.round(amount * 100), // Amount in cents
+  //     currency: currency,
+  //     destination: barber.stripeAccountId,
+  //   });
+
+  //   return transfer;
+  // } catch (error: any) {
+  //   throw new AppError(httpStatus.CONFLICT, error.message);
+  // }
+};
+
+const withdrawFundsFromStripeService = async (userId: string) => {
+  // try {
+  //   const userData = await prisma.user.findUnique({
+  //     where: { id: userId },
+  //   });
+  
+  //   if (!userData || !userData.stripeAccountId) {
+  //     throw new AppError(httpStatus.NOT_FOUND, 'User data or Stripe account ID not found');
+  //   }
+  
+  //   // Create a payout from the Stripe account to the user's bank account
+  //   const payout = await stripe.payouts.create(
+  //     {
+  //       amount: 1000, // Amount in cents (e.g., $10.00)
+  //       currency: 'usd',
+  //     },
+  //     {
+  //       stripeAccount: userData.stripeAccountId,
+  //     }
+  //   );
+  
+  //   return payout;
+  // } catch (error: any) {
+  //   throw new AppError(httpStatus.CONFLICT, error.message);
+  // }
+};
+
+
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,
   authorizeAndSplitPayment,
@@ -931,4 +989,6 @@ export const StripeServices = {
   createAccountIntoStripe,
   createNewAccountIntoStripe,
   tipPaymentToBarberService,
+  payoutToBarberService,
+  withdrawFundsFromStripeService,
 };

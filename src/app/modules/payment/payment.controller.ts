@@ -860,6 +860,32 @@ const tipPaymentToBarber = catchAsync(async (req: any, res: any) => {
   });
 });
 
+const payoutToBarber = catchAsync(async (req: any, res: any) => {
+  const result = await StripeServices.payoutToBarberService(req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Payout to barber successfully',
+    data: result,
+  });
+});
+
+const withdrawFundsFromStripe = catchAsync(
+  async (req: any, res: any) => {
+    const result = await StripeServices.withdrawFundsFromStripeService(
+      req.body,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Withdraw funds from stripe successfully',
+      data: result,
+    });
+  },
+);
+
 export const PaymentController = {
   saveCardWithCustomerInfo,
   authorizedPaymentWithSaveCard,
@@ -875,5 +901,7 @@ export const PaymentController = {
   createAccount,
   createNewAccount,
   tipPaymentToBarber,
+  payoutToBarber,
+  withdrawFundsFromStripe,
   handleWebHook,
 };
