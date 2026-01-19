@@ -80,6 +80,8 @@ const getAdsListFromDb = async (options: ISearchAndFilterOptions = {}) => {
     ...dateFilter,
   };
 
+  const now = new Date();
+  
   const [result, total] = await Promise.all([
     prisma.ads.findMany({
       where: whereClause,
@@ -90,7 +92,22 @@ const getAdsListFromDb = async (options: ISearchAndFilterOptions = {}) => {
     prisma.ads.count({ where: whereClause }),
   ]);
 
-  return formatPaginationResponse(result, total, page, limit);
+  // Filter out ads where current date is not between startDate and endDate
+  const activeAds = result.filter(ad => {
+    const start = new Date(ad.startDate);
+    const end = new Date(ad.endDate);
+    return now >= start && now <= end;
+  });
+
+  const activeTotal = await prisma.ads.count({
+    where: {
+      ...whereClause,
+      startDate: { lte: now },
+      endDate: { gte: now },
+    },
+  });
+
+  return formatPaginationResponse(activeAds, activeTotal, page, limit);
 };
 
 const getAdsByIdFromDb = async (adsId: string) => {

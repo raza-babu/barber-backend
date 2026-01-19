@@ -53,7 +53,7 @@ const analyzeSaloonFromImageInDb = async (
   const { latitude, longitude } = body;
 
   // Step 1: Get nearest 15 saloons within 10 KM radius
-  console.log('=== Step 1: Getting Nearest Saloons ===');
+  // console.log('=== Step 1: Getting Nearest Saloons ===');
   const nearestSaloons = await getMyNearestSaloonListFromDb(
     userId,
     latitude,
@@ -65,7 +65,7 @@ const analyzeSaloonFromImageInDb = async (
     },
   );
 
-  console.log(`Found ${nearestSaloons.data.length} saloons within 10 KM`);
+  // console.log(`Found ${nearestSaloons.data.length} saloons within 10 KM`);
 
   if (nearestSaloons.data.length === 0) {
     return {
@@ -78,7 +78,7 @@ const analyzeSaloonFromImageInDb = async (
   }
 
   // Step 2: Extract all barber userIds from these saloons
-  console.log('=== Step 2: Extracting Barber IDs ===');
+  // console.log('=== Step 2: Extracting Barber IDs ===');
   const allBarberIds: string[] = [];
   const saloonBarberMap = new Map<string, any[]>(); // Map saloonId -> barbers
 
@@ -93,7 +93,7 @@ const analyzeSaloonFromImageInDb = async (
   });
 
   const uniqueBarberIds = [...new Set(allBarberIds)];
-  console.log(`Total unique barbers: ${uniqueBarberIds.length}`);
+  // console.log(`Total unique barbers: ${uniqueBarberIds.length}`);
 
   if (uniqueBarberIds.length === 0) {
     return {
@@ -106,20 +106,20 @@ const analyzeSaloonFromImageInDb = async (
   }
 
   // Step 3: Get all barbers from AI model
-  console.log('=== Step 3: Fetching Barbers from AI Model ===');
+  // console.log('=== Step 3: Fetching Barbers from AI Model ===');
   let aiBarbers: any[] = [];
   try {
     const getBarberResp = await axios.get(
-      'https://reyai.dsrt321.online/get_barbers',
+      'https://raybarberai.dsrt321.online/get_barbers',
       {
         timeout: 30000,
       },
     );
 
-    console.log('AI Barbers Response:', {
-      success: getBarberResp.data?.success,
-      total: getBarberResp.data?.total_barbers,
-    });
+    // console.log('AI Barbers Response:', {
+    //   success: getBarberResp.data?.success,
+    //   total: getBarberResp.data?.total_barbers,
+    // });
 
     if (
       getBarberResp.data?.success &&
@@ -139,9 +139,9 @@ const analyzeSaloonFromImageInDb = async (
     aiBarberCodes.includes(id),
   );
 
-  console.log(
-    `Matched barbers: ${matchedBarberIds.length} out of ${uniqueBarberIds.length}`,
-  );
+  // console.log(
+  //   `Matched barbers: ${matchedBarberIds.length} out of ${uniqueBarberIds.length}`,
+  // );
 
   if (matchedBarberIds.length === 0) {
     return {
@@ -154,7 +154,7 @@ const analyzeSaloonFromImageInDb = async (
   }
 
   // Step 5: Send customer image to AI for analysis
-  console.log('=== Step 5: Analyzing Customer Image ===');
+  // console.log('=== Step 5: Analyzing Customer Image ===');
   const form = new FormData();
 
   // Add image
@@ -203,7 +203,7 @@ const analyzeSaloonFromImageInDb = async (
   console.log(`Form data headers: ${JSON.stringify(form.getHeaders())}`);
 
   try {
-    const analyzeUrl = 'https://reyai.dsrt321.online/analyze';
+    const analyzeUrl = 'https://raybarberai.dsrt321.online/analyze';
     const headers = form.getHeaders();
 
     console.log('Sending to AI analysis with barber codes:', matchedBarberIds);
@@ -216,9 +216,10 @@ const analyzeSaloonFromImageInDb = async (
       validateStatus: status => status < 500,
     });
 
-    console.log('=== AI Analysis Response ===');
-    console.log('Status:', analyzeResp.status);
-    console.log('Success:', analyzeResp.data?.success);
+    // console.log('=== AI Analysis Response ===');
+    // console.log('Status:', analyzeResp.status);
+    // console.log('Success:', analyzeResp.data?.success);
+    // console.log('Data:', analyzeResp.data);
 
     // Handle errors
     if (analyzeResp.status === 400) {
