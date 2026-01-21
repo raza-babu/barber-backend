@@ -12,37 +12,44 @@ const app: Application = express();
 app.use(logger);
 app.use(loggerConsole);
 
-// app.use(
-//   cors({
-//     origin: [
-//       "http://localhost:3001",
-//       "http://localhost:3000",
-//       "http://10.10.20.60:3005",
-//       "http://10.10.20.60:3006",
-//       "http://10.10.20.60:3007",
-//       "http://10.10.20.60:3008",
-      
-
-//     ],
-//     credentials: true,
-//   })
-// );
-// app.use(
-//   cors({
-//     origin: true,
-//     credentials: true,
-//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-//   }),
-// );
 app.use(
-  cors(
-    {
-    origin: "*", // Allow all origins for development
-    credentials: true, // Allow credentials
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  }
-)
+  cors({
+    origin: [
+      "http://localhost:3001",
+      "http://localhost:3000",
+      "http://10.10.20.60:3005",
+      "http://10.10.20.60:3006",
+      "http://10.10.20.60:3007",
+      "http://10.10.20.60:3008",
+      "http://dashboard.barberstime.com",
+      "http://www.dashboard.barberstime.com",
+      "https://barberowner.barberstime.com",
+      "https://www.barberowner.barberstime.com",
+      "http://13.48.206.147:5174",
+      "http://13.48.206.147:5175",
+      "https://barber-shift-owner-dashboard.vercel.app",
+      "https://barber-shift-dashboard.vercel.app",
+      
+    ],
+    credentials: true,
+  })
 );
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  }),
+);
+// app.use(
+//   cors(
+//     {
+//     origin: "*", // Allow all origins for development
+//     credentials: true, // Allow credentials
+//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+//   }
+// )
+// );
 
 app.use(
   '/api/v1/stripe/payment-webhook',
