@@ -53,7 +53,7 @@ const analyzeSaloonFromImageInDb = async (
   const { latitude, longitude } = body;
 
   // Step 1: Get nearest 15 saloons within 10 KM radius
-  // console.log('=== Step 1: Getting Nearest Saloons ===');
+  console.log('=== Step 1: Getting Nearest Saloons ===');
   const nearestSaloons = await getMyNearestSaloonListFromDb(
     userId,
     latitude,
@@ -65,7 +65,7 @@ const analyzeSaloonFromImageInDb = async (
     },
   );
 
-  // console.log(`Found ${nearestSaloons.data.length} saloons within 10 KM`);
+  console.log(`Found ${nearestSaloons.data.length} saloons within 10 KM`);
 
   if (nearestSaloons.data.length === 0) {
     return {
@@ -781,14 +781,14 @@ const checkShopStatus = async (
     },
   });
 
-  console.log('Today Schedule:', JSON.stringify(todaySchedule, null, 2));
+  // console.log('Today Schedule:', JSON.stringify(todaySchedule, null, 2));
 
   if (
     !todaySchedule ||
     !todaySchedule.openingTime ||
     !todaySchedule.closingTime
   ) {
-    console.log('No schedule found for today');
+    // console.log('No schedule found for today');
     return {
       isOpen: false,
       status: 'closed',

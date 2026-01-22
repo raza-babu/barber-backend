@@ -1,3 +1,4 @@
+// import { admin } from 'firebase-admin';
 import httpStatus from 'http-status';
 import config from '../../../config';
 import { isValidAmount } from '../../utils/isValidAmount';
@@ -181,11 +182,15 @@ const authorizeAndSplitPayment = async (
       customerId = findBooking.user?.stripeCustomerId;
     }
 
-    let transferAmount = findBooking.totalPrice * 100; // Amount in cents
+    let adminFeeAmount = 0.50 * 100; // £0.50 in pence
+
+    let transferAmount = findBooking.totalPrice * 100; // Amount in pence
+    
+    const totalAmount = transferAmount + adminFeeAmount;
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: transferAmount,
-      currency: 'usd',
+      amount: totalAmount,
+      currency: 'gbp',
       customer: customerId,
       payment_method: paymentMethodId,
       confirm: true,
@@ -649,7 +654,7 @@ const createPaymentIntentService = async (payload: { amount: number }) => {
   // // Create a PaymentIntent with Stripe
   // const paymentIntent = await stripe.paymentIntents.create({
   //   amount: payload?.amount,
-  //   currency: 'usd',
+  //   currency: 'gbp',
   //   automatic_payment_methods: {
   //     enabled: true, // Enable automatic payment methods like cards, Apple Pay, Google Pay
   //   },
@@ -854,8 +859,8 @@ const tipPaymentToBarberService = async (
     const finalAmount = totalAmount + serviceCharge;
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(finalAmount * 100), // in cents
-      currency: 'usd',
+      amount: Math.round(finalAmount * 100), // in pence
+      currency: 'gbp',
       customer: booking.user.stripeCustomerId,
       payment_method: paymentMethodId,
       confirm: true,
@@ -872,7 +877,7 @@ const tipPaymentToBarberService = async (
       // Transfer to saloon owner
       await stripe.transfers.create({
         amount: Math.round(saloonOwnerAmount * 100),
-        currency: 'usd',
+        currency: 'gbp',
         destination: booking.saloonOwner.user.stripeAccountId,
         metadata: { bookingId: booking.id, role: 'saloon_owner' },
       });
@@ -880,7 +885,7 @@ const tipPaymentToBarberService = async (
       // Transfer to barber
       await stripe.transfers.create({
         amount: Math.round(barberAmount * 100),
-        currency: 'usd',
+        currency: 'gbp',
         destination: booking.barber.user.stripeAccountId,
         metadata: { bookingId: booking.id, role: 'barber' },
       });
@@ -959,21 +964,18 @@ const withdrawFundsFromStripeService = async (userId: string) => {
   //   // Create a payout from the Stripe account to the user's bank account
   //   const payout = await stripe.payouts.create(
   //     {
-  //       amount: 1000, // Amount in cents (e.g., $10.00)
-  //       currency: 'usd',
+  //       amount: 1000, // Amount in pence (e.g., £10.00)
+  //       currency: 'gbp',
   //     },
   //     {
   //       stripeAccount: userData.stripeAccountId,
   //     }
   //   );
-  
   //   return payout;
   // } catch (error: any) {
   //   throw new AppError(httpStatus.CONFLICT, error.message);
   // }
-};
-
-
+}
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,
   authorizeAndSplitPayment,
@@ -985,10 +987,12 @@ export const StripeServices = {
   createPaymentIntentService,
   getCustomerDetailsFromStripe,
   getAllCustomersFromStripe,
-  cancelPaymentRequestToStripe,
   createAccountIntoStripe,
   createNewAccountIntoStripe,
   tipPaymentToBarberService,
   payoutToBarberService,
   withdrawFundsFromStripeService,
+  cancelPaymentRequestToStripe,
 };
+
+

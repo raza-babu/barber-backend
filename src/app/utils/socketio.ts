@@ -267,79 +267,103 @@ export function setupSocketIO(server: HTTPServer) {
     });
 
     socket.on('fetchChats', async payload => {
-      try {
-        if (!payload || !payload.receiverId) {
-          console.log('Receiver ID is undefined');
-          return;
-        }
+  try {
+    if (!payload || !payload.receiverId) {
+      console.log('Receiver ID is undefined');
+      return;
+    }
 
-        // Check subscription plan from user token (assumed to be set by socketAuth)
-        const subscriptionPlan = user.subscriptionPlan; // e.g., 'free', 'premium', etc.
-        const senderRole = user.role; // e.g., 'saloonOwner', 'barber', etc.
+    // Fetch sender's current subscription plan from database
+    const sender = await prisma.user.findUnique({
+      where: { id },
+      select: { subscriptionPlan: true, role: true },
+    });
 
-        // Fetch receiver's role and info
-        const receiver = await prisma.user.findUnique({
-          where: { id: payload.receiverId },
-          select: { fullName: true, image: true, role: true },
-        });
+    if (!sender) {
+      console.log('Sender not found');
+      return;
+    }
 
-        if (!receiver) {
-          console.log('Receiver not found');
-          return;
-        }
-        const receiverRole = receiver.role;
+    const subscriptionPlan = sender.subscriptionPlan;
+    const senderRole = sender.role;
 
-        // If subscription is free, prevent chat between saloon owner and barber or customer
-        if (
-          subscriptionPlan === SubscriptionPlanStatus.FREE &&
-          (senderRole === UserRoleEnum.SALOON_OWNER ||
-            receiverRole === UserRoleEnum.SALOON_OWNER)
-        ) {
-          socket.emit('error', {
-            message: `Cannot fetch chats between saloon owner and the barber or the customer if saloon owner's subscription is free.`,
-          });
-          return;
-        }
+    // Fetch receiver's role, subscription plan, and info
+    const receiver = await prisma.user.findUnique({
+      where: { id: payload.receiverId },
+      select: { 
+        fullName: true, 
+        image: true, 
+        role: true, 
+        subscriptionPlan: true 
+      },
+    });
 
-        // BASIC_PREMIUM: can only fetch chats with barbers, not customers
-        if (
-          subscriptionPlan === SubscriptionPlanStatus.BASIC_PREMIUM &&
-          receiverRole !== UserRoleEnum.BARBER
-        ) {
-          socket.emit('error', {
-            message: `With BASIC_PREMIUM, you can only fetch chats with barbers.`,
-          });
-          return;
-        }
+    if (!receiver) {
+      console.log('Receiver not found');
+      return;
+    }
+    const receiverRole = receiver.role;
+    const receiverSubscriptionPlan = receiver.subscriptionPlan;
+    
+    console.log('Receiver Role:', receiverRole);
+    console.log('Sender Role:', senderRole);
+    console.log('Subscription Plan:', subscriptionPlan);
+    console.log('Receiver Subscription Plan:', receiverSubscriptionPlan);
 
-        // ADVANCED_PREMIUM: can only fetch chats with customers, not barbers
-        if (
-          subscriptionPlan === SubscriptionPlanStatus.ADVANCED_PREMIUM &&
-          receiverRole !== UserRoleEnum.CUSTOMER
-        ) {
-          socket.emit('error', {
-            message: `With ADVANCED_PREMIUM, you can only fetch chats with customers.`,
-          });
-          return;
-        }
+    // Block ONLY if sender is a saloon owner with FREE plan
+    if (
+      senderRole === UserRoleEnum.SALOON_OWNER &&
+      subscriptionPlan === SubscriptionPlanStatus.FREE
+    ) {
+      socket.emit('error', {
+        message: `Chat is not allowed on free plan. Please upgrade your subscription.`,
+      });
+      return;
+    }
 
-        if (subscriptionPlan === SubscriptionPlanStatus.PRO_PREMIUM) {
-          // No restriction for PRO_PREMIUM, allow fetching chats (do nothing, just proceed)
-        }
+    // REMOVE THIS BLOCK - Don't block based on receiver's plan
+    // Customers and barbers CAN chat with FREE salon owners
 
-        const room = await prisma.room.findFirst({
-          where: {
-            OR: [
-              { senderId: id, receiverId: payload.receiverId },
-              { senderId: payload.receiverId, receiverId: id },
-            ],
-          },
-        });
-        if (!room) {
-          console.log('Room not found');
-          socket.emit('noRoomFound', 'No room found');
-          return;
-        }
+    // BASIC_PREMIUM: can only fetch chats with barbers, not customers
+    if (
+      senderRole === UserRoleEnum.SALOON_OWNER &&
+      subscriptionPlan === SubscriptionPlanStatus.BASIC_PREMIUM &&
+      receiverRole !== UserRoleEnum.BARBER
+    ) {
+      socket.emit('error', {
+        message: `With BASIC_PREMIUM, you can only fetch chats with barbers.`,
+      });
+      return;
+    }
+
+    // ADVANCED_PREMIUM: can only fetch chats with customers, not barbers
+    if (
+      senderRole === UserRoleEnum.SALOON_OWNER &&
+      subscriptionPlan === SubscriptionPlanStatus.ADVANCED_PREMIUM &&
+      receiverRole !== UserRoleEnum.CUSTOMER
+    ) {
+      socket.emit('error', {
+        message: `With ADVANCED_PREMIUM, you can only fetch chats with customers.`,
+      });
+      return;
+    }
+
+    // PRO_PREMIUM: no restrictions
+
+    const room = await prisma.room.findFirst({
+      where: {
+        OR: [
+          { senderId: id, receiverId: payload.receiverId },
+          { senderId: payload.receiverId, receiverId: id },
+        ],
+      },
+    });
+    if (!room) {
+      console.log('Room not found');
+      socket.emit('noRoomFound', 'No room found');
+      return;
+    }
+    
         // Mark all messages as read before fetching chats
         await prisma.chat.updateMany({
           where: {
