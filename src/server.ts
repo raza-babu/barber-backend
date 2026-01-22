@@ -1,9 +1,12 @@
 import { Server } from 'http';
+import { Settings } from 'luxon';
 import app from './app';
 import seedSuperAdmin from './app/DB';
-import config from './config';
 // import { setupWebSocket } from './app/utils/websocket';
 import { setupSocketIO } from './app/utils/socketio';
+import config from './config';
+
+Settings.defaultZone = config.timezone || 'UTC';
 
 const port = config.port || 8080;
 
