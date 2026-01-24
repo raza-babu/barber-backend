@@ -1737,8 +1737,8 @@ const getBookingListFromDb = async (
     date?: string;
     startDate?: string;
     endDate?: string;
-    page?: number;
-    limit?: number;
+    page?: number | string;
+    limit?: number | string;
     sortBy?: 'date' | 'createdAt' | 'price';
     sortOrder?: 'asc' | 'desc';
   } = {},
@@ -1750,11 +1750,23 @@ const getBookingListFromDb = async (
     date,
     startDate,
     endDate,
-    page = 1,
-    limit = 10,
+    page: pageInput = 1,
+    limit: limitInput = 10,
     sortBy = 'date',
     sortOrder = 'desc',
   } = query;
+
+  // Convert page and limit to numbers
+  const page = typeof pageInput === 'string' ? parseInt(pageInput, 10) : pageInput;
+  const limit = typeof limitInput === 'string' ? parseInt(limitInput, 10) : limitInput;
+
+  // Validate converted numbers
+  if (isNaN(page) || page < 1) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid page number');
+  }
+  if (isNaN(limit) || limit < 1) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid limit number');
+  }
 
   // Build where clause
   const whereConditions: any = {
@@ -3917,6 +3929,9 @@ const updateBookingIntoDb = async (
       id: bookingId,
       userId: userId,
       bookingType: BookingType.BOOKING,
+      status: {
+        in: [BookingStatus.PENDING, BookingStatus.CONFIRMED],
+      },
     },
     include: {
       BookedServices: {
@@ -3957,6 +3972,7 @@ const updateBookingIntoDb = async (
   const overlappingBooking = await prisma.booking.findFirst({
     where: {
       barberId: existingBooking.barberId,
+
       id: { not: bookingId },
       AND: [
         { startDateTime: { lt: endDateTime } },

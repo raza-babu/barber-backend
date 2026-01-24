@@ -57,16 +57,60 @@ const getMyScheduleFromDb = async (userId: string, dayName: string) => {
   });
 };
 
-const getMyBookingsFromDb = async (userId: string) => {
+const getMyBookingsFromDb = async (
+  userId: string,
+  options?: {
+    search?: string;
+    status?: BookingStatus;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  },
+) => {
+  const page = options?.page || 1;
+  const limit = options?.limit || 10;
+  const skip = (page - 1) * limit;
+
+  // Build where clause
+  const whereClause: any = {
+    barberId: userId,
+    OR: [
+      { status: BookingStatus.CONFIRMED },
+      { status: BookingStatus.COMPLETED },
+      { status: BookingStatus.PENDING },
+      { status: BookingStatus.STARTED },
+      { status: BookingStatus.ENDED },
+    ],
+  };
+
+  // Filter by status if provided
+  if (options?.status) {
+    whereClause.OR = [{ status: options.status }];
+  }
+
+  // Filter by date range
+  if (options?.startDate || options?.endDate) {
+    whereClause.AND = whereClause.AND || [];
+    if (options?.startDate) {
+      whereClause.AND.push({
+        startDateTime: { gte: new Date(options.startDate) },
+      });
+    }
+    if (options?.endDate) {
+      whereClause.AND.push({
+        endDateTime: { lte: new Date(options.endDate) },
+      });
+    }
+  }
+
+  // Get total count for pagination
+  const totalCount = await prisma.booking.count({
+    where: whereClause,
+  });
+
   let bookings = await prisma.booking.findMany({
-    where: {
-      barberId: userId,
-      OR: [
-        { status: BookingStatus.CONFIRMED },
-        { status: BookingStatus.COMPLETED },
-        { status: BookingStatus.PENDING },
-      ],
-    },
+    where: whereClause,
     include: {
       BookedServices: {
         select: {
@@ -84,10 +128,28 @@ const getMyBookingsFromDb = async (userId: string) => {
       },
     },
     orderBy: { startDateTime: 'asc' },
+    skip,
+    take: limit,
   });
 
+  const totalPages = Math.ceil(totalCount / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1; 
+
+
   if (bookings.length === 0) {
-    return { message: 'No bookings found' };
+    return {
+      data: [],
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        hasNextPage,
+        hasPrevPage,
+      },
+      message: 'No bookings found',
+    };
   }
 
   const bookingUserIds = Array.from(
@@ -148,7 +210,7 @@ const getMyBookingsFromDb = async (userId: string) => {
     },
   }));
 
-  return bookings.map(booking => ({
+  let results = bookings.map(booking => ({
     bookingId: booking.id,
     userId: booking.userId,
     saloonOwnerId: booking.saloonOwnerId,
@@ -172,6 +234,30 @@ const getMyBookingsFromDb = async (userId: string) => {
       duration: bs.service.duration,
     })),
   }));
+
+  // Apply search filter on transformed results
+  if (options?.search) {
+    const searchLower = options.search.toLowerCase();
+    results = results.filter(
+      booking =>
+        booking.userFullName?.toLowerCase().includes(searchLower) ||
+        booking.userEmail?.toLowerCase().includes(searchLower) ||
+        booking.userPhoneNumber?.toLowerCase().includes(searchLower) ||
+        booking.bookingId.toLowerCase().includes(searchLower),
+    );
+  }
+
+  return {
+    data: results,
+    pagination: {
+      page,
+      limit,
+      total: totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      hasNextPage,  
+      hasPrevPage,
+    },
+  };
 };
 
 const getBarberListFromDb = async (userId: string) => {
