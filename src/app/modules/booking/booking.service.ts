@@ -2949,8 +2949,8 @@ const getBookingListFromDb = async (
     date?: string;
     startDate?: string;
     endDate?: string;
-    page?: string | number;
-    limit?: string | number;
+    page?: string;
+    limit?: string;
     sortBy?: 'date' | 'createdAt' | 'price';
     sortOrder?: 'asc' | 'desc';
   } = {},
@@ -2962,8 +2962,8 @@ const getBookingListFromDb = async (
     date,
     startDate,
     endDate,
-    page: pageInput = 1,
-    limit: limitInput = 10,
+    page = 1,
+    limit = 10,
     sortBy = 'date',
     sortOrder = 'desc',
   } = query;
