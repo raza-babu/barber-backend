@@ -684,9 +684,13 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   // Use historical average duration if available
   if (queueTimeRecord?.averageMin) {
     totalDuration = queueTimeRecord.averageMin;
-    console.log(`Using historical duration: ${totalDuration}min (${queueTimeRecord.serviceIds?.length || 0} services matched)`);
+    console.log(
+      `Using historical duration: ${totalDuration}min (${queueTimeRecord.serviceIds?.length || 0} services matched)`,
+    );
   } else {
-    console.log(`Using default service duration: ${totalDuration}min (no historical data)`);
+    console.log(
+      `Using default service duration: ${totalDuration}min (no historical data)`,
+    );
   }
 
   if (totalDuration <= 0) {
@@ -1943,7 +1947,8 @@ const createQueueBookingForCustomerIntoDb1 = async (
 
   // 5. Determine appointment time
   const useAppointmentAt =
-    chosenAppointmentAt ?? DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
+    chosenAppointmentAt ??
+    DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
 
   const localDateTime = DateTime.fromFormat(
     `${date} ${useAppointmentAt}`,
@@ -2494,7 +2499,8 @@ const createQueueBookingForCustomerIntoDb = async (
 
   // 6. Determine appointment time
   const useAppointmentAt =
-    chosenAppointmentAt ?? DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
+    chosenAppointmentAt ??
+    DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
 
   const localDateTime = DateTime.fromFormat(
     `${date} ${useAppointmentAt}`,
@@ -3362,7 +3368,9 @@ const getAllBarbersForQueueFromDb = async (
 ) => {
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf(
+      'day',
+    );
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -3508,7 +3516,9 @@ const getAvailableBarbersForWalkingInFromDb = async (
   // Always use today's date or provided specificDate (local)
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf(
+      'day',
+    );
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -3594,7 +3604,9 @@ const getAvailableBarbersForWalkingInFromDb = async (
 
       // Estimate wait time = sum of current bookings lengths (use local zone consistently)
       const estimatedWaitTime = bookings.reduce((sum, b) => {
-        const start = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
+        const start = DateTime.fromJSDate(b.startDateTime!).setZone(
+          'Asia/Dhaka',
+        );
         const end = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
         return sum + end.diff(start, 'minutes').minutes;
       }, 0);
@@ -3615,10 +3627,10 @@ const getAvailableBarbersForWalkingInFromDb = async (
       };
 
       const currentDate = DateTime.now()
-  .setZone('Asia/Dhaka')
-  .startOf('day')
-  .toUTC()
-  .toJSDate();
+        .setZone('Asia/Dhaka')
+        .startOf('day')
+        .toUTC()
+        .toJSDate();
 
       if (salon.isQueueEnabled) {
         const queue = await prisma.queue.findFirst({
@@ -3829,7 +3841,9 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
   // Always use today's date or provided specificDate (local)
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf(
+      'day',
+    );
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -3967,7 +3981,9 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
 
       // Estimate wait time = sum of current bookings lengths (use local zone consistently)
       const estimatedWaitTime = bookings.reduce((sum, b) => {
-        const start = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
+        const start = DateTime.fromJSDate(b.startDateTime!).setZone(
+          'Asia/Dhaka',
+        );
         const end = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
         return sum + end.diff(start, 'minutes').minutes;
       }, 0);
@@ -3988,10 +4004,10 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
       };
 
       const currentDate = DateTime.now()
-  .setZone('Asia/Dhaka')
-  .startOf('day')
-  .toUTC()
-  .toJSDate();
+        .setZone('Asia/Dhaka')
+        .startOf('day')
+        .toUTC()
+        .toJSDate();
 
       if (salon.isQueueEnabled) {
         const queue = await prisma.queue.findFirst({
@@ -4168,49 +4184,48 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
           customerName: (b as any).user?.fullName || null,
           customerImage: (b as any).user?.image || null,
           startTime:
-        b.startTime ??
-        DateTime.fromJSDate(b.startDateTime!)
-          .setZone('Asia/Dhaka')
-          .toFormat('hh:mm a'),
+            b.startTime ??
+            DateTime.fromJSDate(b.startDateTime!)
+              .setZone('Asia/Dhaka')
+              .toFormat('hh:mm a'),
           endTime:
-        b.endTime ??
-        DateTime.fromJSDate(b.endDateTime!)
-          .setZone('Asia/Dhaka')
-          .toFormat('hh:mm a'),
+            b.endTime ??
+            DateTime.fromJSDate(b.endDateTime!)
+              .setZone('Asia/Dhaka')
+              .toFormat('hh:mm a'),
           services: b.BookedServices.map(bs => bs.service?.serviceName),
           totalTime: b.BookedServices.reduce(
-        (sum, bs) => sum + (bs.service?.duration || 0),
-        0,
+            (sum, bs) => sum + (bs.service?.duration || 0),
+            0,
           ),
         })),
         freeSlots: freeSlots
           .map(slot => {
-        const slotStart = DateTime.fromFormat(
-          `${date.toFormat('yyyy-MM-dd')} ${slot.start}`,
-          'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
-        );
-        const slotEnd = DateTime.fromFormat(
-          `${date.toFormat('yyyy-MM-dd')} ${slot.end}`,
-          'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
-        );
-        const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+            const slotStart = DateTime.fromFormat(
+              `${date.toFormat('yyyy-MM-dd')} ${slot.start}`,
+              'yyyy-MM-dd hh:mm a',
+              { zone: 'Asia/Dhaka' },
+            );
+            const slotEnd = DateTime.fromFormat(
+              `${date.toFormat('yyyy-MM-dd')} ${slot.end}`,
+              'yyyy-MM-dd hh:mm a',
+              { zone: 'Asia/Dhaka' },
+            );
+            const nowLocal = DateTime.now().setZone('Asia/Dhaka');
 
-        // If slot has ended, skip it
-        if (slotEnd <= nowLocal) return null;
+            // If slot has ended, skip it
+            if (slotEnd <= nowLocal) return null;
 
-        // If slot started in past but ends in future, adjust start to current time
-        const adjustedStart =
-          slotStart < nowLocal ? nowLocal : slotStart;
+            // If slot started in past but ends in future, adjust start to current time
+            const adjustedStart = slotStart < nowLocal ? nowLocal : slotStart;
 
-        return {
-          start: adjustedStart.toFormat('hh:mm a'),
-          end: slotEnd.toFormat('hh:mm a'),
-        };
+            return {
+              start: adjustedStart.toFormat('hh:mm a'),
+              end: slotEnd.toFormat('hh:mm a'),
+            };
           })
           .filter(
-        (slot): slot is { start: string; end: string } => slot !== null,
+            (slot): slot is { start: string; end: string } => slot !== null,
           ),
         queue: queueInfo,
       };
@@ -4896,6 +4911,7 @@ const getBookingListForSalonOwnerFromDb = async (
       customerName: userInfo.fullName,
       customerEmail: userInfo.email,
       customerPhone: userInfo.phoneNumber,
+      isRegistered: !!regUserMap[b.userId], // true if user is in registered users map, false otherwise
       bookingDate: b.date,
       startTime: b.startTime,
       endTime: b.endTime,
@@ -5258,8 +5274,12 @@ const updateBookingIntoDb = async (
       userId: userId,
       bookingType: BookingType.BOOKING,
       status: {
-        in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED],
-      }
+        in: [
+          BookingStatus.PENDING,
+          BookingStatus.CONFIRMED,
+          BookingStatus.RESCHEDULED,
+        ],
+      },
     },
     include: {
       BookedServices: {
@@ -5300,7 +5320,13 @@ const updateBookingIntoDb = async (
   const overlappingBooking = await prisma.booking.findFirst({
     where: {
       barberId: existingBooking.barberId,
-      status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED] },
+      status: {
+        in: [
+          BookingStatus.PENDING,
+          BookingStatus.CONFIRMED,
+          BookingStatus.RESCHEDULED,
+        ],
+      },
       id: { not: bookingId },
       AND: [
         { startDateTime: { lt: endDateTime } },
