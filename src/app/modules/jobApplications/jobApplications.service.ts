@@ -326,6 +326,7 @@ const getHiredBarbersListFromDb = async (userId: string, options: ISearchAndFilt
                 email: true,
                 phoneNumber: true,
                 image: true,
+                address: true,
               },
             },
           },
@@ -340,15 +341,16 @@ const getHiredBarbersListFromDb = async (userId: string, options: ISearchAndFilt
   // Transform the data
   const transformedData = hiredBarbers.map(hired => ({
     // id: hired.id,
-    hourlyRate: hired.hourlyRate,
     startDate: hired.startDate,
+    barberId: hired.barber?.user?.id,
+    barberName: hired.barber?.user?.fullName,
+    barberEmail: hired.barber?.user?.email,
+    barberAddress: hired.barber?.user?.address,
+    hourlyRate: hired.hourlyRate,
+    barberPhone: hired.barber?.user?.phoneNumber,
+    barberImage: hired.barber?.user?.image,
     createdAt: hired.createdAt,
     updatedAt: hired.updatedAt,
-    barberId: hired.barber?.user?.id,
-    barberFullName: hired.barber?.user?.fullName,
-    barberEmail: hired.barber?.user?.email,
-    barberPhoneNumber: hired.barber?.user?.phoneNumber,
-    barberImage: hired.barber?.user?.image,
   }));
 
   return formatPaginationResponse(transformedData, total, page, limit);

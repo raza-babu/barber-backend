@@ -4,6 +4,7 @@ import catchAsync from '../../utils/catchAsync';
 import { adsService } from './ads.service';
 import { uploadFileToS3 } from '../../utils/multipleFile';
 import AppError from '../../errors/AppError';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createAds = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -44,12 +45,22 @@ const createAds = catchAsync(async (req, res) => {
 
 const getAdsList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await adsService.getAdsListFromDb();
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'startDate',
+    'endDate',
+  ]);
+  const result = await adsService.getAdsListFromDb(filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Ads list retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 

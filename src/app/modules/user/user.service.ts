@@ -409,7 +409,7 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
       );
     }
 
-    const url = 'https://reyai.dsrt321.online/upload_reference';
+    const url = 'https://raybarberai.dsrt321.online/upload_reference';
     
     // Get form-data headers (includes Content-Type with boundary)
     const headers = {

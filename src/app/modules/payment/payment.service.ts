@@ -1,3 +1,4 @@
+// import { admin } from 'firebase-admin';
 import httpStatus from 'http-status';
 import config from '../../../config';
 import { isValidAmount } from '../../utils/isValidAmount';
@@ -181,11 +182,15 @@ const authorizeAndSplitPayment = async (
       customerId = findBooking.user?.stripeCustomerId;
     }
 
-    let transferAmount = findBooking.totalPrice * 100; // Amount in cents
+    let adminFeeAmount = 0.50 * 100; // £0.50 in pence
+
+    let transferAmount = findBooking.totalPrice * 100; // Amount in pence
+    
+    const totalAmount = transferAmount + adminFeeAmount;
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: transferAmount,
-      currency: 'usd',
+      amount: totalAmount,
+      currency: 'gbp',
       customer: customerId,
       payment_method: paymentMethodId,
       confirm: true,
@@ -649,7 +654,7 @@ const createPaymentIntentService = async (payload: { amount: number }) => {
   // // Create a PaymentIntent with Stripe
   // const paymentIntent = await stripe.paymentIntents.create({
   //   amount: payload?.amount,
-  //   currency: 'usd',
+  //   currency: 'gbp',
   //   automatic_payment_methods: {
   //     enabled: true, // Enable automatic payment methods like cards, Apple Pay, Google Pay
   //   },
@@ -854,8 +859,8 @@ const tipPaymentToBarberService = async (
     const finalAmount = totalAmount + serviceCharge;
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(finalAmount * 100), // in cents
-      currency: 'usd',
+      amount: Math.round(finalAmount * 100), // in pence
+      currency: 'gbp',
       customer: booking.user.stripeCustomerId,
       payment_method: paymentMethodId,
       confirm: true,
@@ -872,7 +877,7 @@ const tipPaymentToBarberService = async (
       // Transfer to saloon owner
       await stripe.transfers.create({
         amount: Math.round(saloonOwnerAmount * 100),
-        currency: 'usd',
+        currency: 'gbp',
         destination: booking.saloonOwner.user.stripeAccountId,
         metadata: { bookingId: booking.id, role: 'saloon_owner' },
       });
@@ -880,7 +885,7 @@ const tipPaymentToBarberService = async (
       // Transfer to barber
       await stripe.transfers.create({
         amount: Math.round(barberAmount * 100),
-        currency: 'usd',
+        currency: 'gbp',
         destination: booking.barber.user.stripeAccountId,
         metadata: { bookingId: booking.id, role: 'barber' },
       });
@@ -916,6 +921,61 @@ const tipPaymentToBarberService = async (
   });
 };
 
+const payoutToBarberService = async (payload: {
+  barberId: string;
+  amount: number;
+  currency: string;
+}) => {
+  // try {
+  //   const { barberId, amount, currency } = payload;
+
+  //   // Fetch barber's Stripe account ID from your database
+  //   const barber = await prisma.user.findUnique({
+  //     where: { id: barberId },
+  //   });
+
+  //   if (!barber || !barber.stripeAccountId) {
+  //     throw new AppError(httpStatus.NOT_FOUND, 'Barber or Stripe account not found');
+  //   }
+
+  //   // Create a payout to the barber's Stripe account
+  //   const transfer = await stripe.transfers.create({
+  //     amount: Math.round(amount * 100), // Amount in cents
+  //     currency: currency,
+  //     destination: barber.stripeAccountId,
+  //   });
+
+  //   return transfer;
+  // } catch (error: any) {
+  //   throw new AppError(httpStatus.CONFLICT, error.message);
+  // }
+};
+
+const withdrawFundsFromStripeService = async (userId: string) => {
+  // try {
+  //   const userData = await prisma.user.findUnique({
+  //     where: { id: userId },
+  //   });
+  
+  //   if (!userData || !userData.stripeAccountId) {
+  //     throw new AppError(httpStatus.NOT_FOUND, 'User data or Stripe account ID not found');
+  //   }
+  
+  //   // Create a payout from the Stripe account to the user's bank account
+  //   const payout = await stripe.payouts.create(
+  //     {
+  //       amount: 1000, // Amount in pence (e.g., £10.00)
+  //       currency: 'gbp',
+  //     },
+  //     {
+  //       stripeAccount: userData.stripeAccountId,
+  //     }
+  //   );
+  //   return payout;
+  // } catch (error: any) {
+  //   throw new AppError(httpStatus.CONFLICT, error.message);
+  // }
+}
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,
   authorizeAndSplitPayment,
@@ -927,8 +987,12 @@ export const StripeServices = {
   createPaymentIntentService,
   getCustomerDetailsFromStripe,
   getAllCustomersFromStripe,
-  cancelPaymentRequestToStripe,
   createAccountIntoStripe,
   createNewAccountIntoStripe,
   tipPaymentToBarberService,
+  payoutToBarberService,
+  withdrawFundsFromStripeService,
+  cancelPaymentRequestToStripe,
 };
+
+

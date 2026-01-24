@@ -10,9 +10,9 @@ export const checkPermissions = (...requiredPermissions: string[]) => {
       return next();
     }
     
-    // if(req.user.role === UserRoleEnum.CUSTOMER){
-    //   return next()
-    // }
+    if(req.user.role === UserRoleEnum.CUSTOMER){
+      return next()
+    }
 
     // Check if user has all required permissions
     const hasAllPermissions = requiredPermissions.every(permission =>

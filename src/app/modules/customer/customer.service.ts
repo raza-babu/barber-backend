@@ -20,17 +20,144 @@ const createCustomerIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
+// need to get nearest saloons based on latitude and longitude also need first 15 shortest distance saloons with associated matched barbers
+//after getting barber portfolio details from DB
+//Need all barbers from the Ai model from previously added images for matching
+//need to check nearest saloons based on latitude and longitude and sorted with first 10 shortest distance saloons with associated matched barbers. Barber Id from the nearest saloons and barber codes from Ai model will be matched
+//common barbers from all matched saloons based on distance and similarity barber info from Ai model will go to the AI model for final analysis and recommendation with the image uploaded by customer
+// for getting nearest we need to use an existing function named getMyNearestSaloonListFromDb from this file itself with 10 KM radius and get first 15 saloons based on shortest distance if 15 saloons are not found then keep the saloons found
+// then from these saloons get all barbers and their userIds
+// then match these userIds with barber_codes from Ai model response. For this we will use https://reyai.dsrt321.online/get_barbers API with barber_codes array from Ai model and get matched barber codes only
+// then get common barbers from all matched saloons based on distance and similarity barber info from Ai model will go to the AI model for final analysis and recommendation with the image uploaded by customer also add the saloon information in the final response with associated matched barbers with distance in km
+
 const analyzeSaloonFromImageInDb = async (
   userId: string,
   file: Express.Multer.File,
+  body: {
+    imageDescription?: string;
+    latitude?: number;
+    longitude?: number;
+  },
 ) => {
   if (!file) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Image file is required');
   }
 
+  if (!body.latitude || !body.longitude) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Latitude and longitude are required',
+    );
+  }
+
+  const { latitude, longitude } = body;
+
+  // Step 1: Get nearest 15 saloons within 10 KM radius
+  console.log('=== Step 1: Getting Nearest Saloons ===');
+  const nearestSaloons = await getMyNearestSaloonListFromDb(
+    userId,
+    latitude,
+    longitude,
+    {
+      radius: 15, // 10 KM radius
+      limit: 10, // Get first 10
+      page: 1,
+    },
+  );
+
+  console.log(`Found ${nearestSaloons.data.length} saloons within 10 KM`);
+
+  if (nearestSaloons.data.length === 0) {
+    return {
+      success: true,
+      message: 'No saloons found within 10 KM radius',
+      nearestSaloons: [],
+      matchedBarbers: [],
+      recommendations: [],
+    };
+  }
+
+  // Step 2: Extract all barber userIds from these saloons
+  // console.log('=== Step 2: Extracting Barber IDs ===');
+  const allBarberIds: string[] = [];
+  const saloonBarberMap = new Map<string, any[]>(); // Map saloonId -> barbers
+
+  nearestSaloons.data.forEach(saloon => {
+    const barbers = saloon.availableBarbers || [];
+    barbers.forEach((barber: any) => {
+      if (barber.barberId) {
+        allBarberIds.push(barber.barberId);
+      }
+    });
+    saloonBarberMap.set(saloon.userId, barbers);
+  });
+
+  const uniqueBarberIds = [...new Set(allBarberIds)];
+  // console.log(`Total unique barbers: ${uniqueBarberIds.length}`);
+
+  if (uniqueBarberIds.length === 0) {
+    return {
+      success: true,
+      message: 'No available barbers found in nearby saloons',
+      nearestSaloons: nearestSaloons.data,
+      matchedBarbers: [],
+      recommendations: [],
+    };
+  }
+
+  // Step 3: Get all barbers from AI model
+  // console.log('=== Step 3: Fetching Barbers from AI Model ===');
+  let aiBarbers: any[] = [];
+  try {
+    const getBarberResp = await axios.get(
+      'https://raybarberai.dsrt321.online/get_barbers',
+      {
+        timeout: 30000,
+      },
+    );
+
+    // console.log('AI Barbers Response:', {
+    //   success: getBarberResp.data?.success,
+    //   total: getBarberResp.data?.total_barbers,
+    // });
+
+    if (
+      getBarberResp.data?.success &&
+      Array.isArray(getBarberResp.data.barbers)
+    ) {
+      aiBarbers = getBarberResp.data.barbers;
+    }
+  } catch (err: any) {
+    console.error('Failed to fetch barbers from AI model:', err.message);
+    // Continue without AI barbers
+  }
+
+  // Step 4: Match barber codes from AI with our database barbers
+  console.log('=== Step 4: Matching Barbers ===');
+  const aiBarberCodes = aiBarbers.map((b: any) => b.barber_code);
+  const matchedBarberIds = uniqueBarberIds.filter(id =>
+    aiBarberCodes.includes(id),
+  );
+
+  // console.log(
+  //   `Matched barbers: ${matchedBarberIds.length} out of ${uniqueBarberIds.length}`,
+  // );
+
+  if (matchedBarberIds.length === 0) {
+    return {
+      success: true,
+      message: 'No barbers with portfolio images found in nearby saloons',
+      nearestSaloons: nearestSaloons.data,
+      matchedBarbers: [],
+      recommendations: [],
+    };
+  }
+
+  // Step 5: Send customer image to AI for analysis
+  // console.log('=== Step 5: Analyzing Customer Image ===');
   const form = new FormData();
 
-  // Handle both buffer (memoryStorage) and path (diskStorage)
+  // Add image
   if (file.buffer && file.buffer.length > 0) {
     form.append('image', file.buffer, {
       filename: file.originalname || 'customer_image.jpg',
@@ -48,10 +175,18 @@ const analyzeSaloonFromImageInDb = async (
       );
     }
 
-    form.append('image', fs.createReadStream(resolvedPath), {
+    const fileBuffer = fs.readFileSync(resolvedPath);
+    form.append('image', fileBuffer, {
       filename: file.originalname || path.basename(resolvedPath),
       contentType: file.mimetype || 'image/jpeg',
     });
+
+    // Cleanup temp file
+    try {
+      fs.unlinkSync(resolvedPath);
+    } catch (cleanupErr) {
+      console.error('Failed to cleanup temp file:', cleanupErr);
+    }
   } else {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -59,108 +194,71 @@ const analyzeSaloonFromImageInDb = async (
     );
   }
 
+  // Add matched barber codes to the request
+  matchedBarberIds.forEach(barberId => {
+    form.append('barber_code', barberId);
+  });
+
+  console.log(`Sending ${matchedBarberIds.length} barber codes to AI model`);
+  console.log(`Form data headers: ${JSON.stringify(form.getHeaders())}`);
+
   try {
-    // Call the third-party AI API
-    const url = 'https://reyai.dsrt321.online/analyze';
+    const analyzeUrl = 'https://raybarberai.dsrt321.online/analyze';
     const headers = form.getHeaders();
 
-    console.log('=== AI Analysis Request ===');
-    console.log('URL:', url);
-    console.log('Headers:', headers);
-    console.log('File info:', {
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      hasBuffer: !!file.buffer,
-      hasPath: !!file.path,
-    });
+    console.log('Sending to AI analysis with barber codes:', matchedBarberIds);
 
-    const response = await axios.post(url, form, {
+    const analyzeResp = await axios.post(analyzeUrl, form, {
       headers,
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
-      timeout: 60000, // 60 seconds timeout
-      validateStatus: status => status < 500, // Don't throw on 4xx errors
+      timeout: 60000,
+      validateStatus: status => status < 500,
     });
 
-    console.log('=== AI Analysis Response ===');
-    console.log('Status:', response.status);
-    console.log('Response data:', JSON.stringify(response.data, null, 2));
+    // console.log('=== AI Analysis Response ===');
+    // console.log('Status:', analyzeResp.status);
+    // console.log('Success:', analyzeResp.data?.success);
+    // console.log('Data:', analyzeResp.data);
 
-    // Handle non-success status codes
-    if (response.status === 400) {
+    // Handle errors
+    if (analyzeResp.status === 400) {
       const errorMessage =
-        response.data?.message ||
-        response.data?.error ||
+        analyzeResp.data?.message ||
+        analyzeResp.data?.error ||
         'Bad request to AI service';
-      console.error('400 Error details:', response.data);
       throw new AppError(
         httpStatus.BAD_REQUEST,
         `AI service error: ${errorMessage}`,
       );
     }
 
-    if (response.status === 401 || response.status === 403) {
-      throw new AppError(
-        httpStatus.UNAUTHORIZED,
-        'Authentication failed with AI service',
-      );
-    }
-
-    if (response.status === 404) {
-      throw new AppError(
-        httpStatus.NOT_FOUND,
-        'AI analysis endpoint not found',
-      );
-    }
-
-    if (response.status >= 400) {
+    if (analyzeResp.status >= 400) {
       throw new AppError(
         httpStatus.BAD_GATEWAY,
-        `AI service returned error: ${response.status}`,
+        `AI service returned error: ${analyzeResp.status}`,
       );
     }
 
-    if (!response.data || !response.data.success) {
+    if (!analyzeResp.data || !analyzeResp.data.success) {
       throw new AppError(
         httpStatus.BAD_GATEWAY,
         'AI analysis failed. Please try again.',
       );
     }
 
+    // Step 6: Process AI recommendations
+    console.log('=== Step 6: Processing Recommendations ===');
     const {
-      all_matches = [],
-      best_match_per_barber = [],
+      barber_code: recommendedBarberCode,
       input_description,
-      recommended_barber,
-    } = response.data;
+      matches = [],
+    } = analyzeResp.data;
 
-    // Get all unique barber codes
-    const allBarberCodes = [
-      ...new Set([
-        ...all_matches.map((m: any) => m.barber_code),
-        ...best_match_per_barber.map((m: any) => m.barber_code),
-      ]),
-    ].filter(Boolean);
-
-    console.log('Extracted barber codes:', allBarberCodes);
-
-    if (allBarberCodes.length === 0) {
-      return {
-        success: true,
-        message: 'No matching barbers found for your style',
-        input_description,
-        all_matches: [],
-        best_match_per_barber: [],
-        recommended_barber: null,
-        total_matches: 0,
-      };
-    }
-
-    // Fetch barber details from database
-    const barbers = await prisma.barber.findMany({
+    // Get detailed barber and saloon information from database
+    const barberDetails = await prisma.barber.findMany({
       where: {
-        userId: { in: allBarberCodes },
+        userId: { in: matchedBarberIds },
       },
       select: {
         id: true,
@@ -191,98 +289,117 @@ const analyzeSaloonFromImageInDb = async (
       },
     });
 
-    console.log(`Found ${barbers.length} barbers in database`);
+    // Create a map for quick lookup
+    const barberMap = new Map(barberDetails.map(b => [b.userId, b]));
 
-    // Create a map of barber details by userId
-    const barberDetailsMap = new Map(
-      barbers.map(barber => [
-        barber.userId,
-        {
-          barberId: barber.id,
-          barberUserId: barber.userId,
+    // Calculate distance for each barber's saloon
+    const calculateDistance = (
+      lat1: number,
+      lon1: number,
+      lat2: number,
+      lon2: number,
+    ): number => {
+      const R = 6371;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLon = ((lon2 - lon1) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+          Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return Math.round(R * c * 100) / 100;
+    };
+
+    // Get recommended barber details
+    let recommendedBarber = null;
+    if (recommendedBarberCode) {
+      const barber = barberMap.get(recommendedBarberCode);
+      if (barber && barber.saloonOwner) {
+        const distance = calculateDistance(
+          latitude,
+          longitude,
+          Number(barber.saloonOwner.latitude),
+          Number(barber.saloonOwner.longitude),
+        );
+
+        recommendedBarber = {
+          barberId: barber.userId,
           barberName: barber.user?.fullName || null,
           barberEmail: barber.user?.email || null,
           barberImage: barber.user?.image || null,
           barberPhone: barber.user?.phoneNumber || null,
-          saloon: barber.saloonOwnerId
-            ? {
-                saloonOwnerId: barber.saloonOwner?.userId || null,
-                shopName: barber.saloonOwner?.shopName || null,
-                shopAddress: barber.saloonOwner?.shopAddress || null,
-                shopLogo: barber.saloonOwner?.shopLogo || null,
-                shopImages: barber.saloonOwner?.shopImages || [],
-                latitude: barber.saloonOwner?.latitude
-                  ? Number(barber.saloonOwner.latitude)
-                  : null,
-                longitude: barber.saloonOwner?.longitude
-                  ? Number(barber.saloonOwner.longitude)
-                  : null,
-                avgRating: barber.saloonOwner?.avgRating
-                  ? Number(barber.saloonOwner.avgRating)
-                  : 0,
-                ratingCount: barber.saloonOwner?.ratingCount || 0,
-              }
-            : null,
-        },
-      ]),
-    );
-
-    // Enrich all_matches with barber details
-    const enrichedAllMatches = all_matches
-      .map((match: any) => {
-        const barberDetails = barberDetailsMap.get(match.barber_code);
-        if (!barberDetails) {
-          console.log(`Barber ${match.barber_code} not found in database`);
-          return null;
-        }
-
-        return {
-          barber_code: match.barber_code,
-          image: match.image,
-          similarity: match.similarity || 0,
-          ...barberDetails,
+          saloon: {
+            saloonOwnerId: barber.saloonOwner.userId,
+            shopName: barber.saloonOwner.shopName,
+            shopAddress: barber.saloonOwner.shopAddress,
+            shopLogo: barber.saloonOwner.shopLogo,
+            shopImages: barber.saloonOwner.shopImages || [],
+            latitude: Number(barber.saloonOwner.latitude),
+            longitude: Number(barber.saloonOwner.longitude),
+            distance,
+            avgRating: Number(barber.saloonOwner.avgRating || 0),
+            ratingCount: barber.saloonOwner.ratingCount || 0,
+          },
+          matches: matches.map((m: any) => ({
+            image: m.image,
+            description: m.description,
+            reason: m.reason,
+            similarity: m.similarity || 0,
+          })),
         };
-      })
-      .filter(Boolean)
-      .sort((a: any, b: any) => b.similarity - a.similarity);
-
-    // Enrich best_match_per_barber with barber details
-    const enrichedBestMatches = best_match_per_barber
-      .map((match: any) => {
-        const barberDetails = barberDetailsMap.get(match.barber_code);
-        if (!barberDetails) {
-          console.log(`Barber ${match.barber_code} not found in database`);
-          return null;
-        }
-
-        return {
-          barber_code: match.barber_code,
-          image: match.image,
-          similarity: match.similarity || 0,
-          ...barberDetails,
-        };
-      })
-      .filter(Boolean)
-      .sort((a: any, b: any) => b.similarity - a.similarity);
-
-    // Get recommended barber details
-    let recommendedBarberDetails = null;
-    if (recommended_barber) {
-      recommendedBarberDetails = barberDetailsMap.get(recommended_barber);
+      }
     }
+
+    // Build list of all matched barbers with their saloon info and distance
+    const matchedBarbersWithDetails = matchedBarberIds
+      .map(barberId => {
+        const barber = barberMap.get(barberId);
+        if (!barber || !barber.saloonOwner) return null;
+
+        const distance = calculateDistance(
+          latitude,
+          longitude,
+          Number(barber.saloonOwner.latitude),
+          Number(barber.saloonOwner.longitude),
+        );
+
+        // Get AI portfolio info
+        const aiBarber = aiBarbers.find(
+          (ab: any) => ab.barber_code === barberId,
+        );
+
+        return {
+          barberId: barber.userId,
+          barberName: barber.user?.fullName || null,
+          barberImage: barber.user?.image || null,
+          portfolioImageCount: aiBarber?.image_count || 0,
+          saloon: {
+            saloonOwnerId: barber.saloonOwner.userId,
+            shopName: barber.saloonOwner.shopName,
+            shopAddress: barber.saloonOwner.shopAddress,
+            shopLogo: barber.saloonOwner.shopLogo,
+            latitude: Number(barber.saloonOwner.latitude),
+            longitude: Number(barber.saloonOwner.longitude),
+            distance,
+            avgRating: Number(barber.saloonOwner.avgRating || 0),
+            ratingCount: barber.saloonOwner.ratingCount || 0,
+          },
+          isRecommended: barberId === recommendedBarberCode,
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => a.saloon.distance - b.saloon.distance); // Sort by distance
 
     return {
       success: true,
-      input_description: input_description || null,
-      all_matches: enrichedAllMatches,
-      best_match_per_barber: enrichedBestMatches,
-      recommended_barber: recommendedBarberDetails
-        ? {
-            barber_code: recommended_barber,
-            ...recommendedBarberDetails,
-          }
-        : null,
-      total_matches: enrichedAllMatches.length,
+      inputDescription: input_description || null,
+      recommendedBarber,
+      matchedBarbers: matchedBarbersWithDetails,
+      // nearestSaloons: nearestSaloons.data.slice(0, 10), // Return top 10 nearest
+      totalMatchedBarbers: matchedBarbersWithDetails.length,
+      // totalNearbySaloons: nearestSaloons.data.length,
     };
   } catch (err: any) {
     console.error('=== AI Analysis Error ===');
@@ -292,11 +409,6 @@ const analyzeSaloonFromImageInDb = async (
     if (err.response) {
       console.error('Response status:', err.response.status);
       console.error('Response data:', err.response.data);
-      console.error('Response headers:', err.response.headers);
-    }
-
-    if (err.request) {
-      console.error('Request was made but no response received');
     }
 
     if (err instanceof AppError) {
@@ -562,19 +674,18 @@ const getAllSaloonListFromDb = async (
   };
 };
 
-
 // Helper function to parse time string to minutes
 const timeToMinutes = (timeStr: string): number => {
   try {
     console.log('Parsing time string:', timeStr);
-    
+
     // Format 1: "hh:mm a" or "hh:mm AM/PM" (e.g., "09:00 AM", "06:00 PM")
     const time12h = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
     if (time12h) {
       let hours = parseInt(time12h[1], 10);
       const minutes = parseInt(time12h[2], 10);
       const meridiem = time12h[3].toUpperCase();
-      
+
       // Convert to 24-hour format
       if (meridiem === 'PM' && hours !== 12) {
         hours += 12; // 1 PM = 13, 2 PM = 14, etc.
@@ -582,25 +693,29 @@ const timeToMinutes = (timeStr: string): number => {
         hours = 0; // 12 AM = 0 (midnight)
       }
       // Note: 12 PM stays as 12 (noon)
-      
+
       const totalMinutes = hours * 60 + minutes;
-      console.log(`Parsed ${timeStr} to ${totalMinutes} minutes (${hours}:${minutes.toString().padStart(2, '0')} in 24h)`);
+      console.log(
+        `Parsed ${timeStr} to ${totalMinutes} minutes (${hours}:${minutes.toString().padStart(2, '0')} in 24h)`,
+      );
       return totalMinutes;
     }
-    
+
     // Format 2: "HH:MM:SS" or "HH:MM" (e.g., "09:00:00", "18:00")
     if (timeStr.includes(':')) {
       const parts = timeStr.split(':');
       const hours = parseInt(parts[0], 10);
       const minutes = parseInt(parts[1], 10);
-      
+
       if (!isNaN(hours) && !isNaN(minutes) && hours >= 0 && hours < 24) {
         const totalMinutes = hours * 60 + minutes;
-        console.log(`Parsed ${timeStr} to ${totalMinutes} minutes (24h format)`);
+        console.log(
+          `Parsed ${timeStr} to ${totalMinutes} minutes (24h format)`,
+        );
         return totalMinutes;
       }
     }
-    
+
     // Format 3: ISO time string (fallback)
     const time = new Date(`1970-01-01T${timeStr}Z`);
     if (!isNaN(time.getTime())) {
@@ -608,7 +723,7 @@ const timeToMinutes = (timeStr: string): number => {
       console.log(`Parsed ${timeStr} to ${totalMinutes} minutes (ISO format)`);
       return totalMinutes;
     }
-    
+
     console.error(`Failed to parse time string: ${timeStr}`);
     return 0;
   } catch (error) {
@@ -632,10 +747,10 @@ const checkShopStatus = async (
   const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
   const todayDate = now.toISOString().split('T')[0];
 
-  console.log('=== Shop Status Check ===');
-  console.log('Saloon Owner ID:', saloonOwnerId);
-  console.log('Today:', today, '(0=Sunday, 6=Saturday)');
-  console.log('Current time minutes:', currentTimeMinutes);
+  // console.log('=== Shop Status Check ===');
+  // console.log('Saloon Owner ID:', saloonOwnerId);
+  // console.log('Today:', today, '(0=Sunday, 6=Saturday)');
+  // console.log('Current time minutes:', currentTimeMinutes);
 
   // Check if today is a holiday using SaloonHoliday model
   const todayHoliday = await prisma.saloonHoliday.findFirst({
@@ -666,10 +781,14 @@ const checkShopStatus = async (
     },
   });
 
-  console.log('Today Schedule:', JSON.stringify(todaySchedule, null, 2));
+  // console.log('Today Schedule:', JSON.stringify(todaySchedule, null, 2));
 
-  if (!todaySchedule || !todaySchedule.openingTime || !todaySchedule.closingTime) {
-    console.log('No schedule found for today');
+  if (
+    !todaySchedule ||
+    !todaySchedule.openingTime ||
+    !todaySchedule.closingTime
+  ) {
+    // console.log('No schedule found for today');
     return {
       isOpen: false,
       status: 'closed',
@@ -683,10 +802,15 @@ const checkShopStatus = async (
   const openingMinutes = timeToMinutes(todaySchedule.openingTime);
   const closingMinutes = timeToMinutes(todaySchedule.closingTime);
 
-  console.log(`Parsed times - Opening: ${openingMinutes}min, Closing: ${closingMinutes}min`);
-  console.log(`Current time in minutes: ${currentTimeMinutes}, Opening: ${openingMinutes}, Closing: ${closingMinutes}`);
+  console.log(
+    `Parsed times - Opening: ${openingMinutes}min, Closing: ${closingMinutes}min`,
+  );
+  console.log(
+    `Current time in minutes: ${currentTimeMinutes}, Opening: ${openingMinutes}, Closing: ${closingMinutes}`,
+  );
 
-  const isOpen = currentTimeMinutes >= openingMinutes && currentTimeMinutes < closingMinutes;
+  const isOpen =
+    currentTimeMinutes >= openingMinutes && currentTimeMinutes < closingMinutes;
 
   console.log(`Shop is currently ${isOpen ? 'open' : 'closed'}`);
 
@@ -722,7 +846,11 @@ const checkBarberAvailability = async (
     },
   });
 
-  if (!todaySchedule || !todaySchedule.openingTime || !todaySchedule.closingTime) {
+  if (
+    !todaySchedule ||
+    !todaySchedule.openingTime ||
+    !todaySchedule.closingTime
+  ) {
     return {
       isAvailableToday: false,
       availableForQueue: false,
@@ -740,7 +868,8 @@ const checkBarberAvailability = async (
   return {
     isAvailableToday: isWithinWorkingHours,
     availableForQueue: isWithinWorkingHours && todaySchedule.type === 'QUEUE',
-    availableForBooking: isWithinWorkingHours && todaySchedule.type === 'BOOKING',
+    availableForBooking:
+      isWithinWorkingHours && todaySchedule.type === 'BOOKING',
     type: todaySchedule.type || null,
     openingTime: todaySchedule.openingTime,
     closingTime: todaySchedule.closingTime,
@@ -900,7 +1029,9 @@ const getMyNearestSaloonListFromDb = async (
       const shopStatus = await checkShopStatus(saloon.userId);
 
       // Calculate total queue for the shop
-      const totalShopQueue = Array.isArray(saloon.Booking) ? saloon.Booking.length : 0;
+      const totalShopQueue = Array.isArray(saloon.Booking)
+        ? saloon.Booking.length
+        : 0;
 
       // Process barbers
       const availableBarbers = await Promise.all(
@@ -1001,7 +1132,6 @@ const getMyNearestSaloonListFromDb = async (
       totalPages: Math.ceil(total / limit),
       hasNextPage,
       hasPrevPage,
-
     },
   };
 };

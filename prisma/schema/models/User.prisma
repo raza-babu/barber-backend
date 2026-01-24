@@ -83,6 +83,7 @@ model User {
   TerminateBarber     TerminateBarber[]
   Payment             Payment[]
   LoyaltyScheme       LoyaltyScheme[]
+  QueueTime          QueueTime[]
 
   @@map("users")
 }

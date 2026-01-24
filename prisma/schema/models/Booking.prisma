@@ -34,6 +34,7 @@ model Booking {
   BookedServices    BookedServices[]
   Review            Review[]
   Payment           Payment[]
+  QueueTime         QueueTime[]
 
   @@map("bookings")
 }

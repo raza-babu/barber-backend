@@ -265,6 +265,7 @@ model Barber {
   QueueSlot            QueueSlot[]
   BarberLunch          BarberLunch[]
   // Lunch                Lunch[]
+  QueueTime            QueueTime[]
   TerminateBarber      TerminateBarber[]
 
   @@map("barbers")
@@ -407,6 +408,7 @@ model Booking {
   BookedServices    BookedServices[]
   Review            Review[]
   Payment           Payment[]
+  QueueTime         QueueTime[]
 
   @@map("bookings")
 }
@@ -872,6 +874,27 @@ model QueueSlot {
 }
 
 
+model QueueTime {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  saloonId   String   @db.ObjectId
+  customerId String   @db.ObjectId
+  barberId   String   @db.ObjectId
+  averageMin Int // Average time in minutes for the queue
+  serviceIds String[] @db.ObjectId
+  bookingId  String?  @db.ObjectId
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relationships
+  saloon   SaloonOwner @relation(fields: [saloonId], references: [id])
+  barber   Barber      @relation(fields: [barberId], references: [userId])
+  booking  Booking?    @relation(fields: [bookingId], references: [id])
+  customer User        @relation(fields: [customerId], references: [id])
+
+  @@map("queue_times")
+}
+
+
 model Reply {
   id        String      @id @default(auto()) @map("_id") @db.ObjectId
   userId    String      @db.ObjectId
@@ -1012,6 +1035,7 @@ model SaloonOwner {
   Support                    Support[]
   Review                     Review[]
   LoyaltyPointLog            LoyaltyPointLog[]
+  QueueTime                  QueueTime[]
 
   @@map("saloon_owners")
 }
@@ -1242,6 +1266,7 @@ model User {
   TerminateBarber     TerminateBarber[]
   Payment             Payment[]
   LoyaltyScheme       LoyaltyScheme[]
+  QueueTime          QueueTime[]
 
   @@map("users")
 }
