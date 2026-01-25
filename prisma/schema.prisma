@@ -1188,6 +1188,7 @@ model User {
   password             String?
   role                 UserRoleEnum           @default(CUSTOMER)
   status               UserStatus             @default(PENDING)
+  isVerified           Boolean                @default(false)
   intendedRole         UserRoleEnum?
   isProfileComplete    Boolean                @default(false)
   address              String?

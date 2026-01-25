@@ -32,6 +32,53 @@ const registerUserIntoDB = async (payload: any) => {
       },
     });
     if (existingUser) {
+      if (existingUser.isVerified === false) {
+        // send OTP email inside transaction so failures roll back DB changes
+        // return login;
+        const otp = Math.floor(1000 + Math.random() * 9000);
+        const otpExpiresAt = new Date();
+        otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 5);
+        const otpExpiresAtString = otpExpiresAt.toISOString();
+        await prisma.user.update({
+          where: { email: payload.email },
+          data: {
+            otp: otp,
+            otpExpiry: otpExpiresAtString,
+          },
+        });
+        await emailSender(
+          'Verify Your Email',
+          existingUser.email,
+          `
+        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <table width="100%" style="border-collapse: collapse;">
+            <tr>
+              <td style="background-color: #F56100; padding: 20px; text-align: center; color: #000000; border-radius: 10px 10px 0 0;">
+                <h2 style="margin: 0; font-size: 24px;">Verify your email</h2>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 20px;">
+                <p style="font-size: 16px; margin: 0;">Hello <strong>${existingUser.fullName}</strong>,</p>
+                <p style="font-size: 16px;">Please verify your email.</p>
+                <div style="text-align: center; margin: 20px 0;">
+                  <p style="font-size: 18px;">Your OTP is: <span style="font-weight:bold">${otp}</span><br/> This OTP will expire in 5 minutes.</p>
+                </div>
+                <p style="font-size: 14px; color: #555;">If you did not request this change, please ignore this email.</p>
+                <p style="font-size: 16px; margin-top: 20px;">Thank you,<br>SpareDoc Team</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; border-radius: 0 0 10px 10px;">
+                <p style="margin: 0;">&copy; ${new Date().getFullYear()} SpareDoc Marketplace. All rights reserved.</p>
+              </td>
+            </tr>
+          </table>
+        </div>
+        `,
+        );
+        return { message: 'OTP sent via your email successfully' };
+      }
       throw new AppError(httpStatus.CONFLICT, 'User already exists!');
     }
   }
@@ -340,18 +387,24 @@ const updateBarberIntoDB = async (userId: string, payload: any) => {
   return updatedBarber;
 };
 
-const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.File[]) => {
+const sendReferenceImagesToAI = async (
+  userId: string,
+  images: Express.Multer.File[],
+) => {
   if (!userId) {
     throw new AppError(httpStatus.BAD_REQUEST, 'userId is required');
   }
   if (!images || images.length === 0) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'At least one image is required');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'At least one image is required',
+    );
   }
 
   const form = new FormData();
   form.append('barber_code', userId);
 
-  console.log(form)
+  console.log(form);
 
   const filesToCleanup: string[] = [];
 
@@ -373,7 +426,11 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
           filename: file.originalname || `image_${i}.jpg`,
           contentType: file.mimetype || 'image/jpeg',
         });
-        console.log(`Added buffer file ${i}:`, file.originalname, `(${file.buffer.length} bytes)`);
+        console.log(
+          `Added buffer file ${i}:`,
+          file.originalname,
+          `(${file.buffer.length} bytes)`,
+        );
         continue;
       }
 
@@ -398,7 +455,11 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
           filename: file.originalname || path.basename(resolvedPath),
           contentType: file.mimetype || 'image/jpeg',
         });
-        console.log(`Added file ${i}:`, file.originalname, `(${fileBuffer.length} bytes)`);
+        console.log(
+          `Added file ${i}:`,
+          file.originalname,
+          `(${fileBuffer.length} bytes)`,
+        );
         continue;
       }
 
@@ -410,7 +471,7 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
     }
 
     const url = 'http://13.48.206.147:8000/upload_reference';
-    
+
     // Get form-data headers (includes Content-Type with boundary)
     const headers = {
       ...form.getHeaders(),
@@ -421,14 +482,17 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
     console.log('Headers:', headers);
     console.log('Barber Code:', userId);
     console.log('Number of images:', images.length);
-    console.log('Form data size:', form.getLengthSync ? form.getLengthSync() : 'unknown');
+    console.log(
+      'Form data size:',
+      form.getLengthSync ? form.getLengthSync() : 'unknown',
+    );
 
     const resp = await axios.post(url, form, {
       headers,
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
       timeout: 120000, // Increased to 120 seconds
-      validateStatus: (status) => status < 500,
+      validateStatus: status => status < 500,
     });
 
     console.log('=== AI Upload Response ===');
@@ -437,7 +501,8 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
 
     // Handle non-success status codes
     if (resp.status === 400) {
-      const errorMessage = resp.data?.message || resp.data?.error || 'Bad request to AI service';
+      const errorMessage =
+        resp.data?.message || resp.data?.error || 'Bad request to AI service';
       console.error('400 Error details:', resp.data);
       throw new AppError(
         httpStatus.BAD_REQUEST,
@@ -453,10 +518,7 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
     }
 
     if (resp.status === 404) {
-      throw new AppError(
-        httpStatus.NOT_FOUND,
-        'AI upload endpoint not found',
-      );
+      throw new AppError(httpStatus.NOT_FOUND, 'AI upload endpoint not found');
     }
 
     if (resp.status >= 400) {
@@ -468,19 +530,30 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
 
     // Verify the upload was successful
     if (resp.data && resp.data.success) {
-      console.log(`✅ Successfully uploaded ${resp.data.total_images} images for barber ${userId}`);
-      
+      console.log(
+        `✅ Successfully uploaded ${resp.data.total_images} images for barber ${userId}`,
+      );
+
       // Optional: Verify the upload by calling the GET API
       try {
-        const verifyResp = await axios.get('https://reyai.dsrt321.online/get_barbers', {
-          timeout: 10000,
-        });
+        const verifyResp = await axios.get(
+          'https://reyai.dsrt321.online/get_barbers',
+          {
+            timeout: 10000,
+          },
+        );
         console.log('=== Verification Check ===');
-        const barberData = verifyResp.data?.barbers?.find((b: any) => b.barber_code === userId);
+        const barberData = verifyResp.data?.barbers?.find(
+          (b: any) => b.barber_code === userId,
+        );
         if (barberData) {
-          console.log(`✅ Barber ${userId} found in get_barbers with ${barberData.reference_images?.length || 0} images`);
+          console.log(
+            `✅ Barber ${userId} found in get_barbers with ${barberData.reference_images?.length || 0} images`,
+          );
         } else {
-          console.log(`⚠️ Barber ${userId} not found in get_barbers yet (might take a moment to sync)`);
+          console.log(
+            `⚠️ Barber ${userId} not found in get_barbers yet (might take a moment to sync)`,
+          );
         }
       } catch (verifyErr) {
         console.error('Verification check failed:', verifyErr);
@@ -493,13 +566,13 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
     console.error('=== AI Upload Error ===');
     console.error('Error type:', err.constructor.name);
     console.error('Error message:', err.message);
-    
+
     if (err.response) {
       console.error('Response status:', err.response.status);
       console.error('Response data:', err.response.data);
       console.error('Response headers:', err.response.headers);
     }
-    
+
     if (err.request) {
       console.error('Request was made but no response received');
     }
@@ -508,7 +581,11 @@ const sendReferenceImagesToAI = async (userId: string, images: Express.Multer.Fi
       throw err;
     }
 
-    const message = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Unknown error';
+    const message =
+      err?.response?.data?.message ||
+      err?.response?.data?.error ||
+      err?.message ||
+      'Unknown error';
     throw new AppError(httpStatus.BAD_GATEWAY, `AI service error: ${message}`);
   } finally {
     // Clean up temporary files if using disk storage
@@ -561,9 +638,9 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
           id: true,
           followerCount: true,
           followingCount: true,
-        }
-      }
-    }
+        },
+      },
+    },
   });
   if (!profile) {
     throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner profile not found');
@@ -592,7 +669,7 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
           type: true,
           isActive: true,
         },
-      }
+      },
     },
   });
 
@@ -606,8 +683,7 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
       serviceName: true,
     },
   });
-const { user, ...restProfile } = profile;
-  
+  const { user, ...restProfile } = profile;
 
   return {
     ...restProfile,
@@ -639,9 +715,9 @@ const getBarberProfileFromDB = async (userId: string) => {
           followerCount: true,
           followingCount: true,
           image: true,
-        }
-      }
-    }
+        },
+      },
+    },
   });
   const { user, ...restProfile } = profile!;
   return {
@@ -1120,6 +1196,7 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
         image: payload.image ?? null,
         role: userRole,
         status: UserStatus.ACTIVE,
+        isVerified: true,
         fcmToken: payload.fcmToken ?? null,
         phoneNumber: payload.phoneNumber ?? null,
         address: payload.address ?? null,
@@ -1237,10 +1314,13 @@ const updatePasswordIntoDb = async (payload: any) => {
   };
 };
 
-const deleteAccountFromDB = async (id: string, data:{
-  reason?: string;
-  password: string;
-}) => {
+const deleteAccountFromDB = async (
+  id: string,
+  data: {
+    reason?: string;
+    password: string;
+  },
+) => {
   const userData = await prisma.user.findUnique({
     where: { id },
   });
@@ -1266,7 +1346,6 @@ const deleteAccountFromDB = async (id: string, data:{
     },
   });
   return { message: 'Account deleted successfully!' };
- 
 };
 
 const updateProfileImageIntoDB = async (
