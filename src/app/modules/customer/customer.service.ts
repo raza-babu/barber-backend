@@ -71,9 +71,9 @@ const analyzeSaloonFromImageInDb = async (
     return {
       success: true,
       message: 'No saloons found within 10 KM radius',
-      nearestSaloons: [],
+      recommendedBarber: null,
       matchedBarbers: [],
-      recommendations: [],
+      totalMatchedBarbers: 0,
     };
   }
 
@@ -93,15 +93,16 @@ const analyzeSaloonFromImageInDb = async (
   });
 
   const uniqueBarberIds = [...new Set(allBarberIds)];
-  // console.log(`Total unique barbers: ${uniqueBarberIds.length}`);
+  console.log(`Total unique barbers: ${uniqueBarberIds.length}`);
 
   if (uniqueBarberIds.length === 0) {
     return {
       success: true,
       message: 'No available barbers found in nearby saloons',
-      nearestSaloons: nearestSaloons.data,
+      // nearestSaloons: nearestSaloons.data,
+      recommendedBarber: null,
       matchedBarbers: [],
-      recommendations: [],
+      totalMatchedBarbers: 0,
     };
   }
 
@@ -110,7 +111,7 @@ const analyzeSaloonFromImageInDb = async (
   let aiBarbers: any[] = [];
   try {
     const getBarberResp = await axios.get(
-      'https://raybarberai.dsrt321.online/get_barbers',
+      'http://13.48.206.147:8000/get_barbers',
       {
         timeout: 30000,
       },
@@ -147,9 +148,10 @@ const analyzeSaloonFromImageInDb = async (
     return {
       success: true,
       message: 'No barbers with portfolio images found in nearby saloons',
-      nearestSaloons: nearestSaloons.data,
+      // nearestSaloons: nearestSaloons.data,
+      recommendedBarber: null,
       matchedBarbers: [],
-      recommendations: [],
+      totalMatchedBarbers: 0,
     };
   }
 
@@ -203,10 +205,10 @@ const analyzeSaloonFromImageInDb = async (
   console.log(`Form data headers: ${JSON.stringify(form.getHeaders())}`);
 
   try {
-    const analyzeUrl = 'https://raybarberai.dsrt321.online/analyze';
+    const analyzeUrl = 'http://13.48.206.147:8000/analyze';
     const headers = form.getHeaders();
 
-    console.log('Sending to AI analysis with barber codes:', matchedBarberIds);
+    // console.log('Sending to AI analysis with barber codes:', matchedBarberIds);
 
     const analyzeResp = await axios.post(analyzeUrl, form, {
       headers,
@@ -254,6 +256,23 @@ const analyzeSaloonFromImageInDb = async (
       input_description,
       matches = [],
     } = analyzeResp.data;
+
+    // Check if all similarities are 0
+    if (Array.isArray(matches) && matches.length > 0) {
+      const allSimilaritiesZero = matches.every(
+        (m: any) => (m.similarity || 0) === 0,
+      );
+      
+      if (allSimilaritiesZero) {
+        return {
+          success: true,
+          message: 'No match found with sufficient similarity',
+          recommendedBarber: null,
+          matchedBarbers: [],
+          totalMatchedBarbers: 0,
+        };
+      }
+    }
 
     // Get detailed barber and saloon information from database
     const barberDetails = await prisma.barber.findMany({
@@ -394,7 +413,7 @@ const analyzeSaloonFromImageInDb = async (
 
     return {
       success: true,
-      inputDescription: input_description || null,
+      message: input_description || null,
       recommendedBarber,
       matchedBarbers: matchedBarbersWithDetails,
       // nearestSaloons: nearestSaloons.data.slice(0, 10), // Return top 10 nearest

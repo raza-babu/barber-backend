@@ -27,12 +27,23 @@ const getMySchedule = catchAsync(async (req, res) => {
 
 const getMyBookings = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberService.getMyBookingsFromDb(user.id);
+  const { search, status, startDate, endDate, page, limit } = req.query;
+  
+  const result = await barberService.getMyBookingsFromDb(user.id, {
+    search: search as string,
+    status: status as any,
+    startDate: startDate as string,
+    endDate: endDate as string,
+    page: page ? Number(page) : undefined,
+    limit: limit ? Number(limit) : undefined,
+  });
+  
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Barber bookings retrieved successfully',
-    data: result,
+    data: result.data,
+    meta: result.pagination,
   });
 });
 

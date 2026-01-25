@@ -2956,8 +2956,8 @@ const getBookingListFromDb = async (
     date?: string;
     startDate?: string;
     endDate?: string;
-    page?: string | number;
-    limit?: string | number;
+    page?: string;
+    limit?: string;
     sortBy?: 'date' | 'createdAt' | 'price';
     sortOrder?: 'asc' | 'desc';
   } = {},
@@ -4007,11 +4007,8 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
         queueOrder: null,
       };
 
-      const currentDate = DateTime.now()
-        .setZone(config.timezone)
-        .startOf('day')
-        .toUTC()
-        .toJSDate();
+      const currentDate = new Date();
+      currentDate.setUTCHours(0, 0, 0, 0);
 
       if (salon.isQueueEnabled) {
         const queue = await prisma.queue.findFirst({
@@ -4917,6 +4914,7 @@ const getBookingListForSalonOwnerFromDb = async (
       customerName: userInfo.fullName,
       customerEmail: userInfo.email,
       customerPhone: userInfo.phoneNumber,
+      isRegistered: !!regUserMap[b.userId], // true if user is in registered users map, false otherwise
       bookingDate: b.date,
       startTime: b.startTime,
       endTime: b.endTime,
