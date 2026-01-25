@@ -3626,11 +3626,9 @@ const getAvailableBarbersForWalkingInFromDb = async (
         queueOrder: null,
       };
 
-      const currentDate = DateTime.now()
-        .setZone('Asia/Dhaka')
-        .startOf('day')
-        .toUTC()
-        .toJSDate();
+    
+      const currentDate = new Date();
+      currentDate.setUTCHours(0, 0, 0, 0);
 
       if (salon.isQueueEnabled) {
         const queue = await prisma.queue.findFirst({
@@ -4003,11 +4001,8 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
         queueOrder: null,
       };
 
-      const currentDate = DateTime.now()
-        .setZone('Asia/Dhaka')
-        .startOf('day')
-        .toUTC()
-        .toJSDate();
+      const currentDate = new Date();
+      currentDate.setUTCHours(0, 0, 0, 0);
 
       if (salon.isQueueEnabled) {
         const queue = await prisma.queue.findFirst({
