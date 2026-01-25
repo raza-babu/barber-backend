@@ -10,6 +10,7 @@ import {
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { DateTime } from 'luxon';
+import config from '../../../config';
 
 const createNonRegisteredBookingIntoDb = async (
   userId: string, // this is the saloonOwnerId in your codebase
@@ -24,7 +25,7 @@ const createNonRegisteredBookingIntoDb = async (
   } = data;
 
   // Validate and parse date
-  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const dateObj = DateTime.fromISO(date, { zone: config.timezone });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
@@ -38,7 +39,7 @@ const createNonRegisteredBookingIntoDb = async (
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'Asia/Dhaka' },
+    { zone: config.timezone },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
@@ -161,17 +162,17 @@ const createNonRegisteredBookingIntoDb = async (
         );
       }
       const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
-        zone: 'Asia/Dhaka',
+        zone: config.timezone,
       });
       const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
 
       const breakStartTime = DateTime.fromFormat(
         barberBreak.startTime,
         'hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
-        zone: 'Asia/Dhaka',
+        zone: config.timezone,
       });
 
       // time-only overlap checks
@@ -336,12 +337,12 @@ const createNonRegisteredBookingIntoDb = async (
     const openingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.openingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'Asia/Dhaka' },
+      { zone: config.timezone },
     ).toUTC();
     const closingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.closingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'Asia/Dhaka' },
+      { zone: config.timezone },
     ).toUTC();
 
     if (

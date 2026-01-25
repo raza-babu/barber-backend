@@ -13,6 +13,7 @@ import { DateTime } from 'luxon';
 import { calculatePagination } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { customerService } from '../customer/customer.service';
+import config from '../../../config';
 
 const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
   const {
@@ -45,11 +46,11 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
   }
 
   // 2. Validate and enforce current date only
-  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const dateObj = DateTime.fromISO(date, { zone: config.timezone });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayISO = DateTime.now().setZone('Asia/Dhaka').toISODate();
+  const todayISO = DateTime.now().setZone(config.timezone).toISODate();
   if (dateObj.toISODate() !== todayISO) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date must be the current date');
   }
@@ -119,7 +120,7 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
     schedule: { start: string; end: string } | null,
     totalDurationMinutes: number,
   ): string | undefined => {
-    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+    const nowLocal = DateTime.now().setZone(config.timezone);
     console.log('Current time:', nowLocal.toFormat('yyyy-MM-dd hh:mm a'));
     console.log('Required duration:', totalDurationMinutes, 'minutes');
 
@@ -131,7 +132,7 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
         const closingTime = DateTime.fromFormat(
           `${date} ${schedule.end}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
+          { zone: config.timezone },
         );
 
         console.log('Barber closing time:', closingTime.toFormat('hh:mm a'));
@@ -153,12 +154,12 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
 
       console.log('Slot start valid:', slotStart.isValid, slotStart.toISO());
@@ -197,7 +198,7 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
       const closingTime = DateTime.fromFormat(
         `${date} ${schedule.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
 
       if (nowLocal < closingTime) {
@@ -222,7 +223,7 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
   if (!appointmentAt) {
     throw new AppError(
       httpStatus.NOT_FOUND,
-      `No available time remaining today. Current time: ${DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a')}. Barber's working hours have ended or are fully booked. Please try again tomorrow.`,
+      `No available time remaining today. Current time: ${DateTime.now().setZone(config.timezone).toFormat('hh:mm a')}. Barber's working hours have ended or are fully booked. Please try again tomorrow.`,
     );
   }
 
@@ -232,13 +233,13 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'Asia/Dhaka' },
+    { zone: config.timezone },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
   }
 
-  const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+  const nowLocal = DateTime.now().setZone(config.timezone);
   const endLocal = localDateTime.plus({ minutes: totalDuration });
 
   // Allow bookings that end in the future
@@ -292,17 +293,17 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
 
     if (barberBreak && barberBreak.startTime && barberBreak.endTime) {
       const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
-        zone: 'Asia/Dhaka',
+        zone: config.timezone,
       });
       const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
 
       const breakStartTime = DateTime.fromFormat(
         barberBreak.startTime,
         'hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
-        zone: 'Asia/Dhaka',
+        zone: config.timezone,
       });
 
       if (
@@ -530,12 +531,12 @@ const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
     const openingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.openingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'Asia/Dhaka' },
+      { zone: config.timezone },
     );
     const closingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.closingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'Asia/Dhaka' },
+      { zone: config.timezone },
     );
 
     // For QUEUE bookings: only check if START time is within working hours
@@ -633,11 +634,11 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   }
 
   // 2. Validate and enforce current date only
-  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const dateObj = DateTime.fromISO(date, { zone: config.timezone });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayISO = DateTime.now().setZone('Asia/Dhaka').toISODate();
+  const todayISO = DateTime.now().setZone(config.timezone).toISODate();
   if (dateObj.toISODate() !== todayISO) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date must be the current date');
   }
@@ -684,9 +685,13 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   // Use historical average duration if available
   if (queueTimeRecord?.averageMin) {
     totalDuration = queueTimeRecord.averageMin;
-    console.log(`Using historical duration: ${totalDuration}min (${queueTimeRecord.serviceIds?.length || 0} services matched)`);
+    console.log(
+      `Using historical duration: ${totalDuration}min (${queueTimeRecord.serviceIds?.length || 0} services matched)`,
+    );
   } else {
-    console.log(`Using default service duration: ${totalDuration}min (no historical data)`);
+    console.log(
+      `Using default service duration: ${totalDuration}min (no historical data)`,
+    );
   }
 
   if (totalDuration <= 0) {
@@ -743,7 +748,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     schedule: { start: string; end: string } | null,
     totalDurationMinutes: number,
   ): string | undefined => {
-    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+    const nowLocal = DateTime.now().setZone(config.timezone);
     console.log('Current time:', nowLocal.toFormat('yyyy-MM-dd hh:mm a'));
     console.log('Required duration:', totalDurationMinutes, 'minutes');
 
@@ -755,7 +760,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         const closingTime = DateTime.fromFormat(
           `${date} ${schedule.end}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
+          { zone: config.timezone },
         );
 
         console.log('Barber closing time:', closingTime.toFormat('hh:mm a'));
@@ -777,12 +782,12 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
 
       console.log('Slot start valid:', slotStart.isValid, slotStart.toISO());
@@ -821,7 +826,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       const closingTime = DateTime.fromFormat(
         `${date} ${schedule.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
 
       if (nowLocal < closingTime) {
@@ -846,7 +851,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   if (!appointmentAt) {
     throw new AppError(
       httpStatus.NOT_FOUND,
-      `No available time remaining today. Current time: ${DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a')}. Barber's working hours have ended or are fully booked. Please try again tomorrow.`,
+      `No available time remaining today. Current time: ${DateTime.now().setZone(config.timezone).toFormat('hh:mm a')}. Barber's working hours have ended or are fully booked. Please try again tomorrow.`,
     );
   }
 
@@ -857,13 +862,13 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'Asia/Dhaka' },
+    { zone: config.timezone },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
   }
 
-  const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+  const nowLocal = DateTime.now().setZone(config.timezone);
   const endLocal = localDateTime.plus({ minutes: totalDuration });
 
   // Allow bookings that end in the future
@@ -917,17 +922,17 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
 
     if (barberBreak && barberBreak.startTime && barberBreak.endTime) {
       const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
-        zone: 'Asia/Dhaka',
+        zone: config.timezone,
       });
       const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
 
       const breakStartTime = DateTime.fromFormat(
         barberBreak.startTime,
         'hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
-        zone: 'Asia/Dhaka',
+        zone: config.timezone,
       });
 
       if (
@@ -1155,12 +1160,12 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     const openingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.openingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'Asia/Dhaka' },
+      { zone: config.timezone },
     );
     const closingDateTime = DateTime.fromFormat(
       `${date} ${barberSchedule.closingTime}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'Asia/Dhaka' },
+      { zone: config.timezone },
     );
 
     // For QUEUE bookings: only check if START time is within working hours
@@ -1246,12 +1251,12 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       if (!slotStart.isValid || !slotEnd.isValid) continue;
       const slotMinutes = slotEnd.diff(slotStart, 'minutes').minutes;
@@ -1265,7 +1270,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       const fallback = DateTime.fromFormat(
         `${date} ${first.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       return fallback.isValid ? fallback.toFormat('hh:mm a') : undefined;
     }
@@ -1281,11 +1286,11 @@ const createQueueBookingForSalonOwnerIntoDb = async (
   }
 
   // Only allow queue for the current local date
-  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const dateObj = DateTime.fromISO(date, { zone: config.timezone });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayLocal = DateTime.now().setZone('Asia/Dhaka').toISODate();
+  const todayLocal = DateTime.now().setZone(config.timezone).toISODate();
   if (dateObj.toISODate() !== todayLocal) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -1361,7 +1366,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     });
 
     if (!appointmentAt) {
-      const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+      const nowLocal = DateTime.now().setZone(config.timezone);
 
       type Candidate = {
         barber: any;
@@ -1382,7 +1387,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
         const slotDt = DateTime.fromFormat(
           `${date} ${slotStartStr}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
+          { zone: config.timezone },
         );
         if (!slotDt.isValid) continue;
         if (slotDt < nowLocal.minus({ minutes: 1 })) continue;
@@ -1397,7 +1402,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
         chosen = candidates[0].barber;
         chosenAppointmentAt = candidates[0].slotStartStr;
       } else {
-        const nowLocalForFallback = DateTime.now().setZone('Asia/Dhaka');
+        const nowLocalForFallback = DateTime.now().setZone(config.timezone);
         let found = null as any | null;
         let pickedTime: string | undefined = undefined;
 
@@ -1407,7 +1412,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
             const slotStart = DateTime.fromFormat(
               `${date} ${slot.start}`,
               'yyyy-MM-dd hh:mm a',
-              { zone: 'Asia/Dhaka' },
+              { zone: config.timezone },
             );
             if (!slotStart.isValid) continue;
             if (slotStart >= nowLocalForFallback.minus({ minutes: 1 })) {
@@ -1446,12 +1451,12 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     // 6. Determine appointment time
     const useAppointmentAt =
       chosenAppointmentAt ??
-      DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
+      DateTime.now().setZone(config.timezone).toFormat('hh:mm a');
 
     const localDateTime = DateTime.fromFormat(
       `${date} ${useAppointmentAt}`,
       'yyyy-MM-dd hh:mm a',
-      { zone: 'Asia/Dhaka' },
+      { zone: config.timezone },
     );
     if (!localDateTime.isValid) {
       throw new AppError(
@@ -1460,7 +1465,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       );
     }
 
-    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+    const nowLocal = DateTime.now().setZone(config.timezone);
     const endLocal = localDateTime.plus({ minutes: totalDuration });
     if (endLocal < nowLocal.minus({ minutes: 1 })) {
       throw new AppError(
@@ -1664,18 +1669,18 @@ const createQueueBookingForCustomerIntoDb1 = async (
   ): string | undefined => {
     if (!freeSlots || freeSlots.length === 0) return undefined;
 
-    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+    const nowLocal = DateTime.now().setZone(config.timezone);
 
     for (const slot of freeSlots) {
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
 
       if (!slotStart.isValid || !slotEnd.isValid) continue;
@@ -1707,11 +1712,11 @@ const createQueueBookingForCustomerIntoDb1 = async (
   }
 
   // Only allow queue for the current local date
-  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const dateObj = DateTime.fromISO(date, { zone: config.timezone });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayLocal = DateTime.now().setZone('Asia/Dhaka').toISODate();
+  const todayLocal = DateTime.now().setZone(config.timezone).toISODate();
   if (dateObj.toISODate() !== todayLocal) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -1816,7 +1821,7 @@ const createQueueBookingForCustomerIntoDb1 = async (
   });
 
   if (!appointmentAt) {
-    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+    const nowLocal = DateTime.now().setZone(config.timezone);
 
     type Candidate = {
       barber: any;
@@ -1842,7 +1847,7 @@ const createQueueBookingForCustomerIntoDb1 = async (
       const slotDt = DateTime.fromFormat(
         `${date} ${slotStartStr}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
 
       if (!slotDt.isValid) {
@@ -1880,12 +1885,12 @@ const createQueueBookingForCustomerIntoDb1 = async (
           const slotStart = DateTime.fromFormat(
             `${date} ${slot.start}`,
             'yyyy-MM-dd hh:mm a',
-            { zone: 'Asia/Dhaka' },
+            { zone: config.timezone },
           );
           const slotEnd = DateTime.fromFormat(
             `${date} ${slot.end}`,
             'yyyy-MM-dd hh:mm a',
-            { zone: 'Asia/Dhaka' },
+            { zone: config.timezone },
           );
 
           if (!slotStart.isValid || !slotEnd.isValid) continue;
@@ -1943,12 +1948,13 @@ const createQueueBookingForCustomerIntoDb1 = async (
 
   // 5. Determine appointment time
   const useAppointmentAt =
-    chosenAppointmentAt ?? DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
+    chosenAppointmentAt ??
+    DateTime.now().setZone(config.timezone).toFormat('hh:mm a');
 
   const localDateTime = DateTime.fromFormat(
     `${date} ${useAppointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'Asia/Dhaka' },
+    { zone: config.timezone },
   );
   if (!localDateTime.isValid) {
     throw new AppError(
@@ -1957,7 +1963,7 @@ const createQueueBookingForCustomerIntoDb1 = async (
     );
   }
 
-  const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+  const nowLocal = DateTime.now().setZone(config.timezone);
   const endLocal = localDateTime.plus({ minutes: totalDuration });
 
   // Allow bookings that end in the future (even if they start slightly in the past due to processing time)
@@ -2165,18 +2171,18 @@ const createQueueBookingForCustomerIntoDb = async (
   ): string | undefined => {
     if (!freeSlots || freeSlots.length === 0) return undefined;
 
-    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+    const nowLocal = DateTime.now().setZone(config.timezone);
 
     for (const slot of freeSlots) {
       const slotStart = DateTime.fromFormat(
         `${date} ${slot.start}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const slotEnd = DateTime.fromFormat(
         `${date} ${slot.end}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
 
       if (!slotStart.isValid || !slotEnd.isValid) continue;
@@ -2207,11 +2213,11 @@ const createQueueBookingForCustomerIntoDb = async (
   }
 
   // Only allow queue for the current local date
-  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const dateObj = DateTime.fromISO(date, { zone: config.timezone });
   if (!dateObj.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  const todayLocal = DateTime.now().setZone('Asia/Dhaka').toISODate();
+  const todayLocal = DateTime.now().setZone(config.timezone).toISODate();
   if (dateObj.toISODate() !== todayLocal) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -2278,7 +2284,7 @@ const createQueueBookingForCustomerIntoDb = async (
   });
 
   if (!appointmentAt) {
-    const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+    const nowLocal = DateTime.now().setZone(config.timezone);
 
     type Candidate = {
       barber: any;
@@ -2332,7 +2338,7 @@ const createQueueBookingForCustomerIntoDb = async (
       const slotDt = DateTime.fromFormat(
         `${date} ${slotStartStr}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
 
       if (!slotDt.isValid) {
@@ -2397,12 +2403,12 @@ const createQueueBookingForCustomerIntoDb = async (
           const slotStart = DateTime.fromFormat(
             `${date} ${slot.start}`,
             'yyyy-MM-dd hh:mm a',
-            { zone: 'Asia/Dhaka' },
+            { zone: config.timezone },
           );
           const slotEnd = DateTime.fromFormat(
             `${date} ${slot.end}`,
             'yyyy-MM-dd hh:mm a',
-            { zone: 'Asia/Dhaka' },
+            { zone: config.timezone },
           );
 
           if (!slotStart.isValid || !slotEnd.isValid) continue;
@@ -2494,12 +2500,13 @@ const createQueueBookingForCustomerIntoDb = async (
 
   // 6. Determine appointment time
   const useAppointmentAt =
-    chosenAppointmentAt ?? DateTime.now().setZone('Asia/Dhaka').toFormat('hh:mm a');
+    chosenAppointmentAt ??
+    DateTime.now().setZone(config.timezone).toFormat('hh:mm a');
 
   const localDateTime = DateTime.fromFormat(
     `${date} ${useAppointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'Asia/Dhaka' },
+    { zone: config.timezone },
   );
   if (!localDateTime.isValid) {
     throw new AppError(
@@ -2508,7 +2515,7 @@ const createQueueBookingForCustomerIntoDb = async (
     );
   }
 
-  const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+  const nowLocal = DateTime.now().setZone(config.timezone);
   const endLocal = localDateTime.plus({ minutes: totalDuration });
 
   // Allow bookings that end in the future
@@ -2724,7 +2731,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   }
 
   // 2. Validate date / time inputs
-  const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const dateObj = DateTime.fromISO(date, { zone: config.timezone });
   const today = DateTime.now().startOf('day');
   if (!dateObj.isValid || dateObj < today) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date cannot be in the past');
@@ -2733,7 +2740,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'Asia/Dhaka' },
+    { zone: config.timezone },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
@@ -2989,7 +2996,7 @@ const getBookingListFromDb = async (
 
   // Filter by specific date
   if (date) {
-    const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+    const dateObj = DateTime.fromISO(date, { zone: config.timezone });
     if (dateObj.isValid) {
       const startOfDay = dateObj.startOf('day').toJSDate();
       const endOfDay = dateObj.endOf('day').toJSDate();
@@ -3002,8 +3009,8 @@ const getBookingListFromDb = async (
 
   // Filter by date range
   if (startDate && endDate) {
-    const start = DateTime.fromISO(startDate, { zone: 'Asia/Dhaka' });
-    const end = DateTime.fromISO(endDate, { zone: 'Asia/Dhaka' });
+    const start = DateTime.fromISO(startDate, { zone: config.timezone });
+    const end = DateTime.fromISO(endDate, { zone: config.timezone });
     if (start.isValid && end.isValid) {
       whereConditions.date = {
         gte: start.startOf('day').toJSDate(),
@@ -3011,14 +3018,14 @@ const getBookingListFromDb = async (
       };
     }
   } else if (startDate) {
-    const start = DateTime.fromISO(startDate, { zone: 'Asia/Dhaka' });
+    const start = DateTime.fromISO(startDate, { zone: config.timezone });
     if (start.isValid) {
       whereConditions.date = {
         gte: start.startOf('day').toJSDate(),
       };
     }
   } else if (endDate) {
-    const end = DateTime.fromISO(endDate, { zone: 'Asia/Dhaka' });
+    const end = DateTime.fromISO(endDate, { zone: config.timezone });
     if (end.isValid) {
       whereConditions.date = {
         lte: end.endOf('day').toJSDate(),
@@ -3155,12 +3162,12 @@ const getBookingListFromDb = async (
 
   const formattedBookings = bookings.map(b => {
     // Get the current time
-    const now = DateTime.now().setZone('Asia/Dhaka');
+    const now = DateTime.now().setZone(config.timezone);
 
     // Parse booking start and end times
     const bookingStart = DateTime.fromJSDate(
       b.startDateTime || new Date(),
-    ).setZone('Asia/Dhaka');
+    ).setZone(config.timezone);
     const bookingEnd = DateTime.fromJSDate(b.endDateTime || new Date()).setZone(
       'local',
     );
@@ -3362,7 +3369,9 @@ const getAllBarbersForQueueFromDb = async (
 ) => {
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: config.timezone }).startOf(
+      'day',
+    );
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -3508,7 +3517,9 @@ const getAvailableBarbersForWalkingInFromDb = async (
   // Always use today's date or provided specificDate (local)
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: config.timezone }).startOf(
+      'day',
+    );
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -3594,8 +3605,12 @@ const getAvailableBarbersForWalkingInFromDb = async (
 
       // Estimate wait time = sum of current bookings lengths (use local zone consistently)
       const estimatedWaitTime = bookings.reduce((sum, b) => {
-        const start = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
-        const end = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
+        const start = DateTime.fromJSDate(b.startDateTime!).setZone(
+          config.timezone,
+        );
+        const end = DateTime.fromJSDate(b.endDateTime!).setZone(
+          config.timezone,
+        );
         return sum + end.diff(start, 'minutes').minutes;
       }, 0);
 
@@ -3614,11 +3629,8 @@ const getAvailableBarbersForWalkingInFromDb = async (
         queueOrder: null,
       };
 
-      const currentDate = DateTime.now()
-  .setZone('Asia/Dhaka')
-  .startOf('day')
-  .toUTC()
-  .toJSDate();
+      const currentDate = new Date();
+      currentDate.setUTCHours(0, 0, 0, 0);
 
       if (salon.isQueueEnabled) {
         const queue = await prisma.queue.findFirst({
@@ -3676,12 +3688,12 @@ const getAvailableBarbersForWalkingInFromDb = async (
         const opening = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
+          { zone: config.timezone },
         );
         const closing = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
+          { zone: config.timezone },
         );
 
         // Build an array of busy intervals (sorted) — convert and clamp to [opening, closing]
@@ -3695,20 +3707,22 @@ const getAvailableBarbersForWalkingInFromDb = async (
               s = DateTime.fromFormat(
                 `${date.toFormat('yyyy-MM-dd')} ${b.startTime}`,
                 'yyyy-MM-dd hh:mm a',
-                { zone: 'Asia/Dhaka' },
+                { zone: config.timezone },
               );
             } else {
-              s = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
+              s = DateTime.fromJSDate(b.startDateTime!).setZone(
+                config.timezone,
+              );
             }
 
             if (b.endTime) {
               e = DateTime.fromFormat(
                 `${date.toFormat('yyyy-MM-dd')} ${b.endTime}`,
                 'yyyy-MM-dd hh:mm a',
-                { zone: 'Asia/Dhaka' },
+                { zone: config.timezone },
               );
             } else if (b.endDateTime) {
-              e = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
+              e = DateTime.fromJSDate(b.endDateTime!).setZone(config.timezone);
             } else {
               // fallback: compute end using services duration sum
               const totalTime = b.BookedServices.reduce(
@@ -3798,12 +3812,12 @@ const getAvailableBarbersForWalkingInFromDb = async (
           startTime:
             b.startTime ??
             DateTime.fromJSDate(b.startDateTime!)
-              .setZone('Asia/Dhaka')
+              .setZone(config.timezone)
               .toFormat('hh:mm a'),
           endTime:
             b.endTime ??
             DateTime.fromJSDate(b.endDateTime!)
-              .setZone('Asia/Dhaka')
+              .setZone(config.timezone)
               .toFormat('hh:mm a'),
           services: b.BookedServices.map(bs => bs.service?.serviceName),
           totalTime: b.BookedServices.reduce(
@@ -3829,7 +3843,9 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
   // Always use today's date or provided specificDate (local)
   let date;
   if (specificDate) {
-    date = DateTime.fromISO(specificDate!, { zone: 'Asia/Dhaka' }).startOf('day');
+    date = DateTime.fromISO(specificDate!, { zone: config.timezone }).startOf(
+      'day',
+    );
   } else {
     date = DateTime.now().startOf('day');
   }
@@ -3967,8 +3983,12 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
 
       // Estimate wait time = sum of current bookings lengths (use local zone consistently)
       const estimatedWaitTime = bookings.reduce((sum, b) => {
-        const start = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
-        const end = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
+        const start = DateTime.fromJSDate(b.startDateTime!).setZone(
+          config.timezone,
+        );
+        const end = DateTime.fromJSDate(b.endDateTime!).setZone(
+          config.timezone,
+        );
         return sum + end.diff(start, 'minutes').minutes;
       }, 0);
 
@@ -3988,10 +4008,10 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
       };
 
       const currentDate = DateTime.now()
-  .setZone('Asia/Dhaka')
-  .startOf('day')
-  .toUTC()
-  .toJSDate();
+        .setZone(config.timezone)
+        .startOf('day')
+        .toUTC()
+        .toJSDate();
 
       if (salon.isQueueEnabled) {
         const queue = await prisma.queue.findFirst({
@@ -4049,12 +4069,12 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
         const opening = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
+          { zone: config.timezone },
         );
         const closing = DateTime.fromFormat(
           `${date.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
           'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
+          { zone: config.timezone },
         );
 
         // Build an array of busy intervals (sorted) — convert and clamp to [opening, closing]
@@ -4068,20 +4088,22 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
               s = DateTime.fromFormat(
                 `${date.toFormat('yyyy-MM-dd')} ${b.startTime}`,
                 'yyyy-MM-dd hh:mm a',
-                { zone: 'Asia/Dhaka' },
+                { zone: config.timezone },
               );
             } else {
-              s = DateTime.fromJSDate(b.startDateTime!).setZone('Asia/Dhaka');
+              s = DateTime.fromJSDate(b.startDateTime!).setZone(
+                config.timezone,
+              );
             }
 
             if (b.endTime) {
               e = DateTime.fromFormat(
                 `${date.toFormat('yyyy-MM-dd')} ${b.endTime}`,
                 'yyyy-MM-dd hh:mm a',
-                { zone: 'Asia/Dhaka' },
+                { zone: config.timezone },
               );
             } else if (b.endDateTime) {
-              e = DateTime.fromJSDate(b.endDateTime!).setZone('Asia/Dhaka');
+              e = DateTime.fromJSDate(b.endDateTime!).setZone(config.timezone);
             } else {
               // fallback: compute end using services duration sum
               const totalTime = b.BookedServices.reduce(
@@ -4168,49 +4190,48 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
           customerName: (b as any).user?.fullName || null,
           customerImage: (b as any).user?.image || null,
           startTime:
-        b.startTime ??
-        DateTime.fromJSDate(b.startDateTime!)
-          .setZone('Asia/Dhaka')
-          .toFormat('hh:mm a'),
+            b.startTime ??
+            DateTime.fromJSDate(b.startDateTime!)
+              .setZone(config.timezone)
+              .toFormat('hh:mm a'),
           endTime:
-        b.endTime ??
-        DateTime.fromJSDate(b.endDateTime!)
-          .setZone('Asia/Dhaka')
-          .toFormat('hh:mm a'),
+            b.endTime ??
+            DateTime.fromJSDate(b.endDateTime!)
+              .setZone(config.timezone)
+              .toFormat('hh:mm a'),
           services: b.BookedServices.map(bs => bs.service?.serviceName),
           totalTime: b.BookedServices.reduce(
-        (sum, bs) => sum + (bs.service?.duration || 0),
-        0,
+            (sum, bs) => sum + (bs.service?.duration || 0),
+            0,
           ),
         })),
         freeSlots: freeSlots
           .map(slot => {
-        const slotStart = DateTime.fromFormat(
-          `${date.toFormat('yyyy-MM-dd')} ${slot.start}`,
-          'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
-        );
-        const slotEnd = DateTime.fromFormat(
-          `${date.toFormat('yyyy-MM-dd')} ${slot.end}`,
-          'yyyy-MM-dd hh:mm a',
-          { zone: 'Asia/Dhaka' },
-        );
-        const nowLocal = DateTime.now().setZone('Asia/Dhaka');
+            const slotStart = DateTime.fromFormat(
+              `${date.toFormat('yyyy-MM-dd')} ${slot.start}`,
+              'yyyy-MM-dd hh:mm a',
+              { zone: config.timezone },
+            );
+            const slotEnd = DateTime.fromFormat(
+              `${date.toFormat('yyyy-MM-dd')} ${slot.end}`,
+              'yyyy-MM-dd hh:mm a',
+              { zone: config.timezone },
+            );
+            const nowLocal = DateTime.now().setZone(config.timezone);
 
-        // If slot has ended, skip it
-        if (slotEnd <= nowLocal) return null;
+            // If slot has ended, skip it
+            if (slotEnd <= nowLocal) return null;
 
-        // If slot started in past but ends in future, adjust start to current time
-        const adjustedStart =
-          slotStart < nowLocal ? nowLocal : slotStart;
+            // If slot started in past but ends in future, adjust start to current time
+            const adjustedStart = slotStart < nowLocal ? nowLocal : slotStart;
 
-        return {
-          start: adjustedStart.toFormat('hh:mm a'),
-          end: slotEnd.toFormat('hh:mm a'),
-        };
+            return {
+              start: adjustedStart.toFormat('hh:mm a'),
+              end: slotEnd.toFormat('hh:mm a'),
+            };
           })
           .filter(
-        (slot): slot is { start: string; end: string } => slot !== null,
+            (slot): slot is { start: string; end: string } => slot !== null,
           ),
         queue: queueInfo,
       };
@@ -4294,7 +4315,7 @@ const getAvailableBarbersFromDb = async (
     );
   }
 
-  const requestedLocal = requestedUtc.setZone('Asia/Dhaka');
+  const requestedLocal = requestedUtc.setZone(config.timezone);
   const requestedEndLocal = requestedLocal.plus({
     minutes: data.totalServiceTime,
   });
@@ -4318,7 +4339,7 @@ const getAvailableBarbersFromDb = async (
           month: requestedLocal.month,
           day: requestedLocal.day,
         },
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       ).toJSDate(),
     },
   });
@@ -4364,7 +4385,7 @@ const getAvailableBarbersFromDb = async (
               month: requestedLocal.month,
               day: requestedLocal.day,
             },
-            { zone: 'Asia/Dhaka' },
+            { zone: config.timezone },
           ).toJSDate(),
         },
       });
@@ -4386,12 +4407,12 @@ const getAvailableBarbersFromDb = async (
       const openingLocal = DateTime.fromFormat(
         `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const closingLocal = DateTime.fromFormat(
         `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       if (
         !openingLocal.isValid ||
@@ -4469,8 +4490,8 @@ const getAvailableBarbersForQueueFromDb = async (
   }
 
   // Only allow queue queries for the current local date
-  const requestedLocalDay = requestedUtc.setZone('Asia/Dhaka').toISODate();
-  const todayLocalDay = DateTime.now().setZone('Asia/Dhaka').toISODate();
+  const requestedLocalDay = requestedUtc.setZone(config.timezone).toISODate();
+  const todayLocalDay = DateTime.now().setZone(config.timezone).toISODate();
   if (requestedLocalDay !== todayLocalDay) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -4479,7 +4500,7 @@ const getAvailableBarbersForQueueFromDb = async (
   }
 
   // Convert to local zone and compute end times
-  const requestedLocal = requestedUtc.setZone('Asia/Dhaka');
+  const requestedLocal = requestedUtc.setZone(config.timezone);
   const requestedEndLocal = requestedLocal.plus({
     minutes: data.totalServiceTime,
   });
@@ -4503,7 +4524,7 @@ const getAvailableBarbersForQueueFromDb = async (
           month: requestedLocal.month,
           day: requestedLocal.day,
         },
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       ).toJSDate(),
     },
   });
@@ -4548,7 +4569,7 @@ const getAvailableBarbersForQueueFromDb = async (
               month: requestedLocal.month,
               day: requestedLocal.day,
             },
-            { zone: 'Asia/Dhaka' },
+            { zone: config.timezone },
           ).toJSDate(),
         },
       });
@@ -4570,12 +4591,12 @@ const getAvailableBarbersForQueueFromDb = async (
       const openingLocal = DateTime.fromFormat(
         `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.openingTime}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       const closingLocal = DateTime.fromFormat(
         `${requestedLocal.toFormat('yyyy-MM-dd')} ${schedule.closingTime}`,
         'yyyy-MM-dd hh:mm a',
-        { zone: 'Asia/Dhaka' },
+        { zone: config.timezone },
       );
       if (
         !openingLocal.isValid ||
@@ -4672,7 +4693,7 @@ const getBookingListForSalonOwnerFromDb = async (
 
   // Filter by specific date
   if (date) {
-    const dateObj = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+    const dateObj = DateTime.fromISO(date, { zone: config.timezone });
     if (dateObj.isValid) {
       const startOfDay = dateObj.startOf('day').toJSDate();
       const endOfDay = dateObj.endOf('day').toJSDate();
@@ -4685,8 +4706,8 @@ const getBookingListForSalonOwnerFromDb = async (
 
   // Filter by date range
   if (startDate && endDate) {
-    const start = DateTime.fromISO(startDate, { zone: 'Asia/Dhaka' });
-    const end = DateTime.fromISO(endDate, { zone: 'Asia/Dhaka' });
+    const start = DateTime.fromISO(startDate, { zone: config.timezone });
+    const end = DateTime.fromISO(endDate, { zone: config.timezone });
     if (start.isValid && end.isValid) {
       whereConditions.date = {
         gte: start.startOf('day').toJSDate(),
@@ -4694,14 +4715,14 @@ const getBookingListForSalonOwnerFromDb = async (
       };
     }
   } else if (startDate) {
-    const start = DateTime.fromISO(startDate, { zone: 'Asia/Dhaka' });
+    const start = DateTime.fromISO(startDate, { zone: config.timezone });
     if (start.isValid) {
       whereConditions.date = {
         gte: start.startOf('day').toJSDate(),
       };
     }
   } else if (endDate) {
-    const end = DateTime.fromISO(endDate, { zone: 'Asia/Dhaka' });
+    const end = DateTime.fromISO(endDate, { zone: config.timezone });
     if (end.isValid) {
       whereConditions.date = {
         lte: end.endOf('day').toJSDate(),
@@ -4975,7 +4996,7 @@ const getBookingListForBarberFromDb = async (
   const date = options.date
     ? (() => {
         const localStart = DateTime.fromISO(String(options.date), {
-          zone: 'Asia/Dhaka',
+          zone: config.timezone,
         }).startOf('day');
         const localEnd = localStart.plus({ days: 1 });
         return {
@@ -5258,8 +5279,12 @@ const updateBookingIntoDb = async (
       userId: userId,
       bookingType: BookingType.BOOKING,
       status: {
-        in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED],
-      }
+        in: [
+          BookingStatus.PENDING,
+          BookingStatus.CONFIRMED,
+          BookingStatus.RESCHEDULED,
+        ],
+      },
     },
     include: {
       BookedServices: {
@@ -5284,7 +5309,7 @@ const updateBookingIntoDb = async (
   const localDateTime = DateTime.fromFormat(
     `${date} ${appointmentAt}`,
     'yyyy-MM-dd hh:mm a',
-    { zone: 'Asia/Dhaka' },
+    { zone: config.timezone },
   );
   if (!localDateTime.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
@@ -5300,7 +5325,13 @@ const updateBookingIntoDb = async (
   const overlappingBooking = await prisma.booking.findFirst({
     where: {
       barberId: existingBooking.barberId,
-      status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED] },
+      status: {
+        in: [
+          BookingStatus.PENDING,
+          BookingStatus.CONFIRMED,
+          BookingStatus.RESCHEDULED,
+        ],
+      },
       id: { not: bookingId },
       AND: [
         { startDateTime: { lt: endDateTime } },

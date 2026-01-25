@@ -4,6 +4,7 @@ import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { DateTime } from 'luxon';
+import config from '../../../config';
 
 const createBarberLunchIntoDb = async (
   userId: string,
@@ -16,7 +17,7 @@ const createBarberLunchIntoDb = async (
 ) => {
   const { barberId, date, startTime, endTime } = data;
 
-  const baseDate = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const baseDate = DateTime.fromISO(date, { zone: config.timezone });
   if (!baseDate.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
@@ -59,12 +60,12 @@ const createBarberLunchIntoDb = async (
 
     const opening =
       schedule.openingDateTime instanceof Date
-        ? DateTime.fromJSDate(schedule.openingDateTime).setZone('Asia/Dhaka')
-        : DateTime.fromISO(String(schedule.openingDateTime), { zone: 'Asia/Dhaka' });
+        ? DateTime.fromJSDate(schedule.openingDateTime).setZone(config.timezone)
+        : DateTime.fromISO(String(schedule.openingDateTime), { zone: config.timezone });
     const closing =
       schedule.closingDateTime instanceof Date
-        ? DateTime.fromJSDate(schedule.closingDateTime).setZone('Asia/Dhaka')
-        : DateTime.fromISO(String(schedule.closingDateTime), { zone: 'Asia/Dhaka' });
+        ? DateTime.fromJSDate(schedule.closingDateTime).setZone(config.timezone)
+        : DateTime.fromISO(String(schedule.closingDateTime), { zone: config.timezone });
 
     const workStart = baseDate
       .set({ hour: opening.hour, minute: opening.minute })
@@ -211,8 +212,8 @@ const createBarberLunchIntoDb = async (
         data: {
           startDateTime: newStart.toJSDate(),
           endDateTime: newEnd.toJSDate(),
-          startTime: newStart.setZone('Asia/Dhaka').toFormat('hh:mm a'),
-          endTime: newEnd.setZone('Asia/Dhaka').toFormat('hh:mm a'),
+          startTime: newStart.setZone(config.timezone).toFormat('hh:mm a'),
+          endTime: newEnd.setZone(config.timezone).toFormat('hh:mm a'),
         },
       });
 
@@ -263,8 +264,8 @@ const createBarberLunchIntoDb = async (
           data: {
             startDateTime: newStart.toJSDate(),
             endDateTime: newEnd.toJSDate(),
-            startTime: newStart.setZone('Asia/Dhaka').toFormat('hh:mm a'),
-            endTime: newEnd.setZone('Asia/Dhaka').toFormat('hh:mm a'),
+            startTime: newStart.setZone(config.timezone).toFormat('hh:mm a'),
+            endTime: newEnd.setZone(config.timezone).toFormat('hh:mm a'),
           },
         });
       }
@@ -317,8 +318,8 @@ const getBarberLunchListFromDb = async (userId: string) => {
     barberId: item.barberId,
     lunchStart: DateTime.fromJSDate(item.lunchStart).toUTC().toISO(),
     lunchEnd: DateTime.fromJSDate(item.lunchEnd).toUTC().toISO(),
-    startTime: DateTime.fromJSDate(item.lunchStart).setZone('Asia/Dhaka').toFormat('hh:mm a'),
-    endTime: DateTime.fromJSDate(item.lunchEnd).setZone('Asia/Dhaka').toFormat('hh:mm a'),
+    startTime: DateTime.fromJSDate(item.lunchStart).setZone(config.timezone).toFormat('hh:mm a'),
+    endTime: DateTime.fromJSDate(item.lunchEnd).setZone(config.timezone).toFormat('hh:mm a'),
   }));
 };
 
@@ -366,8 +367,8 @@ const getBarberLunchByIdFromDb = async (
     barberPhone: result.barber.user.phoneNumber,
     lunchStart: DateTime.fromJSDate(result.lunchStart).toUTC().toISO(),
     lunchEnd: DateTime.fromJSDate(result.lunchEnd).toUTC().toISO(),
-    startTime: DateTime.fromJSDate(result.lunchStart).setZone('Asia/Dhaka').toFormat('hh:mm a'),
-    endTime: DateTime.fromJSDate(result.lunchEnd).setZone('Asia/Dhaka').toFormat('hh:mm a'),
+    startTime: DateTime.fromJSDate(result.lunchStart).setZone(config.timezone).toFormat('hh:mm a'),
+    endTime: DateTime.fromJSDate(result.lunchEnd).setZone(config.timezone).toFormat('hh:mm a'),
   };
 };
 
