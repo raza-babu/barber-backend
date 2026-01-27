@@ -273,16 +273,26 @@ const getBarberDashboardFromDb = async (userId: string) => {
     where: {
       saloonOwnerId: userId,
       status: BookingStatus.PENDING,
+      bookingType: BookingType.BOOKING
     },
   });
 
-  const queueBooking = await prisma.booking.count({
-    where: {
-      saloonOwnerId: userId,
-      // type: 'QUEUE',
-      status: BookingStatus.PENDING,
-    },
-  });
+  const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const queueBooking = await prisma.booking.count({
+      where: {
+        saloonOwnerId: userId,
+        bookingType: BookingType.QUEUE,
+        status: BookingStatus.PENDING,
+        date: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+    });
 
   const jobPostCount = await prisma.jobPost.count({
     where: {
