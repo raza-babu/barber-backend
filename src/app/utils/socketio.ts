@@ -159,6 +159,8 @@ export function setupSocketIO(server: HTTPServer) {
         messagesNameSpace.to(roomName).emit('message', chat);
 
         // Emit updated messageList to both sender and receiver
+        //  [socketio.ts](http://_vscodecontentref_/3)
+        // INSIDE socket.on('message') - Fix the emitMessageList function
         const emitMessageList = async (userId: string) => {
           // Only fetch rooms where the user is sender or receiver
           const rooms = await prisma.room.findMany({
@@ -199,6 +201,9 @@ export function setupSocketIO(server: HTTPServer) {
             },
           });
 
+          // Get current user's info
+          const currentUser = userInfos.find(u => u.id === userId);
+
           const roomsWithUnreadMessages = await Promise.all(
             rooms.map(async room => {
               const unReadMessagesCount = await prisma.chat.count({
@@ -208,21 +213,21 @@ export function setupSocketIO(server: HTTPServer) {
                   receiverId: userId,
                 },
               });
+
+              // Get the "other user" from the current user's perspective
+              const otherUserId =
+                room.senderId === userId ? room.receiverId : room.senderId;
+              const otherUser = userInfos.find(u => u.id === otherUserId);
+
               return {
                 chat: room.chat[0], // Include only the latest chat
                 unReadMessagesCount,
-                senderName:
-                  userInfos.find(userInfo => userInfo.id === room.receiverId)
-                    ?.fullName || null,
-                senderImage:
-                  userInfos.find(userInfo => userInfo.id === room.receiverId)
-                    ?.image || null,
-                receiverName:
-                  userInfos.find(userInfo => userInfo.id === room.senderId)
-                    ?.fullName || null,
-                receiverImage:
-                  userInfos.find(userInfo => userInfo.id === room.senderId)
-                    ?.image || null,
+                // Current user's info
+                senderName: currentUser?.fullName || null,
+                senderImage: currentUser?.image || null,
+                // The other person in the chat
+                receiverName: otherUser?.fullName || null,
+                receiverImage: otherUser?.image || null,
                 lastMessageAt: room.chat[0]?.createdAt || null,
                 roomId: room.id,
               };
@@ -249,6 +254,8 @@ export function setupSocketIO(server: HTTPServer) {
             );
           }
         };
+
+        // ...existing code...
 
         // Update messageList for both sender and receiver
         await emitMessageList(id);
@@ -391,7 +398,9 @@ export function setupSocketIO(server: HTTPServer) {
           receiverSocket.join(roomName);
         }
 
-        // Emit updated messageList to the user
+        // INSIDE socket.on('fetchChats') - Fix the emitMessageList function
+        //  [socketio.ts](http://_vscodecontentref_/6)
+        // INSIDE socket.on('fetchChats') - Fix the emitMessageList function
         const emitMessageList = async (userId: string) => {
           const rooms = await prisma.room.findMany({
             where: {
@@ -429,6 +438,9 @@ export function setupSocketIO(server: HTTPServer) {
             },
           });
 
+          // Get current user's info
+          const currentUser = userInfos.find(u => u.id === userId);
+
           const roomsWithUnreadMessages = await Promise.all(
             rooms.map(async room => {
               const unReadMessagesCount = await prisma.chat.count({
@@ -438,21 +450,21 @@ export function setupSocketIO(server: HTTPServer) {
                   receiverId: userId,
                 },
               });
+
+              // Get the "other user" from the current user's perspective
+              const otherUserId =
+                room.senderId === userId ? room.receiverId : room.senderId;
+              const otherUser = userInfos.find(u => u.id === otherUserId);
+
               return {
                 chat: room.chat[0],
                 unReadMessagesCount,
-                senderName:
-                  userInfos.find(userInfo => userInfo.id === room.receiverId)
-                    ?.fullName || null,
-                senderImage:
-                  userInfos.find(userInfo => userInfo.id === room.receiverId)
-                    ?.image || null,
-                receiverName:
-                  userInfos.find(userInfo => userInfo.id === room.senderId)
-                    ?.fullName || null,
-                receiverImage:
-                  userInfos.find(userInfo => userInfo.id === room.senderId)
-                    ?.image || null,
+                // Current user's info
+                senderName: currentUser?.fullName || null,
+                senderImage: currentUser?.image || null,
+                // The other person in the chat
+                receiverName: otherUser?.fullName || null,
+                receiverImage: otherUser?.image || null,
                 lastMessageAt: room.chat[0]?.createdAt || null,
                 roomId: room.id,
               };
@@ -528,6 +540,8 @@ export function setupSocketIO(server: HTTPServer) {
 
     socket.on('messageList', async () => {
       try {
+        console.log('📋 messageList requested by user:', id);
+
         // Only fetch rooms where the user is sender or receiver
         const rooms = await prisma.room.findMany({
           where: {
@@ -569,6 +583,9 @@ export function setupSocketIO(server: HTTPServer) {
           },
         });
 
+        // Get current user's info
+        const currentUser = userInfos.find(u => u.id === id);
+
         let filteredRooms = rooms;
 
         // Apply filtering based on saloon owner's subscription plan
@@ -595,7 +612,6 @@ export function setupSocketIO(server: HTTPServer) {
           // PRO_PREMIUM: no restriction
         }
 
-        // ...existing code...
         const roomsWithUnreadMessages = await Promise.all(
           filteredRooms.map(async room => {
             const unReadMessagesCount = await prisma.chat.count({
@@ -606,19 +622,24 @@ export function setupSocketIO(server: HTTPServer) {
               },
             });
 
+            // CRITICAL: Determine the "other user" from current user's perspective
             const otherUserId =
               room.senderId === id ? room.receiverId : room.senderId;
             const otherUser = userInfos.find(u => u.id === otherUserId);
 
+            // console.log(
+            //   [Room ${room.id}: senderId=${room.senderId}, receiverId=${room.receiverId}, currentUserId=${id}, otherUserId=${otherUserId}, otherUserName=${otherUser?.fullName}](http://_vscodecontentref_/6),
+            // );
+
             return {
               chat: room.chat[0], // Always include latest chat
               unReadMessagesCount,
-              // The "other person" in the conversation (from current user's perspective)
+              // Current user's own info
+              senderName: currentUser?.fullName || null,
+              senderImage: currentUser?.image || null,
+              // The other person in the conversation
               receiverName: otherUser?.fullName || null,
               receiverImage: otherUser?.image || null,
-              // Deprecated fields (keep for backward compatibility if needed)
-              senderName: otherUser?.fullName || null,
-              senderImage: otherUser?.image || null,
               saloonOwnerSubscriptionPlan:
                 user.role === UserRoleEnum.SALOON_OWNER
                   ? user.subscriptionPlan
@@ -628,10 +649,26 @@ export function setupSocketIO(server: HTTPServer) {
             };
           }),
         );
-        // ...existing code...
+
+        // Sort by lastMessageAt
+        const sortedRooms = roomsWithUnreadMessages.sort((a, b) => {
+          if (!a.lastMessageAt && !b.lastMessageAt) return 0;
+          if (!a.lastMessageAt) return 1;
+          if (!b.lastMessageAt) return -1;
+          return (
+            new Date(b.lastMessageAt).getTime() -
+            new Date(a.lastMessageAt).getTime()
+          );
+        });
+
+        console.log(
+          '📤 Emitting messageList with',
+          sortedRooms.length,
+          'rooms',
+        );
 
         // Emit all rooms, even if unread count is zero
-        socket.emit('messageList', roomsWithUnreadMessages);
+        socket.emit('messageList', sortedRooms);
       } catch (error) {
         console.error('Error fetching messageList:', error);
       }
