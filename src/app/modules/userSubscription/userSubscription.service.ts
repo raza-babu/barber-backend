@@ -393,7 +393,7 @@ const createUserSubscriptionIntoDb = async (
             <div class="support">
                 <strong>Need Help?</strong><br>
                 If you have any questions or need assistance, our support team is here to help!<br>
-                📧 Email: support@barbershiftapp.com<br>
+                📧 Email: support@barberstime.com<br>
                 ⏰ Hours: Monday-Friday, 9AM-6PM
             </div>
 
