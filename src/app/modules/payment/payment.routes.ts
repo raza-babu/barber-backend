@@ -39,7 +39,7 @@ router.post(
 // Capture the payment request and deduct the amount
 router.post(
   '/capture-payment',
-  auth(),
+  auth(UserRoleEnum.SALOON_OWNER),
   validateRequest(capturedPaymentPayloadSchema),
   PaymentController.capturePaymentRequest,
 );

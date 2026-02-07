@@ -59,6 +59,7 @@ const createAdminAccessFunctionIntoDb = async (
         image: data.image,
         phoneNumber: data.phone,
         status: UserStatus.ACTIVE,
+        isVerified: true,
         isProfileComplete: true,
       },
     });

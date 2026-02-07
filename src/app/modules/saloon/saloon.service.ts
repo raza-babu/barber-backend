@@ -14,6 +14,7 @@ import {
   formatPaginationResponse,
 } from '../../utils/pagination';
 import prisma from '../../utils/prisma';
+import config from '../../../config';
 
 const manageBookingsIntoDb = async (
   userId: string,
@@ -272,16 +273,26 @@ const getBarberDashboardFromDb = async (userId: string) => {
     where: {
       saloonOwnerId: userId,
       status: BookingStatus.PENDING,
+      bookingType: BookingType.BOOKING
     },
   });
 
-  const queueBooking = await prisma.booking.count({
-    where: {
-      saloonOwnerId: userId,
-      // type: 'QUEUE',
-      status: BookingStatus.PENDING,
-    },
-  });
+  const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const queueBooking = await prisma.booking.count({
+      where: {
+        saloonOwnerId: userId,
+        bookingType: BookingType.QUEUE,
+        status: BookingStatus.PENDING,
+        date: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+    });
 
   const jobPostCount = await prisma.jobPost.count({
     where: {
@@ -296,10 +307,9 @@ const getBarberDashboardFromDb = async (userId: string) => {
   });
 
   // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
-  const startDate = DateTime.now()
-    .minus({ months: 11 })
-    .startOf('month')
-    .toJSDate();
+  const startDate = new Date();
+startDate.setUTCHours(0, 0, 0, 0);
+
   const customerGrowthRaw = await prisma.booking.findMany({
     where: {
       saloonOwnerId: userId,
@@ -741,7 +751,7 @@ const getFreeBarbersOnADateFromDb = async (
   if (!date) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date is required');
   }
-  const targetDate = DateTime.fromISO(date, { zone: 'Asia/Dhaka' });
+  const targetDate = DateTime.fromISO(date, { zone: config.timezone });
   if (!targetDate.isValid) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }

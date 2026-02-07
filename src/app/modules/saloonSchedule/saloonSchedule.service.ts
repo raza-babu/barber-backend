@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { DateTime } from 'luxon';
+import config from '../../../config';
 
 // Type for schedule input
 type ScheduleInput = {
@@ -58,8 +59,8 @@ const createSaloonScheduleIntoDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Invalid schedule data format');
     }
 
-    const openingDateTime = DateTime.fromFormat(schedule.openingTime, 'hh:mm a', { zone: 'Asia/Dhaka' }).toUTC().toJSDate();
-    const closingDateTime = DateTime.fromFormat(schedule.closingTime, 'hh:mm a', { zone: 'Asia/Dhaka' }).toUTC().toJSDate();
+    const openingDateTime = DateTime.fromFormat(schedule.openingTime, 'hh:mm a', { zone: config.timezone }).toUTC().toJSDate();
+    const closingDateTime = DateTime.fromFormat(schedule.closingTime, 'hh:mm a', { zone: config.timezone }).toUTC().toJSDate();
 
     return {
       saloonOwnerId: userId,

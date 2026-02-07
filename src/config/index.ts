@@ -7,7 +7,7 @@ dotenv.config({ path: path.join(process.cwd(), ".env") });
 export default {
   env: process.env.NODE_ENV,
   port: process.env.PORT,
-  timezone: process.env.TZ,
+  timezone: process.env.TIMEZONE,
   super_admin_password: process.env.SUPER_ADMIN_PASSWORD,
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
   jwt: {

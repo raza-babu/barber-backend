@@ -10,6 +10,7 @@ const superAdminData = {
   role: UserRoleEnum.SUPER_ADMIN,
   status: UserStatus.ACTIVE,
   isProfileComplete: true,
+  isVerified: true,
 };
 
 const seedSuperAdmin = async () => {
@@ -18,6 +19,7 @@ const seedSuperAdmin = async () => {
     const isSuperAdminExists = await prisma.user.findFirst({
       where: {
         role: UserRoleEnum.SUPER_ADMIN,
+        isVerified: true,
       },
     });
 
