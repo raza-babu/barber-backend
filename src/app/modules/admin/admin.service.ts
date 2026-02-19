@@ -28,7 +28,7 @@ const getSaloonFromDb = async (
     },
     {
       role: UserRoleEnum.SALOON_OWNER,
-      status: options.status || UserStatus.ACTIVE,
+      status: options.status || (UserStatus.ACTIVE && UserStatus.BLOCKED), // Show both active and blocked by default
     },
     {
       startDate: options.startDate,
