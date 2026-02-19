@@ -3629,10 +3629,6 @@ const getAvailableBarbersForWalkingInFromDb = async (
         queueOrder: null,
       };
 
-<<<<<<< HEAD
-    
-=======
->>>>>>> 6f89a6b61acbea7aa3c51a07ea0063c14e702fe1
       const currentDate = new Date();
       currentDate.setUTCHours(0, 0, 0, 0);
 
