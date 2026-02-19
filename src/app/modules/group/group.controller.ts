@@ -108,6 +108,44 @@ const imageToLink = catchAsync(async (req, res) => {
   });
 });
 
+
+const getBarbersList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'experienceYears',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await adminService.getBarbersListFromDb(filters);
+  
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Barbers list retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
+const getBarberById = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await adminService.getBarberByIdFromDb(user.id, req.params.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Barber details retrieved successfully',
+    data: result,
+  });
+});
+
+
 export const groupController = {
   createGroup,
   getGroupList,

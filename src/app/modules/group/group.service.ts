@@ -148,6 +148,216 @@ const deleteGroupItemFromDb = async (userId: string, groupId: string) => {
   }
 };
 
+const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  const whereClause = buildCompleteQuery(
+    {
+      searchTerm: options.searchTerm,
+      searchFields: ['fullName', 'email', 'phoneNumber'],
+    },
+    {
+      role: UserRoleEnum.BARBER,
+      status: options.status,
+    },
+    {
+      startDate: options.startDate,
+      endDate: options.endDate,
+      dateField: 'createdAt',
+    },
+  );
+
+  // Handle Barber specific filters
+  if (options.experienceYears !== undefined) {
+    whereClause.Barber = {
+      experienceYears: {
+        gte: Number(options.experienceYears),
+      },
+    };
+  }
+
+  const [barbers, total] = await Promise.all([
+    prisma.user.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        status: true,
+        Barber: {
+          select: {
+            userId: true,
+            portfolio: true,
+            experienceYears: true,
+            skills: true,
+            bio: true,
+            ratingCount: true,
+            avgRating: true,
+            saloonOwner: {
+              select: {
+                id: true,
+                shopName: true,
+                shopAddress: true,
+              },
+            },
+            HiredBarber: {
+              select: {
+                id: true,
+                hourlyRate: true,
+              },
+            },        
+          },
+        },
+      },
+    }),
+    prisma.user.count({
+      where: whereClause,
+    }),
+  ]);
+
+  // Flatten the response so that Barber fields are at the top level
+  const flattenedBarbers = barbers.map(barber => {
+    const {Barber, ...userFields } = barber;
+    return {
+      ...userFields,
+      userId: Barber?.userId || userFields.id,
+      portfolio: Barber?.portfolio,
+      experienceYears: Barber?.experienceYears,
+      skills: Barber?.skills,
+      bio: Barber?.bio,
+      hourlyRate: Barber?.HiredBarber?.[0]?.hourlyRate || null,
+      shopId: Barber?.saloonOwner?.id ?? null,
+      shopName: Barber?.saloonOwner?.shopName ?? null,
+      shopAddress: Barber?.saloonOwner?.shopAddress ?? null,
+    };
+  });
+
+  return formatPaginationResponse(flattenedBarbers, total, page, limit);
+};
+
+const getBarberByIdFromDb = async (userId: string, barberId: string) => {
+  const result = await prisma.user.findUnique({
+    where: {
+      id: barberId,
+      role: UserRoleEnum.BARBER,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phoneNumber: true,
+      status: true,
+      stripeAccountId: true,
+      stripeAccountUrl: true,
+      createdAt: true,
+      Barber: {
+        select: {
+          userId: true,
+          portfolio: true,
+          experienceYears: true,
+          skills: true,
+          bio: true,
+          ratingCount: true,
+          avgRating: true,
+          saloonOwner: {
+            select: {
+              id: true,
+              shopName: true,
+              shopAddress: true,
+              shopLogo: true,
+              shopImages: true,
+              shopVideo: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!result) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
+  }
+
+  //get bank details from the stripe
+  const stripe = require('stripe')(config.stripe.stripe_secret_key);
+  let account = null;
+  let bankName = null;
+  let accountHolderName = null;
+  let branchCity = null;
+  let branchCode = null;
+  let accountNumber = null;
+
+  if (result.stripeAccountId) {
+    account = await stripe.accounts.retrieve(result.stripeAccountId);
+
+    // Stripe external_accounts may contain bank details
+    interface StripeBankAccount {
+      object: string;
+      bank_name?: string;
+      routing_number?: string;
+      last4?: string;
+      [key: string]: any;
+    }
+
+    interface StripeExternalAccounts {
+      data?: StripeBankAccount[];
+      [key: string]: any;
+    }
+
+    interface StripeAccount {
+      external_accounts?: StripeExternalAccounts;
+      [key: string]: any;
+    }
+
+    const bankAccount: StripeBankAccount | undefined = (
+      account as StripeAccount
+    )?.external_accounts?.data?.find(
+      (acc: StripeBankAccount) => acc.object === 'bank_account',
+    );
+    bankName = bankAccount?.bank_name || null;
+    accountHolderName =
+      account?.individual?.first_name && account?.individual?.last_name
+        ? `${account.individual.first_name} ${account.individual.last_name}`
+        : null;
+
+    branchCity = bankAccount?.bank_name || null;
+    branchCode = bankAccount?.routing_number || null;
+    accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+  }
+
+  return {
+    barberIdd: result.id,
+    fullName: result.fullName,
+    email: result.email,
+    phoneNumber: result.phoneNumber,
+    status: result.status,
+    portfolio: result.Barber?.portfolio || [],
+    experienceYears: result.Barber?.experienceYears || 0,
+    skills: result.Barber?.skills || [],
+    bio: result.Barber?.bio || '',
+    shopId: result.Barber?.saloonOwner?.id || null,
+    shopName: result.Barber?.saloonOwner?.shopName || null,
+    shopAddress: result.Barber?.saloonOwner?.shopAddress || null,
+    shopLogo: result.Barber?.saloonOwner?.shopLogo || null,
+    shopImages: result.Barber?.saloonOwner?.shopImages || [],
+    shopVideo: result.Barber?.saloonOwner?.shopVideo || null,
+    ratingCount: result.Barber?.ratingCount || 0,
+    avgRating: result.Barber?.avgRating || 0,
+    bankDetails: {
+      bankName,
+      accountHolderName,
+      accountNumber,
+      branchCity,
+      branchCode,
+    },
+  };
+};
+
 export const groupService = {
   createGroupIntoDb,
   getGroupListFromDb,
