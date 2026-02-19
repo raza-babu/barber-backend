@@ -28,7 +28,9 @@ const getSaloonFromDb = async (
     },
     {
       role: UserRoleEnum.SALOON_OWNER,
-      ...(options.status ? { status: options.status } : {}), // Omit status filter to show all statuses by default
+      ...(options.status
+        ? { status: options.status }
+        : { status: { not: UserStatus.PENDING } }),
     },
     {
       startDate: options.startDate,
