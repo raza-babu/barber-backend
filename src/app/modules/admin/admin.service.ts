@@ -444,6 +444,12 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
                 shopAddress: true,
               },
             },
+            HiredBarber: {
+              select: {
+                id: true,
+                hourlyRate: true,
+              },
+            },        
           },
         },
       },
@@ -463,6 +469,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
       experienceYears: Barber?.experienceYears,
       skills: Barber?.skills,
       bio: Barber?.bio,
+      hourlyRate: Barber?.HiredBarber?.[0]?.hourlyRate || null,
       shopId: Barber?.saloonOwner?.id ?? null,
       shopName: Barber?.saloonOwner?.shopName ?? null,
       shopAddress: Barber?.saloonOwner?.shopAddress ?? null,
