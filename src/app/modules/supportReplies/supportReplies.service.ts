@@ -88,13 +88,13 @@ const getSupportRepliesReportsFromDb = async (
         },
         Reply: {
           where: {
-            reportId: whereClause.id,
+            supportId: whereClause.id,
             type: ReplyType.REPORT,
           },
           select: {
             id: true,
             userId: true,
-            reportId: true,
+            supportId: true,
             message: true,
             status: true,
             type: true,
@@ -109,7 +109,7 @@ const getSupportRepliesReportsFromDb = async (
 
   // Flatten the user object into each report
   const flattenedReports = reports.map(report => ({
-    reportId: report.id,
+    supportId: report.id,
     userId: report.userId,
     userName: report.userName,
     message: report.message,
@@ -170,7 +170,7 @@ const getSupportRepliesListFromDb = async (
           select: {
             id: true,
             userId: true,
-            reportId: true,
+            supportId: true,
             message: true,
             status: true,
             type: true,
@@ -404,12 +404,12 @@ const getSpecificRepliesByIdFromDb = async (
 ) => {
   const result = await prisma.reply.findFirst({
     where: {
-      reportId: supportRepliesId,
+      supportId: supportRepliesId,
     },
     select: {
       id: true,
       userId: true,
-      reportId: true,
+      supportId: true,
       message: true,
       status: true,
       type: true,
@@ -421,7 +421,7 @@ const getSpecificRepliesByIdFromDb = async (
 
   return {
     id: result.id,
-    reportId: result.reportId,
+    supportId: result.supportId,
     userId: result.userId,
     message: result.message,
     status: result.status,
