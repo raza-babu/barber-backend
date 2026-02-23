@@ -4,6 +4,8 @@ import catchAsync from '../../utils/catchAsync';
 import { groupService } from './group.service';
 import AppError from '../../errors/AppError';
 import { uploadFileToS3 } from '../../utils/multipleFile';
+import { pickValidFields } from '../../utils/pickValidFields';
+import { adminService } from '../admin/admin.service';
 
 const createGroup = catchAsync(async (req, res) => {
   const user = req.user as any;
