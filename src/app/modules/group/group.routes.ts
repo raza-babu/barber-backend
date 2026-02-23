@@ -27,23 +27,7 @@ router.post(
   groupController.imageToLink,
 );
 
-router.get(
-  '/barbers',
-  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
-  checkPermissions(
-    UserAccessFunctionName.ALL || UserAccessFunctionName.BARBER_MANAGEMENT,
-  ),
-  adminController.getBarbersList,
-);
 
-router.get(
-  '/barber/:id',
-  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
-  checkPermissions(
-    UserAccessFunctionName.ALL || UserAccessFunctionName.BARBER_MANAGEMENT,
-  ),
-  adminController.getBarberById,
-);
 
 router.get('/:groupId', auth(), groupController.getGroupById);
 

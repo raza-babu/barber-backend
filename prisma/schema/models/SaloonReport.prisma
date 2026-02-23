@@ -9,7 +9,6 @@ model SaloonReport {
   // Relationships
   user   User        @relation(fields: [userId], references: [id])
   saloon SaloonOwner @relation(fields: [saloonId], references: [userId])
-  Reply  Reply[]
 
   @@map("saloon_reports")
 }

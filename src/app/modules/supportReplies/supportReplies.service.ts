@@ -86,6 +86,20 @@ const getSupportRepliesReportsFromDb = async (
             address: true,
           },
         },
+        Reply: {
+          where: {
+            reportId: whereClause.id,
+            type: ReplyType.REPORT,
+          },
+          select: {
+            id: true,
+            userId: true,
+            reportId: true,
+            message: true,
+            status: true,
+            type: true,
+          },
+        },
       },
     }),
     prisma.support.count({
@@ -99,11 +113,13 @@ const getSupportRepliesReportsFromDb = async (
     userId: report.userId,
     userName: report.userName,
     message: report.message,
+    reply: report.Reply.length > 0 ? report.Reply[0].message : null,
     status: report.status,
     type: report.type,
     userPhoneNumber: report.user.phoneNumber,
     userAddress: report.user.address,
   }));
+
   return formatPaginationResponse(flattenedReports, total, page, limit);
 };
 
@@ -150,6 +166,16 @@ const getSupportRepliesListFromDb = async (
             address: true,
           },
         },
+        Reply: {
+          select: {
+            id: true,
+            userId: true,
+            reportId: true,
+            message: true,
+            status: true,
+            type: true,
+          },
+        },
       },
     }),
     prisma.support.count({
@@ -162,6 +188,7 @@ const getSupportRepliesListFromDb = async (
     userId: reply.userId,
     userName: reply.userName,
     message: reply.message,
+    reply: reply.Reply.length > 0 ? reply.Reply[0].message : null,
     status: reply.status,
     type: reply.type,
     userPhoneNumber: reply.user.phoneNumber,
@@ -358,7 +385,7 @@ const updateSupportRepliesIntoDb = async (
     const reportUpdate = await tx.reply.create({
       data: {
         userId: userId,
-        reportId: supportRepliesId,
+        supportId: supportRepliesId,
         message: data.message,
         type: ReplyType.REPORT,
         status: ReplyStatus.CLOSED,
@@ -382,7 +409,7 @@ const getSpecificRepliesByIdFromDb = async (
     select: {
       id: true,
       userId: true,
-      supportId: true,
+      reportId: true,
       message: true,
       status: true,
       type: true,
@@ -394,7 +421,7 @@ const getSpecificRepliesByIdFromDb = async (
 
   return {
     id: result.id,
-    supportId: result.supportId,
+    reportId: result.reportId,
     userId: result.userId,
     message: result.message,
     status: result.status,
@@ -414,6 +441,7 @@ const getSpecificSupportReplyByIdFromDb = async (
     select: {
       id: true,
       userId: true,
+      supportId: true,
       message: true,
       status: true,
       type: true,
@@ -425,6 +453,7 @@ const getSpecificSupportReplyByIdFromDb = async (
 
   return {
     id: result.id,
+    supportId: result.supportId,
     userId: result.userId,
     message: result.message,
     status: result.status,
