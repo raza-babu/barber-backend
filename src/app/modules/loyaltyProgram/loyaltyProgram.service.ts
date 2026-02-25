@@ -3,6 +3,7 @@ import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { calculatePagination } from '../../utils/pagination';
 
 const createLoyaltyProgramIntoDb = async (
   userId: string,
@@ -50,11 +51,8 @@ const getLoyaltyProgramListFromDb = async (
   userId: string,
   options: ISearchAndFilterOptions,
 ) => {
-  const page = Number(options.page || 1);
-  const limit = Number(options.limit || 10);
-  const skip = (page - 1) * limit;
-  const sortBy = options.sortBy || 'createdAt';
-  const sortOrder = options.sortOrder || 'desc';
+    const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  
   const searchTerm = options.searchTerm || '';
 
   const whereCondition = {
