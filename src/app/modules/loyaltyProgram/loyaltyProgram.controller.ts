@@ -3,6 +3,7 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { loyaltyProgramService } from './loyaltyProgram.service';
 import { SubscriptionPlanStatus } from '@prisma/client';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 const createLoyaltyProgram = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -57,12 +58,14 @@ const getLoyaltyProgramList = catchAsync(async (req, res) => {
   ) {
     const result = await loyaltyProgramService.getLoyaltyProgramListFromDb(
       user.id,
+      req.query as ISearchAndFilterOptions,
     );
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
       message: 'LoyaltyProgram list retrieved successfully',
-      data: result,
+      data: result.data,
+      meta: result.meta,
     });
   }
 });
