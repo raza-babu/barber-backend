@@ -20,6 +20,7 @@ model Booking {
   barberImage     String?
   loyaltyUsed     Boolean       @default(false)
   loyaltySchemeId String?       @db.ObjectId
+  checkIn         Boolean       @default(false)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

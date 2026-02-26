@@ -569,6 +569,185 @@ const cancelPaymentRequestToStripe = async (
   });
 };
 
+const SERVICE_FEE_PENCE = 50; // £0.50
+
+const cancelQueuePaymentRequestToStripe = async (
+  userId: string,
+  payload: { bookingId: string },
+) => {
+  const { bookingId } = payload;
+
+  return await prisma.$transaction(async tx => {
+    /* ---------------------------------------------------- */
+    /* 1 Validate Booking                                */
+    /* ---------------------------------------------------- */
+
+    const findBooking = await tx.booking.findUnique({
+      where: {
+        id: bookingId,
+        saloonOwnerId: userId,
+        status: BookingStatus.CONFIRMED,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            stripeCustomerId: true,
+          },
+        },
+      },
+    });
+
+    if (!findBooking) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    }
+
+    /* ---------------------------------------------------- */
+    /* 2 Validate Payment                                */
+    /* ---------------------------------------------------- */
+
+    const findPayment = await tx.payment.findFirst({
+      where: {
+        bookingId: findBooking.id,
+        status: {
+          in: [
+            PaymentStatus.REQUIRES_CAPTURE,
+            PaymentStatus.COMPLETED,
+          ],
+        },
+      },
+    });
+
+    if (!findPayment) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Payment record not found',
+      );
+    }
+
+    if (!findPayment.paymentIntentId) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Payment Intent ID missing',
+      );
+    }
+
+    /* ---------------------------------------------------- */
+    /* 3 Get PaymentIntent from Stripe                   */
+    /* ---------------------------------------------------- */
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(
+      findPayment.paymentIntentId,
+    );
+
+    const totalAmount = paymentIntent.amount;
+
+    if (!totalAmount || totalAmount <= 0) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Invalid payment amount',
+      );
+    }
+
+    /* ---------------------------------------------------- */
+    /* 4 CASE A: Payment Requires Capture                */
+    /* ---------------------------------------------------- */
+
+    if (paymentIntent.status === 'requires_capture') {
+      const captureAmount = Math.min(
+        SERVICE_FEE_PENCE,
+        totalAmount,
+      );
+
+      const captured = await stripe.paymentIntents.capture(
+        findPayment.paymentIntentId,
+        {
+          amount_to_capture: captureAmount,
+        },
+      );
+
+      if (captured.status !== 'succeeded') {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Failed to capture service fee',
+        );
+      }
+
+      await tx.payment.update({
+        where: { id: findPayment.id },
+        data: {
+          status: PaymentStatus.REFUNDED,
+          paymentAmount: captureAmount,
+        },
+      });
+    }
+
+    /* ---------------------------------------------------- */
+    /* 5 CASE B: Payment Already Captured                */
+    /* ---------------------------------------------------- */
+
+    else if (paymentIntent.status === 'succeeded') {
+      const refundAmount = Math.max(
+        0,
+        totalAmount - SERVICE_FEE_PENCE,
+      );
+
+      if (refundAmount > 0) {
+        await stripe.refunds.create({
+          payment_intent: findPayment.paymentIntentId,
+          amount: refundAmount,
+        });
+      }
+
+      await tx.payment.update({
+        where: { id: findPayment.id },
+        data: {
+          status: PaymentStatus.REFUNDED,
+          paymentAmount: refundAmount,
+        },
+      });
+    }
+
+    /* ---------------------------------------------------- */
+    /* 6 Update Queue + Booking                          */
+    /* ---------------------------------------------------- */
+
+    await tx.barberRealTimeStatus.deleteMany({
+      where: {
+        barberId: findBooking.barberId,
+        startDateTime: findBooking.startDateTime!,
+        endDateTime: findBooking.endDateTime!,
+      },
+    });
+
+    await tx.queueSlot.updateMany({
+      where: { bookingId },
+      data: { status: QueueStatus.CANCELLED },
+    });
+
+    await tx.queue.updateMany({
+      where: {
+        barberId: findBooking.barberId,
+        saloonOwnerId: findBooking.saloonOwnerId,
+        date: findBooking.date,
+      },
+      data: {
+        currentPosition: {
+          decrement: 1,
+        },
+      },
+    });
+
+    const updateBooking = await tx.booking.update({
+      where: { id: findBooking.id },
+      data: { status: BookingStatus.CANCELLED },
+    });
+
+    return updateBooking;
+  });
+};
+
 // New Route: Save a New Card for Existing Customer
 const saveNewCardWithExistingCustomerIntoStripe = async (payload: {
   customerId: string;
@@ -993,6 +1172,7 @@ export const StripeServices = {
   payoutToBarberService,
   withdrawFundsFromStripeService,
   cancelPaymentRequestToStripe,
+  cancelQueuePaymentRequestToStripe
 };
 
 

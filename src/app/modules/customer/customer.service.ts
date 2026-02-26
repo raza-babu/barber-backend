@@ -1,7 +1,7 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { BookingStatus, BookingType, Prisma, User } from '@prisma/client';
+import { BookingStatus, BookingType, Prisma, RedemptionStatus, User } from '@prisma/client';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
@@ -1567,35 +1567,27 @@ const getVisitedSaloonListFromDb = async (
   const { page = 1, limit = 10 } = query;
   const skip = (page - 1) * limit;
 
-  // Get all visited saloonOwnerIds for the user (deduplicated)
-  const allVisits = await prisma.customerVisit.findMany({
-    where: {
-      customerId: userId,
-    },
+  /* ---------------------------------------------------- */
+  /* 1 Get distinct visited saloons (paginated)        */
+  /* ---------------------------------------------------- */
+
+  const distinctVisits = await prisma.customerVisit.findMany({
+    where: { customerId: userId },
+    distinct: ['saloonOwnerId'],
     select: {
       saloonOwnerId: true,
-      customer: {
-        select: {
-          fullName: true,
-          email: true,
-          phoneNumber: true,
-          image: true,
-        },
-      },
     },
     orderBy: {
       createdAt: 'desc',
     },
   });
 
-  const distinctSaloonIds = Array.from(
-    new Set(allVisits.map(v => v.saloonOwnerId)),
-  ).filter(Boolean) as string[];
+  const total = distinctVisits.length;
 
-  const total = distinctSaloonIds.length;
+  const pagedSaloonIds = distinctVisits
+    .map(v => v.saloonOwnerId)
+    .slice(skip, skip + limit);
 
-  // Apply pagination on distinct saloon ids
-  const pagedSaloonIds = distinctSaloonIds.slice(skip, skip + limit);
   if (pagedSaloonIds.length === 0) {
     return {
       data: [],
@@ -1604,24 +1596,26 @@ const getVisitedSaloonListFromDb = async (
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1,
       },
     };
   }
 
-  // Get the latest visit record per saloon for this user (to provide visit detail like lastVisited)
+  /* ---------------------------------------------------- */
+  /* 2 Get latest visit per saloon                     */
+  /* ---------------------------------------------------- */
+
   const visits = await prisma.customerVisit.findMany({
     where: {
       customerId: userId,
       saloonOwnerId: { in: pagedSaloonIds },
     },
-    // select minimal safe fields; adjust if your model has other visit fields you want to expose
     select: {
       saloonOwnerId: true,
-      createdAt: true, // used as lastVisitedAt
-      // If your CustomerVisit has a visitCount or totalVisits field, add it here, e.g. visitCount: true
+      createdAt: true,
       saloon: {
         select: {
-          userId: true,
           shopName: true,
         },
       },
@@ -1631,7 +1625,30 @@ const getVisitedSaloonListFromDb = async (
     },
   });
 
-  // Get loyalty info for these saloons in a single query
+  /* ---------------------------------------------------- */
+  /* 3 Visit count per saloon                          */
+  /* ---------------------------------------------------- */
+
+  const visitCounts = await prisma.customerVisit.groupBy({
+    by: ['saloonOwnerId'],
+    where: {
+      customerId: userId,
+      saloonOwnerId: { in: pagedSaloonIds },
+    },
+    _count: {
+      _all: true,
+    },
+  });
+
+  const visitCountMap: Record<string, number> = {};
+  visitCounts.forEach(v => {
+    visitCountMap[v.saloonOwnerId] = v._count._all;
+  });
+
+  /* ---------------------------------------------------- */
+  /* 4 Get customer loyalty records                    */
+  /* ---------------------------------------------------- */
+
   const loyalties = await prisma.customerLoyalty.findMany({
     where: {
       userId,
@@ -1640,19 +1657,64 @@ const getVisitedSaloonListFromDb = async (
     select: {
       saloonOwnerId: true,
       totalPoints: true,
-      // add other loyalty fields you need, e.g. tier: true
     },
   });
 
-  const loyaltyBySaloon = loyalties.reduce<Record<string, any>>((acc, l) => {
-    acc[l.saloonOwnerId] = l;
-    return acc;
-  }, {});
+  const loyaltyMap: Record<string, number> = {};
+  loyalties.forEach(l => {
+    loyaltyMap[l.saloonOwnerId] = l.totalPoints ?? 0;
+  });
 
-  // Build final list preserving pagination order
-  const loyaltySchemes = await prisma.loyaltyScheme.findMany({
+  /* ---------------------------------------------------- */
+  /* 5 Get APPROVED redemptions                        */
+  /* ---------------------------------------------------- */
+
+  const redemptions = await prisma.loyaltyRedemption.findMany({
+    where: {
+      customerId: userId,
+      status: RedemptionStatus.APPLIED,
+      LoyaltyScheme: {
+        userId: { in: pagedSaloonIds },
+      },
+    },
+    select: {
+      pointsUsed: true,
+      LoyaltyScheme: {
+        select: {
+          userId: true, // saloonOwnerId
+        },
+      },
+    },
+  });
+
+  const redemptionMap: Record<string, number> = {};
+
+  redemptions.forEach(r => {
+    const saloonId = r.LoyaltyScheme.userId;
+    redemptionMap[saloonId] =
+      (redemptionMap[saloonId] || 0) + (r.pointsUsed || 0);
+  });
+
+  /* ---------------------------------------------------- */
+  /* 6 Calculate effective points                      */
+  /* ---------------------------------------------------- */
+
+  const effectivePointsMap: Record<string, number> = {};
+
+  pagedSaloonIds.forEach(salId => {
+    const totalPoints = loyaltyMap[salId] || 0;
+    const usedPoints = redemptionMap[salId] || 0;
+    effectivePointsMap[salId] = totalPoints - usedPoints;
+  });
+
+  /* ---------------------------------------------------- */
+  /* 7 Get active loyalty schemes                      */
+  /* ---------------------------------------------------- */
+
+  const schemes = await prisma.loyaltyScheme.findMany({
     where: {
       userId: { in: pagedSaloonIds },
+      isActive: true,
     },
     select: {
       userId: true,
@@ -1661,98 +1723,58 @@ const getVisitedSaloonListFromDb = async (
     },
   });
 
-  // console.log(loyaltySchemes);
+  const schemeMap: Record<string, any[]> = {};
 
-  const schemesBySaloon = loyaltySchemes.reduce<Record<string, any[]>>(
-    (acc, s) => {
-      acc[s.userId] = acc[s.userId] || [];
-      acc[s.userId].push(s);
-      return acc;
-    },
-    {},
-  );
-
-  // Sort schemes for each saloon by descending pointThreshold (highest first)
-  Object.values(schemesBySaloon).forEach(arr =>
-    arr.sort((a, b) => (b.pointThreshold ?? 0) - (a.pointThreshold ?? 0)),
-  );
-
-  // Pick the best applicable scheme per saloon based on the customer's totalPoints.
-  // If the customer has no loyalty record for a saloon, or doesn't meet any threshold,
-  // the mapping will contain null (meaning not eligible).
-  const loyaltySchemeBySaloon: Record<string, any | null> = {};
-  Object.keys(schemesBySaloon).forEach(salId => {
-    const schemes = schemesBySaloon[salId];
-    const loyalty = loyaltyBySaloon[salId];
-
-    if (loyalty && Array.isArray(schemes) && schemes.length > 0) {
-      // find highest threshold that the customer qualifies for
-      const matched = schemes.find(
-        sch => (loyalty.totalPoints ?? 0) >= (sch.pointThreshold ?? 0),
-      );
-      loyaltySchemeBySaloon[salId] = matched ?? null;
-    } else {
-      loyaltySchemeBySaloon[salId] = null;
+  schemes.forEach(s => {
+    if (!schemeMap[s.userId]) {
+      schemeMap[s.userId] = [];
     }
+    schemeMap[s.userId].push(s);
   });
+
+  // Sort schemes by highest threshold first
+  Object.values(schemeMap).forEach(arr =>
+    arr.sort((a, b) => b.pointThreshold - a.pointThreshold),
+  );
+
+  /* ---------------------------------------------------- */
+  /* 8 Build response                                  */
+  /* ---------------------------------------------------- */
 
   const data = pagedSaloonIds.map(sid => {
     const visit = visits.find(v => v.saloonOwnerId === sid);
-    const loyalty = loyaltyBySaloon[sid];
-    const scheme = loyaltySchemeBySaloon[sid];
 
-    // get the customer's last visit record for this saloon (if any)
-    const customerVisit = allVisits.find(v => v.saloonOwnerId === sid);
+    const totalPoints = loyaltyMap[sid] || 0;
+    const effectivePoints = effectivePointsMap[sid] || 0;
 
-    // All schemes available for this saloon (may be empty)
-    const schemes = schemesBySaloon[sid] ?? [];
+    const schemesForSaloon = schemeMap[sid] || [];
 
-    // Build offers array with eligibility info so customer can choose
-    const offers = schemes.map((sch: any, idx: number) => {
-      const threshold = Number(sch.pointThreshold ?? 0);
-      const percentage = Number(sch.percentage ?? 0);
-      const totalPoints = Number(loyalty?.totalPoints ?? 0);
-      const eligible = totalPoints >= threshold;
+    const offers = schemesForSaloon.map((sch, idx) => {
+      const threshold = sch.pointThreshold ?? 0;
+      const percentage = sch.percentage ?? 0;
+
+      const eligible = effectivePoints >= threshold;
+
       return {
-        // include a local identifier in case scheme lacks an id
         schemeKey: `${sid}#${idx}`,
         pointThreshold: threshold,
         percentage,
         eligible,
-        pointsNeeded: Math.max(0, threshold - totalPoints),
-        // raw scheme (optional) - keep minimal to avoid leaking unrelated fields
-        // raw: {
-        // userId: sch.userId,
-        // pointThreshold: sch.pointThreshold,
-        // percentage: sch.percentage,
-        // },
+        pointsNeeded: Math.max(0, threshold - effectivePoints),
       };
     });
 
-    // Only the offers customer can actually use right now
-    const applicableOffers = offers.filter((o: any) => o.eligible);
-
-    const offerEligible = !!(
-      loyalty &&
-      scheme &&
-      loyalty.totalPoints >= scheme.pointThreshold
-    );
-    const offerPercentage = offerEligible ? (scheme.percentage ?? 0) : 0;
+    const applicableOffers = offers.filter(o => o.eligible);
 
     return {
       saloonOwnerId: sid,
       shopName: visit?.saloon?.shopName ?? null,
-      customerName: customerVisit?.customer?.fullName ?? null,
-      customerImage: customerVisit?.customer?.image ?? null,
-      visitCount: visits.filter(v => v.saloonOwnerId === sid).length,
+      visitCount: visitCountMap[sid] || 0,
       lastVisitedAt: visit?.createdAt ?? null,
-      totalPoints: loyalty?.totalPoints ?? 0,
-      // legacy single best offer info (kept for compatibility)
-      // offerEligible,
-      // offerPercentage,
-      // new arrays for customers to choose from
-      offers, // all offers defined for this saloon with eligibility flags
-      applicableOffers, // only offers the customer currently qualifies for
+      totalPoints: effectivePoints,
+      // effectivePoints,
+      offers,
+      applicableOffers,
     };
   });
 
@@ -1763,6 +1785,8 @@ const getVisitedSaloonListFromDb = async (
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      hasNextPage: page < Math.ceil(total / limit),
+      hasPrevPage: page > 1,
     },
   };
 };

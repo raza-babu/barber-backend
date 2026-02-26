@@ -5709,6 +5709,13 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
       },
     });
 
+    // delete the loyalty redemption record if exists for this booking
+    await tx.loyaltyRedemption.deleteMany({
+      where: {
+        bookingId: bookingId,
+      },
+    });
+
     return updatedBooking;
   });
 

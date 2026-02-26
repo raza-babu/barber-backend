@@ -63,7 +63,7 @@ router.delete(
 
 router.get(
   '/saloon-services/:id',
-  auth(UserRoleEnum.CUSTOMER),
+  auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER),
   customerController.getSaloonAllServicesList,
 );
 

@@ -102,6 +102,19 @@ const cancelPaymentRequest = catchAsync(async (req: any, res: any) => {
   });
 });
 
+const cancelQueuePaymentRequest = catchAsync(async (req: any, res: any) => {
+  const user = req.user as any;
+  const result = await StripeServices.cancelQueuePaymentRequestToStripe(
+    user.id,
+    req.body,
+  );
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Cancel queue payment request successfully',
+    data: result,
+  });
+});
 
 // Save new card to existing customer
 const saveNewCardWithExistingCustomer = catchAsync(
@@ -896,6 +909,7 @@ export const PaymentController = {
   refundPaymentToCustomer,
   createPaymentIntent,
   cancelPaymentRequest,
+  cancelQueuePaymentRequest,
   getCustomerDetails,
   getAllCustomers,
   createAccount,
