@@ -1,8 +1,10 @@
+import { StripeServices } from './../payment/payment.service';
 import prisma from '../../utils/prisma';
 import {
   BookingStatus,
   BookingType,
   PaymentStatus,
+  QueueStatus,
   RedemptionStatus,
   ScheduleType,
   UserRoleEnum,
@@ -14,6 +16,7 @@ import { calculatePagination } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { customerService } from '../customer/customer.service';
 import config from '../../../config';
+
 
 const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
   const {
@@ -5543,6 +5546,7 @@ const updateBookingStatusIntoDb = async (
               service: true,
             },
           },
+          queueSlot: true,
         },
       });
 
@@ -5603,6 +5607,121 @@ const updateBookingStatusIntoDb = async (
           where: { id: bookingId, saloonOwnerId: userId },
           data: { status: BookingStatus.COMPLETED },
         });
+
+        await tx.barberRealTimeStatus.deleteMany({
+          where: {
+            barberId: bookingWithServices.barberId,
+            startDateTime: bookingWithServices.startDateTime || new Date(),
+            endDateTime: bookingWithServices.endDateTime || new Date(),
+          },
+        });
+
+        await tx.queueSlot.updateMany({
+          where: { bookingId: bookingId },
+          data: { status: 'COMPLETED' },
+        });
+
+        await tx.queue.updateMany({
+          where: { id: bookingWithServices.queueSlot?.[0]?.queueId },
+          data: { currentPosition: { decrement: 1 } },
+        });
+
+       await StripeServices.capturePaymentRequestToStripe(userId, {bookingId, status: BookingStatus.COMPLETED});
+
+        return completedBooking;
+      }
+    }
+    if (status === BookingStatus.NO_SHOW) {
+      // Get booked services and calculate loyalty points
+      const bookingWithServices = await tx.booking.findUnique({
+        where: { id: bookingId, saloonOwnerId: userId },
+        include: {
+          BookedServices: {
+            include: {
+              service: true,
+            },
+          },
+          queueSlot: true,
+        },
+      });
+
+      if (bookingWithServices) {
+        const serviceIds = bookingWithServices.BookedServices.map(
+          bs => bs.serviceId,
+        );
+        const totalAmount = bookingWithServices.BookedServices.reduce(
+          (sum, bs) => sum + Number(bs.price),
+          0,
+        );
+
+        // Find loyalty points for services
+        const findPoints = await tx.loyaltyProgram.findFirst({
+          where: {
+            userId: userId,
+            serviceId: { in: serviceIds },
+          },
+          select: { points: true, id: true },
+        });
+
+        let pointsToAdd = 0;
+        if (findPoints) {
+          pointsToAdd = (findPoints.points || 0) * serviceIds.length;
+        }
+
+        // Upsert customer loyalty
+        await tx.customerLoyalty.upsert({
+          where: {
+            userId_saloonOwnerId: {
+              userId: bookingWithServices.userId,
+              saloonOwnerId: userId,
+            },
+          },
+          create: {
+            userId: bookingWithServices.userId,
+            saloonOwnerId: userId,
+            totalPoints: pointsToAdd,
+          },
+          update: {
+            totalPoints: { increment: pointsToAdd },
+          },
+        });
+
+        // Create customer visit record
+        await tx.customerVisit.create({
+          data: {
+            customerId: bookingWithServices.userId,
+            saloonOwnerId: userId,
+            visitDate: new Date(),
+            amountSpent: totalAmount,
+            serviceId: serviceIds,
+          },
+        });
+
+        // Update booking status to COMPLETED
+        const completedBooking = await tx.booking.update({
+          where: { id: bookingId, saloonOwnerId: userId },
+          data: { status: BookingStatus.NO_SHOW },
+        });
+
+         await tx.barberRealTimeStatus.deleteMany({
+          where: {
+            barberId: bookingWithServices.barberId,
+            startDateTime: bookingWithServices.startDateTime || new Date(),
+            endDateTime: bookingWithServices.endDateTime || new Date(),
+          },
+        });
+
+        await tx.queueSlot.updateMany({
+          where: { bookingId: bookingId },
+          data: { status: QueueStatus.NO_SHOW },
+        });
+
+        await tx.queue.updateMany({
+          where: { id: bookingWithServices.queueSlot?.[0]?.queueId },
+          data: { currentPosition: { decrement: 1 } },
+        });
+
+       await StripeServices.capturePaymentRequestToStripe(userId, {bookingId, status: BookingStatus.NO_SHOW});
 
         return completedBooking;
       }
