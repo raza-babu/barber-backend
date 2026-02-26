@@ -53,7 +53,7 @@ const getLoyaltyProgramListFromDb = async (
 ) => {
     const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
   
-  const searchTerm = options.searchTerm || '';
+  const searchTerm = options.searchTerm || '' ;
 
   const whereCondition = {
     userId: userId,
