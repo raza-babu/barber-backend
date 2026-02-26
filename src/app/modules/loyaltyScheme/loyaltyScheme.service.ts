@@ -121,18 +121,78 @@ const updateLoyaltySchemeIntoDb = async (
     percentage?: number;
   },
 ) => {
-  const result = await prisma.loyaltyScheme.update({
+
+  const existingScheme = await prisma.loyaltyScheme.findFirst({
     where: {
       id: loyaltySchemeId,
       userId: userId,
     },
-    data: {
-      ...data,
+  });
+
+  if (!existingScheme) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Loyalty scheme not found for this user.',
+    );
+  }
+
+  if (data.pointThreshold !== undefined && data.pointThreshold <= 0) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Point threshold must be greater than 0.',
+    );
+  }
+
+  if (data.percentage !== undefined) {
+    if (data.percentage <= 0 || data.percentage > 100) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Percentage must be between 1 and 100.',
+      );
+    }
+  }
+
+  const finalPointThreshold =
+    data.pointThreshold ?? existingScheme.pointThreshold;
+
+  const finalPercentage =
+    data.percentage ?? existingScheme.percentage;
+
+  const duplicateScheme = await prisma.loyaltyScheme.findFirst({
+    where: {
+      userId: userId,
+      pointThreshold: finalPointThreshold,
+      percentage: finalPercentage,
+      NOT: {
+        id: loyaltySchemeId,
+      },
     },
   });
-  if (!result) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'loyaltySchemeId, not updated');
+
+  if (duplicateScheme) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'A loyalty scheme with the same point threshold and percentage already exists.',
+    );
   }
+
+  if (
+    finalPointThreshold === existingScheme.pointThreshold &&
+    finalPercentage === existingScheme.percentage
+  ) {
+    return existingScheme;
+  }
+
+  const result = await prisma.loyaltyScheme.update({
+    where: {
+      id: loyaltySchemeId,
+    },
+    data: {
+      pointThreshold: finalPointThreshold,
+      percentage: finalPercentage,
+    },
+  });
+
   return result;
 };
 
