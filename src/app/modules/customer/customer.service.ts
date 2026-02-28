@@ -558,6 +558,11 @@ const getAllSaloonListFromDb = async (
               },
             },
           },
+          Service: {
+            select: {
+              serviceName: true
+            }
+          }
         },
       },
       FavoriteShop: { select: { id: true, userId: true } },
@@ -655,6 +660,7 @@ const getAllSaloonListFromDb = async (
 
         // User specific
         isFavorite,
+        isServiceAvailable: saloon.user.Service.length > 0
       };
     }),
   );
@@ -971,6 +977,12 @@ const getMyNearestSaloonListFromDb = async (
         select: {
           phoneNumber: true,
           email: true,
+          Service: {
+            select: {
+              serviceName: true
+            }
+          },
+
           HiredBarber: {
             select: {
               barberId: true,
@@ -1126,6 +1138,8 @@ const getMyNearestSaloonListFromDb = async (
 
         // User specific
         isFavorite,
+        isServiceAvailable: saloon.user.Service.length > 0
+
       };
     }),
   );
@@ -1249,6 +1263,11 @@ const getTopRatedSaloonsFromDb = async (
               },
             },
           },
+          Service: {
+            select: {
+              serviceName: true
+            }
+          }
         },
       },
       FavoriteShop: { select: { id: true, userId: true } },
@@ -1348,6 +1367,7 @@ const getTopRatedSaloonsFromDb = async (
 
         // User specific
         isFavorite,
+        isServiceAvailable: saloon.user.Service.length > 0
       };
     }),
   );
