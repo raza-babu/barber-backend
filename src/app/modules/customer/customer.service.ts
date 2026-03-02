@@ -1966,6 +1966,81 @@ const updateCustomerIntoDb = async (
   return result;
 };
 
+const checkInToSaloonInDb = async (
+  userId: string, 
+  bookingId: string,
+  latitude: number,
+  longitude: number
+) => {
+    // Find the booking
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        saloonOwner: {
+          select: {
+            latitude: true,
+            longitude: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+    }
+
+    if (booking.userId !== userId) {
+      throw new AppError(httpStatus.FORBIDDEN, 'You are not authorized to check in for this booking');
+    }
+
+    if (booking.checkIn) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Already checked in');
+    }
+
+    const saloonLat = booking.saloonOwner?.latitude;
+    const saloonLon = booking.saloonOwner?.longitude;
+
+    if (!saloonLat || !saloonLon) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Saloon location not available');
+    }
+
+    // Haversine formula to calculate distance in meters
+    const R = 6371000; // Earth radius in meters
+    const lat1 = latitude;
+    const lon1 = longitude;
+    const lat2 = Number(saloonLat);
+    const lon2 = Number(saloonLon);
+
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distanceInMeters = R * c;
+
+    if (distanceInMeters > 50) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `You are too far from the saloon. Distance: ${Math.round(distanceInMeters)} meters. Must be within 50 meters to check in.`,
+      );
+    }
+
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: { checkIn: true },
+    });
+
+    return {
+      message: 'Check-in successful',
+      distanceInMeters: Math.round(distanceInMeters),
+      checkIn: updatedBooking.checkIn,
+    };
+};
+
 const deleteCustomerItemFromDb = async (userId: string, customerId: string) => {
   const deletedItem = await prisma.saloonOwner.delete({
     where: {
@@ -1994,5 +2069,6 @@ export const customerService = {
   getFavoriteSaloonsFromDb,
   removeSaloonFromFavoritesInDb,
   updateCustomerIntoDb,
+  checkInToSaloonInDb,
   deleteCustomerItemFromDb,
 };

@@ -89,7 +89,7 @@ router.put(
 );
 
 router.patch(
-  '/check-in/:saloonId',
+  '/check-in/:bookingId',
   auth(UserRoleEnum.CUSTOMER),
   validateRequest(customerValidation.checkInSchema),
   customerController.checkInToSaloon,

@@ -15,16 +15,15 @@ const updateSchema = z.object({
 });
 
 const checkInSchema = z.object({
-  params: z.object({
-    saloonId: z.string({
-      required_error: 'Saloon ID is required',
-    }),
-    latitude: z.string({
+  body: z.object({
+    latitude: z.union([z.string(), z.number()]).pipe(z.coerce.number({
+      invalid_type_error: 'Latitude must be a valid number',
       required_error: 'Latitude is required',
-    }).pipe(z.coerce.number()),
-    longitude: z.string({
+    })),
+    longitude: z.union([z.string(), z.number()]).pipe(z.coerce.number({
+      invalid_type_error: 'Longitude must be a valid number',
       required_error: 'Longitude is required',
-    }).pipe(z.coerce.number()),
+    })),
   }),
 });
 
