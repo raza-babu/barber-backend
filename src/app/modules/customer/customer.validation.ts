@@ -14,6 +14,20 @@ const updateSchema = z.object({
     }),
 });
 
+const checkInSchema = z.object({
+  params: z.object({
+    saloonId: z.string({
+      required_error: 'Saloon ID is required',
+    }),
+    latitude: z.string({
+      required_error: 'Latitude is required',
+    }).pipe(z.coerce.number()),
+    longitude: z.string({
+      required_error: 'Longitude is required',
+    }).pipe(z.coerce.number()),
+  }),
+});
+
 const analyzeSaloonSchema = z.object({
   body: z.object({
     imageDescription: z.string().optional(),
@@ -25,5 +39,6 @@ const analyzeSaloonSchema = z.object({
 export const customerValidation = {
 createSchema,
 updateSchema,
+checkInSchema,
 analyzeSaloonSchema,
 };

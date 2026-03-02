@@ -11,16 +11,18 @@ const router = express.Router();
 
 router.post(
   '/',
-  multerUploadMultiple.fields([
-    { name: 'reviewImages', maxCount: 5 },
-  ]),
+  multerUploadMultiple.fields([{ name: 'reviewImages', maxCount: 5 }]),
   parseBody,
   auth(UserRoleEnum.CUSTOMER),
   validateRequest(reviewValidation.createReviewSchema),
   reviewController.createReview,
 );
 
-router.get('/', auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER), reviewController.getReviewListForBarber);
+router.get(
+  '/',
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER, UserRoleEnum.CUSTOMER),
+  reviewController.getReviewListForBarber,
+);
 
 router.get(
   '/not-provided-reviews',

@@ -88,6 +88,13 @@ router.put(
   customerController.updateCustomer,
 );
 
+router.patch(
+  '/check-in/:saloonId',
+  auth(UserRoleEnum.CUSTOMER),
+  validateRequest(customerValidation.checkInSchema),
+  customerController.checkInToSaloon,
+);
+
 router.delete('/:id', auth(), customerController.deleteCustomer);
 
 export const customerRoutes = router;
