@@ -209,6 +209,11 @@ const updateSaloonOwner = z.object({
         invalid_type_error: 'Shop images must be an array of strings!',
       })
       .optional(),
+      shopVideo: z
+      .array(z.string(), {
+        invalid_type_error: 'Shop images must be an array of strings!',
+      })
+      .optional(),
     shopBio: z
       .string({
         required_error: 'Shop bio is required!',

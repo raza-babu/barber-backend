@@ -145,8 +145,13 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
   }
 
   if (uploads.shopVideos?.length) {
-    payload.shopVideo = uploads.shopVideos;
+    payload.shopVideo = [
+      ...(Array.isArray(body.shopVideo) ? body.shopVideo : []),
+      ...uploads.shopVideos,
+    ]
   }
+
+
   const result = await UserServices.updateSaloonOwnerIntoDB(user.id, payload);
   sendResponse(res, {
     statusCode: httpStatus.OK,
