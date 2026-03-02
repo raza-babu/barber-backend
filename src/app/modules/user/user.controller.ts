@@ -185,7 +185,10 @@ const updateBarber = catchAsync(async (req, res) => {
   }
 
   if(uploads.portfolioImages.length) {
-    body.portfolio = uploads.portfolioImages;
+    body.portfolio = [
+      ...(Array.isArray(body.portfolio) ? body.portfolio : []),
+      ...uploads.portfolioImages,
+    ]
   }
 
   const payload = {
