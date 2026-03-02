@@ -138,7 +138,10 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
   }
 
   if (uploads.shopImages?.length) {
-    payload.shopImages = uploads.shopImages;
+    payload.shopImages = [
+      ...(Array.isArray(body.shopImages) ? body.shopImages : []),
+      ...uploads.shopImages,
+    ];
   }
 
   if (uploads.shopVideos?.length) {

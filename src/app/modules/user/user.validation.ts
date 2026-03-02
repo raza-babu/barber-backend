@@ -204,7 +204,11 @@ const updateSaloonOwner = z.object({
         required_error: 'Shop name is required!',
       })
       .optional(),
-
+      shopImages: z
+      .array(z.string(), {
+        invalid_type_error: 'Shop images must be an array of strings!',
+      })
+      .optional(),
     shopBio: z
       .string({
         required_error: 'Shop bio is required!',
