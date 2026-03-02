@@ -112,8 +112,10 @@ const createReviewIntoDb = async (userId: string, data: any) => {
 
 const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: string, options: ISearchAndFilterOptions) => {
   const { page = 1, limit = 10 } = options;
-  const skip = (page - 1) * limit;
-  const take = limit;
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
+  const take = limitNum;
 
   const [result, total] = await Promise.all([
     prisma.review.findMany({
@@ -214,12 +216,12 @@ const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: strin
       createdAt: review.createdAt,
     })),
     meta: {
-      page,
-      limit,
+      page: pageNum,
+      limit: limitNum,
       total,
-      totalPages: Math.ceil(total / limit),
-      hasNextPage: page * limit < total,
-      hasPrePage: page > 1,
+      totalPages: Math.ceil(total / limitNum),
+      hasNextPage: pageNum * limitNum < total,
+      hasPrePage: pageNum > 1,
     },
   };
 };
@@ -229,8 +231,10 @@ const getNotProvidedReviewsForSaloonFromDb = async (
   options: ISearchAndFilterOptions,
 ) => {
   const { page = 1, limit = 10 } = options;
-  const skip = (page - 1) * limit;
-  const take = limit;
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
+  const take = limitNum;
 
   const [result, total] = await Promise.all([
     prisma.booking.findMany({
@@ -321,12 +325,12 @@ const getNotProvidedReviewsForSaloonFromDb = async (
   return {
     data: saloonsNotReviewed,
     meta: {
-      page,
-      limit,
+      page: pageNum,
+      limit: limitNum,
       total,
-      totalPages: Math.ceil(total / limit),
-      hasNextPage: page * limit < total,
-      hasPrePage: page > 1,
+      totalPages: Math.ceil(total / limitNum),
+      hasNextPage: pageNum * limitNum < total,
+      hasPrePage: pageNum > 1,
     },
   };
 };
@@ -336,8 +340,10 @@ const getReviewListForBarberFromDb = async (
   options: ISearchAndFilterOptions,
 ) => {
   const { page = 1, limit = 10 } = options;
-  const skip = (page - 1) * limit;
-  const take = limit;
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
+  const take = limitNum;
 
   const [result, total] = await Promise.all([
     prisma.review.findMany({
@@ -405,8 +411,8 @@ const getReviewListForBarberFromDb = async (
     return {
       data: [],
       meta: {
-        page,
-        limit,
+        page: pageNum,
+        limit: limitNum,
         total: 0,
         totalPages: 0,
         hasNextPage: false,
@@ -438,12 +444,12 @@ const getReviewListForBarberFromDb = async (
       createdAt: review.createdAt,
     })),
     meta: {
-      page,
-      limit,
+      page: pageNum,
+      limit: limitNum,
       total,
-      totalPages: Math.ceil(total / limit),
-      hasNextPage: page * limit < total,
-      hasPrePage: page > 1,
+      totalPages: Math.ceil(total / limitNum),
+      hasNextPage: pageNum * limitNum < total,
+      hasPrePage: pageNum > 1,
     },
   };
 };
