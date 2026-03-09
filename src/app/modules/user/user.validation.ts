@@ -136,9 +136,11 @@ const socialLoginSchema = z.object({
     }),
     image: z.string().optional(),
     address: z.string().optional(),
-    role: z.enum(['CUSTOMER', 'SALOON_OWNER', 'BARBER'], {
-      required_error: 'Role is required!',
-    }),
+    intendedRole: z
+      .enum(['CUSTOMER', 'SALOON_OWNER', 'BARBER'], {
+        required_error: 'Role is required!',
+      })
+      .optional(),
   }),
 });
 
