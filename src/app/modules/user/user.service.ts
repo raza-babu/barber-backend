@@ -1165,12 +1165,12 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
 
   if (userRecord) {
     // Check profile completion
-    if (userRecord.isProfileComplete === false) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Please complete your profile before logging in',
-      );
-    }
+    // if (userRecord.isProfileComplete === false) {
+    //   throw new AppError(
+    //     httpStatus.BAD_REQUEST,
+    //     'Please complete your profile before logging in',
+    //   );
+    // }
 
     // Check if account is blocked
     if (userRecord.status === UserStatus.BLOCKED) {
