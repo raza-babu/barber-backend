@@ -65,6 +65,9 @@ const auth = (...roles: string[]) => {
       if (user.status !== UserStatus.ACTIVE) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'User is not active. Please contact support.');
       }
+      if(user.isVerified === false){
+        throw new AppError(httpStatus.FORBIDDEN, 'Please verify your account to proceed. Sign up with same email to resend OTP.');
+      }
       if (!user.isProfileComplete) {
         throw new AppError(httpStatus.FORBIDDEN, 'Please complete your profile to proceed.');
       }

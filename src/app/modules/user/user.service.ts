@@ -1012,13 +1012,16 @@ const verifyOtpInDB = async (bodyData: {
       updateData.intendedRole = UserRoleEnum.SALOON_OWNER;
       updateData.role = UserRoleEnum.SALOON_OWNER;
       updateData.isProfileComplete = false;
+      updateData.isVerified = true;
     } else if (userData.intendedRole === UserRoleEnum.BARBER) {
       // updateData.intendedRole = UserRoleEnum.BARBER;
       updateData.role = UserRoleEnum.BARBER;
       updateData.isProfileComplete = true;
+      updateData.isVerified = true;
       updateData.status = UserStatus.ACTIVE;
     } else {
       // any other role or null
+      updateData.isVerified = true;
       updateData.isProfileComplete = true;
       updateData.status = UserStatus.ACTIVE;
     }
@@ -1203,7 +1206,7 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
         fcmToken: payload.fcmToken,
         phoneNumber: payload.phoneNumber ?? null,
         address: payload.address ?? null,
-        isProfileComplete: userRole === UserRoleEnum.CUSTOMER ? true : false, // Auto-complete profile for CUSTOMER
+        isProfileComplete: userRole === UserRoleEnum.CUSTOMER || userRole === UserRoleEnum.BARBER ? true : false, // Auto-complete profile for CUSTOMER and BARBER
       },
       select: {
         id: true,
