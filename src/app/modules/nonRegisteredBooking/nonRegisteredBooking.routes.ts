@@ -4,12 +4,14 @@ import validateRequest from '../../middlewares/validateRequest';
 import { nonRegisteredBookingController } from './nonRegisteredBooking.controller';
 import { nonRegisteredBookingValidation } from './nonRegisteredBooking.validation';
 import { UserRoleEnum } from '@prisma/client';
+import checkSubscriptionForSalonOwners from '../../middlewares/checkSubscriptionForSalonOwners';
 
 const router = express.Router();
 
 router.post(
   '/',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   validateRequest(nonRegisteredBookingValidation.createSchema),
   nonRegisteredBookingController.createNonRegisteredBooking,
 );
@@ -29,6 +31,7 @@ router.get(
 router.put(
   '/:id',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   validateRequest(nonRegisteredBookingValidation.updateSchema),
   nonRegisteredBookingController.updateNonRegisteredBooking,
 );
@@ -36,6 +39,7 @@ router.put(
 router.delete(
   '/:id',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   nonRegisteredBookingController.deleteNonRegisteredBooking,
 );
 

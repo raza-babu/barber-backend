@@ -885,8 +885,8 @@ const createAccountIntoStripe = async (userId: string) => {
     const stripeAccountId = userData.stripeCustomerId;
     const accountLink = await stripe.accountLinks.create({
       account: stripeAccountId,
-      refresh_url: `${config.backend_base_url}/reauthenticate.html`,
-      return_url: `${config.backend_base_url}/onboarding-success.html`,
+      refresh_url: `${config.backend_base_url}/reauthenticate`,
+      return_url: `${config.backend_base_url}/onboarding-success`,
       type: 'account_onboarding',
     });
 
@@ -960,7 +960,7 @@ const createNewAccountIntoStripe = async (userId: string) => {
   const newAccount = await stripe.accounts.create({
     type: 'express',
     email: userData.email, // Use the user's email from the database
-    country: 'US', // Set the country dynamically if needed
+    country: 'UK', // Set the country dynamically if needed
     capabilities: {
       card_payments: { requested: true },
       transfers: { requested: true },
@@ -973,8 +973,8 @@ const createNewAccountIntoStripe = async (userId: string) => {
   // Generate the onboarding link for the new Stripe account
   const accountLink = await stripe.accountLinks.create({
     account: newAccount.id,
-    refresh_url: `${config.backend_base_url}/reauthenticate.html`,
-    return_url: `${config.backend_base_url}/onboarding-success.html`,
+    refresh_url: `${config.frontend_base_url}/reauthenticate`,
+    return_url: `${config.frontend_base_url}/onboarding-success`,
     type: 'account_onboarding',
   });
 
