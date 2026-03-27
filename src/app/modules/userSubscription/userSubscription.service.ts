@@ -7,40 +7,20 @@ import {
 } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import Stripe from 'stripe';
 import config from '../../../config';
 import emailSender from '../../utils/emailSender';
-
-// Initialize Stripe with your secret API key
-const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
-  apiVersion: '2025-08-27.basil',
-});
+import { appleIAPService } from './appleIAP.service';
 
 const createUserSubscriptionIntoDb = async (
   userId: string,
   data: {
-    paymentMethodId: string;
+    appleTransactionId: string;
     subscriptionOfferId: string;
+    productId: string;
+    receiptData?: string; // Optional: raw receipt for verification trail
   },
 ) => {
-  // 1. Get user (outside transaction)
-
-  const existingSubscription = await prisma.userSubscription.findFirst({
-    where: {
-      userId: userId,
-      endDate: {
-        gt: new Date(),
-      },
-      paymentStatus: PaymentStatus.COMPLETED,
-    },
-  });
-  if (existingSubscription) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'An active subscription already exists for this user',
-    );
-  }
-
+  // 1. Verify user exists and is active
   const userCheck = await prisma.user.findUnique({
     where: {
       id: userId,
@@ -52,220 +32,138 @@ const createUserSubscriptionIntoDb = async (
       fullName: true,
       email: true,
       role: true,
-      address: true,
       status: true,
-      stripeCustomerId: true,
     },
   });
-  if (!userCheck)
+
+  if (!userCheck) {
     throw new AppError(httpStatus.BAD_REQUEST, 'User not found or inactive');
+  }
 
-  // 2. Ensure Stripe customer exists (outside transaction)
-  let stripeCustomerId = userCheck.stripeCustomerId;
-  if (!stripeCustomerId) {
-    const customer = await stripe.customers.create({
-      email: userCheck.email!,
-      name: userCheck.fullName!,
-      address: {
-        city: userCheck.address ?? 'City',
-        country: 'US',
+  // 2. Check for existing active subscription
+  const existingSubscription = await prisma.userSubscription.findFirst({
+    where: {
+      userId: userId,
+      endDate: {
+        gt: new Date(),
       },
-      metadata: { userId: userCheck.id, role: userCheck.role },
-    });
-
-    // Update DB (outside transaction)
-    await prisma.user.update({
-      where: { id: userId },
-      data: { stripeCustomerId: customer.id },
-    });
-
-    stripeCustomerId = customer.id;
-  }
-
-  // 3. Attach payment method (outside transaction)
-  try {
-    await stripe.paymentMethods.attach(data.paymentMethodId, {
-      customer: stripeCustomerId,
-    });
-  } catch (err: any) {
-    if (err.code !== 'resource_already_attached') throw err;
-  }
-
-  // 4. Set default payment method (outside transaction)
-  await stripe.customers.update(stripeCustomerId, {
-    invoice_settings: { default_payment_method: data.paymentMethodId },
+      paymentStatus: PaymentStatus.COMPLETED,
+    },
   });
 
-  // 5. Fetch subscription offer (outside transaction)
-  const subscriptionOffer = await prisma.subscriptionOffer.findUnique({
-    where: { id: data.subscriptionOfferId },
-    include: { creator: { select: { stripeCustomerId: true } } },
-  });
-  if (!subscriptionOffer?.stripePriceId) {
+  if (existingSubscription) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Subscription offer or price not found',
+      'An active subscription already exists for this user',
     );
   }
 
-  // check if user is trying to subscribe to their own plan
-  if (subscriptionOffer.creator.stripeCustomerId === stripeCustomerId) {
+  // 3. Verify Apple receipt/transaction
+  let appleTransactionData: any;
+  try {
+    appleTransactionData = await appleIAPService.verifyAppleReceipt(
+      data.appleTransactionId,
+      data.productId, // Pass productId for better verification
+    );
+
+    console.log('Apple transaction verified:', appleTransactionData);
+  } catch (err) {
+    console.error('Apple receipt verification failed:', err);
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Apple receipt verification failed. Please check your transaction ID.',
+    );
+  }
+
+  // 4. Fetch subscription offer
+  const subscriptionOffer = await prisma.subscriptionOffer.findUnique({
+    where: { id: data.subscriptionOfferId },
+    select: {
+      id: true,
+      planType: true,
+      price: true,
+      durationDays: true,
+      creator: { select: { id: true } },
+    },
+  });
+
+  if (!subscriptionOffer) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Subscription offer not found',
+    );
+  }
+
+  // 5. Check user is not subscribing to their own plan
+  if (subscriptionOffer.creator.id === userId) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'You cannot subscribe to your own subscription plan',
     );
   }
 
-  // check in stripe that the user is already not subscribed to this plan
-  const existingStripeSubscriptions = await stripe.subscriptions.list({
-    customer: stripeCustomerId,
-    status: 'active',
-    expand: ['data.items'],
-  });
-  const isAlreadySubscribed = existingStripeSubscriptions.data.some(sub =>
-    sub.items.data.some(
-      item => item.price.id === subscriptionOffer.stripePriceId,
-    ),
-  );
-  if (isAlreadySubscribed) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'You are already subscribed to this plan',
-    );
-  }
-
-  // 6. Create subscription in Stripe (outside transaction)
-  const subscription = await stripe.subscriptions.create({
-    customer: stripeCustomerId,
-    items: [{ price: subscriptionOffer.stripePriceId }],
-    default_payment_method: data.paymentMethodId,
-    expand: ['latest_invoice.payment_intent'],
-    metadata: {
-      userId: userId,
-      subscriptionOfferId: data.subscriptionOfferId,
-      createdBy: 'api-direct', // Helps identify source
-    },
-  });
-
-  // Extract details
-  const latestInvoice = subscription.latest_invoice as any;
-  const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent;
-
-  console.log(latestInvoice, paymentIntent);
-
-  if (
-    subscription.status === 'incomplete' &&
-    paymentIntent?.status !== 'succeeded'
-  ) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Subscription payment failed');
-  }
-
-  // Also handle other failure cases
-  if (
-    subscription.status === 'incomplete_expired' ||
-    subscription.status === 'past_due'
-  ) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Subscription payment failed');
-  }
-
-  console.log('Subscription status:', subscription.status);
-  // After successful payment check, send invoice
-
-  const subscriptionWithPeriod =
-    subscription as unknown as Stripe.Subscription & {
-      current_period_start: number;
-      current_period_end: number;
-    };
-
-  // 7. ONLY database operations go inside the transaction
+  // 6. Database transaction for subscription creation
   const result = await prisma.$transaction(
     async tx => {
-      // Convert Stripe Unix timestamps to JavaScript Date objects
-      const startDate = subscriptionWithPeriod.current_period_start
-        ? new Date(subscriptionWithPeriod.current_period_start * 1000)
-        : new Date();
+      const startDate = new Date();
+      const durationDays = subscriptionOffer.durationDays || 30;
+      const endDate = new Date(
+        startDate.getTime() + durationDays * 24 * 60 * 60 * 1000,
+      );
 
-      const endDate = subscriptionWithPeriod.current_period_end
-        ? new Date(subscriptionWithPeriod.current_period_end * 1000)
-        : new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-
+      // Create user subscription record
       const createdSubscription = await tx.userSubscription.create({
         data: {
           userId: userCheck.id,
           subscriptionOfferId: subscriptionOffer.id,
           startDate: startDate,
           endDate: endDate,
-          stripeSubscriptionId: subscription.id,
+          appleTransactionId: data.appleTransactionId,
+          appleProductId: appleTransactionData?.bundleId || '',
+          appleReceiptData: data.receiptData || '',
+          autoRenew: true,
           paymentStatus: PaymentStatus.COMPLETED,
         },
       });
 
+      // Record payment
       await tx.payment.create({
         data: {
-          stripeSubscriptionId: subscription.id,
+          userId: userId,
+          appleTransactionId: data.appleTransactionId,
+          appleProductId: appleTransactionData?.bundleId || '',
+          appleReceiptData: data.receiptData || '',
           paymentAmount: subscriptionOffer.price,
-          amountProvider: stripeCustomerId,
           status: PaymentStatus.COMPLETED,
-          // paymentIntentId: paymentIntent?.id,
-          invoiceId: latestInvoice?.id,
-          user: {
-            connect: { id: userId },
-          },
         },
       });
 
+      // Update user profile
       await tx.user.update({
         where: { id: userId },
         data: {
           isSubscribed: true,
           subscriptionEnd: endDate,
           subscriptionPlan: subscriptionOffer.planType,
-          stripeSubscriptionId: subscription.id,
         },
       });
 
       return {
         ...createdSubscription,
-        subscriptionId: subscription.id,
-        paymentIntentId: paymentIntent?.id,
+        subscriptionOffer: subscriptionOffer,
       };
     },
     {
-      // Optional: Increase timeout if needed (default is 5000ms)
-      timeout: 10000, // 10 seconds
+      timeout: 10000,
     },
   );
 
-  if (subscription.status === 'active' && subscription.latest_invoice) {
-    try {
-      console.log(
-        'Attempting to send invoice to customer:',
-        subscription.latest_invoice,
-      );
-
-      const invoiceId =
-        typeof subscription.latest_invoice === 'string'
-          ? subscription.latest_invoice
-          : subscription.latest_invoice?.id;
-
-      console.log('Invoice ID to be sent:', invoiceId);
-
-      if (typeof invoiceId === 'string') {
-        await stripe.invoices.sendInvoice(invoiceId);
-        console.log('Invoice sent to customer:', invoiceId);
-      } else {
-        console.log('Invoice ID is undefined, cannot send invoice.');
-      }
-    } catch (error) {
-      console.log('Invoice sending failed, but subscription is active:', error);
-      // Optional: fallback to your own email system
-      if (userCheck.email) {
-        try {
-          console.log('Attempting fallback email to user:', userCheck.email);
-          await emailSender(
-            'Your Subscription is Active',
-            userCheck.email,
-            `<!DOCTYPE html>
+  // 7. Send confirmation email
+  try {
+    await emailSender(
+      'Your Subscription is Active',
+      userCheck.email!,
+      `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -312,30 +210,26 @@ const createUserSubscriptionIntoDb = async (
             font-size: 16px;
             color: #4a5568;
         }
-        .invoice-section {
+        .details-section {
             background-color: #f7fafc;
             padding: 20px;
             border-radius: 6px;
             border-left: 4px solid #667eea;
             margin: 25px 0;
         }
-        .invoice-title {
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .detail-label {
             font-weight: bold;
             color: #2d3748;
-            margin-bottom: 10px;
         }
-        .invoice-link {
-            display: inline-block;
-            background-color: #667eea;
-            color: white;
-            padding: 12px 24px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        .invoice-link:hover {
-            background-color: #5a67d8;
+        .detail-value {
+            color: #4a5568;
         }
         .support {
             margin-top: 30px;
@@ -371,29 +265,36 @@ const createUserSubscriptionIntoDb = async (
                 Thank you for subscribing! Your subscription is now active and you can start enjoying all the premium features immediately.
             </div>
 
-            <div class="invoice-section">
-                <div class="invoice-title">📄 Your Invoice</div>
-                <p>You can view and download your invoice directly from our secure payment portal:</p>
-                ${
-                  latestInvoice?.hosted_invoice_url
-                    ? `<a href="${latestInvoice.hosted_invoice_url}" class="invoice-link" target="_blank">
-                        View & Download Invoice
-                      </a>`
-                    : `<p style="color: #e53e3e;">Invoice link will be available shortly. If you don't receive it within 24 hours, please contact support.</p>`
-                }
+            <div class="details-section">
+                <div class="detail-row">
+                    <span class="detail-label">Plan:</span>
+                    <span class="detail-value">${subscriptionOffer.planType}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Price:</span>
+                    <span class="detail-value">$${subscriptionOffer.price}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Start Date:</span>
+                    <span class="detail-value">${new Date().toLocaleDateString()}</span>
+                </div>
+                <div class="detail-row" style="border-bottom: none;">
+                    <span class="detail-label">Renewal Date:</span>
+                    <span class="detail-value">${new Date(Date.now() + (subscriptionOffer.durationDays || 30) * 24 * 60 * 60 * 1000).toLocaleDateString()}</span>
+                </div>
             </div>
 
             <div class="message">
                 <strong>What's next?</strong><br>
                 • Access your premium features immediately<br>
                 • Manage your subscription from your account settings<br>
-                • Receive automatic receipts for future payments
+                • Automatic renewal will occur on your renewal date
             </div>
 
             <div class="support">
                 <strong>Need Help?</strong><br>
                 If you have any questions or need assistance, our support team is here to help!<br>
-                📧 Email: support@barberstime.com<br>
+                📧 Email: support@barbershiftapp.com<br>
                 ⏰ Hours: Monday-Friday, 9AM-6PM
             </div>
 
@@ -410,13 +311,10 @@ const createUserSubscriptionIntoDb = async (
     </div>
 </body>
             </html>`,
-          );
-          console.log('Fallback email sent to user:', userCheck.email);
-        } catch (emailError) {
-          console.log('Fallback email sending failed:', emailError);
-        }
-      }
-    }
+    );
+  } catch (emailError) {
+    console.log('Email notification failed:', emailError);
+    // Don't fail the subscription creation if email fails
   }
 
   return result;
@@ -494,16 +392,17 @@ const updateUserSubscriptionIntoDb = async (
   userId: string,
   userSubscriptionId: string,
   data: {
-    paymentMethodId: string;
+    appleTransactionId: string;
     subscriptionOfferId: string;
+    receiptData?: string;
+    productId: string;
   },
 ) => {
-  // Step 1: find user subscription (outside transaction)
+  // Step 1: Find existing subscription
   const existing = await prisma.userSubscription.findFirst({
     where: {
       id: userSubscriptionId,
       userId,
-      // Remove the endDate filter to find both active and expired
     },
   });
 
@@ -511,140 +410,102 @@ const updateUserSubscriptionIntoDb = async (
     throw new AppError(httpStatus.NOT_FOUND, 'Subscription not found');
   }
 
-  // Optional: Add business logic if you only want to allow renewing near expiration
+  // Optional: Check if subscription is still within renewal window
   if (existing.endDate > new Date()) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Subscription is still active, cannot renew yet',
+      'Subscription is still active. Can only renew after expiration or near expiration date.',
     );
   }
 
-  // Step 2: find user (outside transaction)
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-  });
-  if (!user) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-  }
-  if (!user.stripeCustomerId) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Stripe customer not found');
-  }
-
-  // Step 3: find subscription offer (outside transaction)
-  const subscriptionOffer = await prisma.subscriptionOffer.findUnique({
-    where: { id: data.subscriptionOfferId },
-    include: {
-      creator: {
-        select: {
-          stripeCustomerId: true,
-        },
-      },
-    },
-  });
-  if (!subscriptionOffer?.stripePriceId) {
+  // Step 2: Verify new Apple transaction
+  let appleTransactionData: any;
+  try {
+    appleTransactionData = await appleIAPService.verifyAppleReceipt(
+      data.appleTransactionId,
+      data.productId, // Pass productId for better verification
+    );
+    console.log('Apple renewal transaction verified:', appleTransactionData);
+  } catch (err) {
+    console.error('Apple receipt verification failed:', err);
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Subscription offer or price not found',
+      'Apple receipt verification failed.',
     );
   }
 
-  // Step 4: Handle payment method (outside transaction)
-  try {
-    await stripe.paymentMethods.attach(data.paymentMethodId, {
-      customer: user.stripeCustomerId,
-    });
-  } catch (err: any) {
-    if (err.code !== 'resource_already_attached') throw err;
-  }
-
-  // Set default payment method
-  await stripe.customers.update(user.stripeCustomerId, {
-    invoice_settings: { default_payment_method: data.paymentMethodId },
+  // Step 3: Get subscription offer
+  const subscriptionOffer = await prisma.subscriptionOffer.findUnique({
+    where: { id: data.subscriptionOfferId },
+    select: {
+      id: true,
+      planType: true,
+      price: true,
+      durationDays: true,
+    },
   });
 
-  // Step 5: renew subscription in Stripe (outside transaction)
-  const subscription = await stripe.subscriptions.create({
-    customer: user.stripeCustomerId,
-    items: [{ price: subscriptionOffer.stripePriceId }],
-    default_payment_method: data.paymentMethodId,
-    expand: ['latest_invoice.payment_intent'],
-  });
-
-  if (!subscription) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Subscription not created');
+  if (!subscriptionOffer) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Subscription offer not found',
+    );
   }
 
-  // IMPORTANT: Subscription may start as `incomplete` until invoice is paid
-  const latestInvoice = subscription.latest_invoice as any;
-  const paymentIntent = latestInvoice?.payment_intent;
-  if (
-    subscription.status === 'incomplete' &&
-    paymentIntent?.status !== 'succeeded'
-  ) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Subscription payment failed');
-  }
-
-  // Type assertion for subscription dates
-  const subscriptionWithPeriod =
-    subscription as unknown as Stripe.Subscription & {
-      current_period_start: number;
-      current_period_end: number;
-    };
-
-  // Step 6: ONLY database operations inside transaction
+  // Step 4: Update in database transaction
   const result = await prisma.$transaction(
     async tx => {
-      // Convert Stripe Unix timestamps to JavaScript Date objects
-      const startDate = subscriptionWithPeriod.current_period_start
-        ? new Date(subscriptionWithPeriod.current_period_start * 1000)
-        : new Date();
+      const startDate = new Date();
+      const durationDays = subscriptionOffer.durationDays || 30;
+      const endDate = new Date(
+        startDate.getTime() + durationDays * 24 * 60 * 60 * 1000,
+      );
 
-      const endDate = subscriptionWithPeriod.current_period_end
-        ? new Date(subscriptionWithPeriod.current_period_end * 1000)
-        : new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-      // Update user subscription in DB
+      // Update user subscription
       const updatedSubscription = await tx.userSubscription.update({
         where: { id: userSubscriptionId },
         data: {
           subscriptionOfferId: data.subscriptionOfferId,
           startDate: startDate,
           endDate: endDate,
-          stripeSubscriptionId: subscription.id,
+          appleTransactionId: data.appleTransactionId,
+          appleProductId: appleTransactionData?.bundleId || '',
+          appleReceiptData: data.receiptData || '',
           paymentStatus: PaymentStatus.COMPLETED,
         },
       });
 
-      // Record payment
+      // Record renewal payment
       await tx.payment.create({
         data: {
           userId: userId,
-          stripeSubscriptionId: subscription.id,
+          appleTransactionId: data.appleTransactionId,
+          appleProductId: appleTransactionData?.bundleId || '',
+          appleReceiptData: data.receiptData || '',
           paymentAmount: subscriptionOffer.price,
-          amountProvider: user.stripeCustomerId!,
           status: PaymentStatus.COMPLETED,
         },
       });
 
-      // Update user status
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          isSubscribed: true,
-          subscriptionEnd: endDate,
-        },
-      });
+      // Update user
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (user) {
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            isSubscribed: true,
+            subscriptionEnd: endDate,
+          },
+        });
+      }
 
       return {
         ...updatedSubscription,
-        subscriptionId: subscription.id,
-        paymentIntentId: paymentIntent?.id,
+        subscriptionOffer: subscriptionOffer,
       };
     },
     {
-      timeout: 10000, // Optional: Increase timeout if needed
+      timeout: 10000,
     },
   );
 
@@ -656,155 +517,93 @@ const cancelAutomaticRenewalIntoDb = async (
   userSubscriptionId: string,
 ) => {
   const result = await prisma.$transaction(async tx => {
-    // Step 1: Find existing subscription for THIS USER
+    // Find subscription
     const existing = await tx.userSubscription.findFirst({
       where: {
         id: userSubscriptionId,
-        userId: userId, // ← CRITICAL: Add user filter
+        userId: userId,
         paymentStatus: PaymentStatus.COMPLETED,
       },
     });
+
     if (!existing) {
       throw new AppError(httpStatus.NOT_FOUND, 'Subscription not found');
     }
-    if (!existing.stripeSubscriptionId) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Stripe subscription ID missing',
-      );
-    }
-    // Step 2: Update Stripe subscription to cancel at period end
-    try {
-      console.log(
-        'Setting Stripe subscription to cancel at period end:',
-        existing.stripeSubscriptionId,
-      );
-      await stripe.subscriptions.update(existing.stripeSubscriptionId, {
-        cancel_at_period_end: true,
-      });
-      console.log(
-        'Stripe subscription set to cancel at period end:',
-        existing.stripeSubscriptionId,
-      );
-    } catch (err) {
-      console.error('Error updating Stripe subscription:', err);
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Failed to update Stripe subscription',
-      );
-    }
-    // Step 3: Update user subscription record in DB
+
+    // For Apple IAP, we mark autoRenew as false
+    // Apple handles the actual cancellation through the App Store
     const updatedSubscription = await tx.userSubscription.update({
-      where: {
-        id: existing.id, // Use the ID from the found subscription
-      },
+      where: { id: userSubscriptionId },
       data: {
-        // endDate remains unchanged
-        paymentStatus: PaymentStatus.CANCELLED, // Mark as CANCELLED to indicate no renewal
+        autoRenew: false,
+        cancellationReason: 'User cancelled automatic renewal',
+        paymentStatus: PaymentStatus.CANCELLED,
       },
     });
+
     return {
-      message: 'Subscription set to cancel at period end',
+      message: 'Automatic renewal has been cancelled. Your subscription will expire on ' + existing.endDate.toLocaleDateString(),
       subscription: updatedSubscription,
     };
   });
+
   return result;
 };
 
 const deleteCustomerSubscriptionItemFromDb = async (
-  userId: string,
+  adminUserId: string,
   saloonOwnerId: string,
 ) => {
   const result = await prisma.$transaction(async tx => {
-    // Step 1: Find existing subscription
+    // Find subscription for the customer
     const existing = await tx.userSubscription.findFirst({
       where: {
         userId: saloonOwnerId,
         paymentStatus: PaymentStatus.COMPLETED,
       },
     });
+
     if (!existing) {
       throw new AppError(httpStatus.NOT_FOUND, 'Subscription not found');
     }
 
-    // Step 2: Cancel Stripe subscription if exists
-    if (existing.stripeSubscriptionId) {
-      try {
-        console.log(
-          'Cancelling Stripe subscription:',
-          existing.stripeSubscriptionId,
-        );
-        await stripe.subscriptions.cancel(existing.stripeSubscriptionId);
-        console.log(
-          'Stripe subscription cancelled:',
-          existing.stripeSubscriptionId,
-        );
-      } catch (err) {
-        console.error('Error cancelling Stripe subscription:', err);
-        // Don't throw - proceed with database cancellation
-      }
-    }
-    console.log('Proceeding to cancel subscription in DB:', saloonOwnerId);
-    // Step 3: Update user subscription record (soft delete)
+    // Immediately cancel the subscription in the database
     const updatedSubscription = await tx.userSubscription.update({
-      where: {
-        userId: saloonOwnerId,
-        stripeSubscriptionId: existing.stripeSubscriptionId!,
-      },
+      where: { id: existing.id },
       data: {
         endDate: new Date(),
-        paymentStatus: PaymentStatus.CANCELLED, // Use CANCELLED instead of REFUNDED
+        autoRenew: false,
+        paymentStatus: PaymentStatus.CANCELLED,
+        cancellationReason: 'Admin cancelled subscription',
       },
     });
 
-    console.log('Proceeding to cancel subscription in DB:', saloonOwnerId);
-
-    // Step 4: Update related payments
-    const paymentsToUpdate = await tx.payment.findMany({
+    // Update related payments
+    await tx.payment.updateMany({
       where: {
-        stripeSubscriptionId: existing.stripeSubscriptionId,
+        userId: saloonOwnerId,
         status: PaymentStatus.COMPLETED,
       },
+      data: {
+        status: PaymentStatus.CANCELLED,
+      },
     });
 
-    if (paymentsToUpdate.length > 0) {
-      await tx.payment.updateMany({
-        where: {
-          stripeSubscriptionId: existing.stripeSubscriptionId,
-          status: PaymentStatus.COMPLETED,
-        },
-        data: {
-          status: PaymentStatus.CANCELLED, // Or REFUNDED if you actually process refunds
-        },
-      });
-    }
-
-    // Step 5: Check if user has other active subscriptions
-    // const otherActiveSubscriptions = await tx.userSubscription.findFirst({
-    //   where: {
-    //     userId: userId,
-    //     id: { not: subscriptionOfferId }, // Exclude this subscription
-    //     endDate: { gt: new Date() },
-    //     paymentStatus: PaymentStatus.COMPLETED,
-    //   },
-    // });
-
-    // // Step 6: Update user status if no active subscriptions remain
-    // if (!otherActiveSubscriptions) {
-    //   await tx.user.update({
-    //     where: { id: userId },
-    //     data: {
-    //       isSubscribed: false,
-    //       subscriptionEnd: null,
-    //     },
-    //   });
-    // }
+    // Update user status
+    await tx.user.update({
+      where: { id: saloonOwnerId },
+      data: {
+        isSubscribed: false,
+        subscriptionEnd: new Date(),
+      },
+    });
 
     return {
       message: 'Subscription cancelled successfully',
       saloonOwnerId: saloonOwnerId,
     };
   });
+
   return result;
 };
 
@@ -813,57 +612,34 @@ const deleteUserSubscriptionItemFromDb = async (
   subscriptionOfferId: string,
 ) => {
   const result = await prisma.$transaction(async tx => {
-    // Step 1: Find existing subscription for THIS USER
+    // Find subscription
     const existing = await tx.userSubscription.findFirst({
       where: {
         subscriptionOfferId: subscriptionOfferId,
-        userId: userId, // ← CRITICAL: Add user filter
+        userId: userId,
         paymentStatus: PaymentStatus.COMPLETED,
       },
     });
+
     if (!existing) {
       throw new AppError(httpStatus.NOT_FOUND, 'Subscription not found');
     }
 
-    // Step 2: Cancel Stripe subscription if exists
-    if (existing.stripeSubscriptionId) {
-      try {
-        console.log(
-          'Cancelling Stripe subscription:',
-          existing.stripeSubscriptionId,
-        );
-
-        // CANCEL IMMEDIATELY (no refund)
-        // CORRECT: Use .cancel() with options to prevent refunds
-        await stripe.subscriptions.cancel(existing.stripeSubscriptionId, {
-          invoice_now: false, // Don't create final invoice
-          prorate: false, // Don't prorate refund
-        });
-        console.log(
-          'Stripe subscription cancelled immediately (no refund):',
-          existing.stripeSubscriptionId,
-        );
-      } catch (err) {
-        console.error('Error cancelling Stripe subscription:', err);
-        // Don't throw - proceed with database cancellation
-      }
-    }
-
-    // Step 3: Update user subscription record (soft delete)
+    // Cancel subscription immediately
     const updatedSubscription = await tx.userSubscription.update({
-      where: {
-        id: existing.id, // Use the ID from the found subscription
-      },
+      where: { id: existing.id },
       data: {
         endDate: new Date(),
+        autoRenew: false,
         paymentStatus: PaymentStatus.CANCELLED,
+        cancellationReason: 'User cancelled subscription',
       },
     });
 
-    // Step 4: Update related payments to CANCELLED (not refunded)
+    // Cancel related payments
     await tx.payment.updateMany({
       where: {
-        stripeSubscriptionId: existing.stripeSubscriptionId,
+        userId: userId,
         status: PaymentStatus.COMPLETED,
       },
       data: {
@@ -871,17 +647,17 @@ const deleteUserSubscriptionItemFromDb = async (
       },
     });
 
-    // Step 5: Check if user has other active subscriptions
+    // Check if user has other active subscriptions
     const otherActiveSubscriptions = await tx.userSubscription.findFirst({
       where: {
         userId: userId,
-        id: { not: existing.id }, // Exclude this subscription
+        id: { not: existing.id },
         endDate: { gt: new Date() },
         paymentStatus: PaymentStatus.COMPLETED,
       },
     });
 
-    // Step 6: Update user status if no active subscriptions remain
+    // Update user status if no active subscriptions remain
     if (!otherActiveSubscriptions) {
       await tx.user.update({
         where: { id: userId },
@@ -897,6 +673,7 @@ const deleteUserSubscriptionItemFromDb = async (
       cancelledSubscriptionId: existing.id,
     };
   });
+
   return result;
 };
 

@@ -953,14 +953,26 @@ const createNewAccountIntoStripe = async (userId: string) => {
 
   // If the user already has a Stripe account, delete it
   if (stripeAccountId) {
-    await stripe.accounts.del(stripeAccountId); // Delete the old account
+   const delAcc =     await stripe.accounts.del(stripeAccountId); // Delete the old account
+
+   if (delAcc.deleted) {
+    await prisma.user.update({
+      where: { id: userData.id },
+      data: {
+        stripeAccountId: null,
+        stripeAccountUrl: null,
+      },
+    });
+   } else {
+    throw new AppError(httpStatus.CONFLICT, 'Failed to delete existing Stripe account');
+   }  
   }
 
   // Create a new Stripe account
   const newAccount = await stripe.accounts.create({
     type: 'express',
     email: userData.email, // Use the user's email from the database
-    country: 'UK', // Set the country dynamically if needed
+    country: 'GB', // Set the country dynamically if needed
     capabilities: {
       card_payments: { requested: true },
       transfers: { requested: true },

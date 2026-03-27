@@ -14,8 +14,9 @@ const createSubscriptionOfferSchema = z.object({
     currency: z.string().optional().default('usd'),
     duration: z.nativeEnum(SubscriptionType, {
       required_error: 'Duration is required!',
-      invalid_type_error: 'Duration must be a valid enum value!', 
+      invalid_type_error: 'Duration must be a valid enum value!',
     }),
+    appleProductId: z.string().optional(),
   }),
 });
 
@@ -27,8 +28,10 @@ const updateSubscriptionOfferSchema = z.object({
     currency: z.string().optional(),
     // duration: z.nativeEnum(SubscriptionType, {
     //   required_error: 'Duration is required!',
-    //   invalid_type_error: 'Duration must be a valid enum value!', 
+    //   invalid_type_error: 'Duration must be a valid enum value!',
     // }).optional(),
+    // duration: z.nativeEnum(SubscriptionType).optional(),
+    appleProductId: z.string().optional(),
   }),
 });
 export const subscriptionOfferValidation = {

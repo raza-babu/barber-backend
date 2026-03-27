@@ -2,16 +2,15 @@ model NonRegisteredUser {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   saloonOwnerId String   @db.ObjectId
   fullName      String
-  email         String? 
-  phone         String? 
+  email         String?
+  phone         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   // Relationships
   saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
-  QueueSlots QueueSlot[] @relation("QueueSlotNonRegisteredUser")
+  QueueSlots  QueueSlot[] @relation("QueueSlotNonRegisteredUser")
+  Payments    Payment[]   @relation("PaymentNonRegisteredUser")
 
   @@map("non_registered_users")
 }
-
- 

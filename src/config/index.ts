@@ -34,8 +34,15 @@ export default {
   },
   stripe: {
     stripe_secret_key: process.env.STRIPE_SECRET_KEY,
-    stripe_publishable_key: process.env.STRIPE_PUBLISHABLE_KEY,
     stripe_webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
+  },
+  apple: {
+    bundleId: process.env.APPLE_BUNDLE_ID,
+    teamId: process.env.APPLE_TEAM_ID,
+    keyId: process.env.APPLE_KEY_ID,
+    privateKey: process.env.APPLE_PRIVATE_KEY,
+    sharedSecret: process.env.APPLE_PRIVATE_KEY, // ✅ For receipt verification
+    isProduction: process.env.NODE_ENV === 'production', // ✅ Fixed: should be 'production' not 'development'
   },
   backend_base_url: process.env.BACKEND_BASE_URL,
   frontend_base_url: process.env.FRONTEND_BASE_URL,

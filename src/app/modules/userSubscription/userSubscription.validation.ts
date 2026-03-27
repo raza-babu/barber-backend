@@ -2,22 +2,39 @@ import { z } from 'zod';
 
 const createSchema = z.object({
   body: z.object({
-    paymentMethodId: z.string({
-      required_error: 'Payment Method Id is required!',
+    productId: z.string({
+      required_error: 'Product ID is required!',
     }),
     subscriptionOfferId: z.string({
-      required_error: 'Subscription Offer Id is required!',
+      required_error: 'Subscription Offer ID is required!',
+    }),
+    receiptData: z.string({
+      required_error: 'Receipt Data is required!',
     }),
   }),
 });
 
 const updateSchema = z.object({
   body: z.object({
-    paymentMethodId: z.string({
-      required_error: 'Payment Method Id is required!',
+    productId: z.string({
+      required_error: 'Product ID is required!',
     }),
     subscriptionOfferId: z.string({
-      required_error: 'Subscription Offer Id is required!',
+      required_error: 'Subscription Offer ID is required!',
+    }),
+    receiptData: z.string({
+      required_error: 'Receipt Data is required!',
+    }),
+  }),
+});
+
+const verifyAppleReceiptSchema = z.object({
+  body: z.object({
+    receiptData: z.string({
+      required_error: 'Receipt Data is required!',
+    }),
+    productId: z.string({
+      required_error: 'Product ID is required!',
     }),
   }),
 });
@@ -25,4 +42,5 @@ const updateSchema = z.object({
 export const userSubscriptionValidation = {
   createSchema,
   updateSchema,
+  verifyAppleReceiptSchema,
 };

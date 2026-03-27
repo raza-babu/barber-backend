@@ -1,21 +1,26 @@
 model Payment {
-  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId               String        @db.ObjectId
-  stripeSubscriptionId String?       
-  paymentIntentId      String?       
-  paymentMethodId      String?
-  paymentAmount        Float
-  bookingId            String?       @db.ObjectId
-  paymentDate          DateTime      @default(now())
-  amountProvider       String?
-  amountReceiver       String?
-  invoiceId            String?
-  status               PaymentStatus @default(PENDING)
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  id                 String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String        @db.ObjectId
+  amountProvider     String?       @db.ObjectId
+  amountReceiver     String?
+  paymentIntentId    String?
+  paymentMethodId    String?
+  // Apple IAP fields
+  appleTransactionId String?
+  appleProductId     String?
+  appleReceiptData   String? // Raw receipt for verification audit trail
+  // Payment details
+  paymentAmount      Float
+  bookingId          String?       @db.ObjectId
+  paymentDate        DateTime      @default(now())
+  // Status
+  status             PaymentStatus @default(PENDING)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  booking Booking? @relation(fields: [bookingId], references: [id])
-  user    User     @relation(fields: [userId], references: [id])
+  booking           Booking?           @relation(fields: [bookingId], references: [id])
+  user              User               @relation(fields: [userId], references: [id])
+  nonRegisteredUser NonRegisteredUser? @relation("PaymentNonRegisteredUser", fields: [amountReceiver], references: [id])
 
   @@map("payments")
 }

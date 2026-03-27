@@ -254,7 +254,7 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     : result.SaloonOwner;
 
   //get bank details from the stripe
-  const stripe = require('stripe')(config.stripe.stripe_secret_key);
+  // const stripe = require('stripe')(config.stripe.stripe_secret_key);
   let account = null;
   let bankName = null;
   let accountHolderName = null;
@@ -263,7 +263,7 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
   let accountNumber = null;
 
   if (saloonOwner?.isVerified && result.stripeAccountId) {
-    account = await stripe.accounts.retrieve(result.stripeAccountId);
+    // account = await stripe.accounts.retrieve(result.stripeAccountId);
 
     // Stripe external_accounts may contain bank details
     interface StripeBankAccount {
@@ -284,20 +284,20 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       [key: string]: any;
     }
 
-    const bankAccount: StripeBankAccount | undefined = (
-      account as StripeAccount
-    )?.external_accounts?.data?.find(
-      (acc: StripeBankAccount) => acc.object === 'bank_account',
-    );
-    bankName = bankAccount?.bank_name || null;
-    accountHolderName =
-      account?.individual?.first_name && account?.individual?.last_name
-        ? `${account.individual.first_name} ${account.individual.last_name}`
-        : null;
+  //   const bankAccount: StripeBankAccount | undefined = (
+  //     account as StripeAccount
+  //   )?.external_accounts?.data?.find(
+  //     (acc: StripeBankAccount) => acc.object === 'bank_account',
+  //   );
+  //   bankName = bankAccount?.bank_name || null;
+  //   accountHolderName =
+  //     account?.individual?.first_name && account?.individual?.last_name
+  //       ? `${account.individual.first_name} ${account.individual.last_name}`
+  //       : null;
 
-    branchCity = bankAccount?.bank_name || null;
-    branchCode = bankAccount?.routing_number || null;
-    accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+  //   branchCity = bankAccount?.bank_name || null;
+  //   branchCode = bankAccount?.routing_number || null;
+  //   accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
   }
 
   return {
@@ -522,7 +522,7 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
   }
 
   //get bank details from the stripe
-  const stripe = require('stripe')(config.stripe.stripe_secret_key);
+  // const stripe = require('stripe')(config.stripe.stripe_secret_key);
   let account = null;
   let bankName = null;
   let accountHolderName = null;
@@ -531,7 +531,7 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
   let accountNumber = null;
 
   if (result.stripeAccountId) {
-    account = await stripe.accounts.retrieve(result.stripeAccountId);
+    // account = await stripe.accounts.retrieve(result.stripeAccountId);
 
     // Stripe external_accounts may contain bank details
     interface StripeBankAccount {
@@ -552,20 +552,20 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
       [key: string]: any;
     }
 
-    const bankAccount: StripeBankAccount | undefined = (
-      account as StripeAccount
-    )?.external_accounts?.data?.find(
-      (acc: StripeBankAccount) => acc.object === 'bank_account',
-    );
-    bankName = bankAccount?.bank_name || null;
-    accountHolderName =
-      account?.individual?.first_name && account?.individual?.last_name
-        ? `${account.individual.first_name} ${account.individual.last_name}`
-        : null;
+  //   const bankAccount: StripeBankAccount | undefined = (
+  //     account as StripeAccount
+  //   )?.external_accounts?.data?.find(
+  //     (acc: StripeBankAccount) => acc.object === 'bank_account',
+  //   );
+  //   bankName = bankAccount?.bank_name || null;
+  //   accountHolderName =
+  //     account?.individual?.first_name && account?.individual?.last_name
+  //       ? `${account.individual.first_name} ${account.individual.last_name}`
+  //       : null;
 
-    branchCity = bankAccount?.bank_name || null;
-    branchCode = bankAccount?.routing_number || null;
-    accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+  //   branchCity = bankAccount?.bank_name || null;
+  //   branchCode = bankAccount?.routing_number || null;
+  //   accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
   }
 
   return {
@@ -925,7 +925,7 @@ const getSubscribersListFromDb = async (
             id: true,
             startDate: true,
             endDate: true,
-            stripeSubscriptionId: true,
+            // stripeSubscriptionId: true,
             paymentStatus: true,
             subscriptionOffer: {
               select: {
@@ -965,7 +965,7 @@ const getSubscribersListFromDb = async (
       subscriptionId: subscription?.id || null,
       startDate: subscription?.startDate || null,
       endDate: subscription?.endDate || null,
-      stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
+      // stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
       paymentStatus: subscription?.paymentStatus || null,
       offer: subscription?.subscriptionOffer
         ? {
@@ -978,10 +978,14 @@ const getSubscribersListFromDb = async (
           }
         : null,
     };
+  
+  
   });
+
 
   return formatPaginationResponse(flattenedSubscribers, total, page, limit);
 };
+
 
 export const adminService = {
   getSaloonFromDb,

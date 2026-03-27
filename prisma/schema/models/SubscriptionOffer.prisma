@@ -6,8 +6,12 @@ model SubscriptionOffer {
   price           Float
   currency        String?                @default("usd")
   duration        SubscriptionType
+  durationDays    Int                    @default(30) // Number of days for the subscription
   planType        SubscriptionPlanStatus @default(BASIC_PREMIUM)
   status          UserStatus             @default(ACTIVE)
+  // Apple IAP Fields
+  appleProductId  String?                @unique // e.g., "com.barbershift.premium.monthly"
+  // Legacy Stripe Fields (deprecated)
   stripeProductId String?
   stripePriceId   String?
   createdAt       DateTime               @default(now())
