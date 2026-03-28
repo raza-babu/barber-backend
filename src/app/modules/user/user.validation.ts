@@ -136,9 +136,11 @@ const socialLoginSchema = z.object({
     }),
     image: z.string().optional(),
     address: z.string().optional(),
-    role: z.enum(['CUSTOMER', 'SALOON_OWNER', 'BARBER'], {
-      required_error: 'Role is required!',
-    }),
+    intendedRole: z
+      .enum(['CUSTOMER', 'SALOON_OWNER', 'BARBER'], {
+        required_error: 'Role is required!',
+      })
+      .optional(),
   }),
 });
 
@@ -204,7 +206,16 @@ const updateSaloonOwner = z.object({
         required_error: 'Shop name is required!',
       })
       .optional(),
-
+      shopImages: z
+      .array(z.string(), {
+        invalid_type_error: 'Shop images must be an array of strings!',
+      })
+      .optional(),
+      shopVideo: z
+      .array(z.string(), {
+        invalid_type_error: 'Shop images must be an array of strings!',
+      })
+      .optional(),
     shopBio: z
       .string({
         required_error: 'Shop bio is required!',
@@ -267,11 +278,11 @@ const updateBarber = z.object({
 
     bio: z.string().optional(),
 
-    // portfolio: z
-    //   .array(z.string(), {
-    //     invalid_type_error: 'Portfolio images must be an array of strings!',
-    //   })
-    //   .optional(),
+    portfolio: z
+      .array(z.string(), {
+        invalid_type_error: 'Portfolio images must be an array of strings!',
+      })
+      .optional(),
 
     isAvailable: z.boolean().optional(),
 

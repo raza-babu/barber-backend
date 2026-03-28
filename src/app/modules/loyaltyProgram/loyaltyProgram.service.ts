@@ -2,6 +2,8 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { calculatePagination } from '../../utils/pagination';
 
 const createLoyaltyProgramIntoDb = async (
   userId: string,
@@ -45,16 +47,55 @@ const createLoyaltyProgramIntoDb = async (
   return result;
 };
 
-const getLoyaltyProgramListFromDb = async (userId: string) => {
-  const result = await prisma.loyaltyProgram.findMany({
-    where: {
-      userId: userId,
+const getLoyaltyProgramListFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
+    const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+  
+  const searchTerm = options.searchTerm || '';
+
+  const whereCondition = {
+    userId: userId,
+    ...(searchTerm && {
+      OR: [
+        {
+          serviceName: {
+            contains: searchTerm,
+            mode: 'insensitive' as const,
+          },
+        },
+      ],
+    }),
+  };
+
+  const [result, total] = await prisma.$transaction([
+    prisma.loyaltyProgram.findMany({
+      where: whereCondition,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+    }),
+    prisma.loyaltyProgram.count({
+      where: whereCondition,
+    }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    data: result,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
     },
-  });
-  if (result.length === 0) {
-    return { message: 'No loyaltyProgram found' };
-  }
-  return result;
+  };
 };
 
 const getLoyaltyProgramByIdFromDb = async (

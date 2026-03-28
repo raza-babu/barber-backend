@@ -51,6 +51,13 @@ router.post(
   PaymentController.cancelPaymentRequest,
 );
 
+router.post(
+  '/cancel-queue-payment',
+  auth(),
+  validateRequest(cancelPaymentPayloadSchema),
+  PaymentController.cancelQueuePaymentRequest,
+);
+
 // Save new card to existing customer
 router.post(
   '/save-new-card',

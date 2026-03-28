@@ -1012,13 +1012,16 @@ const verifyOtpInDB = async (bodyData: {
       updateData.intendedRole = UserRoleEnum.SALOON_OWNER;
       updateData.role = UserRoleEnum.SALOON_OWNER;
       updateData.isProfileComplete = false;
+      updateData.isVerified = true;
     } else if (userData.intendedRole === UserRoleEnum.BARBER) {
       // updateData.intendedRole = UserRoleEnum.BARBER;
       updateData.role = UserRoleEnum.BARBER;
       updateData.isProfileComplete = true;
+      updateData.isVerified = true;
       updateData.status = UserStatus.ACTIVE;
     } else {
       // any other role or null
+      updateData.isVerified = true;
       updateData.isProfileComplete = true;
       updateData.status = UserStatus.ACTIVE;
     }
@@ -1100,17 +1103,24 @@ interface SocialLoginPayload {
   fullName: string;
   email: string;
   image?: string | null;
-  role?: UserRoleEnum;
-  fcmToken?: string | null;
+  intendedRole?: UserRoleEnum;
+  fcmToken: string;
   phoneNumber?: string | null;
   address?: string | null;
+  plateForm: 'GOOGLE' | 'FACEBOOK' | 'APPLE';
 }
 
 const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
+  // Validate and sanitize role (default to CUSTOMER if invalid/missing)
+  let userRole: UserRoleEnum = UserRoleEnum.CUSTOMER;
+  if (payload.intendedRole && Object.values(UserRoleEnum).includes(payload.intendedRole)) {
+    userRole = payload.intendedRole;
+  }
+
   // Prevent creating an ADMIN via social sign-up
   if (
-    payload.role === UserRoleEnum.ADMIN ||
-    payload.role === UserRoleEnum.SUPER_ADMIN
+    userRole === UserRoleEnum.ADMIN ||
+    userRole === UserRoleEnum.SUPER_ADMIN
   ) {
     throw new AppError(
       httpStatus.FORBIDDEN,
@@ -1118,9 +1128,9 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
     );
   }
 
-  // Find existing user by email
-  let userRecord = await prisma.user.findUnique({
-    where: { email: payload.email, role: payload.role },
+  // Check if email is already used (for any role)
+  const existingUser = await prisma.user.findUnique({
+    where: { email: payload.email },
     select: {
       id: true,
       fullName: true,
@@ -1133,19 +1143,34 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
       subscriptionPlan: true,
       isProfileComplete: true,
       status: true,
+      intendedRole: true,
     },
   });
 
+  // If user exists, check if they're trying to use the same email for a different role
+  if (existingUser) {
+    // Check if the existing user's role or intendedRole matches the requested role
+    const matchesRole = existingUser.role === userRole || existingUser.intendedRole === userRole;
+    
+    if (!matchesRole) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        `This email is already registered with a different role (${existingUser.role}). Please use a different email or log in with your existing account.`,
+      );
+    }
+  }
+
+  let userRecord = existingUser;
   let isNewUser = false;
 
   if (userRecord) {
     // Check profile completion
-    if (userRecord.isProfileComplete === false) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Please complete your profile before logging in',
-      );
-    }
+    // if (userRecord.isProfileComplete === false) {
+    //   throw new AppError(
+    //     httpStatus.BAD_REQUEST,
+    //     'Please complete your profile before logging in',
+    //   );
+    // }
 
     // Check if account is blocked
     if (userRecord.status === UserStatus.BLOCKED) {
@@ -1168,28 +1193,8 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
         );
       }
     }
-
-    // For BARBER, add similar verification check (assuming a barber model exists)
-    // if (userRecord.role === UserRoleEnum.BARBER) {
-    //   const barber = await prisma.barber.findFirst({
-    //     where: { userId: userRecord.id },
-    //   });
-
-    //   if (barber?.isVerified === false) {
-    //     throw new AppError(
-    //       httpStatus.BAD_REQUEST,
-    //       'Your barber profile is not verified yet. Please wait for verification.',
-    //     );
-    //   }
-    // }
   } else {
-    // Validate and sanitize role for new users (default to CUSTOMER if invalid/missing)
-    let userRole: UserRoleEnum = UserRoleEnum.CUSTOMER;
-    if (payload.role && Object.values(UserRoleEnum).includes(payload.role)) {
-      userRole = payload.role;
-    }
-
-    // If user does not exist, create
+    // Create new user
     const created = await prisma.user.create({
       data: {
         fullName: payload.fullName,
@@ -1198,11 +1203,10 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
         role: userRole,
         status: UserStatus.ACTIVE,
         isVerified: true,
-        fcmToken: payload.fcmToken ?? null,
+        fcmToken: payload.fcmToken,
         phoneNumber: payload.phoneNumber ?? null,
         address: payload.address ?? null,
-        isProfileComplete:
-          payload.role === UserRoleEnum.CUSTOMER ? true : false, // Auto-complete profile for CUSTOMER
+        isProfileComplete: userRole === UserRoleEnum.CUSTOMER || userRole === UserRoleEnum.BARBER ? true : false, // Auto-complete profile for CUSTOMER and BARBER
       },
       select: {
         id: true,
@@ -1221,7 +1225,8 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
     userRecord = {
       ...created,
       status: UserStatus.ACTIVE,
-      isProfileComplete: true,
+      isProfileComplete: userRole === UserRoleEnum.CUSTOMER ? true : false,
+      intendedRole: null,
       onBoarding: created.onBoarding ?? false,
       isSubscribed: created.isSubscribed ?? false,
       subscriptionEnd: created.subscriptionEnd ?? null,
@@ -1231,9 +1236,8 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
     isNewUser = true;
   }
 
-  // Update FCM token if provided (for both new and existing users)
-  if (payload.fcmToken && !isNewUser) {
-    // Skip for new users if already set during create
+  // Update FCM token for existing users (new users already have it set during create)
+  if (!isNewUser && payload.fcmToken) {
     await prisma.user.update({
       where: { id: userRecord.id },
       data: { fcmToken: payload.fcmToken },

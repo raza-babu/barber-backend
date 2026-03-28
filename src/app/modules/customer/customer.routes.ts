@@ -63,7 +63,7 @@ router.delete(
 
 router.get(
   '/saloon-services/:id',
-  auth(UserRoleEnum.CUSTOMER),
+  auth(UserRoleEnum.CUSTOMER, UserRoleEnum.SALOON_OWNER),
   customerController.getSaloonAllServicesList,
 );
 
@@ -86,6 +86,13 @@ router.put(
   auth(),
   validateRequest(customerValidation.updateSchema),
   customerController.updateCustomer,
+);
+
+router.patch(
+  '/check-in/:bookingId',
+  auth(UserRoleEnum.CUSTOMER),
+  validateRequest(customerValidation.checkInSchema),
+  customerController.checkInToSaloon,
 );
 
 router.delete('/:id', auth(), customerController.deleteCustomer);

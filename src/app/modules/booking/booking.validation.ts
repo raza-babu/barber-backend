@@ -17,6 +17,7 @@ const createBookingSchema = z.object({
     type: z.enum(['BOOKING', 'QUEUE'], {
       required_error: 'Booking type is required',
     }),
+    remoteQueue: z.boolean().optional(),
     fullName: z.string().min(1, 'Full name is required').optional(),
     email: z.string().email('Invalid email address').optional(),
     phone: z.string().min(1, 'Phone number is required').optional(),

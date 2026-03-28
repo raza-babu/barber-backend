@@ -272,6 +272,22 @@ const updateCustomer = catchAsync(async (req, res) => {
   });
 });
 
+const checkInToSaloon = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await customerService.checkInToSaloonInDb(
+    user.id,
+    req.params.bookingId,
+    req.body.latitude,
+    req.body.longitude,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Customer checked in to saloon successfully',
+    data: result,
+  });
+});
+
 const deleteCustomer = catchAsync(async (req, res) => {
   const user = req.user as any;
   const result = await customerService.deleteCustomerItemFromDb(
@@ -301,4 +317,5 @@ export const customerController = {
   getCustomerById,
   updateCustomer,
   deleteCustomer,
+  checkInToSaloon,
 };

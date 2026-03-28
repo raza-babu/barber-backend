@@ -138,12 +138,20 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
   }
 
   if (uploads.shopImages?.length) {
-    payload.shopImages = uploads.shopImages;
+    payload.shopImages = [
+      ...(Array.isArray(body.shopImages) ? body.shopImages : []),
+      ...uploads.shopImages,
+    ];
   }
 
   if (uploads.shopVideos?.length) {
-    payload.shopVideo = uploads.shopVideos;
+    payload.shopVideo = [
+      ...(Array.isArray(body.shopVideo) ? body.shopVideo : []),
+      ...uploads.shopVideos,
+    ]
   }
+
+
   const result = await UserServices.updateSaloonOwnerIntoDB(user.id, payload);
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -177,7 +185,10 @@ const updateBarber = catchAsync(async (req, res) => {
   }
 
   if(uploads.portfolioImages.length) {
-    body.portfolio = uploads.portfolioImages;
+    body.portfolio = [
+      ...(Array.isArray(body.portfolio) ? body.portfolio : []),
+      ...uploads.portfolioImages,
+    ]
   }
 
   const payload = {

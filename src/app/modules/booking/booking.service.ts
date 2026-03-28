@@ -1,8 +1,10 @@
+import { StripeServices } from './../payment/payment.service';
 import prisma from '../../utils/prisma';
 import {
   BookingStatus,
   BookingType,
   PaymentStatus,
+  QueueStatus,
   RedemptionStatus,
   ScheduleType,
   UserRoleEnum,
@@ -14,6 +16,7 @@ import { calculatePagination } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { customerService } from '../customer/customer.service';
 import config from '../../../config';
+
 
 const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
   const {
@@ -612,6 +615,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     notes,
     isInQueue,
     loyaltySchemeId,
+    remoteQueue
   } = data;
 
   const saloonStatus = await prisma.saloonOwner.findUnique({
@@ -739,8 +743,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     );
   }
 
-  console.log('Selected barber free slots:', selectedBarber.freeSlots);
-  console.log('Selected barber schedule:', selectedBarber.schedule);
+  // console.log('Selected barber free slots:', selectedBarber.freeSlots);
+  // console.log('Selected barber schedule:', selectedBarber.schedule);
 
   // 6. Pick earliest available time slot
   const pickEarliestSlot = (
@@ -749,8 +753,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     totalDurationMinutes: number,
   ): string | undefined => {
     const nowLocal = DateTime.now().setZone(config.timezone);
-    console.log('Current time:', nowLocal.toFormat('yyyy-MM-dd hh:mm a'));
-    console.log('Required duration:', totalDurationMinutes, 'minutes');
+    // console.log('Current time:', nowLocal.toFormat('yyyy-MM-dd hh:mm a'));
+    // console.log('Required duration:', totalDurationMinutes, 'minutes');
 
     if (!freeSlots || freeSlots.length === 0) {
       console.log('No free slots available');
@@ -763,7 +767,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
           { zone: config.timezone },
         );
 
-        console.log('Barber closing time:', closingTime.toFormat('hh:mm a'));
+        // console.log('Barber closing time:', closingTime.toFormat('hh:mm a'));
 
         // If current time is before closing time, allow booking from current time
         if (nowLocal < closingTime) {
@@ -790,36 +794,36 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         { zone: config.timezone },
       );
 
-      console.log('Slot start valid:', slotStart.isValid, slotStart.toISO());
-      console.log('Slot end valid:', slotEnd.isValid, slotEnd.toISO());
+      // console.log('Slot start valid:', slotStart.isValid, slotStart.toISO());
+      // console.log('Slot end valid:', slotEnd.isValid, slotEnd.toISO());
 
       if (!slotStart.isValid || !slotEnd.isValid) {
-        console.log('Invalid slot times, skipping');
+        // console.log('Invalid slot times, skipping');
         continue;
       }
 
       // Skip slots that have completely ended
       if (slotEnd <= nowLocal) {
-        console.log('Slot has ended, skipping');
+        // console.log('Slot has ended, skipping');
         continue;
       }
 
       // If slot starts in the past but ends in the future, use current time as start
       const effectiveStart = slotStart < nowLocal ? nowLocal : slotStart;
-      console.log('Effective start:', effectiveStart.toFormat('hh:mm a'));
+      // console.log('Effective start:', effectiveStart.toFormat('hh:mm a'));
 
       const slotMinutes = slotEnd.diff(effectiveStart, 'minutes').minutes;
-      console.log('Available minutes in slot:', slotMinutes);
+      // console.log('Available minutes in slot:', slotMinutes);
 
       // For queue bookings, allow booking if there's any time available
       if (slotMinutes > 0) {
         const selectedTime = effectiveStart.toFormat('hh:mm a');
-        console.log('Selected time slot:', selectedTime);
+        // console.log('Selected time slot:', selectedTime);
         return selectedTime;
       }
     }
 
-    console.log('No suitable slot found in free slots');
+    // console.log('No suitable slot found in free slots');
 
     // FALLBACK: If all slots are in past but schedule allows, use current time
     if (schedule) {
@@ -831,10 +835,10 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
 
       if (nowLocal < closingTime) {
         const selectedTime = nowLocal.toFormat('hh:mm a');
-        console.log(
-          'Using current time as fallback (all slots past):',
-          selectedTime,
-        );
+        // console.log(
+        //   'Using current time as fallback (all slots past):',
+        //   selectedTime,
+        // );
         return selectedTime;
       }
     }
@@ -855,8 +859,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     );
   }
 
-  console.log('Final appointment time:', appointmentAt);
-  console.log('Final total duration:', totalDuration, 'minutes');
+  // console.log('Final appointment time:', appointmentAt);
+  // console.log('Final total duration:', totalDuration, 'minutes');
 
   // 7. Combine date and appointmentAt
   const localDateTime = DateTime.fromFormat(
@@ -1083,6 +1087,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
           .toFormat('hh:mm a'),
         loyaltySchemeId: loyaltySchemeId || null,
         loyaltyUsed: !!loyaltyUsed,
+        remoteQueue: remoteQueue ?? false,
       },
     });
 
@@ -1740,7 +1745,7 @@ const createQueueBookingForCustomerIntoDb1 = async (
     where: {
       serviceIds: {
         hasEvery: serviceIds, // Must contain all service IDs
-        equals: serviceIds, // Must be exact match
+        // equals: serviceIds, // Must be exact match
       },
     },
     select: {
@@ -2161,7 +2166,7 @@ const createQueueBookingForCustomerIntoDb = async (
   saloonOwnerId: string,
   data: any,
 ) => {
-  const { date, services, notes, type } = data;
+  const { date, services, notes, type, remoteQueue } = data;
   let appointmentAt: string | undefined = data.appointmentAt;
 
   // Helper: pick the earliest free slot start that can accommodate totalDuration (minutes).
@@ -2242,9 +2247,9 @@ const createQueueBookingForCustomerIntoDb = async (
     0,
   );
 
-  console.log('=== Duration Calculation ===');
-  console.log('Service IDs:', serviceIds);
-  console.log('Default total duration from services:', totalDuration);
+  // console.log('=== Duration Calculation ===');
+  // console.log('Service IDs:', serviceIds);
+  // console.log('Default total duration from services:', totalDuration);
 
   // 3. Find available barbers for walking-in
   const availableBarbers = await getAvailableBarbersForWalkingInFromDb1(
@@ -2254,10 +2259,10 @@ const createQueueBookingForCustomerIntoDb = async (
     type as BookingType,
   );
 
-  console.log(
-    'Available barbers for walking-in for customer:',
-    JSON.stringify(availableBarbers, null, 2),
-  );
+  // console.log(
+  //   'Available barbers for walking-in for customer:',
+  //   JSON.stringify(availableBarbers, null, 2),
+  // );
 
   if (
     !availableBarbers ||
@@ -2298,7 +2303,7 @@ const createQueueBookingForCustomerIntoDb = async (
     // Check each barber for historical duration data
     for (const b of sorted) {
       if (!b) continue;
-      console.log(`Checking barber ${b.barberId}, free slots:`, b.freeSlots);
+      // console.log(`Checking barber ${b.barberId}, free slots:`, b.freeSlots);
 
       // 🔥 Check QueueTime model for this barber + saloon + service combination
       const queueTimeRecord = await prisma.queueTime.findFirst({
@@ -2307,7 +2312,6 @@ const createQueueBookingForCustomerIntoDb = async (
           barberId: b.barberId,
           serviceIds: {
             hasEvery: serviceIds, // Must contain all service IDs
-            equals: serviceIds, // Must be exact match (same order doesn't matter due to sort)
           },
         },
         select: {
@@ -2321,17 +2325,17 @@ const createQueueBookingForCustomerIntoDb = async (
       // Use historical average duration if available
       const effectiveDuration = queueTimeRecord?.averageMin || totalDuration;
 
-      console.log(`Barber ${b.barberId} - Queue time record:`, queueTimeRecord);
-      console.log(
-        `Using duration: ${effectiveDuration}min (${queueTimeRecord ? 'historical' : 'default'})`,
-      );
+      // console.log(`Barber ${b.barberId} - Queue time record:`, queueTimeRecord);
+      // console.log(
+      //   `Using duration: ${effectiveDuration}min (${queueTimeRecord ? 'historical' : 'default'})`,
+      // );
 
       const slotStartStr = pickEarliestSlotForBarber(
         b.freeSlots,
         effectiveDuration, // Use historical duration here
       );
 
-      console.log(`Selected slot for barber ${b.barberId}:`, slotStartStr);
+      // console.log(`Selected slot for barber ${b.barberId}:`, slotStartStr);
 
       if (!slotStartStr) continue;
 
@@ -2360,7 +2364,7 @@ const createQueueBookingForCustomerIntoDb = async (
       });
     }
 
-    console.log(`Found ${candidates.length} candidate barbers`);
+    // console.log(`Found ${candidates.length} candidate barbers`);
 
     if (candidates.length > 0) {
       candidates.sort((x, y) => {
@@ -2373,11 +2377,11 @@ const createQueueBookingForCustomerIntoDb = async (
       // 🔥 Use historical duration for the chosen barber
       totalDuration = candidates[0].historicalDuration || totalDuration;
 
-      console.log('Selected barber from candidates:', chosen.barberId);
-      console.log('Final total duration:', totalDuration);
+      // console.log('Selected barber from candidates:', chosen.barberId);
+      // console.log('Final total duration:', totalDuration);
     } else {
       // Fallback: find any barber with free slots that have any remaining time
-      console.log('No candidates found, trying fallback logic');
+      // console.log('No candidates found, trying fallback logic');
 
       for (const b of sorted) {
         if (!b || !b.freeSlots || b.freeSlots.length === 0) continue;
@@ -2389,7 +2393,7 @@ const createQueueBookingForCustomerIntoDb = async (
             barberId: b.barberId,
             serviceIds: {
               hasEvery: serviceIds,
-              equals: serviceIds,
+              // equals: serviceIds,
             },
           },
           select: {
@@ -2422,18 +2426,18 @@ const createQueueBookingForCustomerIntoDb = async (
               'minutes',
             ).minutes;
 
-            console.log(
-              `Fallback: Barber ${b.barberId}, slot ${slot.start}-${slot.end}, remaining: ${remainingMinutes}min`,
-            );
+            // console.log(
+            //   `Fallback: Barber ${b.barberId}, slot ${slot.start}-${slot.end}, remaining: ${remainingMinutes}min`,
+            // );
 
             // Allow booking if there's any time remaining
             if (remainingMinutes > 0) {
               chosen = b;
               chosenAppointmentAt = effectiveStart.toFormat('hh:mm a');
               totalDuration = effectiveDuration; // 🔥 Use historical duration
-              console.log(
-                `Fallback selected barber ${b.barberId} at ${chosenAppointmentAt} with duration ${totalDuration}min`,
-              );
+              // console.log(
+              //   `Fallback selected barber ${b.barberId} at ${chosenAppointmentAt} with duration ${totalDuration}min`,
+              // );
               break;
             }
           }
@@ -2462,7 +2466,7 @@ const createQueueBookingForCustomerIntoDb = async (
           barberId: chosen.barberId,
           serviceIds: {
             hasEvery: serviceIds,
-            equals: serviceIds,
+            // equals: serviceIds,
           },
         },
         select: {
@@ -2472,9 +2476,9 @@ const createQueueBookingForCustomerIntoDb = async (
 
       if (queueTimeRecord?.averageMin) {
         totalDuration = queueTimeRecord.averageMin;
-        console.log(
-          `Using historical duration for manual selection: ${totalDuration}min`,
-        );
+        // console.log(
+        //   `Using historical duration for manual selection: ${totalDuration}min`,
+        // );
       }
     }
   }
@@ -2657,6 +2661,7 @@ const createQueueBookingForCustomerIntoDb = async (
           .toFormat('hh:mm a'),
         loyaltySchemeId: null,
         loyaltyUsed: false,
+        remoteQueue: remoteQueue ?? false,
       },
     });
 
@@ -3213,6 +3218,8 @@ const getBookingListFromDb = async (
       barberImage: b.barber?.user?.image || null,
       position: b.queueSlot[0]?.position || null,
       currentPosition: currentPosition,
+      remoteQueue: b.remoteQueue,
+      checkIn: b.checkIn,
       serviceNames: b.BookedServices?.map(bs => bs.service?.serviceName) || [],
       serviceDurations: b.BookedServices?.map(bs => bs.service?.duration) || [],
       payment:
@@ -5543,6 +5550,7 @@ const updateBookingStatusIntoDb = async (
               service: true,
             },
           },
+          queueSlot: true,
         },
       });
 
@@ -5603,6 +5611,121 @@ const updateBookingStatusIntoDb = async (
           where: { id: bookingId, saloonOwnerId: userId },
           data: { status: BookingStatus.COMPLETED },
         });
+
+        await tx.barberRealTimeStatus.deleteMany({
+          where: {
+            barberId: bookingWithServices.barberId,
+            startDateTime: bookingWithServices.startDateTime || new Date(),
+            endDateTime: bookingWithServices.endDateTime || new Date(),
+          },
+        });
+
+        await tx.queueSlot.updateMany({
+          where: { bookingId: bookingId },
+          data: { status: 'COMPLETED' },
+        });
+
+        await tx.queue.updateMany({
+          where: { id: bookingWithServices.queueSlot?.[0]?.queueId },
+          data: { currentPosition: { decrement: 1 } },
+        });
+
+       await StripeServices.capturePaymentRequestToStripe(userId, {bookingId, status: BookingStatus.COMPLETED});
+
+        return completedBooking;
+      }
+    }
+    if (status === BookingStatus.NO_SHOW) {
+      // Get booked services and calculate loyalty points
+      const bookingWithServices = await tx.booking.findUnique({
+        where: { id: bookingId, saloonOwnerId: userId },
+        include: {
+          BookedServices: {
+            include: {
+              service: true,
+            },
+          },
+          queueSlot: true,
+        },
+      });
+
+      if (bookingWithServices) {
+        const serviceIds = bookingWithServices.BookedServices.map(
+          bs => bs.serviceId,
+        );
+        const totalAmount = bookingWithServices.BookedServices.reduce(
+          (sum, bs) => sum + Number(bs.price),
+          0,
+        );
+
+        // Find loyalty points for services
+        const findPoints = await tx.loyaltyProgram.findFirst({
+          where: {
+            userId: userId,
+            serviceId: { in: serviceIds },
+          },
+          select: { points: true, id: true },
+        });
+
+        let pointsToAdd = 0;
+        if (findPoints) {
+          pointsToAdd = (findPoints.points || 0) * serviceIds.length;
+        }
+
+        // Upsert customer loyalty
+        await tx.customerLoyalty.upsert({
+          where: {
+            userId_saloonOwnerId: {
+              userId: bookingWithServices.userId,
+              saloonOwnerId: userId,
+            },
+          },
+          create: {
+            userId: bookingWithServices.userId,
+            saloonOwnerId: userId,
+            totalPoints: pointsToAdd,
+          },
+          update: {
+            totalPoints: { increment: pointsToAdd },
+          },
+        });
+
+        // Create customer visit record
+        await tx.customerVisit.create({
+          data: {
+            customerId: bookingWithServices.userId,
+            saloonOwnerId: userId,
+            visitDate: new Date(),
+            amountSpent: totalAmount,
+            serviceId: serviceIds,
+          },
+        });
+
+        // Update booking status to COMPLETED
+        const completedBooking = await tx.booking.update({
+          where: { id: bookingId, saloonOwnerId: userId },
+          data: { status: BookingStatus.NO_SHOW },
+        });
+
+         await tx.barberRealTimeStatus.deleteMany({
+          where: {
+            barberId: bookingWithServices.barberId,
+            startDateTime: bookingWithServices.startDateTime || new Date(),
+            endDateTime: bookingWithServices.endDateTime || new Date(),
+          },
+        });
+
+        await tx.queueSlot.updateMany({
+          where: { bookingId: bookingId },
+          data: { status: QueueStatus.NO_SHOW },
+        });
+
+        await tx.queue.updateMany({
+          where: { id: bookingWithServices.queueSlot?.[0]?.queueId },
+          data: { currentPosition: { decrement: 1 } },
+        });
+
+       await StripeServices.capturePaymentRequestToStripe(userId, {bookingId, status: BookingStatus.NO_SHOW});
 
         return completedBooking;
       }
@@ -5706,6 +5829,13 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
         barberId: booking.barberId,
         startDateTime: booking.startDateTime || new Date(),
         endDateTime: booking.endDateTime || new Date(),
+      },
+    });
+
+    // delete the loyalty redemption record if exists for this booking
+    await tx.loyaltyRedemption.deleteMany({
+      where: {
+        bookingId: bookingId,
       },
     });
 

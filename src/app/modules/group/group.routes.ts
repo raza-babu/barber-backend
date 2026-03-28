@@ -27,6 +27,8 @@ router.post(
   groupController.imageToLink,
 );
 
+
+
 router.get('/:groupId', auth(), groupController.getGroupById);
 
 router.put(

@@ -11,7 +11,6 @@ model Reply {
 
   // Relationships
   support      Support?      @relation(fields: [supportId], references: [id])
-  saloonReport SaloonReport? @relation(fields: [reportId], references: [id])
   user         User          @relation(fields: [userId], references: [id])
 
   @@map("replies")

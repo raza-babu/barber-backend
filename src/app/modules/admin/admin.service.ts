@@ -28,7 +28,9 @@ const getSaloonFromDb = async (
     },
     {
       role: UserRoleEnum.SALOON_OWNER,
-      status: options.status || UserStatus.ACTIVE,
+      ...(options.status
+        ? { status: options.status }
+        : { status: { not: UserStatus.PENDING } }),
     },
     {
       startDate: options.startDate,
@@ -442,6 +444,12 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
                 shopAddress: true,
               },
             },
+            HiredBarber: {
+              select: {
+                id: true,
+                hourlyRate: true,
+              },
+            },        
           },
         },
       },
@@ -461,6 +469,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
       experienceYears: Barber?.experienceYears,
       skills: Barber?.skills,
       bio: Barber?.bio,
+      hourlyRate: Barber?.HiredBarber?.[0]?.hourlyRate || null,
       shopId: Barber?.saloonOwner?.id ?? null,
       shopName: Barber?.saloonOwner?.shopName ?? null,
       shopAddress: Barber?.saloonOwner?.shopAddress ?? null,
