@@ -1,20 +1,48 @@
 import prisma from '../../utils/prisma';
-import { UserRoleEnum, UserStatus } from '@prisma/client';
+import { SubscriptionType, UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import Stripe from 'stripe';
-import config from '../../../config';
-
-// Initialize Stripe with your secret API key
-const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
-  apiVersion: '2025-08-27.basil',
-});
 
 const createSubscriptionOfferIntoDb = async (userId: string, data: any) => {
   return await prisma.$transaction(async tx => {
+    // check existing active subscription offer with same title and duration
+    const existing = await tx.subscriptionOffer.findFirst({
+      where: {
+        title: data.title,
+        duration: data.duration,
+        status: UserStatus.ACTIVE,
+      },
+    });
+    if (existing) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'An active subscription offer with the same title and duration already exists',
+      );
+    }
+
+    // need to calculate the durationsDays based on the duration enum value
+    let durationDays = 30;
+    switch (data.duration) {
+      case SubscriptionType.WEEKLY:
+        durationDays = 7;
+        break;
+      case SubscriptionType.MONTHLY:
+        durationDays = 30;
+        break;
+      case SubscriptionType.YEARLY:
+        durationDays = 365;
+        break;
+      case SubscriptionType.LIFETIME:
+        durationDays = 365 * 100; // effectively a lifetime subscription
+        break;
+      default:
+        durationDays = 30;
+    }
+
     const result = await tx.subscriptionOffer.create({
       data: {
         ...data,
+        durationDays,
         userId: userId,
       },
     });
@@ -25,66 +53,7 @@ const createSubscriptionOfferIntoDb = async (userId: string, data: any) => {
       );
     }
 
-    // Create a product in Stripe for this subscription offer
-    let product: Stripe.Product;
-    try {
-      product = await stripe.products.create({
-        name: result.title,
-        description: result.description!,
-      });
-    } catch (err) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Stripe product not created!');
-    }
-
-    let price: Stripe.Price;
-    try {
-      price = await stripe.prices.create({
-        unit_amount: result.price * 100, // Amount in cents
-        currency: 'usd',
-        recurring: {
-          interval: 'month',
-        },
-        product: product.id,
-      });
-    } catch (err: any) {
-      await stripe.products.del(product.id);
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Stripe price creation failed: ${err.message}`,
-      );
-    }
-
-    console.log(
-      'Success! Here is your starter subscription product id: ' + product.id,
-    );
-    console.log(
-      'Success! Here is your starter subscription price id: ' + price.id,
-    );
-
-    const updatedResult = await tx.subscriptionOffer.update({
-      where: {
-        id: result.id,
-        userId: userId,
-      },
-      data: {
-        stripeProductId: product.id,
-        stripePriceId: price.id,
-      },
-    });
-    if (!updatedResult) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'subscriptionOffer not updated with Stripe IDs',
-      );
-    }
-
-    return {
-      ...result,
-      product,
-      price,
-      stripeProductId: product.id,
-      stripePriceId: price.id,
-    };
+    return result;
   });
 };
 
@@ -93,24 +62,7 @@ const getSubscriptionOfferListFromDb = async () => {
   if (result.length === 0) {
     return [];
   }
-  const stripeProductIds = await stripe.products.list({
-    limit: 100,
-  });
-  const stripePriceIds = await stripe.prices.list({
-    limit: 100,
-  });
-  const resultWithStripeData = result.map(offer => {
-    const product = stripeProductIds.data.find(
-      prod => prod.id === offer.stripeProductId,
-    );
-    const price = stripePriceIds.data.find(
-      prc => prc.id === offer.stripePriceId,
-    );
-    return {
-      ...offer,
-    };
-  });
-  return resultWithStripeData;
+  return result;
 };
 
 const getSubscriptionOfferByIdFromDb = async (subscriptionOfferId: string) => {
@@ -122,8 +74,6 @@ const getSubscriptionOfferByIdFromDb = async (subscriptionOfferId: string) => {
   if (!result) {
     return { message: 'SubscriptionOffer not found' };
   }
-  // const product = await stripe.products.retrieve(result.stripeProductId!);
-  // const price = await stripe.prices.retrieve(result.stripePriceId!);
   return result;
 };
 
@@ -148,74 +98,32 @@ const updateSubscriptionOfferIntoDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Duration cannot be updated');
     }
 
-    // Step 2: update in DB first
+    //if duration is being updated, we need to recalculate the durationDays based on the new duration value
+    if (data.duration) {
+      switch (data.duration) {
+        case SubscriptionType.WEEKLY:
+          data.durationDays = 7;
+          break;
+        case SubscriptionType.MONTHLY:
+          data.durationDays = 30;
+          break;
+        case SubscriptionType.YEARLY:
+          data.durationDays = 365;
+          break;
+        case SubscriptionType.LIFETIME:
+          data.durationDays = 365 * 100; // effectively a lifetime subscription
+        default:
+          data.durationDays = 30;
+      }
+    }
+
+    // Step 2: update in DB
     const result = await tx.subscriptionOffer.update({
       where: { id: subscriptionOfferId },
       data: { ...data },
     });
 
-    // Step 3: update Stripe product
-    let product: Stripe.Product;
-    try {
-      product = await stripe.products.update(result.stripeProductId!, {
-        name: result.title,
-        description: result.description!,
-      });
-    } catch (err) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Stripe product not updated!');
-    }
-
-    // Step 4: handle Stripe price
-    let newPrice: Stripe.Price | null = null;
-
-    // If user updated price → create new Stripe price
-    if (data.price && data.price > 0 && data.price !== existing.price) {
-      try {
-        newPrice = await stripe.prices.create({
-          unit_amount: data.price * 100,
-          currency: result.currency || 'usd',
-          recurring: { interval: 'month' },
-          product: result.stripeProductId!,
-        });
-      } catch (err) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Stripe price not created!');
-      }
-
-      // Deactivate the old price in Stripe
-      if (existing.stripePriceId) {
-        try {
-          await stripe.prices.update(existing.stripePriceId, { active: false });
-        } catch (err) {
-          // Log but don't block the update if deactivation fails
-          console.error('Failed to deactivate old Stripe price:', err);
-        }
-      }
-
-      // Update DB with new Stripe price id
-      await tx.subscriptionOffer.update({
-        where: { id: subscriptionOfferId },
-        data: { stripePriceId: newPrice.id },
-      });
-    } else {
-      // Otherwise reuse existing active price
-      const prices = await stripe.prices.list({
-        product: result.stripeProductId!,
-        active: true,
-        limit: 1,
-      });
-      if (prices.data.length === 0) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'No Stripe price found!');
-      }
-      newPrice = prices.data[0];
-    }
-
-    console.log('Updated Stripe product id:', product.id);
-    console.log('Stripe price id:', newPrice.id);
-
-    return {
-      ...result,
-      stripePriceId: newPrice.id,
-    };
+    return result;
   });
 };
 
@@ -241,7 +149,6 @@ const deleteSubscriptionOfferItemFromDb = async (
     const existing = await tx.subscriptionOffer.findUnique({
       where: {
         id: subscriptionOfferId,
-        // userId: userId,
       },
     });
     if (!existing) {
@@ -255,7 +162,6 @@ const deleteSubscriptionOfferItemFromDb = async (
     const deletedItem = await tx.subscriptionOffer.delete({
       where: {
         id: subscriptionOfferId,
-        // userId: userId,
       },
     });
     if (!deletedItem) {
@@ -265,30 +171,7 @@ const deleteSubscriptionOfferItemFromDb = async (
       );
     }
 
-    // Delete the product from Stripe
-    let deleteFromStripe;
-    try {
-      deleteFromStripe = await stripe.products.update(
-        existing.stripeProductId!,
-        {
-          active: false,
-        },
-      );
-      if (!deleteFromStripe.active === false) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Stripe product not deleted!',
-        );
-      }
-    } catch (err) {
-      // Throwing here will rollback the transaction
-      throw new AppError(httpStatus.BAD_REQUEST, 'Stripe product not deleted!');
-    }
-
-    return {
-      ...deletedItem,
-      stripeProduct: deleteFromStripe,
-    };
+    return deletedItem;
   });
 };
 

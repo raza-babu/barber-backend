@@ -5,6 +5,7 @@ import globalErrorHandler from "./app/middlewares/globalErrorHandler";
 import router from "./app/routes";
 import { logger, loggerConsole } from "./app/middlewares/logger";
 import path from "path";
+import { appleIAPController } from "./app/modules/userSubscription/appleIAP.controller";
 import { PaymentController } from "./app/modules/payment/payment.controller";
 
 const app: Application = express();
@@ -51,6 +52,12 @@ app.use(
 //   }
 // )
 // );
+
+app.use(
+  '/api/v1/subscription/apple/webhook',
+  express.raw({ type: 'application/json' }),
+  appleIAPController.handleAppleWebhook,
+);
 
 app.use(
   '/api/v1/stripe/payment-webhook',

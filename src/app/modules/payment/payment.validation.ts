@@ -23,13 +23,8 @@ export const TStripeSaveWithCustomerInfoPayloadSchema = z.object({
 });
 
 export const AuthorizedPaymentPayloadSchema = z.object({
-  // customerId: z.string({ required_error: 'Customer ID is required' }),
-  // amount: z.number({ required_error: 'Amount is required' }),
   body: z.object({
-    paymentMethodId: z.string({
-      required_error: 'Payment Method ID is required',
-    }),
-    bookingId: z.string({ required_error: 'Parcel ID is required' }),
+    bookingId: z.string({ required_error: 'Booking ID is required' }),
   }),
 });
 

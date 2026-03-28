@@ -102,15 +102,14 @@ const saveCardWithCustomerInfoIntoStripe = async (
   }
 };
 
-// Step 2: Authorize the Payment Using Saved Card
+// Step 2: Create Checkout Session for Authorization (Webhook will handle Payment record creation)
 const authorizeAndSplitPayment = async (
   userId: string,
   payload: {
-    paymentMethodId: string;
     bookingId: string;
   },
 ) => {
-  const { paymentMethodId, bookingId } = payload;
+  const { bookingId } = payload;
 
   return await prisma.$transaction(async tx => {
     const findBooking = await tx.booking.findUnique({
@@ -131,127 +130,76 @@ const authorizeAndSplitPayment = async (
         },
       },
     });
+
     if (!findBooking) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
     }
 
-    let customerId;
+    // Get or create Stripe customer
+    let customerId = findBooking.user?.stripeCustomerId;
 
-    if (!findBooking.user?.stripeCustomerId) {
-      if (customerId) {
-        await stripe.paymentMethods.attach(paymentMethodId, {
-          customer: customerId,
-        });
-        console.log('customerId', customerId);
-        console.log('paymentMethodId', paymentMethodId);
+    if (!customerId || customerId === null) {
+      const stripeCustomer = await stripe.customers.create({
+        email: findBooking.user?.email
+          ? findBooking.user?.email
+          : (() => {
+              throw new AppError(httpStatus.BAD_REQUEST, 'Email not found');
+            })(),
+      });
 
-        await stripe.customers.update(customerId, {
-          invoice_settings: {
-            default_payment_method: paymentMethodId,
-          },
-        });
-      }
+      await tx.user.update({
+        where: { id: userId },
+        data: { stripeCustomerId: stripeCustomer.id },
+      });
 
-      if (!customerId) {
-        const stripeCustomer = await stripe.customers.create({
-          email: findBooking.user?.email
-            ? findBooking.user?.email
-            : (() => {
-                throw new AppError(httpStatus.BAD_REQUEST, 'Email not found');
-              })(),
-        });
-
-        await stripe.paymentMethods.attach(paymentMethodId, {
-          customer: stripeCustomer.id,
-        });
-
-        await stripe.customers.update(stripeCustomer.id, {
-          invoice_settings: {
-            default_payment_method: paymentMethodId,
-          },
-        });
-
-        await tx.user.update({
-          where: { id: userId },
-          data: { stripeCustomerId: stripeCustomer.id },
-        });
-
-        customerId = stripeCustomer.id;
-      }
-    } else {
-      customerId = findBooking.user?.stripeCustomerId;
+      customerId = stripeCustomer.id;
     }
 
     let adminFeeAmount = 0.50 * 100; // £0.50 in pence
-
     let transferAmount = findBooking.totalPrice * 100; // Amount in pence
-    
     const totalAmount = transferAmount + adminFeeAmount;
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: totalAmount,
-      currency: 'gbp',
+    // Create Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
       customer: customerId,
-      payment_method: paymentMethodId,
-      confirm: true,
+      client_reference_id: bookingId,
+      success_url: `${config.frontend_base_url}/booking/${bookingId}/success`,
+      cancel_url: `${config.frontend_base_url}/booking/${bookingId}/cancel`,
+      line_items: [
+        {
+          price_data: {
+            currency: 'gbp',
+            product_data: {
+              name: `Booking Service #${bookingId}`,
+            },
+            unit_amount: totalAmount,
+          },
+          quantity: 1,
+        },
+      ],
       metadata: {
         bookingId: findBooking.id,
         customerId: customerId,
-        saloonOwnerId: findBooking.saloonOwner.user?.id as string,
+        saloonOwnerId: findBooking.saloonOwner.user?.id,
+        transferAmount: String(transferAmount),
+        adminFeeAmount: String(adminFeeAmount),
+        barberStripeAccountId: findBooking.saloonOwner.user?.stripeAccountId,
       },
-      capture_method: 'manual',
-      transfer_data: {
-        destination: findBooking.saloonOwner.user?.stripeAccountId as string,
-        amount: transferAmount,
-      },
-      automatic_payment_methods: {
-        enabled: true,
-        allow_redirects: 'never',
+      payment_intent_data: {
+        capture_method: 'manual',
+        transfer_data: {
+          destination: findBooking.saloonOwner.user?.stripeAccountId as string,
+          amount: transferAmount,
+        },
       },
     });
 
-    if (paymentIntent.status === 'requires_capture') {
-      const payment = await tx.payment.create({
-        data: {
-          userId: findBooking.saloonOwner.user?.id as string,
-          bookingId: findBooking.id,
-          paymentIntentId: paymentIntent.id,
-          paymentAmount: transferAmount / 100,
-          status: PaymentStatus.REQUIRES_CAPTURE,
-          paymentMethodId: paymentMethodId,
-          amountProvider: customerId,
-          amountReceiver: findBooking.saloonOwner.user
-            ?.stripeAccountId as string,
-        },
-      });
-
-      if (!payment) {
-        throw new AppError(
-          httpStatus.CONFLICT,
-          'Failed to save payment information',
-        );
-      }
-      // Notification logic can be added here if needed
-      // Send notification to the user
-      // const user = await prisma.user.findUnique({
-      //   where: { id: driver.id },
-      //   select: { fcmToken: true, isNotificationOn: true },
-      // });
-
-      // const notificationTitle = 'Payment received successfully !';
-      // const notificationBody = '';
-
-      // if (user && user.fcmToken) {
-      //   await notificationService.sendNotification(
-      //     user.fcmToken,
-      //     notificationTitle,
-      //     notificationBody,
-      //     driver.id,
-      //   );
-      // }
-    }
-
-    return paymentIntent;
+    return {
+      sessionId: session.id,
+      url: session.url,
+    };
   });
 };
 
@@ -949,43 +897,104 @@ const createNewAccountIntoStripe = async (userId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
 
-  let stripeAccountId = userData.stripeAccountId;
+  const oldStripeAccountId = userData.stripeAccountId;
 
-  // If the user already has a Stripe account, delete it
-  if (stripeAccountId) {
-    await stripe.accounts.del(stripeAccountId); // Delete the old account
+  // Step 1: Create a NEW Stripe account FIRST (before deleting old one)
+  let newAccount;
+  try {
+    newAccount = await stripe.accounts.create({
+      type: 'express',
+      email: userData.email,
+      country: 'GB',
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      metadata: {
+        userId: userData.id,
+      },
+    });
+  } catch (error: any) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to create new Stripe account: ${error.message}`,
+    );
   }
 
-  // Create a new Stripe account
-  const newAccount = await stripe.accounts.create({
-    type: 'express',
-    email: userData.email, // Use the user's email from the database
-    country: 'UK', // Set the country dynamically if needed
-    capabilities: {
-      card_payments: { requested: true },
-      transfers: { requested: true },
-    },
-    metadata: {
-      userId: userData.id, // Add metadata for reference
-    },
-  });
+  // Step 2: Only if new account created successfully, delete the old one
+  if (oldStripeAccountId) {
+    try {
+      const delAcc = await stripe.accounts.del(oldStripeAccountId);
 
-  // Generate the onboarding link for the new Stripe account
-  const accountLink = await stripe.accountLinks.create({
-    account: newAccount.id,
-    refresh_url: `${config.frontend_base_url}/reauthenticate`,
-    return_url: `${config.frontend_base_url}/onboarding-success`,
-    type: 'account_onboarding',
-  });
+      if (!delAcc.deleted) {
+        throw new AppError(
+          httpStatus.CONFLICT,
+          'Failed to delete existing Stripe account',
+        );
+      }
+    } catch (error: any) {
+      // If deletion fails, attempt to revert by deleting the newly created account
+      try {
+        await stripe.accounts.del(newAccount.id);
+      } catch (revertError) {
+        console.error('Failed to revert new account creation:', revertError);
+      }
 
-  // Update the user's Stripe account ID and URL in the database
-  await prisma.user.update({
-    where: { id: userData.id },
-    data: {
-      stripeAccountId: newAccount.id,
-      stripeAccountUrl: accountLink.url,
-    },
-  });
+      throw new AppError(
+        httpStatus.CONFLICT,
+        `Failed to delete old Stripe account. New account creation has been reverted. Error: ${error.message}`,
+      );
+    }
+  }
+
+  // Step 3: Generate the onboarding link for the new Stripe account
+  let accountLink;
+  try {
+    accountLink = await stripe.accountLinks.create({
+      account: newAccount.id,
+      refresh_url: `${config.frontend_base_url}/reauthenticate`,
+      return_url: `${config.frontend_base_url}/onboarding-success`,
+      type: 'account_onboarding',
+    });
+  } catch (error: any) {
+    // Clean up if account link creation fails
+    try {
+      if (oldStripeAccountId) {
+        // Can't revert deletion, but at least don't save invalid state
+      }
+      await stripe.accounts.del(newAccount.id);
+    } catch (cleanupError) {
+      console.error('Failed to cleanup account:', cleanupError);
+    }
+
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to create account onboarding link: ${error.message}`,
+    );
+  }
+
+  // Step 4: Update the database with new account details
+  try {
+    await prisma.user.update({
+      where: { id: userData.id },
+      data: {
+        stripeAccountId: newAccount.id,
+        stripeAccountUrl: accountLink.url,
+      },
+    });
+  } catch (error: any) {
+    // If DB update fails, clean up the new account
+    try {
+      await stripe.accounts.del(newAccount.id);
+    } catch (cleanupError) {
+      console.error('Failed to cleanup account:', cleanupError);
+    }
+
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to update user profile: ${error.message}`,
+    );
+  }
 
   return accountLink;
 };
