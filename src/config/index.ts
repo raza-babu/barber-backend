@@ -44,6 +44,23 @@ export default {
     sharedSecret: process.env.APPLE_PRIVATE_KEY, // ✅ For receipt verification
     isProduction: process.env.NODE_ENV === 'production', // ✅ Fixed: should be 'production' not 'development'
   },
+  google: {
+    packageName: process.env.GOOGLE_PACKAGE_NAME || 'com.barberstime.barber_time_app',
+    credentials: process.env.GOOGLE_IAP_CREDENTIALS, // JSON credential string from Google Play Console
+    // Credentials structure should be:
+    // {
+    //   "type": "service_account",
+    //   "project_id": "...",
+    //   "private_key_id": "...",
+    //   "private_key": "...",
+    //   "client_email": "...",
+    //   "client_id": "...",
+    //   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    //   "token_uri": "https://oauth2.googleapis.com/token",
+    //   "auth_provider_x509_cert_url": "...",
+    //   "client_x509_cert_url": "..."
+    // }
+  },
   backend_base_url: process.env.BACKEND_BASE_URL,
   frontend_base_url: process.env.FRONTEND_BASE_URL,
 };

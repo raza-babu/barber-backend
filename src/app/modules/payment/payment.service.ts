@@ -897,106 +897,129 @@ const createNewAccountIntoStripe = async (userId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
 
-  const oldStripeAccountId = userData.stripeAccountId;
-
-  // Step 1: Create a NEW Stripe account FIRST (before deleting old one)
-  let newAccount;
-  try {
-    newAccount = await stripe.accounts.create({
-      type: 'express',
-      email: userData.email,
-      country: 'GB',
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      metadata: {
-        userId: userData.id,
-      },
-    });
-  } catch (error: any) {
-    throw new AppError(
-      httpStatus.CONFLICT,
-      `Failed to create new Stripe account: ${error.message}`,
-    );
-  }
-
-  // Step 2: Only if new account created successfully, delete the old one
-  if (oldStripeAccountId) {
-    try {
-      const delAcc = await stripe.accounts.del(oldStripeAccountId);
-
-      if (!delAcc.deleted) {
-        throw new AppError(
-          httpStatus.CONFLICT,
-          'Failed to delete existing Stripe account',
-        );
-      }
-    } catch (error: any) {
-      // If deletion fails, attempt to revert by deleting the newly created account
+  // Opportunistic cleanup: Remove abandoned pending account if older than 7 days
+  if (userData.stripeAccountIdPending) {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    
+    if (userData.updatedAt < sevenDaysAgo) {
       try {
-        await stripe.accounts.del(newAccount.id);
-      } catch (revertError) {
-        console.error('Failed to revert new account creation:', revertError);
+        console.log(
+          `🧹 Cleaning up abandoned pending account ${userData.stripeAccountIdPending} for user ${userId}`,
+        );
+        
+        // Delete the abandoned pending account from Stripe
+        await stripe.accounts.del(userData.stripeAccountIdPending);
+        
+        // Clear pending account from DB
+        await prisma.user.update({
+          where: { id: userId },
+          data: { stripeAccountIdPending: null },
+        });
+        
+        console.log(`✅ Cleaned up abandoned pending Stripe account for user ${userId}`);
+      } catch (cleanupError: any) {
+        console.error(
+          `⚠️ Failed to cleanup abandoned pending account: ${cleanupError.message}`,
+        );
+        // Continue anyway - this doesn't block creating new account
       }
-
-      throw new AppError(
-        httpStatus.CONFLICT,
-        `Failed to delete old Stripe account. New account creation has been reverted. Error: ${error.message}`,
-      );
     }
   }
 
-  // Step 3: Generate the onboarding link for the new Stripe account
-  let accountLink;
-  try {
-    accountLink = await stripe.accountLinks.create({
-      account: newAccount.id,
-      refresh_url: `${config.frontend_base_url}/reauthenticate`,
-      return_url: `${config.frontend_base_url}/onboarding-success`,
-      type: 'account_onboarding',
-    });
-  } catch (error: any) {
-    // Clean up if account link creation fails
+  // Create a new Stripe account (DO NOT delete old one yet)
+  const newAccount = await stripe.accounts.create({
+    type: 'express',
+    email: userData.email,
+    country: 'UK',
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+    },
+    metadata: {
+      userId: userData.id,
+    },
+  });
+
+  // Generate the onboarding link for the new Stripe account
+  const accountLink = await stripe.accountLinks.create({
+    account: newAccount.id,
+    refresh_url: `${config.frontend_base_url}/reauthenticate`,
+    return_url: `${config.frontend_base_url}/onboarding-success`,
+    type: 'account_onboarding',
+  });
+
+  // Store new account in PENDING field until webhook confirms onboarding
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      stripeAccountIdPending: newAccount.id,
+      stripeAccountUrl: accountLink.url,
+    },
+  });
+
+  // Return account link - old account remains active for payments
+  return {
+    accountLink: accountLink.url,
+    stripeAccountId: newAccount.id,
+    message: 'Complete onboarding to activate the new account. Previous account remains active for ongoing transactions.',
+  };
+};
+
+// Cleanup abandoned pending Stripe accounts older than 7 days
+const cleanupAbandonedPendingAccounts = async () => {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const usersWithPendingAccounts = await prisma.user.findMany({
+    where: {
+      stripeAccountIdPending: { not: null },
+      updatedAt: { lt: sevenDaysAgo },
+    },
+    select: {
+      id: true,
+      stripeAccountIdPending: true,
+      email: true,
+      updatedAt: true,
+    },
+  });
+
+  const deletedResults = [];
+
+  for (const user of usersWithPendingAccounts) {
     try {
-      if (oldStripeAccountId) {
-        // Can't revert deletion, but at least don't save invalid state
-      }
-      await stripe.accounts.del(newAccount.id);
-    } catch (cleanupError) {
-      console.error('Failed to cleanup account:', cleanupError);
-    }
+      console.log(`Cleaning up abandoned Stripe account ${user.stripeAccountIdPending} for user ${user.id}`);
+      
+      // Delete the abandoned pending account from Stripe
+      await stripe.accounts.del(user.stripeAccountIdPending!);
 
-    throw new AppError(
-      httpStatus.CONFLICT,
-      `Failed to create account onboarding link: ${error.message}`,
-    );
+      // Clear the pending account from DB
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { stripeAccountIdPending: null },
+      });
+
+      deletedResults.push({
+        userId: user.id,
+        email: user.email,
+        stripeAccountId: user.stripeAccountIdPending,
+        status: 'cleaned_up',
+        updatedAt: user.updatedAt,
+      });
+    } catch (error: any) {
+      console.error(`Failed to cleanup pending account for user ${user.id}:`, error.message);
+      deletedResults.push({
+        userId: user.id,
+        email: user.email,
+        stripeAccountId: user.stripeAccountIdPending,
+        status: 'failed',
+        error: error.message,
+      });
+    }
   }
 
-  // Step 4: Update the database with new account details
-  try {
-    await prisma.user.update({
-      where: { id: userData.id },
-      data: {
-        stripeAccountId: newAccount.id,
-        stripeAccountUrl: accountLink.url,
-      },
-    });
-  } catch (error: any) {
-    // If DB update fails, clean up the new account
-    try {
-      await stripe.accounts.del(newAccount.id);
-    } catch (cleanupError) {
-      console.error('Failed to cleanup account:', cleanupError);
-    }
-
-    throw new AppError(
-      httpStatus.CONFLICT,
-      `Failed to update user profile: ${error.message}`,
-    );
-  }
-
-  return accountLink;
+  return {
+    message: `Cleanup completed for ${usersWithPendingAccounts.length} users`,
+    results: deletedResults,
+  };
 };
 
 const tipPaymentToBarberService = async (
@@ -1180,6 +1203,7 @@ export const StripeServices = {
   tipPaymentToBarberService,
   payoutToBarberService,
   withdrawFundsFromStripeService,
+  cleanupAbandonedPendingAccounts,
   cancelPaymentRequestToStripe,
   cancelQueuePaymentRequestToStripe
 };

@@ -24,6 +24,7 @@ model User {
   stripeAccountId      String?
   stripeSubscriptionId String?
   onBoarding           Boolean                @default(false)
+  stripeAccountIdPending String?
   subscriptionPlan     SubscriptionPlanStatus @default(FREE)
   isSubscribed         Boolean                @default(false)
   subscriptionEnd      DateTime?

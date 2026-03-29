@@ -246,15 +246,12 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
           'Onboarding completed successfully for account:',
           account.id,
         );
-        const user = await prisma.user.update({
-          where: {
-            id: account.metadata?.userId,
-            email: account.email!,
-          },
-          data: {
-            onBoarding: true,
-          },
+
+        // Get user to check if this is a pending account switchover
+        const user = await prisma.user.findUnique({
+          where: { id: account.metadata?.userId },
         });
+
         if (!user) {
           return sendResponse(res, {
             statusCode: httpStatus.NOT_FOUND,
@@ -263,21 +260,52 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
             data: null,
           });
         }
-        if (user) {
-          await prisma.user.update({
-            where: {
-              id: account.metadata?.userId,
-            },
-            data: {
-              stripeAccountUrl: null,
-            },
+
+        // Check if this completing account is the pending one
+        const isPendingAccountCompletion =
+          user.stripeAccountIdPending === account.id;
+
+        // If onboarding is for a new pending account, delete the old one
+        if (isPendingAccountCompletion && user.stripeAccountId) {
+          try {
+            console.log(
+              `Deleting old Stripe account ${user.stripeAccountId} as new account is ready`,
+            );
+            await stripe.accounts.del(user.stripeAccountId);
+          } catch (deleteError: any) {
+            console.error(
+              `Failed to delete old Stripe account: ${deleteError.message}`,
+            );
+            // Don't fail the update if deletion fails - new account is ready
+          }
+        }
+
+        // Update user with confirmed account details
+        const updatedUser = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            onBoarding: true,
+            stripeAccountId: account.id, // Move from pending to current
+            stripeAccountIdPending: null, // Clear pending
+            stripeAccountUrl: null, // Cleanup URL after onboarding complete
+          },
+        });
+        if (!updatedUser) {
+          return sendResponse(res, {
+            statusCode: httpStatus.INTERNAL_SERVER_ERROR,
+            success: false,
+            message: 'Failed to update user account',
+            data: null,
           });
         }
+
+        console.log(
+          `User ${user.id} account successfully activated. Old account deleted, new account ready.`,
+        );
       } else {
         console.log('Onboarding incomplete for account:', account.id);
       }
       break;
-
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
 
@@ -940,20 +968,16 @@ const payoutToBarber = catchAsync(async (req: any, res: any) => {
   });
 });
 
-const withdrawFundsFromStripe = catchAsync(
-  async (req: any, res: any) => {
-    const result = await StripeServices.withdrawFundsFromStripeService(
-      req.body,
-    );
+const withdrawFundsFromStripe = catchAsync(async (req: any, res: any) => {
+  const result = await StripeServices.withdrawFundsFromStripeService(req.body);
 
-    sendResponse(res, {
-      statusCode: httpStatus.OK,
-      success: true,
-      message: 'Withdraw funds from stripe successfully',
-      data: result,
-    });
-  },
-);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Withdraw funds from stripe successfully',
+    data: result,
+  });
+});
 
 export const PaymentController = {
   saveCardWithCustomerInfo,

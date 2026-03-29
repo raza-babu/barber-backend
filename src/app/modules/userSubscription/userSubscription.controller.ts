@@ -115,8 +115,26 @@ const deleteUserSubscriptionForCustomer = catchAsync(async (req, res) => {
   });
 });
 
+/**
+ * Create Google Play subscription
+ */
+const createGooglePlaySubscription = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await userSubscriptionService.createGooglePlaySubscriptionIntoDb(
+    user.id,
+    req.body,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    success: true,
+    message: 'Google Play subscription created successfully',
+    data: result,
+  });
+});
+
 export const userSubscriptionController = {
   createUserSubscription,
+  createGooglePlaySubscription,
   getUserSubscriptionList,
   getUOwnerSubscriptionPlan,
   getUserSubscriptionById,

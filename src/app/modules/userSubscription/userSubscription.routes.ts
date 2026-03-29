@@ -7,6 +7,7 @@ import { userSubscriptionValidation } from './userSubscription.validation';
 import { checkPermissions } from '../../middlewares/checkPermissions';
 import { UserAccessFunctionName } from '../../utils/access';
 import { appleIAPController } from './appleIAP.controller';
+import { googleIAPController } from './googleIAP.controller';
 
 const router = express.Router();
 
@@ -41,9 +42,64 @@ router.post(
   appleIAPController.getTransactionHistory,
 );
 
+// ===== Google Play IAP Routes =====
+
+// POST: Verify Google Play purchase
+router.post(
+  '/google/verify-purchase',
+  auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(userSubscriptionValidation.verifyGooglePlayPurchaseSchema),
+  googleIAPController.verifyGooglePlayPurchase,
+);
+
+// POST: Check Google subscription status
+router.post(
+  '/google/check-status',
+  auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(userSubscriptionValidation.checkGoogleSubscriptionStatusSchema),
+  googleIAPController.checkSubscriptionStatus,
+);
+
+// POST: Get Google subscription history for restoration
+router.post(
+  '/google/subscription-history',
+  auth(UserRoleEnum.SALOON_OWNER),
+  googleIAPController.getSubscriptionHistory,
+);
+
+// POST: Acknowledge Google Play purchase
+router.post(
+  '/google/acknowledge',
+  auth(UserRoleEnum.SALOON_OWNER),
+  googleIAPController.acknowledgePurchase,
+);
+
+// POST: Cancel Google Play subscription
+router.post(
+  '/google/cancel',
+  auth(UserRoleEnum.SALOON_OWNER),
+  googleIAPController.cancelSubscription,
+);
+
 // ===== Subscription Management Routes =====
 
-// POST: Create subscription (now with Apple receipt)
+// POST: Create subscription with Apple receipt
+router.post(
+  '/apple/create',
+  auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(userSubscriptionValidation.createSchema),
+  userSubscriptionController.createUserSubscription,
+);
+
+// POST: Create subscription with Google Play receipt
+router.post(
+  '/google/create',
+  auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(userSubscriptionValidation.createGooglePaySubscriptionSchema),
+  userSubscriptionController.createGooglePlaySubscription,
+);
+
+// POST: Create subscription (legacy - now with Apple receipt)
 router.post(
   '/',
   auth(UserRoleEnum.SALOON_OWNER),
