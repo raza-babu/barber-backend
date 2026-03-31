@@ -8,7 +8,7 @@ import sendResponse from '../../utils/sendResponse';
 import config from '../../../config';
 import prisma from '../../utils/prisma';
 import Stripe from 'stripe';
-import { PaymentStatus, SubscriptionPlanStatus } from '@prisma/client';
+import { PaymentStatus, SubscriptionPlanStatus, BookingStatus } from '@prisma/client';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -378,13 +378,164 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
           payment.id,
         );
 
-        // Optional: Update booking to CONFIRMED when checkout completes
-        // await prisma.booking.update({
-        //   where: { id: bookingId },
-        //   data: { status: BookingStatus.CONFIRMED },
-        // });
+        // Update booking to CONFIRMED when payment is successful
+        const updatedBooking = await prisma.booking.update({
+          where: { id: bookingId },
+          data: { status: BookingStatus.CONFIRMED },
+        });
+
+        console.log(
+          'Booking confirmed via webhook for booking:',
+          bookingId,
+          'Status:',
+          updatedBooking.status,
+        );
       } catch (error) {
         console.error('Error processing checkout.session.completed:', error);
+      }
+
+      break;
+    }
+
+    case 'payment_intent.payment_failed': {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+
+      const bookingId = paymentIntent.metadata?.bookingId;
+      if (!bookingId) break;
+
+      try {
+        // Find the booking
+        const booking = await prisma.booking.findUnique({
+          where: { id: bookingId },
+        });
+
+        if (!booking) {
+          console.log('Booking not found for failed payment:', bookingId);
+          break;
+        }
+
+        // Only cleanup if booking is still PENDING (not yet confirmed)
+        if (booking.status !== BookingStatus.PENDING) {
+          console.log(
+            'Booking already confirmed, skipping cleanup for payment failure:',
+            bookingId,
+          );
+          break;
+        }
+
+        // Delete booking and all related records in a transaction
+        await prisma.$transaction(async tx => {
+          // Delete booked services
+          await tx.bookedServices.deleteMany({
+            where: { bookingId: bookingId },
+          });
+
+          // Delete barber real-time status (release slot)
+          if (booking.startDateTime && booking.endDateTime) {
+            await tx.barberRealTimeStatus.deleteMany({
+              where: {
+                barberId: booking.barberId,
+                startDateTime: booking.startDateTime,
+                endDateTime: booking.endDateTime,
+              },
+            });
+          }
+
+          // Delete loyalty redemptions if any
+          await tx.loyaltyRedemption.deleteMany({
+            where: { bookingId: bookingId },
+          });
+
+          // Delete the booking
+          await tx.booking.delete({
+            where: { id: bookingId },
+          });
+        });
+
+        console.log(
+          'Booking and related records deleted due to payment failure:',
+          bookingId,
+        );
+      } catch (error) {
+        console.error('Error processing payment_intent.payment_failed:', error);
+      }
+
+      break;
+    }
+
+    case 'charge.failed': {
+      const charge = event.data.object as Stripe.Charge;
+
+      // Get any payment record with this charge ID
+      const payment = await prisma.payment.findFirst({
+        where: {
+          // Assuming you store charge ID somewhere, or use paymentIntentId
+          paymentIntentId: charge.payment_intent as string,
+        },
+      });
+
+      if (!payment || !payment.bookingId) {
+        console.log('No booking found for failed charge:', charge.id);
+        break;
+      }
+
+      const bookingId = payment.bookingId;
+
+      try {
+        // Find the booking
+        const booking = await prisma.booking.findUnique({
+          where: { id: bookingId },
+        });
+
+        if (!booking) {
+          console.log('Booking not found for failed charge:', bookingId);
+          break;
+        }
+
+        // Only cleanup if booking is still PENDING
+        if (booking.status !== BookingStatus.PENDING) {
+          console.log(
+            'Booking already confirmed, skipping cleanup for charge failure:',
+            bookingId,
+          );
+          break;
+        }
+
+        // Delete booking and all related records in a transaction
+        await prisma.$transaction(async tx => {
+          // Delete booked services
+          await tx.bookedServices.deleteMany({
+            where: { bookingId: bookingId },
+          });
+
+          // Delete barber real-time status (release slot)
+          if (booking.startDateTime && booking.endDateTime) {
+            await tx.barberRealTimeStatus.deleteMany({
+              where: {
+                barberId: booking.barberId,
+                startDateTime: booking.startDateTime,
+                endDateTime: booking.endDateTime,
+              },
+            });
+          }
+
+          // Delete loyalty redemptions if any
+          await tx.loyaltyRedemption.deleteMany({
+            where: { bookingId: bookingId },
+          });
+
+          // Delete the booking
+          await tx.booking.delete({
+            where: { id: bookingId },
+          });
+        });
+
+        console.log(
+          'Booking and related records deleted due to charge failure:',
+          bookingId,
+        );
+      } catch (error) {
+        console.error('Error processing charge.failed:', error);
       }
 
       break;

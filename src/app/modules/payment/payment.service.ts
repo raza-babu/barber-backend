@@ -43,6 +43,8 @@ const saveCardWithCustomerInfoIntoStripe = async (
       },
     });
 
+    let finalCustomerId: string;
+
     if (!findUserStripeId?.stripeCustomerId) {
       // Create a new Stripe customer
       const customer = await stripe.customers.create({
@@ -51,12 +53,12 @@ const saveCardWithCustomerInfoIntoStripe = async (
       });
 
       // Attach PaymentMethod to the Customer
-      const attach = await stripe.paymentMethods.attach(paymentMethodId, {
+      await stripe.paymentMethods.attach(paymentMethodId, {
         customer: customer.id,
       });
 
       // Set PaymentMethod as Default
-      const updateCustomer = await stripe.customers.update(customer.id, {
+      await stripe.customers.update(customer.id, {
         invoice_settings: {
           default_payment_method: paymentMethodId,
         },
@@ -72,31 +74,75 @@ const saveCardWithCustomerInfoIntoStripe = async (
         },
       });
 
-      return {
-        customerId: customer.id,
-        paymentMethodId: paymentMethodId,
-      };
+      finalCustomerId = customer.id;
     } else {
-      // Attach PaymentMethod to the existing Customer
-      const attach = await stripe.paymentMethods.attach(paymentMethodId, {
-        customer: findUserStripeId.stripeCustomerId,
-      });
+      // Validate that the stored customer ID exists in Stripe
+      let customerExists = true;
+      try {
+        await stripe.customers.retrieve(findUserStripeId.stripeCustomerId);
+      } catch (error: any) {
+        if (error.code === 'resource_missing' || error.message.includes('No such customer')) {
+          customerExists = false;
+          console.warn(`Stripe customer ${findUserStripeId.stripeCustomerId} not found. Creating new customer.`);
+        } else {
+          throw error;
+        }
+      }
 
-      // Set PaymentMethod as Default
-      const updateCustomer = await stripe.customers.update(
-        findUserStripeId.stripeCustomerId,
-        {
+      if (!customerExists) {
+        // Customer doesn't exist, create a new one
+        const customer = await stripe.customers.create({
+          name: user.name,
+          email: user.email,
+        });
+
+        // Attach PaymentMethod to the new Customer
+        await stripe.paymentMethods.attach(paymentMethodId, {
+          customer: customer.id,
+        });
+
+        // Set PaymentMethod as Default
+        await stripe.customers.update(customer.id, {
           invoice_settings: {
             default_payment_method: paymentMethodId,
           },
-        },
-      );
+        });
 
-      return {
-        customerId: findUserStripeId.stripeCustomerId,
-        paymentMethodId: paymentMethodId,
-      };
+        // Update profile with new customerId
+        await prisma.user.update({
+          where: {
+            id: userId,
+          },
+          data: {
+            stripeCustomerId: customer.id,
+          },
+        });
+
+        finalCustomerId = customer.id;
+      } else {
+        // Attach PaymentMethod to the existing Customer
+        await stripe.paymentMethods.attach(paymentMethodId, {
+          customer: findUserStripeId.stripeCustomerId,
+        });
+
+        // Set PaymentMethod as Default
+        await stripe.customers.update(
+          findUserStripeId.stripeCustomerId,
+          {
+            invoice_settings: {
+              default_payment_method: paymentMethodId,
+            },
+          },
+        );
+
+        finalCustomerId = findUserStripeId.stripeCustomerId;
+      }
     }
+
+    return {
+      customerId: finalCustomerId,
+      paymentMethodId: paymentMethodId,
+    };
   } catch (error: any) {
     throw Error(error.message);
   }
@@ -107,32 +153,73 @@ const authorizeAndSplitPayment = async (
   userId: string,
   payload: {
     bookingId: string;
+    booking?: any; // Optional: pass the booking object directly to avoid querying
+    tx?: any; // Optional: pass transaction client to avoid nested transactions
   },
 ) => {
-  const { bookingId } = payload;
+  const { bookingId, booking: passedBooking, tx: transactionClient } = payload;
 
-  return await prisma.$transaction(async tx => {
-    const findBooking = await tx.booking.findUnique({
-      where: { id: bookingId, status: BookingStatus.PENDING, userId: userId },
-      include: {
-        saloonOwner: {
-          include: {
-            user: true,
+  // Use provided transaction or create a new one
+  const executeInTransaction = transactionClient ? 
+    async (callback: (txClient: any) => Promise<any>) => callback(transactionClient) :
+    async (callback: (txClient: any) => Promise<any>) => prisma.$transaction(callback);
+
+  return await executeInTransaction(async (tx) => {
+    // Use passed booking if available, otherwise query for it
+    let findBooking = passedBooking;
+    if (!findBooking) {
+      findBooking = await tx.booking.findUnique({
+        where: { id: bookingId, status: BookingStatus.PENDING, userId: userId },
+        include: {
+          saloonOwner: {
+            include: {
+              user: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              address: true,
+              stripeCustomerId: true,
+            },
           },
         },
-        user: {
+      });
+    } else {
+      // If booking is passed without relations, fetch the missing user data
+      if (!findBooking.user) {
+        const userWithEmail = await tx.user.findUnique({
+          where: { id: userId },
           select: {
             id: true,
             email: true,
             address: true,
             stripeCustomerId: true,
           },
-        },
-      },
-    });
+        });
+        findBooking.user = userWithEmail;
+      }
+
+      // Fetch saloon owner if not included
+      if (!findBooking.saloonOwner) {
+        findBooking.saloonOwner = await tx.saloonOwner.findUnique({
+          where: { userId: findBooking.saloonOwnerId },
+          include: {
+            user: true,
+          },
+        });
+      }
+    }
+
+    console.log('Booking found for payment authorization:', findBooking.user);
 
     if (!findBooking) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    }
+
+    if (!findBooking.user?.email) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'User email not found');
     }
 
     // Get or create Stripe customer
@@ -144,6 +231,7 @@ const authorizeAndSplitPayment = async (
           ? findBooking.user?.email
           : (() => {
               throw new AppError(httpStatus.BAD_REQUEST, 'Email not found');
+              
             })(),
       });
 
@@ -153,11 +241,67 @@ const authorizeAndSplitPayment = async (
       });
 
       customerId = stripeCustomer.id;
+    } else {
+      // Validate that the stored customer ID actually exists in Stripe
+      // This handles cases where Stripe API key changed or account switched
+      try {
+        await stripe.customers.retrieve(customerId);
+      } catch (error: any) {
+        if (error.code === 'resource_missing' || error.message.includes('No such customer')) {
+          console.warn(`Stripe customer ${customerId} not found. Creating new customer.`);
+          
+          // Customer doesn't exist in this Stripe account, create a new one
+          const stripeCustomer = await stripe.customers.create({
+            email: findBooking.user?.email
+              ? findBooking.user?.email
+              : (() => {
+                  throw new AppError(httpStatus.BAD_REQUEST, 'Email not found');
+                })(),
+          });
+
+          // Update user profile with new customer ID
+          await tx.user.update({
+            where: { id: userId },
+            data: { stripeCustomerId: stripeCustomer.id },
+          });
+
+          customerId = stripeCustomer.id;
+        } else {
+          // Re-throw other Stripe errors
+          throw error;
+        }
+      }
     }
 
     let adminFeeAmount = 0.50 * 100; // £0.50 in pence
     let transferAmount = findBooking.totalPrice * 100; // Amount in pence
     const totalAmount = transferAmount + adminFeeAmount;
+
+    // Validate that the saloon owner's Stripe connected account exists
+    let destinationAccountId = findBooking.saloonOwner.user?.stripeAccountId;
+    
+    if (!destinationAccountId) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Saloon owner has not connected their Stripe account'
+      );
+    }
+
+    // Verify the destination account exists in current Stripe account
+    try {
+      await stripe.accounts.retrieve(destinationAccountId);
+    } catch (error: any) {
+      if (error.code === 'resource_missing' || error.message.includes('No such account')) {
+        console.warn(`Stripe account ${destinationAccountId} not found for destination transfer.`);
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Saloon owner Stripe account is no longer valid. Please reconnect your Stripe account.'
+        );
+      } else {
+        // Re-throw other Stripe errors
+        throw error;
+      }
+    }
 
     // Create Checkout Session
     const session = await stripe.checkout.sessions.create({
@@ -190,7 +334,7 @@ const authorizeAndSplitPayment = async (
       payment_intent_data: {
         capture_method: 'manual',
         transfer_data: {
-          destination: findBooking.saloonOwner.user?.stripeAccountId as string,
+          destination: destinationAccountId,
           amount: transferAmount,
         },
       },
@@ -1069,6 +1213,32 @@ const tipPaymentToBarberService = async (
     const serviceCharge = totalAmount * 0.001; // 0.1% service fee
     const finalAmount = totalAmount + serviceCharge;
 
+    // Validate destination accounts exist before creating payment intent
+    const saloonOwnerAccountId = booking.saloonOwner.user?.stripeAccountId;
+    const barberAccountId = booking.barber.user?.stripeAccountId;
+
+    try {
+      if (saloonOwnerAccountId) {
+        await stripe.accounts.retrieve(saloonOwnerAccountId);
+      }
+      if (barberAccountId) {
+        await stripe.accounts.retrieve(barberAccountId);
+      }
+    } catch (error: any) {
+      if (error.code === 'resource_missing' || error.message.includes('No such account')) {
+        const invalidAccount = saloonOwnerAccountId === error.param?.split('[')[1] 
+          ? 'Saloon owner' 
+          : 'Barber';
+        console.warn(`Stripe account not found for ${invalidAccount} transfer.`);
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `${invalidAccount} Stripe account is no longer valid. Please reconnect your Stripe account.`
+        );
+      } else {
+        throw error;
+      }
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(finalAmount * 100), // in pence
       currency: 'gbp',
@@ -1086,20 +1256,24 @@ const tipPaymentToBarberService = async (
 
     if (paymentIntent.status === 'succeeded') {
       // Transfer to saloon owner
-      await stripe.transfers.create({
-        amount: Math.round(saloonOwnerAmount * 100),
-        currency: 'gbp',
-        destination: booking.saloonOwner.user.stripeAccountId,
-        metadata: { bookingId: booking.id, role: 'saloon_owner' },
-      });
+      if (saloonOwnerAccountId) {
+        await stripe.transfers.create({
+          amount: Math.round(saloonOwnerAmount * 100),
+          currency: 'gbp',
+          destination: saloonOwnerAccountId,
+          metadata: { bookingId: booking.id, role: 'saloon_owner' },
+        });
+      }
 
       // Transfer to barber
-      await stripe.transfers.create({
-        amount: Math.round(barberAmount * 100),
-        currency: 'gbp',
-        destination: booking.barber.user.stripeAccountId,
-        metadata: { bookingId: booking.id, role: 'barber' },
-      });
+      if (barberAccountId) {
+        await stripe.transfers.create({
+          amount: Math.round(barberAmount * 100),
+          currency: 'gbp',
+          destination: barberAccountId,
+          metadata: { bookingId: booking.id, role: 'barber' },
+        });
+      }
 
       // DB payments
       await tx.payment.createMany({

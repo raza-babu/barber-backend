@@ -1,7 +1,7 @@
 model Payment {
   id                 String        @id @default(auto()) @map("_id") @db.ObjectId
   userId             String        @db.ObjectId
-  amountProvider     String?      
+  amountProvider     String?
   amountReceiver     String?
   paymentIntentId    String?
   paymentMethodId    String?
@@ -18,8 +18,8 @@ model Payment {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  booking           Booking?           @relation(fields: [bookingId], references: [id])
-  user              User               @relation(fields: [userId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
 
   @@map("payments")
 }
