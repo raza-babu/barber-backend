@@ -308,11 +308,54 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
       break;
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
-
       const bookingId = session.client_reference_id;
       if (!bookingId) break;
 
       try {
+        const metadata = session.metadata || {};
+        const isTipPayment = metadata.barberTipped || metadata.saloonOwnerTipped;
+
+        // If it's a tip payment, handle tip record creation
+        if (isTipPayment) {
+          const customerId = metadata.customerId;
+          const barberId = metadata.barberTipped === 'true' ? metadata.barberId : null;
+          const saloonOwnerId = metadata.saloonOwnerTipped === 'true' ? metadata.saloonOwnerId : null;
+          const barberOriginalAmount = metadata.barberOriginalAmount ? parseFloat(metadata.barberOriginalAmount) : null;
+          const saloonOwnerOriginalAmount = metadata.saloonOwnerOriginalAmount ? parseFloat(metadata.saloonOwnerOriginalAmount) : null;
+          const totalAmount = (barberOriginalAmount || 0) + (saloonOwnerOriginalAmount || 0);
+
+          // Create Tip record
+          const tip = await prisma.tip.create({
+            data: {
+              bookingId,
+              customerId,
+              barberId: barberId || undefined,
+              saloonOwnerId: saloonOwnerId || undefined,
+              barberAmount: barberOriginalAmount,
+              saloonOwnerAmount: saloonOwnerOriginalAmount,
+              totalAmount,
+              tipFee: parseFloat(metadata.tipFee || '0.1'),
+              status: 'COMPLETED',
+              stripeSessionId: session.id,
+              stripePaymentIntentId: typeof session.payment_intent === 'string' 
+                ? session.payment_intent 
+                : session.payment_intent?.id || undefined,
+            },
+          });
+
+          console.log('Tip record created via webhook:', {
+            tipId: tip.id,
+            bookingId,
+            customerId,
+            barberId,
+            saloonOwnerId,
+            totalAmount,
+          });
+
+          break;
+        }
+
+        // Otherwise, it's a booking payment - use existing logic
         const booking = await prisma.booking.findUnique({
           where: { id: bookingId },
           include: {
@@ -354,7 +397,6 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
         }
 
         // Create Payment record with REQUIRES_CAPTURE status
-        const metadata = session.metadata || {};
         const transferAmount = parseInt(metadata.transferAmount || '0');
         const adminFeeAmount = parseInt(metadata.adminFeeAmount || '50');
 
@@ -1109,7 +1151,8 @@ const tipPaymentToBarber = catchAsync(async (req: any, res: any) => {
 });
 
 const payoutToBarber = catchAsync(async (req: any, res: any) => {
-  const result = await StripeServices.payoutToBarberService(req.body);
+  const user = req.user as any;
+  const result = await StripeServices.payoutToBarberService(user.id, req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

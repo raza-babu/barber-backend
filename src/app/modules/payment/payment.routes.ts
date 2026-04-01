@@ -12,9 +12,14 @@ import {
   refundPaymentPayloadSchema,
   saveNewCardWithExistingCustomerPayloadSchema,
   tipPayloadSchema,
+  TStripePayoutToBarberPayloadSchema,
   TStripeSaveWithCustomerInfoPayloadSchema,
 } from './payment.validation';
 import validateRequest from '../../middlewares/validateRequest';
+import {
+  checkBarberPaymentReadiness,
+  checkSaloonOwnerPaymentReadiness,
+} from '../../middlewares/checkPaymentReadiness';
 
 router.post('/create-account', auth(), PaymentController.createAccount);
 
@@ -99,13 +104,16 @@ router.post(
 router.post(
   '/payout-barber',
   auth(UserRoleEnum.BARBER),
+  checkBarberPaymentReadiness(),
+  validateRequest(TStripePayoutToBarberPayloadSchema),
   PaymentController.payoutToBarber,
 );
 
 router.post(
   '/withdraw-funds',
   auth(UserRoleEnum.BARBER),
+  checkBarberPaymentReadiness(),
   PaymentController.withdrawFundsFromStripe,
-)
+);
 
 export const PaymentRoutes = router;

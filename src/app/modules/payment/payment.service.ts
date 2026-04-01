@@ -1179,196 +1179,293 @@ const tipPaymentToBarberService = async (
   userId: string,
   payload: {
     bookingId: string;
-    barberAmount: number;
-    saloonOwnerAmount: number;
-    paymentMethodId: string;
+    barberAmount?: number;
+    saloonOwnerAmount?: number;
   },
 ) => {
-  const { bookingId, barberAmount, saloonOwnerAmount, paymentMethodId } =
-    payload;
+  const { bookingId, barberAmount = 0, saloonOwnerAmount = 0 } = payload;
 
-  if (!isValidAmount(barberAmount) || !isValidAmount(saloonOwnerAmount)) {
+  // Validate that at least one amount is provided and valid
+  if ((barberAmount === 0 && saloonOwnerAmount === 0) || (!isValidAmount(barberAmount) && !isValidAmount(saloonOwnerAmount))) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'At least one valid tip amount must be provided. Amount must be positive with up to 2 decimals.',
+    );
+  }
+
+  // Validate individual amounts if provided
+  if (barberAmount > 0 && !isValidAmount(barberAmount)) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Invalid barber tip amount. Amount must be positive with up to 2 decimals.',
+    );
+  }
+
+  if (saloonOwnerAmount > 0 && !isValidAmount(saloonOwnerAmount)) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Invalid shop owner tip amount. Amount must be positive with up to 2 decimals.',
+    );
+  }
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId, status: BookingStatus.COMPLETED, userId },
+    include: {
+      saloonOwner: { include: { user: true } },
+      barber: { include: { user: true } },
+      user: { select: { id: true, stripeCustomerId: true, email: true } },
+    },
+  });
+
+  if (!booking)
+    throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+  if (!booking.user?.stripeCustomerId)
+    throw new AppError(httpStatus.BAD_REQUEST, 'Customer has no Stripe ID');
+  
+  // Only validate account IDs for the recipients being tipped
+  if (saloonOwnerAmount > 0 && !booking.saloonOwner.user?.stripeAccountId)
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Saloon owner missing Stripe account ID',
+    );
+  if (barberAmount > 0 && !booking.barber.user?.stripeAccountId)
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Barber missing Stripe account ID',
+    );
+
+  const totalAmount = barberAmount + saloonOwnerAmount;
+  const TIP_FEE_PENCE = 10; // £0.10 fixed tip fee per recipient - deducted only if amount is provided
+
+  // Actual amounts to transfer (fee deducted only for provided amounts)
+  const barberActualAmount = barberAmount > 0 ? Math.max(0, barberAmount - (TIP_FEE_PENCE / 100)) : 0;
+  const saloonOwnerActualAmount = saloonOwnerAmount > 0 ? Math.max(0, saloonOwnerAmount - (TIP_FEE_PENCE / 100)) : 0;
+
+  // Customer pays the tip amounts without any additional fee
+  const finalAmount = totalAmount;
+
+  // Validate destination accounts exist before creating checkout session
+  const saloonOwnerAccountId = booking.saloonOwner.user?.stripeAccountId;
+  const barberAccountId = booking.barber.user?.stripeAccountId;
+
+  try {
+    // Only validate accounts for recipients being tipped
+    if (saloonOwnerAmount > 0 && saloonOwnerAccountId) {
+      await stripe.accounts.retrieve(saloonOwnerAccountId);
+    }
+    if (barberAmount > 0 && barberAccountId) {
+      await stripe.accounts.retrieve(barberAccountId);
+    }
+  } catch (error: any) {
+    if (error.code === 'resource_missing' || error.message.includes('No such account')) {
+      const invalidAccount = saloonOwnerAccountId === error.param?.split('[')[1] 
+        ? 'Saloon owner' 
+        : 'Barber';
+      console.warn(`Stripe account not found for ${invalidAccount} transfer.`);
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `${invalidAccount} Stripe account is no longer valid. Please reconnect your Stripe account.`
+      );
+    } else {
+      throw error;
+    }
+  }
+
+  // Create Checkout Session
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    mode: 'payment',
+    customer: booking.user.stripeCustomerId,
+    client_reference_id: bookingId,
+    success_url: `${config.frontend_base_url}/booking/${bookingId}/tip-success`,
+    cancel_url: `${config.frontend_base_url}/booking/${bookingId}/tip-cancel`,
+    line_items: [
+      {
+        price_data: {
+          currency: 'gbp',
+          product_data: {
+            name: `Tip - Booking #${bookingId}`,
+          },
+          unit_amount: Math.round(finalAmount * 100), // in pence
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      bookingId: booking.id,
+      customerId: booking.user.id,
+      saloonOwnerId: booking.saloonOwner.user.id,
+      barberId: booking.barber.user.id,
+      barberOriginalAmount: String(barberAmount),
+      saloonOwnerOriginalAmount: String(saloonOwnerAmount),
+      barberActualAmount: String(barberActualAmount),
+      saloonOwnerActualAmount: String(saloonOwnerActualAmount),
+      tipFee: String(TIP_FEE_PENCE / 100),
+      barberStripeAccountId: barberAccountId,
+      saloonOwnerStripeAccountId: saloonOwnerAccountId,
+      barberTipped: String(barberAmount > 0),
+      saloonOwnerTipped: String(saloonOwnerAmount > 0),
+    },
+  });
+
+  return {
+    sessionId: session.id,
+    url: session.url,
+  };
+};
+
+const payoutToBarberService = async (
+  userId: string,
+  payload: {
+    barberId: string;
+    amount: number;
+  },
+) => {
+  const { barberId, amount } = payload;
+
+  // Validate amount
+  if (!amount || amount <= 0) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Amount must be greater than 0',
+    );
+  }
+
+  if (!isValidAmount(amount)) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Invalid amount. Amount must be positive with up to 2 decimals.',
     );
   }
 
-  return await prisma.$transaction(async tx => {
-    const booking = await tx.booking.findUnique({
-      where: { id: bookingId, status: BookingStatus.COMPLETED, userId },
-      include: {
-        saloonOwner: { include: { user: true } },
-        barber: { include: { user: true } },
-        user: { select: { id: true, stripeCustomerId: true } },
+  // Get saloon owner (user making the payout)
+  const saloonOwner = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      SaloonOwner: {
+        select: { userId: true },
       },
-    });
-    if (!booking)
-      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
-    if (!booking.user?.stripeCustomerId)
-      throw new AppError(httpStatus.BAD_REQUEST, 'Customer has no Stripe ID');
-    if (!booking.saloonOwner.user?.stripeAccountId)
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Saloon owner missing Stripe account ID',
-      );
-    if (!booking.barber.user?.stripeAccountId)
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Barber missing Stripe account ID',
-      );
-
-    const totalAmount = barberAmount + saloonOwnerAmount;
-    const serviceCharge = totalAmount * 0.001; // 0.1% service fee
-    const finalAmount = totalAmount + serviceCharge;
-
-    // Validate destination accounts exist before creating payment intent
-    const saloonOwnerAccountId = booking.saloonOwner.user?.stripeAccountId;
-    const barberAccountId = booking.barber.user?.stripeAccountId;
-
-    try {
-      if (saloonOwnerAccountId) {
-        await stripe.accounts.retrieve(saloonOwnerAccountId);
-      }
-      if (barberAccountId) {
-        await stripe.accounts.retrieve(barberAccountId);
-      }
-    } catch (error: any) {
-      if (error.code === 'resource_missing' || error.message.includes('No such account')) {
-        const invalidAccount = saloonOwnerAccountId === error.param?.split('[')[1] 
-          ? 'Saloon owner' 
-          : 'Barber';
-        console.warn(`Stripe account not found for ${invalidAccount} transfer.`);
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          `${invalidAccount} Stripe account is no longer valid. Please reconnect your Stripe account.`
-        );
-      } else {
-        throw error;
-      }
-    }
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(finalAmount * 100), // in pence
-      currency: 'gbp',
-      customer: booking.user.stripeCustomerId,
-      payment_method: paymentMethodId,
-      confirm: true,
-      metadata: {
-        bookingId: booking.id,
-        customerId: booking.user.id,
-        saloonOwnerId: booking.saloonOwner.user.id,
-        barberId: booking.barber.user.id,
-      },
-      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-    });
-
-    if (paymentIntent.status === 'succeeded') {
-      // Transfer to saloon owner
-      if (saloonOwnerAccountId) {
-        await stripe.transfers.create({
-          amount: Math.round(saloonOwnerAmount * 100),
-          currency: 'gbp',
-          destination: saloonOwnerAccountId,
-          metadata: { bookingId: booking.id, role: 'saloon_owner' },
-        });
-      }
-
-      // Transfer to barber
-      if (barberAccountId) {
-        await stripe.transfers.create({
-          amount: Math.round(barberAmount * 100),
-          currency: 'gbp',
-          destination: barberAccountId,
-          metadata: { bookingId: booking.id, role: 'barber' },
-        });
-      }
-
-      // DB payments
-      await tx.payment.createMany({
-        data: [
-          {
-            userId: booking.saloonOwner.user.id,
-            bookingId: booking.id,
-            paymentIntentId: paymentIntent.id,
-            paymentAmount: saloonOwnerAmount,
-            status: PaymentStatus.COMPLETED,
-            paymentMethodId,
-            amountProvider: booking.user.stripeCustomerId!,
-            amountReceiver: booking.saloonOwner.user.stripeAccountId!,
-          },
-          {
-            userId: booking.barber.user.id,
-            bookingId: booking.id,
-            paymentIntentId: paymentIntent.id,
-            paymentAmount: barberAmount,
-            status: PaymentStatus.COMPLETED,
-            paymentMethodId,
-            amountProvider: booking.user.stripeCustomerId!,
-            amountReceiver: booking.barber.user.stripeAccountId!,
-          },
-        ],
-      });
-    }
-
-    return paymentIntent;
+    },
   });
-};
 
-const payoutToBarberService = async (payload: {
-  barberId: string;
-  amount: number;
-  currency: string;
-}) => {
-  // try {
-  //   const { barberId, amount, currency } = payload;
+  if (!saloonOwner) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner not found');
+  }
 
-  //   // Fetch barber's Stripe account ID from your database
-  //   const barber = await prisma.user.findUnique({
-  //     where: { id: barberId },
-  //   });
+  // Verify user is a saloon owner
+  if (!saloonOwner.SaloonOwner || saloonOwner.SaloonOwner.length === 0) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'User is not a saloon owner',
+    );
+  }
 
-  //   if (!barber || !barber.stripeAccountId) {
-  //     throw new AppError(httpStatus.NOT_FOUND, 'Barber or Stripe account not found');
-  //   }
+  // Verify saloon owner has valid Stripe account
+  if (!saloonOwner.stripeAccountId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Saloon owner is not connected to Stripe',
+    );
+  }
 
-  //   // Create a payout to the barber's Stripe account
-  //   const transfer = await stripe.transfers.create({
-  //     amount: Math.round(amount * 100), // Amount in cents
-  //     currency: currency,
-  //     destination: barber.stripeAccountId,
-  //   });
+  // Get barber
+  const barber = await prisma.barber.findUnique({
+    where: { userId: barberId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          stripeAccountId: true,
+        },
+      },
+    },
+  });
 
-  //   return transfer;
-  // } catch (error: any) {
-  //   throw new AppError(httpStatus.CONFLICT, error.message);
-  // }
+  if (!barber || !barber.user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
+  }
+
+  // Verify barber has valid Stripe account
+  if (!barber.user.stripeAccountId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Barber is not connected to Stripe',
+    );
+  }
+
+  // Verify saloon owner's Stripe account exists
+  try {
+    await stripe.accounts.retrieve(saloonOwner.stripeAccountId);
+  } catch (error: any) {
+    if (error.code === 'resource_missing') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Saloon owner Stripe account is invalid or no longer exists',
+      );
+    }
+    throw error;
+  }
+
+  // Verify barber's Stripe account exists
+  try {
+    await stripe.accounts.retrieve(barber.user.stripeAccountId);
+  } catch (error: any) {
+    if (error.code === 'resource_missing') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Barber Stripe account is invalid or no longer exists',
+      );
+    }
+    throw error;
+  }
+
+  // Create transfer from saloon owner to barber
+  try {
+    const transfer = await stripe.transfers.create({
+      amount: Math.round(amount * 100), // Convert to pence
+      currency: 'gbp',
+      destination: barber.user.stripeAccountId,
+      description: `Payout from ${saloonOwner.fullName} to ${barber.user.fullName}`,
+      metadata: {
+        saloonOwnerId: saloonOwner.id,
+        barberId: barber.user.id,
+        type: 'barber_payout',
+      },
+    });
+
+    console.log('Transfer created successfully:', {
+      transferId: transfer.id,
+      from: saloonOwner.fullName,
+      to: barber.user.fullName,
+      amount: amount,
+    });
+
+    return {
+      transferId: transfer.id,
+      from: {
+        id: saloonOwner.id,
+        name: saloonOwner.fullName,
+      },
+      to: {
+        id: barber.user.id,
+        name: barber.user.fullName,
+      },
+      amount: amount,
+      currency: 'gbp',
+      createdAt: new Date(transfer.created * 1000),
+    };
+  } catch (error: any) {
+    console.error('Stripe transfer failed:', error.message);
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Transfer failed: ${error.message}`,
+    );
+  }
 };
 
 const withdrawFundsFromStripeService = async (userId: string) => {
-  // try {
-  //   const userData = await prisma.user.findUnique({
-  //     where: { id: userId },
-  //   });
   
-  //   if (!userData || !userData.stripeAccountId) {
-  //     throw new AppError(httpStatus.NOT_FOUND, 'User data or Stripe account ID not found');
-  //   }
-  
-  //   // Create a payout from the Stripe account to the user's bank account
-  //   const payout = await stripe.payouts.create(
-  //     {
-  //       amount: 1000, // Amount in pence (e.g., £10.00)
-  //       currency: 'gbp',
-  //     },
-  //     {
-  //       stripeAccount: userData.stripeAccountId,
-  //     }
-  //   );
-  //   return payout;
-  // } catch (error: any) {
-  //   throw new AppError(httpStatus.CONFLICT, error.message);
-  // }
 }
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,

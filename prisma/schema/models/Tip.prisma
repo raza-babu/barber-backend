@@ -1,0 +1,38 @@
+model Tip {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId String   @db.ObjectId
+
+  // Customer who gave the tip (required)
+  customerId String @db.ObjectId
+
+  // Barber who received the tip (optional)
+  barberId String? @db.ObjectId
+
+  // Saloon owner who received the tip (optional)
+  saloonOwnerId String? @db.ObjectId
+
+  // Tip amounts
+  barberAmount      Float?
+  saloonOwnerAmount Float?
+  totalAmount       Float
+
+  // Fee information
+  tipFee Float @default(0.1)
+
+  // Status tracking
+  status String @default("PENDING")
+  stripeSessionId String?
+  stripePaymentIntentId String?
+
+  createdAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer   User   @relation("TipFromCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  barber   User?   @relation("TipToBarber", fields: [barberId], references: [id], onDelete: SetNull)
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  saloonOwner   User?   @relation("TipToSaloonOwner", fields: [saloonOwnerId], references: [id], onDelete: SetNull)
+  @@index([bookingId])
+  @@index([customerId])
+  @@index([barberId])
+  @@index([saloonOwnerId])
+}

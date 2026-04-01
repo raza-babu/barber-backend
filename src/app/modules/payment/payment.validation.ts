@@ -58,9 +58,6 @@ export const tipPayloadSchema = z.object({
     bookingId: z.string({ required_error: 'Parcel ID is required' }),
     barberAmount: z.number({ required_error: 'Amount is required' }),
     saloonOwnerAmount: z.number({ required_error: 'Amount is required' }),
-    paymentMethodId: z.string({
-      required_error: 'Payment Method ID is required',
-    }),
   }),
 });
 
@@ -68,7 +65,6 @@ export const TStripePayoutToBarberPayloadSchema = z.object({
   body: z.object({
     barberId: z.string({ required_error: 'Barber ID is required' }),
     amount: z.number({ required_error: 'Amount is required' }),
-    currency: z.string({ required_error: 'Currency is required' }),
   }),
 });
 
