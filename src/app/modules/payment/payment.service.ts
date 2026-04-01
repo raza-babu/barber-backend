@@ -1083,7 +1083,7 @@ const createNewAccountIntoStripe = async (userId: string) => {
   const newAccount = await stripe.accounts.create({
     type: 'express',
     email: userData.email,
-    country: 'UK',
+    country: 'GB',
     capabilities: {
       card_payments: { requested: true },
       transfers: { requested: true },
