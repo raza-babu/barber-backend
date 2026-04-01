@@ -663,9 +663,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     0,
   );
 
-  console.log('=== Duration Calculation (createQueueBookingIntoDb) ===');
-  console.log('Service IDs:', serviceIds);
-  console.log('Default total duration from services:', totalDuration);
 
   // 🔥 Check QueueTime model for this barber + saloon + service combination
   const queueTimeRecord = await prisma.queueTime.findFirst({
@@ -717,7 +714,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     BookingType.QUEUE,
   );
 
-  console.log('Available barbers:', JSON.stringify(availableBarbers, null, 2));
 
   if (
     !availableBarbers ||
@@ -756,7 +752,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     // console.log('Required duration:', totalDurationMinutes, 'minutes');
 
     if (!freeSlots || freeSlots.length === 0) {
-      console.log('No free slots available');
+      // console.log('No free slots available');
 
       // FALLBACK: If no free slots but barber schedule exists and it's still within working hours
       if (schedule) {
@@ -771,7 +767,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         // If current time is before closing time, allow booking from current time
         if (nowLocal < closingTime) {
           const selectedTime = nowLocal.toFormat('hh:mm a');
-          console.log('Using current time as fallback slot:', selectedTime);
+          // console.log('Using current time as fallback slot:', selectedTime);
           return selectedTime;
         }
       }
@@ -5716,10 +5712,10 @@ const updateBookingStatusIntoDb = async (
   if (!booking) {
     throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
   }
-  if (!['CONFIRMED', 'RESCHEDULED', 'COMPLETED'].includes(status)) {
+  if (!['NO_SHOW', 'COMPLETED'].includes(status)) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'Invalid status. Allowed value is CONFIRMED, RESCHEDULED, or COMPLETED',
+      'Invalid status. Allowed value is NO_SHOW or COMPLETED',
     );
   }
 

@@ -4,6 +4,7 @@ import { bookingController } from './booking.controller';
 import { bookingValidation } from './booking.validation';
 import { UserRoleEnum } from '@prisma/client';
 import auth from '../../middlewares/auth';
+import checkSubscriptionForSalonOwners from '../../middlewares/checkSubscriptionForSalonOwners';
 
 const router = express.Router();
 
@@ -68,6 +69,7 @@ router.put(
 router.put(
   '/schedule-status',
   auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
   validateRequest(bookingValidation.updateBookingStatusSchema),
   bookingController.updateBookingStatus,
 );

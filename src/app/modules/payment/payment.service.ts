@@ -9,6 +9,7 @@ import {
   PaymentStatus,
   BookingStatus,
   QueueStatus,
+  BookingType,
 } from '@prisma/client';
 import Stripe from 'stripe';
 import { TStripeSaveWithCustomerInfoPayload } from './payment.interface';
@@ -677,7 +678,8 @@ const cancelQueuePaymentRequestToStripe = async (
     const findBooking = await tx.booking.findUnique({
       where: {
         id: bookingId,
-        saloonOwnerId: userId,
+        userId: userId,
+        bookingType: BookingType.QUEUE,
         status: BookingStatus.CONFIRMED,
       },
       include: {
@@ -696,7 +698,16 @@ const cancelQueuePaymentRequestToStripe = async (
     }
 
     /* ---------------------------------------------------- */
-    /* 2 Validate Payment                                */
+    /* 2 Check Five-Minute Decision Window                */
+    /* ---------------------------------------------------- */
+
+    const now = new Date();
+    const minutesElapsedSinceQueueAddition =
+      (now.getTime() - findBooking.createdAt.getTime()) / (1000 * 60);
+    const isWithinFiveMinutes = minutesElapsedSinceQueueAddition <= 5;
+
+    /* ---------------------------------------------------- */
+    /* 3 Validate Payment                                */
     /* ---------------------------------------------------- */
 
     const findPayment = await tx.payment.findFirst({
@@ -726,7 +737,7 @@ const cancelQueuePaymentRequestToStripe = async (
     }
 
     /* ---------------------------------------------------- */
-    /* 3 Get PaymentIntent from Stripe                   */
+    /* 4 Get PaymentIntent from Stripe                   */
     /* ---------------------------------------------------- */
 
     const paymentIntent = await stripe.paymentIntents.retrieve(
@@ -743,66 +754,64 @@ const cancelQueuePaymentRequestToStripe = async (
     }
 
     /* ---------------------------------------------------- */
-    /* 4 CASE A: Payment Requires Capture                */
+    /* 5 Handle Cancellation Based on Time Window        */
     /* ---------------------------------------------------- */
 
-    if (paymentIntent.status === 'requires_capture') {
-      const captureAmount = Math.min(
-        SERVICE_FEE_PENCE,
-        totalAmount,
-      );
-
-      const captured = await stripe.paymentIntents.capture(
-        findPayment.paymentIntentId,
-        {
-          amount_to_capture: captureAmount,
-        },
-      );
-
-      if (captured.status !== 'succeeded') {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Failed to capture service fee',
+    if (isWithinFiveMinutes) {
+      // WITHIN 5 MINS: Refund (totalAmount - £0.50)
+      
+      if (paymentIntent.status === 'requires_capture') {
+        // Cancel the intent (auto-refunds authorized amount)
+        await stripe.paymentIntents.cancel(
+          findPayment.paymentIntentId,
         );
+      } else if (paymentIntent.status === 'succeeded') {
+        // Create refund for amount minus service fee
+        const refundAmount = Math.max(0, totalAmount - SERVICE_FEE_PENCE);
+        if (refundAmount > 0) {
+          await stripe.refunds.create({
+            payment_intent: findPayment.paymentIntentId,
+            amount: refundAmount,
+          });
+        }
       }
 
       await tx.payment.update({
         where: { id: findPayment.id },
         data: {
           status: PaymentStatus.REFUNDED,
-          paymentAmount: captureAmount,
+          paymentAmount: SERVICE_FEE_PENCE,
         },
       });
-    }
+    } else {
+      // AFTER 5 MINS: No refund, admin keeps £0.50, shop owner gets the rest
+      
+      if (paymentIntent.status === 'requires_capture') {
+        // Capture full amount (transfer_data will send shop owner's portion)
+        const captured = await stripe.paymentIntents.confirm(
+          findPayment.paymentIntentId,
+        );
 
-    /* ---------------------------------------------------- */
-    /* 5 CASE B: Payment Already Captured                */
-    /* ---------------------------------------------------- */
-
-    else if (paymentIntent.status === 'succeeded') {
-      const refundAmount = Math.max(
-        0,
-        totalAmount - SERVICE_FEE_PENCE,
-      );
-
-      if (refundAmount > 0) {
-        await stripe.refunds.create({
-          payment_intent: findPayment.paymentIntentId,
-          amount: refundAmount,
-        });
+        if (captured.status !== 'succeeded') {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Failed to capture payment',
+          );
+        }
       }
+      // If already succeeded, do nothing - payment already captured
 
       await tx.payment.update({
         where: { id: findPayment.id },
         data: {
-          status: PaymentStatus.REFUNDED,
-          paymentAmount: refundAmount,
+          status: PaymentStatus.COMPLETED,
+          paymentAmount: totalAmount,
         },
       });
     }
 
     /* ---------------------------------------------------- */
-    /* 6 Update Queue + Booking                          */
+    /* 7 Update Queue + Booking                          */
     /* ---------------------------------------------------- */
 
     await tx.barberRealTimeStatus.deleteMany({

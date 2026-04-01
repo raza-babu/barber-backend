@@ -48,7 +48,7 @@ const updateBookingSchema = z.object({
 const updateBookingStatusSchema = z.object({
   body: z.object({
     bookingId: z.string().min(1, 'Booking ID is required'),
-    status: z.enum(['PENDING', 'CONFIRMED', 'RESCHEDULED'], {
+    status: z.enum(['COMPLETED', 'NO_SHOW'], {
       required_error: 'Status is required',
     }),
   }),

@@ -1997,6 +1997,35 @@ const checkInToSaloonInDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Already checked in');
     }
 
+    /* ---------------------------------------------------- */
+    /* Check Appointment Date & Time                      */
+    /* ---------------------------------------------------- */
+
+    const now = new Date();
+    const appointmentDate = new Date(booking.appointmentAt);
+    
+    // Check if today's date matches the booking date
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const bookingDate = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
+    
+    if (todayDate.getTime() !== bookingDate.getTime()) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Check-in date mismatch. Booking is scheduled for ${bookingDate.toDateString()}, but today is ${todayDate.toDateString()}`,
+      );
+    }
+
+    // Check if current time is within 30 minutes before the appointment time
+    const thirtyMinutesBefore = new Date(appointmentDate.getTime() - 30 * 60 * 1000);
+    
+    if (now < thirtyMinutesBefore) {
+      const minutesAway = Math.ceil((thirtyMinutesBefore.getTime() - now.getTime()) / (60 * 1000));
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Too early to check in. You can check in ${minutesAway} minutes before your appointment scheduled at ${appointmentDate.toLocaleTimeString()}`,
+      );
+    }
+
     const saloonLat = booking.saloonOwner?.latitude;
     const saloonLon = booking.saloonOwner?.longitude;
 
