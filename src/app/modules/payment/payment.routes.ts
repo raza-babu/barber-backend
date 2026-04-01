@@ -103,8 +103,7 @@ router.post(
 
 router.post(
   '/payout-barber',
-  auth(UserRoleEnum.BARBER),
-  checkBarberPaymentReadiness(),
+  auth(UserRoleEnum.SALOON_OWNER),
   validateRequest(TStripePayoutToBarberPayloadSchema),
   PaymentController.payoutToBarber,
 );

@@ -3014,8 +3014,8 @@ const createBookingIntoDb = async (userId: string, data: any) => {
             await tx.barberRealTimeStatus.deleteMany({
               where: {
                 barberId,
-                startDateTime: staleBooking.startDateTime || new Date(),
-                endDateTime: staleBooking.endDateTime || new Date(),
+                startDateTime: staleBooking.startDateTime!,
+                endDateTime: staleBooking.endDateTime!,
               },
             });
             await tx.booking.delete({
@@ -5543,7 +5543,7 @@ const updateBookingIntoDb = async (
     where: {
       id: bookingId,
       userId: userId,
-      bookingType: BookingType.BOOKING,
+      // bookingType: BookingType.BOOKING,
       status: {
         in: [
           BookingStatus.PENDING,
@@ -5743,7 +5743,7 @@ const updateBookingStatusIntoDb = async (
       }
       // replace the current block with this
       if (status === BookingStatus.COMPLETED) {
-        const findBookingEndTime = await prisma.booking.findFirst({
+        const findBookingEndTime = await prisma.booking.findUnique({
           where: {
             id: bookingId,
             saloonOwnerId: userId,
@@ -5781,25 +5781,25 @@ const updateBookingStatusIntoDb = async (
   // If RESCHEDULED: just update the booking status
 
   const result = await prisma.$transaction(async tx => {
-    if (status === BookingStatus.CONFIRMED) {
-      const checkPending = await tx.booking.update({
-        where: {
-          id: bookingId,
-          saloonOwnerId: userId,
-          status: BookingStatus.PENDING,
-        },
-        data: {
-          status: BookingStatus.CONFIRMED,
-        },
-      });
-      if (!checkPending) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Only PENDING bookings can be CONFIRMED',
-        );
-      }
-      return checkPending;
-    }
+    // if (status === BookingStatus.CONFIRMED) {
+    //   const checkPending = await tx.booking.update({
+    //     where: {
+    //       id: bookingId,
+    //       saloonOwnerId: userId,
+    //       status: BookingStatus.PENDING,
+    //     },
+    //     data: {
+    //       status: BookingStatus.CONFIRMED,
+    //     },
+    //   });
+    //   if (!checkPending) {
+    //     throw new AppError(
+    //       httpStatus.BAD_REQUEST,
+    //       'Only PENDING bookings can be CONFIRMED',
+    //     );
+    //   }
+    //   return checkPending;
+    // }
 
     if (status === BookingStatus.COMPLETED) {
       // Get booked services and calculate loyalty points
@@ -5813,8 +5813,10 @@ const updateBookingStatusIntoDb = async (
           },
           queueSlot: true,
         },
-        
+
       });
+
+  
 
       if (bookingWithServices) {
         const serviceIds = bookingWithServices.BookedServices.map(
@@ -5877,8 +5879,8 @@ const updateBookingStatusIntoDb = async (
         await tx.barberRealTimeStatus.deleteMany({
           where: {
             barberId: bookingWithServices.barberId,
-            startDateTime: bookingWithServices.startDateTime || new Date(),
-            endDateTime: bookingWithServices.endDateTime || new Date(),
+            startDateTime: bookingWithServices.startDateTime! ,
+            endDateTime: bookingWithServices.endDateTime! ,
           },
         });
 
@@ -5895,7 +5897,7 @@ const updateBookingStatusIntoDb = async (
         await StripeServices.capturePaymentRequestToStripe(userId, {
           bookingId,
           status: BookingStatus.COMPLETED,
-        });
+        }, tx);
 
         return completedBooking;
       }
@@ -5975,8 +5977,8 @@ const updateBookingStatusIntoDb = async (
         await tx.barberRealTimeStatus.deleteMany({
           where: {
             barberId: bookingWithServices.barberId,
-            startDateTime: bookingWithServices.startDateTime || new Date(),
-            endDateTime: bookingWithServices.endDateTime || new Date(),
+            startDateTime: bookingWithServices.startDateTime!,
+            endDateTime: bookingWithServices.endDateTime!,
           },
         });
 
@@ -5993,7 +5995,7 @@ const updateBookingStatusIntoDb = async (
         await StripeServices.capturePaymentRequestToStripe(userId, {
           bookingId,
           status: BookingStatus.NO_SHOW,
-        });
+        }, tx);
 
         return completedBooking;
       }

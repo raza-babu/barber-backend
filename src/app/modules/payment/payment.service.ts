@@ -353,16 +353,18 @@ const capturePaymentRequestToStripe = async (
   userId: string,
   payload: {
     bookingId: string;
-    status: string;
+    status: BookingStatus;
   },
+  tx?: any,
 ) => {
   const { bookingId, status } = payload;
-  return await prisma.$transaction(async tx => {
+
+  
+  // Use provided transaction or create a new one
+  if (tx) {
     const findBooking = await tx.booking.findUnique({
       where: {
         id: bookingId,
-        saloonOwnerId: userId,
-        status: BookingStatus.CONFIRMED,
       },
       include: {
         saloonOwner: {
@@ -383,6 +385,209 @@ const capturePaymentRequestToStripe = async (
 
     if (!findBooking) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    }
+    
+    // Verify the user is authorized (either saloon owner or customer)
+    if (findBooking.saloonOwnerId !== userId && findBooking.userId !== userId) {
+      throw new AppError(httpStatus.FORBIDDEN, 'Not authorized to capture this booking payment');
+    }
+    if (status === BookingStatus.COMPLETED) {
+      await tx.barberRealTimeStatus.deleteMany({
+        where: {
+          barberId: findBooking.barberId,
+          startDateTime: findBooking.startDateTime!,
+          endDateTime: findBooking.endDateTime!,
+        },
+      });
+      // update queueSlot status to completed
+      await tx.queueSlot.updateMany({
+        where: {
+          bookingId: bookingId,
+        },
+        data: {
+          status: QueueStatus.COMPLETED,
+        },
+      });
+      await tx.queue.updateMany({
+        where: {
+          barberId: findBooking.barberId,
+          saloonOwnerId: findBooking.saloonOwnerId,
+          date: findBooking.date,
+        },
+        data: {
+          currentPosition: {
+            decrement: 1,
+          },
+        },
+      });
+
+      const findPayment = await tx.payment.findFirst({
+        where: {
+          bookingId: findBooking.id,
+          status: PaymentStatus.REQUIRES_CAPTURE,
+        },
+      });
+
+      if (!findPayment) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Payment record not found or already captured',
+        );
+      }
+      if (!findPayment.paymentIntentId) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Payment Intent ID not found',
+        );
+      }
+
+      const paymentIntent = await stripe.paymentIntents.capture(
+        findPayment.paymentIntentId!,
+      );
+
+      if (paymentIntent.status === 'succeeded') {
+        const updatePayment = await tx.payment.update({
+          where: { id: findPayment.id },
+          data: { status: PaymentStatus.COMPLETED },
+        });
+
+        if (!updatePayment) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            'Failed to update payment information',
+          );
+        }
+
+        const updateBooking = await tx.booking.update({
+          where: { id: findBooking.id },
+          data: { status: BookingStatus.COMPLETED },
+        });
+        if (!updateBooking) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            'Failed to update booking status',
+          );
+        }
+      }
+
+      return paymentIntent;
+    }
+    if (status === BookingStatus.CANCELLED) {
+      const findPayment = await tx.payment.findFirst({
+        where: {
+          bookingId: findBooking.id,
+          status: PaymentStatus.REQUIRES_CAPTURE,
+        },
+      });
+
+      if (!findPayment) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Payment record not found or already captured',
+        );
+      }
+      if (!findPayment.paymentIntentId) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Payment Intent ID not found',
+        );
+      }
+
+      const paymentIntent = await stripe.paymentIntents.cancel(
+        findPayment.paymentIntentId!,
+      );
+
+      if (paymentIntent.status === 'canceled') {
+        await tx.barberRealTimeStatus.deleteMany({
+          where: {
+            barberId: findBooking.barberId,
+            startDateTime: findBooking.startDateTime!,
+            endDateTime: findBooking.endDateTime!,
+          },
+        });
+
+        // update queueSlot status to cancelled
+        await tx.queueSlot.updateMany({
+          where: {
+            bookingId: bookingId,
+          },
+          data: {
+            status: QueueStatus.CANCELLED,
+          },
+        });
+        await tx.queue.updateMany({
+          where: {
+            barberId: findBooking.barberId,
+            saloonOwnerId: findBooking.saloonOwnerId,
+            date: findBooking.date,
+          },
+          data: {
+            currentPosition: {
+              decrement: 1,
+            },
+          },
+        });
+
+        const updatePayment = await tx.payment.updateMany({
+          where: {
+            bookingId: findBooking.id,
+            status: PaymentStatus.REQUIRES_CAPTURE,
+          },
+          data: { status: PaymentStatus.REFUNDED },
+        });
+
+        if (updatePayment.count === 0) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            'Failed to update payment information',
+          );
+        }
+        const updateBooking = await tx.booking.update({
+          where: { id: findBooking.id },
+          data: { status: BookingStatus.CANCELLED },
+        });
+        if (!updateBooking) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            'Failed to update booking status',
+          );
+        }
+        return updateBooking;
+      }
+    }
+    return null;
+  }
+
+  // Default behavior: create new transaction
+  return await prisma.$transaction(async tx => {
+    const findBooking = await tx.booking.findUnique({
+      where: {
+        id: bookingId,
+      },
+      include: {
+        saloonOwner: {
+          include: {
+            user: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            address: true,
+            stripeCustomerId: true,
+          },
+        },
+      },
+    });
+
+    if (!findBooking) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+    }
+    
+    // Verify the user is authorized (either saloon owner or customer)
+    if (findBooking.saloonOwnerId !== userId && findBooking.userId !== userId) {
+      throw new AppError(httpStatus.FORBIDDEN, 'Not authorized to capture this booking payment');
     }
     if (status === BookingStatus.COMPLETED) {
       await tx.barberRealTimeStatus.deleteMany({
@@ -1420,6 +1625,43 @@ const payoutToBarberService = async (
     throw error;
   }
 
+  // CHECK BALANCE before attempting transfer
+  try {
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: saloonOwner.stripeAccountId,
+    });
+
+    const availableBalance = balance.available[0]?.amount || 0; // in pence
+    const availableBalanceGBP = availableBalance / 100;
+    const requestedAmountPence = Math.round(amount * 100);
+
+    console.log('Balance Check:', {
+      saloonOwnerId: saloonOwner.id,
+      saloonOwnerName: saloonOwner.fullName,
+      requestedAmount: amount,
+      requestedAmountPence,
+      availableBalancePence: availableBalance,
+      availableBalanceGBP,
+      sufficient: availableBalance >= requestedAmountPence,
+    });
+
+    if (availableBalance < requestedAmountPence) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Insufficient balance. Available: £${availableBalanceGBP.toFixed(2)}, Requested: £${amount.toFixed(2)}`,
+      );
+    }
+  } catch (error: any) {
+    if (error instanceof AppError) {
+      throw error; // Re-throw AppError
+    }
+    console.error('Balance check failed:', error.message);
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Balance check failed: ${error.message}`,
+    );
+  }
+
   // Create transfer from saloon owner to barber
   try {
     const transfer = await stripe.transfers.create({
@@ -1439,17 +1681,24 @@ const payoutToBarberService = async (
       from: saloonOwner.fullName,
       to: barber.user.fullName,
       amount: amount,
+      // transferStatus: transfer.status,
+      transferAmount: transfer.amount,
+      transferDestination: transfer.destination,
+      transferMetadata: transfer.metadata,
     });
 
     return {
       transferId: transfer.id,
+      // transferStatus: transfer.status,
       from: {
         id: saloonOwner.id,
         name: saloonOwner.fullName,
+        stripeAccountId: saloonOwner.stripeAccountId,
       },
       to: {
         id: barber.user.id,
         name: barber.user.fullName,
+        stripeAccountId: barber.user.stripeAccountId,
       },
       amount: amount,
       currency: 'gbp',
