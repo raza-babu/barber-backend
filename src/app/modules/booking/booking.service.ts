@@ -5813,6 +5813,7 @@ const updateBookingStatusIntoDb = async (
           },
           queueSlot: true,
         },
+        
       });
 
       if (bookingWithServices) {
