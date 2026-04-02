@@ -1986,7 +1986,7 @@ const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilt
       where: {
         userId: userId,
         status: BookingStatus.COMPLETED,
-        tipStatus: TipStatus.NONE
+        // tipStatus: TipStatus.NONE
         
       },
       include: {

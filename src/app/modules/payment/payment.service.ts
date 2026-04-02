@@ -1906,14 +1906,13 @@ const getPendingBarberPayoutsService = async (options?: ISearchAndFilterOptions)
     const totalPages = Math.ceil(total / limit);
 
     return {
-      success: true,
-      count: payoutRequests.length,
       total,
       data: payoutRequests,
-      pagination: {
+      meta: {
         page,
         limit,
         totalPages,
+        total: payoutRequests.length,
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1,
       },

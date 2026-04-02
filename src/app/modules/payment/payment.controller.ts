@@ -8,7 +8,12 @@ import sendResponse from '../../utils/sendResponse';
 import config from '../../../config';
 import prisma from '../../utils/prisma';
 import Stripe from 'stripe';
-import { PaymentStatus, SubscriptionPlanStatus, BookingStatus, TipStatus } from '@prisma/client';
+import {
+  PaymentStatus,
+  SubscriptionPlanStatus,
+  BookingStatus,
+  TipStatus,
+} from '@prisma/client';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 // Initialize Stripe with your secret API key
@@ -314,19 +319,30 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
 
       try {
         const metadata = session.metadata || {};
-        const isTipPayment = metadata.barberTipped || metadata.saloonOwnerTipped;
+        const isTipPayment =
+          metadata.barberTipped || metadata.saloonOwnerTipped;
 
         // If it's a tip payment, handle tip record creation
         if (isTipPayment) {
           const customerId = metadata.customerId;
-          const barberId = metadata.barberTipped === 'true' ? metadata.barberId : null;
-          const saloonOwnerId = metadata.saloonOwnerTipped === 'true' ? metadata.saloonOwnerId : null;
-          const barberOriginalAmount = metadata.barberOriginalAmount ? parseFloat(metadata.barberOriginalAmount) : null;
-          const saloonOwnerOriginalAmount = metadata.saloonOwnerOriginalAmount ? parseFloat(metadata.saloonOwnerOriginalAmount) : null;
-          const totalAmount = (barberOriginalAmount || 0) + (saloonOwnerOriginalAmount || 0);
-          const stripePaymentIntentId = typeof session.payment_intent === 'string' 
-            ? session.payment_intent 
-            : session.payment_intent?.id || undefined;
+          const barberId =
+            metadata.barberTipped === 'true' ? metadata.barberId : null;
+          const saloonOwnerId =
+            metadata.saloonOwnerTipped === 'true'
+              ? metadata.saloonOwnerId
+              : null;
+          const barberOriginalAmount = metadata.barberOriginalAmount
+            ? parseFloat(metadata.barberOriginalAmount)
+            : null;
+          const saloonOwnerOriginalAmount = metadata.saloonOwnerOriginalAmount
+            ? parseFloat(metadata.saloonOwnerOriginalAmount)
+            : null;
+          const totalAmount =
+            (barberOriginalAmount || 0) + (saloonOwnerOriginalAmount || 0);
+          const stripePaymentIntentId =
+            typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : session.payment_intent?.id || undefined;
 
           await prisma.booking.updateMany({
             where: {
@@ -1201,21 +1217,17 @@ const withdrawFundsFromStripe = catchAsync(async (req: any, res: any) => {
 const getPendingBarberPayouts = catchAsync(
   async (req: Request, res: Response) => {
     const user = req.user as any;
-    const { saloonOwnerId, barberId, status } = req.query;
 
-    const filters = {
-      ...(saloonOwnerId && { saloonOwnerId: saloonOwnerId as string }),
-      ...(barberId && { barberId: barberId as string }),
-      ...(status && { status: status as string }),
-    };
-
-    const result = await StripeServices.getPendingBarberPayoutsService(req.query as ISearchAndFilterOptions);
+    const result = await StripeServices.getPendingBarberPayoutsService(
+      req.query as ISearchAndFilterOptions,
+    );
 
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
       message: 'Payout requests retrieved successfully',
-      data: result,
+      data: result.data,
+      meta: result.meta,
     });
   },
 );
