@@ -1203,13 +1203,14 @@ const payoutToBarber = catchAsync(async (req: any, res: any) => {
   });
 });
 
-const withdrawFundsFromStripe = catchAsync(async (req: any, res: any) => {
-  const result = await StripeServices.withdrawFundsFromStripeService(req.body);
+const withdrawFundsFromStripe = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as any;
+  const result = await StripeServices.withdrawFundsFromStripeService(user.id);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Withdraw funds from stripe successfully',
+    message: 'Stripe dashboard access link generated successfully',
     data: result,
   });
 });

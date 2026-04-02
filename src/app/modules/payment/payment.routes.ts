@@ -117,20 +117,19 @@ router.get(
 
 router.post(
   '/barber-payouts/:payoutRequestId/settle',
-  auth(UserRoleEnum.ADMIN),
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   PaymentController.settleBarberPayout,
 );
 
 router.post(
   '/barber-payouts/:payoutRequestId/reject',
-  auth(UserRoleEnum.ADMIN),
+  auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
   PaymentController.rejectBarberPayout,
 );
 
 router.post(
   '/withdraw-funds',
-  auth(UserRoleEnum.BARBER),
-  checkBarberPaymentReadiness(),
+  auth(UserRoleEnum.SALOON_OWNER),
   PaymentController.withdrawFundsFromStripe,
 );
 

@@ -10,6 +10,7 @@ import {
   BookingStatus,
   QueueStatus,
   BookingType,
+  PayoutRequestStatus,
 } from '@prisma/client';
 import Stripe from 'stripe';
 import { TStripeSaveWithCustomerInfoPayload } from './payment.interface';
@@ -1803,7 +1804,114 @@ const payoutToBarberService = async (
 };
 
 const withdrawFundsFromStripeService = async (userId: string) => {
-  
+  // Get the saloon owner
+  const saloonOwner = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      SaloonOwner: {
+        select: { userId: true, shopName: true },
+      },
+    },
+  });
+
+  if (!saloonOwner) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner not found');
+  }
+
+  // Verify user is a saloon owner
+  if (!saloonOwner.SaloonOwner || saloonOwner.SaloonOwner.length === 0) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'User is not a saloon owner',
+    );
+  }
+
+  // Verify saloon owner has valid Stripe account
+  if (!saloonOwner.stripeAccountId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Saloon owner is not connected to Stripe. Please complete Stripe onboarding first.',
+    );
+  }
+
+  try {
+    // Verify the Stripe account exists and is active
+    const stripeAccount = await stripe.accounts.retrieve(saloonOwner.stripeAccountId);
+
+    if (!stripeAccount) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Stripe account is invalid or no longer exists',
+      );
+    }
+
+    // Get the current balance for display purposes
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: saloonOwner.stripeAccountId,
+    });
+
+    const availableBalance = balance.available[0]?.amount || 0; // in pence
+    const availableBalanceGBP = availableBalance / 100;
+    const pendingBalance = balance.pending[0]?.amount || 0; // in pence
+    const pendingBalanceGBP = pendingBalance / 100;
+
+    // Generate a login link for the connected account
+    // This allows shop owner to access their Stripe dashboard directly
+    const loginLink = await stripe.accounts.createLoginLink(
+      saloonOwner.stripeAccountId,
+    );
+
+    console.log('Stripe Dashboard Link Generated:', {
+      saloonOwnerId: saloonOwner.id,
+      saloonOwnerName: saloonOwner.fullName,
+      shopName: saloonOwner.SaloonOwner[0]?.shopName,
+      stripeAccountId: saloonOwner.stripeAccountId,
+      availableBalance: availableBalanceGBP,
+      pendingBalance: pendingBalanceGBP,
+      loginLinkUrl: loginLink.url,
+      timestamp: new Date(),
+    });
+
+    return {
+      success: true,
+      loginUrl: loginLink.url,
+      message: 'Ready to manage your withdrawals and payouts',
+      accountDetails: {
+        shopName: saloonOwner.SaloonOwner[0]?.shopName,
+        email: saloonOwner.email,
+        stripeAccountId: saloonOwner.stripeAccountId,
+      },
+      balanceInfo: {
+        available: availableBalanceGBP.toFixed(2),
+        pending: pendingBalanceGBP.toFixed(2),
+        currency: 'gbp',
+      },
+      instructions: {
+        step1: 'Click the link to access your Stripe dashboard',
+        step2: 'Go to "Payouts" section in your Stripe dashboard',
+        step3: 'Request a payout to your bank account from available balance',
+        step4: 'Wait for settlement (typically 1-2 business days)',
+        step5: 'Transfer the received funds to your barber(s)',
+        step6: 'Return to our app to record the settlement',
+      },
+      note: 'You are accessing Stripe as an authenticated user. Once you request a payout and your barber receives payment, please mark it as settled in our app so we can update our records.',
+    };
+  } catch (error: any) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    if (error.code === 'resource_missing') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Stripe account is invalid or no longer exists',
+      );
+    }
+    console.error('Failed to create Stripe login link:', error.message);
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to generate Stripe dashboard link: ${error.message}`,
+    );
+  }
 }
 
 // Get all pending barber payout requests
@@ -1985,7 +2093,7 @@ const settleBarberPayoutService = async (
     const settledPayout = await prisma.barberPayoutRequest.update({
       where: { id: payoutRequestId },
       data: {
-        status: 'SETTLED',
+        status: PayoutRequestStatus.SETTLED,
         settledAt: new Date(),
       },
       include: {
