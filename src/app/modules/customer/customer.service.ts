@@ -1970,14 +1970,17 @@ const updateCustomerIntoDb = async (
 
 const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilterOptions) => {
   const { page = 1, limit = 10 } = options || {};
-  const skip = (page - 1) * limit;
+  const pageNum = Number.isFinite(Number(page)) && Number(page) > 0 ? Math.floor(Number(page)) : 1;
+  const limitNum = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.floor(Number(limit)) : 10;
+  const skip = (pageNum - 1) * limitNum;
 
   try {
     // Get total count of pending tips for the user
     const total = await prisma.booking.count({
       where: {
         userId: userId,
-        tipStatus: TipStatus.NONE
+        status: BookingStatus.COMPLETED,
+        // tipStatus: TipStatus.ACCEPTED,
       },
     });
 
@@ -1986,8 +1989,7 @@ const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilt
       where: {
         userId: userId,
         status: BookingStatus.COMPLETED,
-        // tipStatus: TipStatus.NONE
-        
+        // tipStatus: TipStatus.ACCEPTED,
       },
       include: {
         barber: {
@@ -2017,6 +2019,8 @@ const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilt
             id: true,
             totalAmount: true,
             // tipType: true,
+            barberAmount: true,
+            saloonOwnerAmount: true,
             status: true,
             createdAt: true,
           },
@@ -2026,10 +2030,10 @@ const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilt
         appointmentAt: 'desc',
       },
       skip,
-      take: limit,
+      take: limitNum,
     });
 
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limitNum);
 
     return {
       success: true,
@@ -2038,21 +2042,21 @@ const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilt
         appointmentAt: booking.appointmentAt,
         barberName: booking.barber?.user?.fullName || booking.barberName,
         barberImage: booking.barber?.user?.image || booking.barberImage,
-        barberDetails: booking.barber,
+        // barberDetails: booking.barber,
         shopName: booking.saloonOwner?.shopName,
         shopLogo: booking.saloonOwner?.shopLogo,
         totalPrice: booking.totalPrice,
         tipStatus: booking.tipStatus,
-        tips: booking.Tip,
+        tips: booking.Tip || [],
         createdAt: booking.createdAt,
       })),
       meta: {
         total,
-        page,
-        limit,
+        page: pageNum,
+        limit: limitNum,
         totalPages,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
       },
     };
   } catch (error: any) {
