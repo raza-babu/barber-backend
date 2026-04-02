@@ -1,0 +1,6 @@
+enum TipStatus {
+  NONE
+  PENDING
+  ACCEPTED
+  REJECTED
+}

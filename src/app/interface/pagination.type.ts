@@ -35,6 +35,8 @@ export interface ISearchAndFilterOptions extends IPaginationOptions {
   dateField?: string;
   status?: string;
   type?: string;
+  barberId?: string;
+  saloonOwnerId?: string;
   isActive?: string;
   salaryMin?: string;
   salaryMax?: string;
@@ -43,7 +45,6 @@ export interface ISearchAndFilterOptions extends IPaginationOptions {
   isVerified?: boolean;
   role?: string;
   isSuperAdmin?: boolean | string;
-  saloonOwnerId?: string;
   priceMin?: string;
   priceMax?: string;
   jobPostId?: string;

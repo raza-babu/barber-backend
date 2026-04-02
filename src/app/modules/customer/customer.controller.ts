@@ -1,7 +1,8 @@
+import { customerService } from './customer.service';
 import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
-import { customerService } from './customer.service';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 const createCustomer = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -19,7 +20,7 @@ const analyzeSaloonFromImage = catchAsync(async (req, res) => {
   const result = await customerService.analyzeSaloonFromImageInDb(
     user.id,
     req.file as Express.Multer.File,
-    req.body
+    req.body,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -31,7 +32,17 @@ const analyzeSaloonFromImage = catchAsync(async (req, res) => {
 
 const getAllSaloonList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const { searchTerm, page, limit, sortBy, minRating, latitude, longitude, radius, topRated } = req.query;
+  const {
+    searchTerm,
+    page,
+    limit,
+    sortBy,
+    minRating,
+    latitude,
+    longitude,
+    radius,
+    topRated,
+  } = req.query;
 
   // If latitude and longitude are provided, get nearest saloons
   if (latitude && longitude && !topRated) {
@@ -68,7 +79,10 @@ const getAllSaloonList = catchAsync(async (req, res) => {
       minRating: minRating ? Number(minRating) : undefined,
     };
 
-    const result = await customerService.getTopRatedSaloonsFromDb(user.id, query);
+    const result = await customerService.getTopRatedSaloonsFromDb(
+      user.id,
+      query,
+    );
 
     return sendResponse(res, {
       statusCode: httpStatus.OK,
@@ -174,7 +188,7 @@ const getFavoriteSaloons = catchAsync(async (req, res) => {
   };
 
   const result = await customerService.getFavoriteSaloonsFromDb(user.id, query);
-  
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -219,8 +233,11 @@ const getVisitedSaloonList = catchAsync(async (req, res) => {
     limit: limit ? Number(limit) : undefined,
   };
 
-  const result = await customerService.getVisitedSaloonListFromDb(user.id, query);
-  
+  const result = await customerService.getVisitedSaloonListFromDb(
+    user.id,
+    query,
+  );
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -230,11 +247,27 @@ const getVisitedSaloonList = catchAsync(async (req, res) => {
   });
 });
 
+const getPendingTipsList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await customerService.getPendingTipsListFromDb(user.id, req.query as ISearchAndFilterOptions);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Pending tips retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 const getMyLoyaltyOffers = catchAsync(async (req, res) => {
   const user = req.user as any;
 
-  const result = await customerService.getMyLoyaltyOffersFromDb(user.id, req.params.id);
-  
+  const result = await customerService.getMyLoyaltyOffersFromDb(
+    user.id,
+    req.params.id,
+  );
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -310,6 +343,7 @@ export const customerController = {
   getTopRatedSaloons,
   getSaloonAllServicesList,
   getVisitedSaloonList,
+  getPendingTipsList,
   getMyLoyaltyOffers,
   addSaloonToFavorites,
   getFavoriteSaloons,

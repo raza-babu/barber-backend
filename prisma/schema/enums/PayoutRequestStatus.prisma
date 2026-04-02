@@ -1,0 +1,5 @@
+enum PayoutRequestStatus {
+  PENDING
+  SETTLED
+  REJECTED
+}

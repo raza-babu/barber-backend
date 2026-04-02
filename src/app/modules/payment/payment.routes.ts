@@ -108,6 +108,25 @@ router.post(
   PaymentController.payoutToBarber,
 );
 
+// Barber Payout Management Routes
+router.get(
+  '/barber-payouts/pending',
+  auth(),
+  PaymentController.getPendingBarberPayouts,
+);
+
+router.post(
+  '/barber-payouts/:payoutRequestId/settle',
+  auth(UserRoleEnum.ADMIN),
+  PaymentController.settleBarberPayout,
+);
+
+router.post(
+  '/barber-payouts/:payoutRequestId/reject',
+  auth(UserRoleEnum.ADMIN),
+  PaymentController.rejectBarberPayout,
+);
+
 router.post(
   '/withdraw-funds',
   auth(UserRoleEnum.BARBER),

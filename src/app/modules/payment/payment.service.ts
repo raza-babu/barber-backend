@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import Stripe from 'stripe';
 import { TStripeSaveWithCustomerInfoPayload } from './payment.interface';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 // import { notificationService } from '../Notification/Notification.service';
 
 // Initialize Stripe with your secret API key
@@ -1625,30 +1626,81 @@ const payoutToBarberService = async (
     throw error;
   }
 
+  // Verify saloon owner account has transfer capability
+  try {
+    const saloonOwnerAccount = await stripe.accounts.retrieve(
+      saloonOwner.stripeAccountId,
+    );
+
+    const transferCapability = saloonOwnerAccount.capabilities?.transfers;
+    
+    console.log('Saloon Owner Account Status:', {
+      accountId: saloonOwner.stripeAccountId,
+      chargesEnabled: saloonOwnerAccount.charges_enabled,
+      transferCapability,
+      pendingVerification: saloonOwnerAccount.requirements?.pending_verification,
+    });
+
+    if (transferCapability !== 'active') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Saloon owner transfer capability is not active (status: ${transferCapability}). Please complete Stripe onboarding.`,
+      );
+    }
+  } catch (error: any) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    if (error.code === 'resource_missing') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Saloon owner Stripe account is invalid or no longer exists',
+      );
+    }
+    throw error;
+  }
+
   // CHECK BALANCE before attempting transfer
   try {
     const balance = await stripe.balance.retrieve({
       stripeAccount: saloonOwner.stripeAccountId,
     });
 
-    const availableBalance = balance.available[0]?.amount || 0; // in pence
-    const availableBalanceGBP = availableBalance / 100;
     const requestedAmountPence = Math.round(amount * 100);
+    
+    // For transfers, use instant_available (available for immediate transfer in test mode)
+    // Fallback to available if instant_available not present
+    const transferableBalance = balance.instant_available?.[0]?.amount || balance.available[0]?.amount || 0; // in pence
+    const availableBalance = balance.available[0]?.amount || 0; // in pence
+    const pendingBalance = balance.pending[0]?.amount || 0; // in pence
+    const transferableBalanceGBP = transferableBalance / 100;
+    const availableBalanceGBP = availableBalance / 100;
+    const pendingBalanceGBP = pendingBalance / 100;
 
-    console.log('Balance Check:', {
+    console.log('Complete Balance Check:', {
       saloonOwnerId: saloonOwner.id,
       saloonOwnerName: saloonOwner.fullName,
       requestedAmount: amount,
       requestedAmountPence,
+      transferableBalancePence: transferableBalance,
+      transferableBalanceGBP,
       availableBalancePence: availableBalance,
       availableBalanceGBP,
-      sufficient: availableBalance >= requestedAmountPence,
+      pendingBalancePence: pendingBalance,
+      pendingBalanceGBP,
+      sufficientForTransfer: transferableBalance >= requestedAmountPence,
     });
 
-    if (availableBalance < requestedAmountPence) {
+    if (transferableBalance < requestedAmountPence) {
+      console.warn('Insufficient TRANSFERABLE balance for transfer', {
+        transferable: transferableBalanceGBP.toFixed(2),
+        available: availableBalanceGBP.toFixed(2),
+        pending: pendingBalanceGBP.toFixed(2),
+        requested: amount.toFixed(2),
+      });
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        `Insufficient balance. Available: £${availableBalanceGBP.toFixed(2)}, Requested: £${amount.toFixed(2)}`,
+        `Insufficient balance for transfer. Available: £${transferableBalanceGBP.toFixed(2)}, Requested: £${amount.toFixed(2)}`,
       );
     }
   } catch (error: any) {
@@ -1662,34 +1714,66 @@ const payoutToBarberService = async (
     );
   }
 
-  // Create transfer from saloon owner to barber
+  // Database-Only Accounting: Track payout request without moving money through Stripe
+  // Shop owner's balance stays on their account
+  // Payout is logged in DB and must be settled manually (via bank transfer, etc)
   try {
-    const transfer = await stripe.transfers.create({
-      amount: Math.round(amount * 100), // Convert to pence
-      currency: 'gbp',
-      destination: barber.user.stripeAccountId,
-      description: `Payout from ${saloonOwner.fullName} to ${barber.user.fullName}`,
-      metadata: {
+    const amountInPence = Math.round(amount * 100);
+
+    // Create payout request in database
+    const payoutRequest = await prisma.barberPayoutRequest.create({
+      data: {
         saloonOwnerId: saloonOwner.id,
         barberId: barber.user.id,
-        type: 'barber_payout',
+        amount: amount,
+        status: 'PENDING',
+      },
+      include: {
+        saloonOwner: {
+          select: {
+            id: true,
+            userId: true,
+            shopName: true,
+          },
+        },
+        barber: {
+          select: {
+            id: true,
+            userId: true,
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    console.log('Transfer created successfully:', {
-      transferId: transfer.id,
-      from: saloonOwner.fullName,
-      to: barber.user.fullName,
+    console.log('Barber Payout Request Created:', {
+      payoutRequestId: payoutRequest.id,
+      saloonOwnerId: saloonOwner.id,
+      saloonOwnerName: saloonOwner.fullName,
+      barberName: barber.user.fullName,
+      barberId: barber.user.id,
       amount: amount,
-      // transferStatus: transfer.status,
-      transferAmount: transfer.amount,
-      transferDestination: transfer.destination,
-      transferMetadata: transfer.metadata,
+      amountInPence: amountInPence,
+      saloonOwnerStripeAccount: saloonOwner.stripeAccountId,
+      barberStripeAccount: barber.user.stripeAccountId,
+      note: 'Payout logged in database. Settlement required outside Stripe: Shop owner withdraws to bank, then transfers to barber.',
+      timestamp: new Date(),
     });
 
     return {
-      transferId: transfer.id,
-      // transferStatus: transfer.status,
+      success: true,
+      payoutType: 'manual_settlement',
+      payoutRequestId: payoutRequest.id,
+      message: 'Payout request created successfully. Settlement requires manual coordination.',
+      instructions: {
+        step1: 'Shop owner withdraws £' + amount.toFixed(2) + ' from Stripe account to bank account',
+        step2: 'Shop owner transfers £' + amount.toFixed(2) + ' from bank account to barber',
+        step3: 'Platform admin confirms settlement in database',
+      },
       from: {
         id: saloonOwner.id,
         name: saloonOwner.fullName,
@@ -1702,13 +1786,18 @@ const payoutToBarberService = async (
       },
       amount: amount,
       currency: 'gbp',
-      createdAt: new Date(transfer.created * 1000),
+      amountInPence: amountInPence,
+      status: payoutRequest.status,
+      createdAt: payoutRequest.createdAt,
+      note: 'Balance on shop owner account: £' + 
+            (Math.round(amount * 100) / 100).toFixed(2) + 
+            ' ready to withdraw. Barber will receive funds via bank transfer after manual coordination.',
     };
   } catch (error: any) {
-    console.error('Stripe transfer failed:', error.message);
+    console.error('Payout request creation failed:', error.message);
     throw new AppError(
       httpStatus.CONFLICT,
-      `Transfer failed: ${error.message}`,
+      `Payout request failed: ${error.message}`,
     );
   }
 };
@@ -1716,6 +1805,325 @@ const payoutToBarberService = async (
 const withdrawFundsFromStripeService = async (userId: string) => {
   
 }
+
+// Get all pending barber payout requests
+const getPendingBarberPayoutsService = async (options?: ISearchAndFilterOptions) => {
+  try {
+    const where: any = {};
+    let skip = 0;
+    let take = 10; // Default limit
+
+    // Handle pagination
+    if (options?.page && options?.limit) {
+      const page = Math.max(1, options.page);
+      skip = (page - 1) * options.limit;
+      take = options.limit;
+    }
+
+    // Handle filtering from options directly
+    if (options?.saloonOwnerId) {
+      where.saloonOwnerId = options.saloonOwnerId;
+    }
+    if (options?.barberId) {
+      where.barberId = options.barberId;
+    }
+    if (options?.status) {
+      where.status = options.status;
+    }
+
+    // Handle additional filters passed through filters object
+    if (options?.filters) {
+      Object.keys(options.filters).forEach((key) => {
+        if (options.filters![key] !== undefined && options.filters![key] !== null) {
+          where[key] = options.filters![key];
+        }
+      });
+    }
+
+    // Handle date range filtering
+    if (options?.startDate || options?.endDate) {
+      const dateField = options?.dateField || 'createdAt';
+      where[dateField] = {};
+      
+      if (options?.startDate) {
+        where[dateField].gte = new Date(options.startDate);
+      }
+      if (options?.endDate) {
+        where[dateField].lte = new Date(options.endDate);
+      }
+    }
+
+    // Determine sort order
+    const sortBy = options?.sortBy || 'createdAt';
+    const sortOrder = options?.sortOrder || 'desc';
+    const orderBy: any = { [sortBy]: sortOrder };
+
+    // Get total count for pagination
+    const total = await prisma.barberPayoutRequest.count({ where });
+
+    // Fetch payout requests
+    const payoutRequests = await prisma.barberPayoutRequest.findMany({
+      where,
+      include: {
+        saloonOwner: {
+          select: {
+            id: true,
+            userId: true,
+            shopName: true,
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                stripeAccountId: true,
+              },
+            },
+          },
+        },
+        barber: {
+          select: {
+            id: true,
+            userId: true,
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                stripeAccountId: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy,
+      skip,
+      take,
+    });
+
+    // Calculate pagination metadata
+    const page = options?.page || 1;
+    const limit = options?.limit || 10;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      success: true,
+      count: payoutRequests.length,
+      total,
+      data: payoutRequests,
+      pagination: {
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  } catch (error: any) {
+    console.error('Failed to fetch payout requests:', error.message);
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to fetch payout requests: ${error.message}`,
+    );
+  }
+};
+
+// Settle/Approve barber payout request
+const settleBarberPayoutService = async (
+  userId: string,
+  payoutRequestId: string,
+) => {
+  try {
+    // Verify requesting user is admin or authorized personnel
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+    }
+
+    // Find the payout request
+    const payoutRequest = await prisma.barberPayoutRequest.findUnique({
+      where: { id: payoutRequestId },
+      include: {
+        saloonOwner: {
+          select: {
+            id: true,
+            userId: true,
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+        barber: {
+          select: {
+            id: true,
+            userId: true,
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!payoutRequest) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Payout request not found');
+    }
+
+    if (payoutRequest.status !== 'PENDING') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Cannot settle payout request with status: ${payoutRequest.status}`,
+      );
+    }
+
+    // Update payout request status to SETTLED
+    const settledPayout = await prisma.barberPayoutRequest.update({
+      where: { id: payoutRequestId },
+      data: {
+        status: 'SETTLED',
+        settledAt: new Date(),
+      },
+      include: {
+        saloonOwner: {
+          select: {
+            id: true,
+            userId: true,
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+        barber: {
+          select: {
+            id: true,
+            userId: true,
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log('Barber Payout Settled:', {
+      payoutRequestId: settledPayout.id,
+      saloonOwner: payoutRequest.saloonOwner.user.fullName,
+      barber: payoutRequest.barber.user.fullName,
+      amount: settledPayout.amount,
+      settledAt: settledPayout.settledAt,
+      settledBy: user.email,
+    });
+
+    return {
+      success: true,
+      message: 'Payout request settled successfully',
+      data: settledPayout,
+    };
+  } catch (error: any) {
+    if (error instanceof AppError) throw error;
+    console.error('Failed to settle payout:', error.message);
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to settle payout: ${error.message}`,
+    );
+  }
+};
+
+// Reject barber payout request
+const rejectBarberPayoutService = async (
+  userId: string,
+  payoutRequestId: string,
+  notes?: string,
+) => {
+  try {
+    // Verify requesting user
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+    }
+
+    // Find the payout request
+    const payoutRequest = await prisma.barberPayoutRequest.findUnique({
+      where: { id: payoutRequestId },
+    });
+
+    if (!payoutRequest) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Payout request not found');
+    }
+
+    if (payoutRequest.status !== 'PENDING') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Cannot reject payout request with status: ${payoutRequest.status}`,
+      );
+    }
+
+    // Update payout request status to REJECTED
+    const rejectedPayout = await prisma.barberPayoutRequest.update({
+      where: { id: payoutRequestId },
+      data: {
+        status: 'REJECTED',
+        notes: notes || 'Rejected by admin',
+      },
+      include: {
+        saloonOwner: {
+          select: {
+            id: true,
+            userId: true,
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+        barber: {
+          select: {
+            id: true,
+            userId: true,
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log('Barber Payout Rejected:', {
+      payoutRequestId: rejectedPayout.id,
+      reason: notes || 'No reason provided',
+      rejectedBy: user.email,
+    });
+
+    return {
+      success: true,
+      message: 'Payout request rejected successfully',
+      data: rejectedPayout,
+    };
+  } catch (error: any) {
+    if (error instanceof AppError) throw error;
+    console.error('Failed to reject payout:', error.message);
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to reject payout: ${error.message}`,
+    );
+  }
+};
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,
   authorizeAndSplitPayment,
@@ -1734,7 +2142,10 @@ export const StripeServices = {
   withdrawFundsFromStripeService,
   cleanupAbandonedPendingAccounts,
   cancelPaymentRequestToStripe,
-  cancelQueuePaymentRequestToStripe
+  cancelQueuePaymentRequestToStripe,
+  getPendingBarberPayoutsService,
+  settleBarberPayoutService,
+  rejectBarberPayoutService,
 };
 
 

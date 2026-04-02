@@ -54,6 +54,12 @@ enum PaymentStatus {
 }
 
 
+enum PayoutRequestStatus {
+  PENDING
+  SETTLED
+  REJECTED
+}
+
 enum PlatFormType {
   GOOGLE
   FACEBOOK
@@ -138,6 +144,13 @@ enum SupportStatus {
 enum SupportType {
   CUSTOMER_QUESTION
   CUSTOMER_COMPLAINT
+}
+
+enum TipStatus {
+  NONE
+  PENDING
+  ACCEPTED
+  REJECTED
 }
 
 enum UserRoleEnum {
@@ -267,7 +280,7 @@ model Barber {
   // Lunch                Lunch[]
   QueueTime            QueueTime[]
   TerminateBarber      TerminateBarber[]
-
+  BarberPayoutRequest  BarberPayoutRequest[]
   @@map("barbers")
 }
 
@@ -308,6 +321,23 @@ model BarberLunch {
   @@map("barber_lunches")
 }
 
+
+model BarberPayoutRequest {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId   String   @db.ObjectId
+  barberId        String   @db.ObjectId
+  amount          Float
+  status          PayoutRequestStatus @default(PENDING)
+  settledAt       DateTime?
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  saloonOwner     SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
+  barber          Barber @relation(fields: [barberId], references: [userId])
+
+  @@map("barber_payout_requests")
+}
 
 model BarberRealTimeStatus {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -396,6 +426,7 @@ model Booking {
   loyaltySchemeId String?       @db.ObjectId
   checkIn         Boolean       @default(false)
   remoteQueue     Boolean       @default(false)
+  tipStatus       TipStatus     @default(NONE)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -1041,7 +1072,7 @@ model SaloonOwner {
   Review                     Review[]
   LoyaltyPointLog            LoyaltyPointLog[]
   QueueTime                  QueueTime[]
-
+  BarberPayoutRequest        BarberPayoutRequest[]
   @@map("saloon_owners")
 }
 
@@ -1226,6 +1257,8 @@ model Tip {
   @@index([customerId])
   @@index([barberId])
   @@index([saloonOwnerId])
+
+  @@map("tips")
 }
 
 

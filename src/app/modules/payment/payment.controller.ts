@@ -8,7 +8,8 @@ import sendResponse from '../../utils/sendResponse';
 import config from '../../../config';
 import prisma from '../../utils/prisma';
 import Stripe from 'stripe';
-import { PaymentStatus, SubscriptionPlanStatus, BookingStatus } from '@prisma/client';
+import { PaymentStatus, SubscriptionPlanStatus, BookingStatus, TipStatus } from '@prisma/client';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -323,6 +324,32 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
           const barberOriginalAmount = metadata.barberOriginalAmount ? parseFloat(metadata.barberOriginalAmount) : null;
           const saloonOwnerOriginalAmount = metadata.saloonOwnerOriginalAmount ? parseFloat(metadata.saloonOwnerOriginalAmount) : null;
           const totalAmount = (barberOriginalAmount || 0) + (saloonOwnerOriginalAmount || 0);
+          const stripePaymentIntentId = typeof session.payment_intent === 'string' 
+            ? session.payment_intent 
+            : session.payment_intent?.id || undefined;
+
+          await prisma.booking.updateMany({
+            where: {
+              id: bookingId,
+              tipStatus: TipStatus.NONE,
+            },
+            data: {
+              tipStatus: TipStatus.ACCEPTED,
+            },
+          });
+
+          // Check if tip already exists (idempotency)
+          const existingTip = await prisma.tip.findFirst({
+            where: {
+              bookingId,
+              stripeSessionId: session.id,
+            },
+          });
+
+          if (existingTip) {
+            console.log('Tip record already exists for session:', session.id);
+            break;
+          }
 
           // Create Tip record
           const tip = await prisma.tip.create({
@@ -337,9 +364,7 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
               tipFee: parseFloat(metadata.tipFee || '0.1'),
               status: 'COMPLETED',
               stripeSessionId: session.id,
-              stripePaymentIntentId: typeof session.payment_intent === 'string' 
-                ? session.payment_intent 
-                : session.payment_intent?.id || undefined,
+              stripePaymentIntentId,
             },
           });
 
@@ -1173,6 +1198,82 @@ const withdrawFundsFromStripe = catchAsync(async (req: any, res: any) => {
   });
 });
 
+const getPendingBarberPayouts = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as any;
+    const { saloonOwnerId, barberId, status } = req.query;
+
+    const filters = {
+      ...(saloonOwnerId && { saloonOwnerId: saloonOwnerId as string }),
+      ...(barberId && { barberId: barberId as string }),
+      ...(status && { status: status as string }),
+    };
+
+    const result = await StripeServices.getPendingBarberPayoutsService(req.query as ISearchAndFilterOptions);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Payout requests retrieved successfully',
+      data: result,
+    });
+  },
+);
+
+const settleBarberPayout = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as any;
+  const { payoutRequestId } = req.params;
+
+  if (!payoutRequestId) {
+    return sendResponse(res, {
+      statusCode: httpStatus.BAD_REQUEST,
+      success: false,
+      message: 'Payout request ID is required',
+      data: null,
+    });
+  }
+
+  const result = await StripeServices.settleBarberPayoutService(
+    user.id,
+    payoutRequestId,
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Payout settled successfully',
+    data: result,
+  });
+});
+
+const rejectBarberPayout = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as any;
+  const { payoutRequestId } = req.params;
+  const { notes } = req.body;
+
+  if (!payoutRequestId) {
+    return sendResponse(res, {
+      statusCode: httpStatus.BAD_REQUEST,
+      success: false,
+      message: 'Payout request ID is required',
+      data: null,
+    });
+  }
+
+  const result = await StripeServices.rejectBarberPayoutService(
+    user.id,
+    payoutRequestId,
+    notes,
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Payout rejected successfully',
+    data: result,
+  });
+});
+
 export const PaymentController = {
   saveCardWithCustomerInfo,
   authorizedPaymentWithSaveCard,
@@ -1192,4 +1293,7 @@ export const PaymentController = {
   payoutToBarber,
   withdrawFundsFromStripe,
   handleWebHook,
+  getPendingBarberPayouts,
+  settleBarberPayout,
+  rejectBarberPayout,
 };

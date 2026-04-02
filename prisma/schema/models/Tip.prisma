@@ -35,4 +35,6 @@ model Tip {
   @@index([customerId])
   @@index([barberId])
   @@index([saloonOwnerId])
+
+  @@map("tips")
 }

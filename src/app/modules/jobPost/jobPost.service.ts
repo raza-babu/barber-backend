@@ -1,4 +1,3 @@
-import { Barber } from './../../../../node_modules/.prisma/client/index.d';
 import prisma from '../../utils/prisma';
 import {
   SubscriptionPlanStatus,

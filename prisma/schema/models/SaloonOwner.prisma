@@ -40,6 +40,6 @@ model SaloonOwner {
   Review                     Review[]
   LoyaltyPointLog            LoyaltyPointLog[]
   QueueTime                  QueueTime[]
-
+  BarberPayoutRequest        BarberPayoutRequest[]
   @@map("saloon_owners")
 }

@@ -2,10 +2,12 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { BookingStatus, BookingType, Prisma, RedemptionStatus, User } from '@prisma/client';
+import { TipStatus } from '@prisma/client';
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 const createCustomerIntoDb = async (userId: string, data: any) => {
   const result = await prisma.saloonOwner.create({
@@ -1966,6 +1968,103 @@ const updateCustomerIntoDb = async (
   return result;
 };
 
+const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilterOptions) => {
+  const { page = 1, limit = 10 } = options || {};
+  const skip = (page - 1) * limit;
+
+  try {
+    // Get total count of pending tips for the user
+    const total = await prisma.booking.count({
+      where: {
+        userId: userId,
+        tipStatus: TipStatus.NONE
+      },
+    });
+
+    // Get paginated pending tips
+    const bookings = await prisma.booking.findMany({
+      where: {
+        userId: userId,
+        status: BookingStatus.COMPLETED,
+        tipStatus: TipStatus.NONE
+        
+      },
+      include: {
+        barber: {
+          select: {
+            userId: true,
+            portfolio: true,
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                image: true,
+                email: true,
+              },
+            },
+          },
+        },
+        saloonOwner: {
+          select: {
+            userId: true,
+            shopName: true,
+            shopLogo: true,
+            shopAddress: true,
+          },
+        },
+        Tip: {
+          select: {
+            id: true,
+            totalAmount: true,
+            // tipType: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: {
+        appointmentAt: 'desc',
+      },
+      skip,
+      take: limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      success: true,
+      data: bookings.map(booking => ({
+        id: booking.id,
+        appointmentAt: booking.appointmentAt,
+        barberName: booking.barber?.user?.fullName || booking.barberName,
+        barberImage: booking.barber?.user?.image || booking.barberImage,
+        barberDetails: booking.barber,
+        shopName: booking.saloonOwner?.shopName,
+        shopLogo: booking.saloonOwner?.shopLogo,
+        totalPrice: booking.totalPrice,
+        tipStatus: booking.tipStatus,
+        tips: booking.Tip,
+        createdAt: booking.createdAt,
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  } catch (error: any) {
+    console.error('Failed to fetch pending tips:', error.message);
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to fetch pending tips: ${error.message}`,
+    );
+  }
+}
+
+
 const checkInToSaloonInDb = async (
   userId: string, 
   bookingId: string,
@@ -2099,5 +2198,6 @@ export const customerService = {
   removeSaloonFromFavoritesInDb,
   updateCustomerIntoDb,
   checkInToSaloonInDb,
+  getPendingTipsListFromDb,
   deleteCustomerItemFromDb,
 };

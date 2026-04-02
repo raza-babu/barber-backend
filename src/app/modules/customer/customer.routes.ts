@@ -74,6 +74,12 @@ router.get(
 )
 
 router.get(
+  '/pending-tips-list',
+  auth(UserRoleEnum.CUSTOMER),
+  customerController.getPendingTipsList
+);
+
+router.get(
   '/my-loyalty-offers/:id',
   auth(UserRoleEnum.CUSTOMER),
   customerController.getMyLoyaltyOffers,

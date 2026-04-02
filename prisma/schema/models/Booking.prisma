@@ -22,6 +22,7 @@ model Booking {
   loyaltySchemeId String?       @db.ObjectId
   checkIn         Boolean       @default(false)
   remoteQueue     Boolean       @default(false)
+  tipStatus       TipStatus     @default(NONE)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

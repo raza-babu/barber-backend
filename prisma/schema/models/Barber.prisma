@@ -33,6 +33,6 @@ model Barber {
   // Lunch                Lunch[]
   QueueTime            QueueTime[]
   TerminateBarber      TerminateBarber[]
-
+  BarberPayoutRequest  BarberPayoutRequest[]
   @@map("barbers")
 }
