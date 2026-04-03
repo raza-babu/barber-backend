@@ -56,8 +56,8 @@ export const refundPaymentPayloadSchema = z.object({
 export const tipPayloadSchema = z.object({
   body: z.object({
     bookingId: z.string({ required_error: 'Parcel ID is required' }),
-    barberAmount: z.number({ required_error: 'Amount is required' }),
-    saloonOwnerAmount: z.number({ required_error: 'Amount is required' }),
+    barberAmount: z.number({ required_error: 'Amount is required' }).optional(),
+    saloonOwnerAmount: z.number({ required_error: 'Amount is required' }).optional(),
   }),
 });
 
