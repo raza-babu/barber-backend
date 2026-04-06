@@ -1,8 +1,22 @@
 import { time } from "console";
 import dotenv from "dotenv";
+import fs from "fs";
 import path from "path";
 
 dotenv.config({ path: path.join(process.cwd(), ".env") });
+
+const loadApplePrivateKey = () => {
+  const keyPath = process.env.APPLE_PRIVATE_KEY_PATH || 'AuthKey_ZCH3L987YV.p8';
+  const resolvedPath = path.isAbsolute(keyPath)
+    ? keyPath
+    : path.join(process.cwd(), keyPath);
+
+  try {
+    return fs.readFileSync(resolvedPath, "utf8");
+  } catch (error) {
+    throw new Error(`Failed to read Apple private key file at ${resolvedPath}`);
+  }
+};
 
 export default {
   env: process.env.NODE_ENV,
@@ -38,10 +52,11 @@ export default {
   },
   apple: {
     bundleId: process.env.APPLE_BUNDLE_ID,
+    issuerId: process.env.APPLE_ISSUER_ID,
     teamId: process.env.APPLE_TEAM_ID,
     keyId: process.env.APPLE_KEY_ID,
-    privateKey: process.env.APPLE_PRIVATE_KEY,
-    sharedSecret: process.env.APPLE_PRIVATE_KEY, // ✅ For receipt verification
+    privateKey: loadApplePrivateKey(),
+    sharedSecret: process.env.APPLE_SHARED_SECRET_KEY, // ✅ For receipt verification
     isProduction: process.env.NODE_ENV === 'production', // ✅ Fixed: should be 'production' not 'development'
   },
   google: {

@@ -107,31 +107,30 @@ const verifyAppleReceipt = async (
       console.error('   Apple rejected your JWT authentication');
       console.error('   ');
       console.error('   LIKELY CAUSES:');
-      console.error('   1. Private key is INVALID or INCOMPLETE');
+      console.error('   1. Private key is wrong for this Key ID or malformed');
       console.error('      Current key length:', config.apple.privateKey?.length, 'chars');
-      console.error('      Expected: 1700+ chars');
-      console.error('      Your key: 257 chars ← TOO SHORT!');
+      console.error('      Note: ES256 .p8 keys are often short (~200-300 chars) and can be valid');
+      console.error('      Verify APPLE_PRIVATE_KEY is the exact .p8 for APPLE_KEY_ID');
       console.error('   ');
-      console.error('   2. Private key does NOT match Key ID:', config.apple.keyId);
-      console.error('      You must download the .p8 file for THIS key ID');
+      console.error('   2. Issuer ID / Team ID is wrong');
+      console.error('      Prefer APPLE_ISSUER_ID (UUID), fallback is APPLE_TEAM_ID');
       console.error('   ');
-      console.error('   3. Key is EXPIRED or REVOKED in App Store Connect');
+      console.error('   3. Key ID does NOT match or key is revoked');
       console.error('      Check: https://appstoreconnect.apple.com/');
       console.error('      Users and Access → Keys');
       console.error('   ');
       console.error('   CONFIGURATION CHECK:');
+      console.error('      Issuer ID:', (config.apple as any).issuerId || 'Not set');
       console.error('      Team ID:', config.apple.teamId);
       console.error('      Key ID:', config.apple.keyId);
       console.error('      Bundle ID:', config.apple.bundleId);
+      console.error('      Private Key:', config.apple.privateKey ? 'Set' : 'Not set');
       console.error('   ');
       console.error('   WHAT TO DO:');
       console.error('   1. Go to App Store Connect');
-      console.error('   2. Find Key ID:', config.apple.keyId);
-      console.error('   3. Download the .p8 file for that key');
-      console.error('   4. Convert to .env format:');
-      console.error('      cat key.p8 | tr "\\n" " " | sed "s/ /\\\\n/g"');
-      console.error('   5. Update APPLE_PRIVATE_KEY in .env');
-      console.error('   6. Restart the server');
+      console.error('   2. Verify APPLE_PRIVATE_KEY and APPLE_KEY_ID in .env');
+      console.error('   3. Set APPLE_ISSUER_ID (recommended)');
+      console.error('   4. Restart the server');
       console.error('   ============================================');
       
       if (error.response?.data) {
@@ -255,117 +254,39 @@ const verifyAppleReceiptData = async (
 };
 
 /**
- * Parse and normalize Apple private key from environment variables
- * Handles various formats and encoding issues
+ * Parse and normalize Apple private key from environment variables.
  */
 const parseApplePrivateKey = (keyString: string): string => {
   if (!keyString) {
-    throw new Error(
-      'APPLE_PRIVATE_KEY environment variable is not set. ' +
-      'Add it to your .env file with the content of your .p8 file from App Store Connect.'
-    );
+    throw new Error('APPLE_PRIVATE_KEY environment variable is not set.');
   }
 
-  // Start with the raw key
   let key = keyString.trim();
 
-  console.log('🔍 Raw key length:', key.length, 'chars');
-  console.log('🔍 First 80 chars:', key.substring(0, 80));
-  console.log('🔍 Last 80 chars:', key.substring(Math.max(0, key.length - 80)));
-
-  // EARLY CHECK: If key is suspiciously short, it's probably not configured
-  if (key.length < 200) {
-    console.error('❌ APPLE_PRIVATE_KEY is too short! Expected ~1800+ chars, got:', key.length);
-    console.error('   Value:', key);
-    throw new Error(
-      `APPLE_PRIVATE_KEY appears to be incomplete or not configured. ` +
-      `Expected ~1800+ characters, got ${key.length}. ` +
-      `Make sure you copied the entire .p8 file content from App Store Connect.`
-    );
-  }
-
-  // Handle case where newlines are escaped as literal \n in environment variables
-  key = key.replace(/\\n/g, '\n');
-  
-  // Handle Windows line endings
-  key = key.replace(/\r\n/g, '\n');
-  
-  // Handle case where key is wrapped in extra quotes
-  if ((key.startsWith('"') && key.endsWith('"')) ||
-      (key.startsWith("'") && key.endsWith("'"))) {
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
     key = key.slice(1, -1);
   }
 
-  // Remove all leading/trailing whitespace
-  key = key.trim();
+  key = key.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
 
-  // Check if key has proper BEGIN marker
-  if (!key.includes('-----BEGIN PRIVATE KEY-----')) {
-    // Try to find what format it actually is
-    const beginMatch = key.match(/-----BEGIN [^-]*-----/);
-    if (beginMatch) {
-      console.warn('⚠️ Key starts with:', beginMatch[0], '(expected: -----BEGIN PRIVATE KEY-----)');
-    }
-    throw new Error(
-      `Private key must be in PKCS#8 format starting with "-----BEGIN PRIVATE KEY-----". ` +
-      `First 100 chars: "${key.substring(0, 100)}"`
-    );
+  if (!key.includes('-----BEGIN PRIVATE KEY-----') || !key.includes('-----END PRIVATE KEY-----')) {
+    throw new Error('APPLE_PRIVATE_KEY must be a valid PKCS#8 .p8 private key.');
   }
-
-  // Check if key has proper END marker
-  if (!key.includes('-----END PRIVATE KEY-----')) {
-    // Try to find what END markers exist
-    const endMatch = key.match(/-----END [^-]*-----/) || key.match(/-----END/);
-    if (endMatch) {
-      console.warn('⚠️ Key ends with:', endMatch[0], '(expected: -----END PRIVATE KEY-----)');
-      console.warn('⚠️ Last 150 chars:', key.substring(key.length - 150));
-    } else {
-      console.warn('⚠️ No END marker found. Last 200 chars:', key.substring(key.length - 200));
-    }
-    throw new Error(
-      `Private key must end with "-----END PRIVATE KEY-----". ` +
-      `Key length: ${key.length}. Last 100 chars: "${key.substring(key.length - 100)}"`
-    );
-  }
-
-  // Ensure BEGIN marker is at the actual start (after trimming)
-  const beginIdx = key.indexOf('-----BEGIN PRIVATE KEY-----');
-  if (beginIdx !== 0) {
-    key = key.substring(beginIdx);
-  }
-
-  // Ensure END marker is at the actual end (after trimming)
-  const endIdx = key.lastIndexOf('-----END PRIVATE KEY-----');
-  if (endIdx !== -1) {
-    key = key.substring(0, endIdx + '-----END PRIVATE KEY-----'.length);
-  }
-
-  // Remove any trailing/leading whitespace one more time
-  key = key.trim();
-
-  // Replace multiple newlines with single newline
-  key = key.replace(/\n+/g, '\n');
-
-  // Debug output (only the first and last line for security)
-  const lines = key.split('\n');
-  console.log('🔑 Private key validation:');
-  console.log('   ✓ First line:', lines[0]);
-  console.log('   ✓ Last line:', lines[lines.length - 1]);
-  console.log('   ✓ Total lines:', lines.length);
-  console.log('   ✓ Total length:', key.length, 'chars');
 
   return key;
 };
 
 /**
- * Generate JWT for Apple App Store Server API authentication
+ * Generate JWT for Apple App Store Server API authentication.
+ * App Store Server API requires ES256 signed with your .p8 private key.
  */
 const generateAppleJWT = async (): Promise<string> => {
   try {
 
     // Validate required configuration
-    if (!config.apple.teamId) {
-      throw new Error('Apple Team ID not configured (APPLE_TEAM_ID)');
+    const issuerId = (config.apple as any).issuerId || config.apple.teamId;
+    if (!issuerId) {
+      throw new Error('Apple Issuer ID not configured (APPLE_ISSUER_ID)');
     }
     if (!config.apple.keyId) {
       throw new Error('Apple Key ID not configured (APPLE_KEY_ID)');
@@ -377,46 +298,24 @@ const generateAppleJWT = async (): Promise<string> => {
       throw new Error('Apple Private Key not configured (APPLE_PRIVATE_KEY)');
     }
 
-    // Parse and normalize the private key
     const privateKey = parseApplePrivateKey(config.apple.privateKey);
 
-    // ⚠️ CRITICAL CHECK: Verify key is long enough
-    if (privateKey.length < 500) {
-      console.error('❌ CRITICAL: Private key is TOO SHORT!');
-      console.error('   Current length:', privateKey.length, 'chars');
-      console.error('   Expected length: 1700+ chars');
-      console.error('   ');
-      console.error('   This means the .p8 file you provided is INCOMPLETE.');
-      console.error('   ');
-      console.error('   FIX:');
-      console.error('   1. Go to: https://appstoreconnect.apple.com/');
-      console.error('   2. Users and Access → Keys');
-      console.error('   3. Find Key ID:', config.apple.keyId);
-      console.error('   4. Download the complete .p8 file');
-      console.error('   5. Paste the ENTIRE content (all lines) into .env');
-      throw new Error(
-        `Private key is incomplete (${privateKey.length} chars). ` +
-        `Expected 1700+ chars. Download the complete .p8 file from App Store Connect ` +
-        `for Key ID: ${config.apple.keyId}`
-      );
-    }
-
     const payload = {
-      iss: config.apple.teamId,        // Issuer: Team ID
+      iss: issuerId,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiration
+      exp: Math.floor(Date.now() / 1000) + 3600,
       aud: 'appstoreconnect-v1',
-      sub: config.apple.teamId,        // Subject: MUST be Team ID (not Bundle ID)
+      bid: config.apple.bundleId,
     };
 
     console.log('🔐 Generating Apple JWT with:');
-    console.log('   Team ID: ', config.apple.teamId);
+    console.log('   Issuer ID: ', issuerId);
     console.log('   Key ID: ', config.apple.keyId);
     console.log('   Bundle ID: ', config.apple.bundleId);
-    console.log('   Private Key Length:', privateKey.length, 'chars');
+    console.log('   Algorithm: ES256');
     console.log('   JWT Claims:');
     console.log('     iss (issuer):', payload.iss);
-    console.log('     sub (subject):', payload.sub);
+    console.log('     bid (bundle id):', payload.bid);
     console.log('     aud (audience):', payload.aud);
 
     const token = jwt.sign(payload, privateKey, {
@@ -534,10 +433,10 @@ const validateAppleProductId = async (
   productId: string,
 ): Promise<boolean> => {
   try {
-    if (!config.apple.privateKey) {
+    if (!config.apple.sharedSecret) {
       throw new AppError(
         httpStatus.INTERNAL_SERVER_ERROR,
-        'Apple private key not configured',
+        'Apple shared secret not configured',
       );
     }
 

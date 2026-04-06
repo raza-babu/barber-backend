@@ -11,6 +11,36 @@ import config from '../../../config';
 import emailSender from '../../utils/emailSender';
 import { appleIAPService } from './appleIAP.service';
 import { googleIAPService } from './googleIAP.service';
+import jwt from 'jsonwebtoken';
+
+const extractAppleTransactionMetadata = (
+  receiptData?: string,
+  verificationResult?: any,
+) => {
+  const decodedReceipt = receiptData ? (jwt.decode(receiptData) as any) : null;
+  const decodedSignedTransactionInfo = verificationResult?.signedTransactionInfo
+    ? (jwt.decode(verificationResult.signedTransactionInfo) as any)
+    : null;
+
+  return {
+    transactionId:
+      decodedReceipt?.transactionId ||
+      decodedSignedTransactionInfo?.transactionId ||
+      verificationResult?.transactionId,
+    originalTransactionId:
+      decodedReceipt?.originalTransactionId ||
+      decodedSignedTransactionInfo?.originalTransactionId ||
+      verificationResult?.originalTransactionId,
+    productId:
+      decodedReceipt?.productId ||
+      decodedSignedTransactionInfo?.productId ||
+      verificationResult?.productId,
+    environment:
+      decodedReceipt?.environment ||
+      decodedSignedTransactionInfo?.environment ||
+      verificationResult?.environment,
+  };
+};
 
 const createUserSubscriptionIntoDb = async (
   userId: string,
@@ -111,6 +141,15 @@ const createUserSubscriptionIntoDb = async (
       const endDate = new Date(
         startDate.getTime() + durationDays * 24 * 60 * 60 * 1000,
       );
+      const appleMetadata = extractAppleTransactionMetadata(
+        data.receiptData,
+        appleTransactionData,
+      );
+      const appleAuditData = JSON.stringify({
+        receiptData: data.receiptData || null,
+        appleTransactionData,
+        appleMetadata,
+      });
 
       // Create user subscription record
       const createdSubscription = await tx.userSubscription.create({
@@ -120,8 +159,9 @@ const createUserSubscriptionIntoDb = async (
           startDate: startDate,
           endDate: endDate,
           appleTransactionId: data.appleTransactionId,
-          appleProductId: appleTransactionData?.bundleId || '',
-          appleReceiptData: data.receiptData || '',
+          appleProductId: appleMetadata.productId || data.productId,
+          appleOriginalTransactionId: appleMetadata.originalTransactionId,
+          appleReceiptData: appleAuditData,
           autoRenew: true,
           paymentStatus: PaymentStatus.COMPLETED,
         },
@@ -132,8 +172,8 @@ const createUserSubscriptionIntoDb = async (
         data: {
           userId: userId,
           appleTransactionId: data.appleTransactionId,
-          appleProductId: appleTransactionData?.bundleId || '',
-          appleReceiptData: data.receiptData || '',
+          appleProductId: appleMetadata.productId || data.productId,
+          appleReceiptData: appleAuditData,
           paymentAmount: subscriptionOffer.price,
           status: PaymentStatus.COMPLETED,
         },
@@ -461,6 +501,15 @@ const updateUserSubscriptionIntoDb = async (
       const endDate = new Date(
         startDate.getTime() + durationDays * 24 * 60 * 60 * 1000,
       );
+      const appleMetadata = extractAppleTransactionMetadata(
+        data.receiptData,
+        appleTransactionData,
+      );
+      const appleAuditData = JSON.stringify({
+        receiptData: data.receiptData || null,
+        appleTransactionData,
+        appleMetadata,
+      });
 
       // Update user subscription
       const updatedSubscription = await tx.userSubscription.update({
@@ -470,8 +519,9 @@ const updateUserSubscriptionIntoDb = async (
           startDate: startDate,
           endDate: endDate,
           appleTransactionId: data.appleTransactionId,
-          appleProductId: appleTransactionData?.bundleId || '',
-          appleReceiptData: data.receiptData || '',
+          appleProductId: appleMetadata.productId || data.productId,
+          appleOriginalTransactionId: appleMetadata.originalTransactionId,
+          appleReceiptData: appleAuditData,
           paymentStatus: PaymentStatus.COMPLETED,
         },
       });
@@ -481,8 +531,8 @@ const updateUserSubscriptionIntoDb = async (
         data: {
           userId: userId,
           appleTransactionId: data.appleTransactionId,
-          appleProductId: appleTransactionData?.bundleId || '',
-          appleReceiptData: data.receiptData || '',
+          appleProductId: appleMetadata.productId || data.productId,
+          appleReceiptData: appleAuditData,
           paymentAmount: subscriptionOffer.price,
           status: PaymentStatus.COMPLETED,
         },
