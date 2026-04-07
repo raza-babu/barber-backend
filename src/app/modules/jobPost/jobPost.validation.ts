@@ -1,4 +1,3 @@
-import { log } from 'node:console';
 import { z } from 'zod';
 
 const createJobPostSchema = z.object({

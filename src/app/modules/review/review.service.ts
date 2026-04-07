@@ -2,7 +2,6 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus, BookingStatus, PaymentStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { stat } from 'node:fs';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 const createReviewIntoDb = async (userId: string, data: any) => {

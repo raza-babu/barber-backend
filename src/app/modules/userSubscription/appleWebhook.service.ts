@@ -44,7 +44,10 @@ const handleSubscribedNotification = async (
     });
 
     if (!subscription) {
-      console.warn('Subscription not found for SUBSCRIBED:', data.transactionId);
+      console.warn(
+        'Subscription not found for SUBSCRIBED:',
+        data.transactionId,
+      );
       return;
     }
 
@@ -56,7 +59,10 @@ const handleSubscribedNotification = async (
         data: {
           paymentStatus: PaymentStatus.COMPLETED,
           autoRenew: true,
-          endDate: new Date(parseInt(data.expiresDate || '') || Date.now() + 30 * 24 * 60 * 60 * 1000),
+          endDate: new Date(
+            parseInt(data.expiresDate || '') ||
+              Date.now() + 30 * 24 * 60 * 60 * 1000,
+          ),
         },
       });
 
@@ -66,7 +72,9 @@ const handleSubscribedNotification = async (
         data: {
           isSubscribed: true,
           subscriptionEnd: updated.endDate,
-          subscriptionPlan: subscription.subscriptionOffer ? subscription.subscriptionOffer.planType : 'FREE',
+          subscriptionPlan: subscription.subscriptionOffer
+            ? subscription.subscriptionOffer.planType
+            : 'FREE',
         },
       });
 
@@ -117,7 +125,10 @@ const handleRenewalNotification = async (
         data: {
           appleTransactionId: data.transactionId,
           appleProductId: data.productId,
-          endDate: new Date(parseInt(data.expiresDate || '') || Date.now() + 30 * 24 * 60 * 60 * 1000),
+          endDate: new Date(
+            parseInt(data.expiresDate || '') ||
+              Date.now() + 30 * 24 * 60 * 60 * 1000,
+          ),
           paymentStatus: PaymentStatus.COMPLETED,
           autoRenew: true, // Still auto-renewing
         },
@@ -334,7 +345,7 @@ const handleFailedRenewalNotification = async (
       return;
     }
 
-    // Update subscription - mark as failed but keep autoRenew true 
+    // Update subscription - mark as failed but keep autoRenew true
     // (Apple will retry for grace period)
     const failedSubscription = await prisma.$transaction(async tx => {
       const updated = await tx.userSubscription.update({
@@ -350,7 +361,7 @@ const handleFailedRenewalNotification = async (
       // Option 1: Keep access during grace period
       // Option 2: Disable access immediately
       // We'll disable it to be safe, but keep autoRenew true
-      
+
       const otherValid = await tx.userSubscription.findFirst({
         where: {
           userId: subscription.userId,
@@ -373,7 +384,10 @@ const handleFailedRenewalNotification = async (
       return updated;
     });
 
-    console.log('⚠️ Subscription renewal failed (will retry):', failedSubscription.id);
+    console.log(
+      '⚠️ Subscription renewal failed (will retry):',
+      failedSubscription.id,
+    );
     return failedSubscription;
   } catch (error) {
     console.error('Error handling failed renewal notification:', error);
@@ -417,7 +431,10 @@ const handleRefundNotification = async (
     }
 
     if (!userId && !subscription) {
-      console.warn('No subscription or payment found for refund:', data.transactionId);
+      console.warn(
+        'No subscription or payment found for refund:',
+        data.transactionId,
+      );
       return;
     }
 
@@ -474,7 +491,11 @@ const handleRefundNotification = async (
       return { refundedPayments, refundedSubscription };
     });
 
-    console.log('💰 Refund processed:', refundResult.refundedPayments.length, 'payments');
+    console.log(
+      '💰 Refund processed:',
+      refundResult.refundedPayments.length,
+      'payments',
+    );
     return refundResult;
   } catch (error) {
     console.error('Error handling refund notification:', error);
@@ -490,11 +511,15 @@ export const handleAppleServerNotification = async (
 ): Promise<any> => {
   try {
     // Parse and verify the webhook signature
-    const notification = await appleIAPService.parseAppleWebhookNotification(
+    const notification = (await appleIAPService.parseAppleWebhookNotification(
       signedPayload,
-    ) as AppleNotificationPayload;
+    )) as AppleNotificationPayload;
 
-    console.log('🔔 Received Apple notification:', notification.notificationType, notification.subtype);
+    console.log(
+      '🔔 Received Apple notification:',
+      notification.notificationType,
+      notification.subtype,
+    );
 
     // Route to appropriate handler based on notification type
     switch (notification.notificationType) {
@@ -529,7 +554,10 @@ export const handleAppleServerNotification = async (
         return await handleRefundNotification(notification);
 
       default:
-        console.log('ℹ️ Unhandled notification type:', notification.notificationType);
+        console.log(
+          'ℹ️ Unhandled notification type:',
+          notification.notificationType,
+        );
     }
 
     return {

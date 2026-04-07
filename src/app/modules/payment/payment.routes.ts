@@ -110,7 +110,7 @@ router.post(
 
 // Barber Payout Management Routes
 router.get(
-  '/barber-payouts/pending',
+  '/barber-payouts',
   auth(),
   PaymentController.getPendingBarberPayouts,
 );
@@ -127,9 +127,15 @@ router.post(
   PaymentController.rejectBarberPayout,
 );
 
+router.get(
+  '/check-balance',
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER, UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN),
+  PaymentController.checkAvailableBalance,
+);
+
 router.post(
   '/withdraw-funds',
-  auth(UserRoleEnum.SALOON_OWNER),
+  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
   PaymentController.withdrawFundsFromStripe,
 );
 

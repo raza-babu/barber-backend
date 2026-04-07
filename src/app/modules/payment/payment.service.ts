@@ -1588,7 +1588,7 @@ const payoutToBarberService = async (
     }
 
     // Verify user is a saloon owner
-    if (!saloonOwner.SaloonOwner || saloonOwner.SaloonOwner.length === 0) {
+    if (!saloonOwner.SaloonOwner) {
       throw new AppError(
         httpStatus.FORBIDDEN,
         'User is not a saloon owner',
@@ -1871,9 +1871,43 @@ const payoutToBarberService = async (
   });
 };
 
-const withdrawFundsFromStripeService = async (userId: string) => {
-  // Get the saloon owner
-  const saloonOwner = await prisma.user.findUnique({
+// Barber-specific withdraw funds service
+const withdrawFundsAsBarberService = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      Barber: {
+        select: { userId: true },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  // Verify user is a barber
+  if (!user.Barber) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'User is not a barber',
+    );
+  }
+
+  // Authorization check: User can only withdraw their own funds
+  if (user.Barber.userId !== userId) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Not authorized to withdraw funds for this barber account',
+    );
+  }
+
+  return await performWithdrawalProcess(user, 'barber');
+};
+
+// Saloon Owner-specific withdraw funds service
+const withdrawFundsAsSaloonOwnerService = async (userId: string) => {
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
       SaloonOwner: {
@@ -1882,29 +1916,46 @@ const withdrawFundsFromStripeService = async (userId: string) => {
     },
   });
 
-  if (!saloonOwner) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner not found');
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
 
   // Verify user is a saloon owner
-  if (!saloonOwner.SaloonOwner || saloonOwner.SaloonOwner.length === 0) {
+  if (!user.SaloonOwner) {
     throw new AppError(
       httpStatus.FORBIDDEN,
       'User is not a saloon owner',
     );
   }
 
-  // Verify saloon owner has valid Stripe account
-  if (!saloonOwner.stripeAccountId) {
+  // Authorization check: User can only withdraw their own funds
+  if (user.SaloonOwner[0].userId !== userId) {
     throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Saloon owner is not connected to Stripe. Please complete Stripe onboarding first.',
+      httpStatus.FORBIDDEN,
+      'Not authorized to withdraw funds for this saloon owner account',
     );
   }
 
+  return await performWithdrawalProcess(user, 'saloon_owner');
+};
+
+// Core withdrawal process (shared logic)
+const performWithdrawalProcess = async (user: any, userType: 'barber' | 'saloon_owner') => {
+  // Verify user has valid Stripe account
+  if (!user.stripeAccountId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'User is not connected to Stripe. Please complete Stripe onboarding first.',
+    );
+  }
+
+  // Declare variables outside try block so they're accessible in catch block
+  let availableBalance = 0;
+  let payoutAmount = 0;
+
   try {
     // Verify the Stripe account exists and is active
-    const stripeAccount = await stripe.accounts.retrieve(saloonOwner.stripeAccountId);
+    const stripeAccount = await stripe.accounts.retrieve(user.stripeAccountId);
 
     if (!stripeAccount) {
       throw new AppError(
@@ -1913,9 +1964,285 @@ const withdrawFundsFromStripeService = async (userId: string) => {
       );
     }
 
-    // Get the current balance for display purposes
+    // Get the current balance
     const balance = await stripe.balance.retrieve({
-      stripeAccount: saloonOwner.stripeAccountId,
+      stripeAccount: user.stripeAccountId,
+    });
+
+    availableBalance = balance.available[0]?.amount || 0; // in pence
+    const availableBalanceGBP = availableBalance / 100;
+    const pendingBalance = balance.pending[0]?.amount || 0; // in pence
+    const pendingBalanceGBP = pendingBalance / 100;
+
+    // Minimum payout amount required by Stripe (in pence)
+    const MINIMUM_PAYOUT_PENCE = 100; // £1.00 minimum
+    const RESERVE_BUFFER_PENCE = 50; // £0.50 buffer for potential fees
+
+    // Check if there are sufficient funds available to withdraw
+    if (availableBalance < MINIMUM_PAYOUT_PENCE) {
+      return {
+        success: false,
+        message: `Insufficient balance to withdraw. Minimum required is £${(MINIMUM_PAYOUT_PENCE / 100).toFixed(2)}.`,
+        balanceInfo: {
+          available: availableBalanceGBP.toFixed(2),
+          pending: pendingBalanceGBP.toFixed(2),
+          minRequired: (MINIMUM_PAYOUT_PENCE / 100).toFixed(2),
+          currency: 'gbp',
+        },
+        nextSteps: [
+          'Wait for more transactions to accumulate funds',
+          'Check your Stripe dashboard for real-time balance updates',
+          'Try again once your available balance reaches the minimum amount',
+        ],
+      };
+    }
+
+    // Check if bank account is connected
+    const externalAccounts = stripeAccount.external_accounts;
+    
+    if (!externalAccounts || externalAccounts.data.length === 0) {
+      return {
+        success: false,
+        message: 'No bank account connected to your Stripe account. Please add a bank account first via Stripe dashboard.',
+        loginUrl: null,
+        needsBankAccount: true,
+        balanceInfo: {
+          available: availableBalanceGBP.toFixed(2),
+          pending: pendingBalanceGBP.toFixed(2),
+          currency: 'gbp',
+        },
+        instructions: 'Please connect a bank account to your Stripe account to enable automatic payouts.',
+      };
+    }
+
+    // Calculate payout amount with buffer for potential fees
+    payoutAmount = Math.max(
+      MINIMUM_PAYOUT_PENCE,
+      availableBalance - RESERVE_BUFFER_PENCE
+    );
+
+    console.log('Attempting payout:', {
+      userId: user.id,
+      userType,
+      availableBalance,
+      payoutAmount,
+      reserve: RESERVE_BUFFER_PENCE,
+      stripe_account_id: user.stripeAccountId,
+    });
+
+    // Create automatic payout to connected bank account
+    const payout = await stripe.payouts.create(
+      {
+        amount: payoutAmount, // Transfer available balance minus buffer
+        currency: 'gbp',
+        method: 'standard', // Standard ACH/wire transfer
+        description: `Automatic payout for ${userType === 'saloon_owner' ? 'shop owner' : 'barber'} ${user.fullName}`,
+      },
+      {
+        stripeAccount: user.stripeAccountId,
+      },
+    );
+
+    // Log payout creation
+    console.log('Automatic Payout Created:', {
+      userId: user.id,
+      userName: user.fullName,
+      userType: userType,
+      payoutId: payout.id,
+      amount: availableBalanceGBP,
+      bankAccount: externalAccounts.data[0]?.last4,
+      status: payout.status,
+      arrivalDate: payout.arrival_date,
+      timestamp: new Date(),
+    });
+
+    // Calculate arrival date
+    const arrivalDate = payout.arrival_date 
+      ? new Date(payout.arrival_date * 1000) 
+      : new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // Default 2 business days
+
+    return {
+      success: true,
+      payoutType: 'automatic_bank_transfer',
+      message: 'Funds are being transferred to your bank account automatically!',
+      payoutDetails: {
+        payoutId: payout.id,
+        amount: availableBalanceGBP.toFixed(2),
+        currency: 'gbp',
+        status: payout.status, // 'pending', 'in_transit', 'paid', 'failed', 'cancelled'
+        bankAccount: externalAccounts.data[0]?.last4 || 'Connected account',
+        arrivalDate: arrivalDate.toISOString().split('T')[0],
+        estimatedDays: '1-2 business days',
+      },
+      accountDetails: {
+        name: user.fullName,
+        email: user.email,
+        stripeAccountId: user.stripeAccountId,
+        userType: userType,
+        ...(userType === 'saloon_owner' && user.SaloonOwner?.shopName && { shopName: user.SaloonOwner.shopName }),
+      },
+      balanceInfo: {
+        transferred: availableBalanceGBP.toFixed(2),
+        pending: pendingBalanceGBP.toFixed(2),
+        currency: 'gbp',
+      },
+      nextSteps: {
+        step1: 'Payout is now being processed',
+        step2: `Expected arrival: ${arrivalDate.toLocaleDateString()} (1-2 business days)`,
+        step3: 'You will receive the funds in your connected bank account',
+        step4: 'Check your bank account or Stripe dashboard for confirmation',
+      },
+    };
+  } catch (error: any) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    // Handle insufficient funds errors from Stripe
+    if (
+      error.message?.includes('insufficient funds') ||
+      error.message?.includes('card balance is too low') ||
+      error.code === 'insufficient_funds'
+    ) {
+      // Fetch current balance for detailed error message
+      try {
+        const currentBalance = await stripe.balance.retrieve({
+          stripeAccount: user.stripeAccountId,
+        });
+        const currentAvailable = (currentBalance.available[0]?.amount || 0) / 100;
+        const currentPending = (currentBalance.pending[0]?.amount || 0) / 100;
+        
+        // Check if there's a significant discrepancy (indicates holds/restrictions)
+        const hasAccountHolds = currentPending > 0 && currentAvailable < payoutAmount / 100;
+        
+        if (hasAccountHolds) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            `Your account has pending transactions or holds that prevent immediate payout. Available: £${currentAvailable.toFixed(2)}, Pending: £${currentPending.toFixed(2)}. Please check your Stripe dashboard for pending disputes or restrictions, or try again after pending transactions clear.`,
+          );
+        }
+        
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Insufficient funds for payout. Available balance: £${currentAvailable.toFixed(2)}. Your Stripe account may have restrictions or holds. Please check your Stripe dashboard at https://dashboard.stripe.com/balances or contact Stripe support.`,
+        );
+      } catch (balanceError: any) {
+        if (balanceError instanceof AppError) throw balanceError;
+        // If we can't fetch balance, provide generic message
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Stripe rejected the payout request due to insufficient or held funds. Please check your Stripe dashboard for account restrictions, pending disputes, or contact Stripe support for assistance.',
+        );
+      }
+    }
+
+    if (error.code === 'resource_missing') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Stripe account is invalid or no longer exists',
+      );
+    }
+    if (error.code === 'account_invalid') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Your Stripe account does not have the ability to make payouts. Please complete account verification.',
+      );
+    }
+    if (error.message?.includes('External account not found')) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'No bank account connected. Please add a bank account to your Stripe account first.',
+      );
+    }
+    
+    // Log detailed error for debugging
+    console.error('Failed to create automatic payout:', {
+      errorMessage: error.message,
+      errorCode: error.code,
+      stripeError: error.raw?.message || error.type,
+      userId: user.id,
+      userType,
+      attemptedAmount: payoutAmount / 100,
+      availableBalance: availableBalance / 100,
+      timestamp: new Date(),
+    });
+
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to process automatic payout: ${error.message || 'Unknown error'}`,
+    );
+  }
+};
+
+const withdrawFundsFromStripeService = async (userId: string) => {
+  // Get user and check if they're a barber or saloon owner
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      SaloonOwner: {
+        select: { userId: true, shopName: true },
+      },
+      Barber: {
+        select: { userId: true },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  // Verify user is either a barber or saloon owner (not both)
+  const isBarber = !!user.Barber;
+  const isSaloonOwner = !!user.SaloonOwner;
+
+  // User must be exactly one, not both or neither
+  if (isBarber === isSaloonOwner) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'User must be either a barber or a saloon owner, not both',
+    );
+  }
+
+  // Authorization check: User can only withdraw their own funds
+  // If barber, verify they own this barber account
+  if (isBarber && user.Barber?.userId !== userId) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Not authorized to withdraw funds for this barber account',
+    );
+  }
+
+  // If saloon owner, verify they own this saloon owner account
+  if (isSaloonOwner && user.SaloonOwner?.[0]?.userId !== userId) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Not authorized to withdraw funds for this saloon owner account',
+    );
+  }
+
+  // Verify user has valid Stripe account
+  if (!user.stripeAccountId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'User is not connected to Stripe. Please complete Stripe onboarding first.',
+    );
+  }
+
+  try {
+    // Verify the Stripe account exists and is active
+    const stripeAccount = await stripe.accounts.retrieve(user.stripeAccountId);
+
+    if (!stripeAccount) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Stripe account is invalid or no longer exists',
+      );
+    }
+
+    // Get the current balance
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: user.stripeAccountId,
     });
 
     const availableBalance = balance.available[0]?.amount || 0; // in pence
@@ -1923,46 +2250,99 @@ const withdrawFundsFromStripeService = async (userId: string) => {
     const pendingBalance = balance.pending[0]?.amount || 0; // in pence
     const pendingBalanceGBP = pendingBalance / 100;
 
-    // Generate a login link for the connected account
-    // This allows shop owner to access their Stripe dashboard directly
-    const loginLink = await stripe.accounts.createLoginLink(
-      saloonOwner.stripeAccountId,
+    // Check if there are funds available to withdraw
+    if (availableBalance <= 0) {
+      return {
+        success: false,
+        message: 'No available funds to withdraw',
+        balanceInfo: {
+          available: availableBalanceGBP.toFixed(2),
+          pending: pendingBalanceGBP.toFixed(2),
+          currency: 'gbp',
+        },
+      };
+    }
+
+    // Check if bank account is connected
+    const externalAccounts = stripeAccount.external_accounts;
+    
+    if (!externalAccounts || externalAccounts.data.length === 0) {
+      return {
+        success: false,
+        message: 'No bank account connected to your Stripe account. Please add a bank account first via Stripe dashboard.',
+        loginUrl: null,
+        needsBankAccount: true,
+        balanceInfo: {
+          available: availableBalanceGBP.toFixed(2),
+          pending: pendingBalanceGBP.toFixed(2),
+          currency: 'gbp',
+        },
+        instructions: 'Please connect a bank account to your Stripe account to enable automatic payouts.',
+      };
+    }
+
+    // Create automatic payout to connected bank account
+    const payout = await stripe.payouts.create(
+      {
+        amount: availableBalance, // Transfer entire available balance
+        currency: 'gbp',
+        method: 'standard', // Standard ACH/wire transfer
+        description: `Automatic payout for ${isSaloonOwner ? 'shop owner' : 'barber'} ${user.fullName}`,
+      },
+      {
+        stripeAccount: user.stripeAccountId,
+      },
     );
 
-    console.log('Stripe Dashboard Link Generated:', {
-      saloonOwnerId: saloonOwner.id,
-      saloonOwnerName: saloonOwner.fullName,
-      shopName: saloonOwner.SaloonOwner[0]?.shopName,
-      stripeAccountId: saloonOwner.stripeAccountId,
-      availableBalance: availableBalanceGBP,
-      pendingBalance: pendingBalanceGBP,
-      loginLinkUrl: loginLink.url,
+    // Log payout creation
+    console.log('Automatic Payout Created:', {
+      userId: user.id,
+      userName: user.fullName,
+      userType: isBarber ? 'barber' : 'saloon_owner',
+      payoutId: payout.id,
+      amount: availableBalanceGBP,
+      bankAccount: externalAccounts.data[0]?.last4,
+      status: payout.status,
+      arrivalDate: payout.arrival_date,
       timestamp: new Date(),
     });
 
+    // Calculate arrival date
+    const arrivalDate = payout.arrival_date 
+      ? new Date(payout.arrival_date * 1000) 
+      : new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // Default 2 business days
+
     return {
       success: true,
-      loginUrl: loginLink.url,
-      message: 'Ready to manage your withdrawals and payouts',
+      payoutType: 'automatic_bank_transfer',
+      message: 'Funds are being transferred to your bank account automatically!',
+      payoutDetails: {
+        payoutId: payout.id,
+        amount: availableBalanceGBP.toFixed(2),
+        currency: 'gbp',
+        status: payout.status, // 'pending', 'in_transit', 'paid', 'failed', 'cancelled'
+        bankAccount: externalAccounts.data[0]?.last4 || 'Connected account',
+        arrivalDate: arrivalDate.toISOString().split('T')[0],
+        estimatedDays: '1-2 business days',
+      },
       accountDetails: {
-        shopName: saloonOwner.SaloonOwner[0]?.shopName,
-        email: saloonOwner.email,
-        stripeAccountId: saloonOwner.stripeAccountId,
+        name: user.fullName,
+        email: user.email,
+        stripeAccountId: user.stripeAccountId,
+        userType: isBarber ? 'barber' : 'saloon_owner',
+        ...(isSaloonOwner && user.SaloonOwner?.[0]?.shopName && { shopName: user.SaloonOwner[0].shopName }),
       },
       balanceInfo: {
-        available: availableBalanceGBP.toFixed(2),
+        transferred: availableBalanceGBP.toFixed(2),
         pending: pendingBalanceGBP.toFixed(2),
         currency: 'gbp',
       },
-      instructions: {
-        step1: 'Click the link to access your Stripe dashboard',
-        step2: 'Go to "Payouts" section in your Stripe dashboard',
-        step3: 'Request a payout to your bank account from available balance',
-        step4: 'Wait for settlement (typically 1-2 business days)',
-        step5: 'Transfer the received funds to your barber(s)',
-        step6: 'Return to our app to record the settlement',
+      nextSteps: {
+        step1: 'Payout is now being processed',
+        step2: `Expected arrival: ${arrivalDate.toLocaleDateString()} (1-2 business days)`,
+        step3: 'You will receive the funds in your connected bank account',
+        step4: 'Check your bank account or Stripe dashboard for confirmation',
       },
-      note: 'You are accessing Stripe as an authenticated user. Once you request a payout and your barber receives payment, please mark it as settled in our app so we can update our records.',
     };
   } catch (error: any) {
     if (error instanceof AppError) {
@@ -1974,10 +2354,23 @@ const withdrawFundsFromStripeService = async (userId: string) => {
         'Stripe account is invalid or no longer exists',
       );
     }
-    console.error('Failed to create Stripe login link:', error.message);
+    if (error.code === 'account_invalid') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Your Stripe account does not have the ability to make payouts. Please complete account verification.',
+      );
+    }
+    if (error.message.includes('External account not found')) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'No bank account connected. Please add a bank account to your Stripe account first.',
+      );
+    }
+    
+    console.error('Failed to create automatic payout:', error.message);
     throw new AppError(
       httpStatus.CONFLICT,
-      `Failed to generate Stripe dashboard link: ${error.message}`,
+      `Failed to process automatic payout: ${error.message}`,
     );
   }
 }
@@ -2299,6 +2692,40 @@ const rejectBarberPayoutService = async (
     );
   }
 };
+
+const checkAvailableBalanceService
+  = async (userId: string) => {
+    // Get user and check if they're a barber or saloon owner
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+    }
+    try {
+      const balance = await stripe.balance.retrieve({
+        stripeAccount: user.stripeAccountId!,
+      });
+      const availableBalance = balance.available[0]?.amount || 0; // in pence
+      const pendingBalance = balance.pending[0]?.amount || 0; // in pence
+      return {  
+        availableBalance: availableBalance / 100, // Convert to GBP
+        pendingBalance: pendingBalance / 100, // Convert to GBP
+        currency: balance.available[0]?.currency.toUpperCase() || 'GBP',
+      };
+    }
+    catch (error: any) {
+      console.error('Failed to retrieve balance:', error.message);
+      throw new AppError(
+        httpStatus.CONFLICT,
+        `Failed to retrieve balance: ${error.message}`,
+      );
+    }
+  };
+
+
+
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,
   authorizeAndSplitPayment,
@@ -2315,12 +2742,15 @@ export const StripeServices = {
   tipPaymentToBarberService,
   payoutToBarberService,
   withdrawFundsFromStripeService,
+  withdrawFundsAsBarberService,
+  withdrawFundsAsSaloonOwnerService,
   cleanupAbandonedPendingAccounts,
   cancelPaymentRequestToStripe,
   cancelQueuePaymentRequestToStripe,
   getPendingBarberPayoutsService,
   settleBarberPayoutService,
   rejectBarberPayoutService,
+  checkAvailableBalanceService,
 };
 
 

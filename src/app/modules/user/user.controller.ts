@@ -4,7 +4,6 @@ import sendResponse from '../../utils/sendResponse';
 import { UserServices } from '../user/user.service';
 import AppError from '../../errors/AppError';
 import { uploadFileToS3 } from '../../utils/multipleFile';
-import { log } from 'node:console';
 
 const registerUser = catchAsync(async (req, res) => {
   const result = await UserServices.registerUserIntoDB(req.body);

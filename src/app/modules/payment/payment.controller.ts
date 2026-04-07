@@ -1206,12 +1206,46 @@ const payoutToBarber = catchAsync(async (req: any, res: any) => {
 
 const withdrawFundsFromStripe = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
-  const result = await StripeServices.withdrawFundsFromStripeService(user.id);
+
+  // Determine user role and call appropriate service
+  const userWithRole = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: {
+      Barber: { select: { id: true } },
+      SaloonOwner: { select: { id: true } },
+    },
+  });
+
+  if (!userWithRole) {
+    return sendResponse(res, {
+      statusCode: httpStatus.NOT_FOUND,
+      success: false,
+      message: 'User not found',
+      data: null,
+    });
+  }
+
+  let result;
+
+  if (userWithRole.Barber) {
+    // Call barber-specific withdrawal service
+    result = await StripeServices.withdrawFundsAsBarberService(user.id);
+  } else if (userWithRole.SaloonOwner) {
+    // Call saloon owner-specific withdrawal service
+    result = await StripeServices.withdrawFundsAsSaloonOwnerService(user.id);
+  } else {
+    return sendResponse(res, {
+      statusCode: httpStatus.FORBIDDEN,
+      success: false,
+      message: 'User must be either a barber or a saloon owner to withdraw funds',
+      data: null,
+    });
+  }
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Stripe dashboard access link generated successfully',
+    message: result.success ? 'Funds withdrawal initiated successfully' : 'Unable to withdraw funds',
     data: result,
   });
 });
@@ -1288,6 +1322,18 @@ const rejectBarberPayout = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const checkAvailableBalance = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as any;
+  const result = await StripeServices.checkAvailableBalanceService(user.id);
+  
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Available balance retrieved successfully',
+    data: result,
+  });
+});
+
 export const PaymentController = {
   saveCardWithCustomerInfo,
   authorizedPaymentWithSaveCard,
@@ -1310,4 +1356,5 @@ export const PaymentController = {
   getPendingBarberPayouts,
   settleBarberPayout,
   rejectBarberPayout,
+  checkAvailableBalance,
 };
