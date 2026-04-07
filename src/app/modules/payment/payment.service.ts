@@ -936,51 +936,58 @@ const cancelQueuePaymentRequestToStripe = async (
       );
     }
 
-    if (!findPayment.paymentIntentId) {
+    if (!findPayment.checkoutSessionId && !findPayment.paymentIntentId) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        'Payment Intent ID missing',
+        'Checkout Session ID or Payment Intent ID missing',
       );
     }
 
     /* ---------------------------------------------------- */
-    /* 4 Get PaymentIntent from Stripe                   */
-    /* ---------------------------------------------------- */
-
-    const paymentIntent = await stripe.paymentIntents.retrieve(
-      findPayment.paymentIntentId,
-    );
-
-    const totalAmount = paymentIntent.amount;
-
-    if (!totalAmount || totalAmount <= 0) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Invalid payment amount',
-      );
-    }
-
-    /* ---------------------------------------------------- */
-    /* 5 Handle Cancellation Based on Time Window        */
+    /* 4 Handle Cancellation Based on Session/Intent Type */
     /* ---------------------------------------------------- */
 
     if (isWithinFiveMinutes) {
       // WITHIN 5 MINS: Refund (totalAmount - £0.50)
       
-      if (paymentIntent.status === 'requires_capture') {
-        // Cancel the intent (auto-refunds authorized amount)
-        await stripe.paymentIntents.cancel(
-          findPayment.paymentIntentId,
-        );
-      } else if (paymentIntent.status === 'succeeded') {
-        // Create refund for amount minus service fee
-        const refundAmount = Math.max(0, totalAmount - SERVICE_FEE_PENCE);
-        if (refundAmount > 0) {
-          await stripe.refunds.create({
-            payment_intent: findPayment.paymentIntentId,
-            amount: refundAmount,
+      try {
+        // If this is a Checkout Session, expire the session
+        if (findPayment.checkoutSessionId) {
+          const session = await stripe.checkout.sessions.expire(
+            findPayment.checkoutSessionId,
+          );
+
+          console.log('Checkout Session Expired:', {
+            sessionId: findPayment.checkoutSessionId,
+            status: session.payment_status,
+            timestamp: new Date(),
           });
+
+          // Session is expired, payment will be canceled automatically
+        } 
+        // If this is a regular PaymentIntent (not from Checkout)
+        else if (findPayment.paymentIntentId) {
+          const paymentIntent = await stripe.paymentIntents.retrieve(
+            findPayment.paymentIntentId,
+          );
+
+          if (paymentIntent.status === 'requires_capture') {
+            // Cancel the intent (auto-refunds authorized amount)
+            await stripe.paymentIntents.cancel(findPayment.paymentIntentId);
+          } else if (paymentIntent.status === 'succeeded') {
+            // Create refund for amount minus service fee
+            const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);
+            if (refundAmount > 0) {
+              await stripe.refunds.create({
+                payment_intent: findPayment.paymentIntentId,
+                amount: refundAmount,
+              });
+            }
+          }
         }
+      } catch (error: any) {
+        console.error('Error canceling/expiring payment:', error.message);
+        // Continue with DB update even if Stripe action fails
       }
 
       await tx.payment.update({
@@ -991,28 +998,48 @@ const cancelQueuePaymentRequestToStripe = async (
         },
       });
     } else {
-      // AFTER 5 MINS: No refund, admin keeps £0.50, shop owner gets the rest
+      // AFTER 5 MINS: No refund, admin keeps £0.50
       
-      if (paymentIntent.status === 'requires_capture') {
-        // Capture full amount (transfer_data will send shop owner's portion)
-        const captured = await stripe.paymentIntents.confirm(
-          findPayment.paymentIntentId,
-        );
-
-        if (captured.status !== 'succeeded') {
-          throw new AppError(
-            httpStatus.BAD_REQUEST,
-            'Failed to capture payment',
+      try {
+        // If this is a Checkout Session, we cannot do anything since it's already completed
+        if (findPayment.checkoutSessionId) {
+          const session = await stripe.checkout.sessions.retrieve(
+            findPayment.checkoutSessionId,
           );
+
+          // If payment is already completed, we cannot cancel it
+          if (session.payment_status === 'paid') {
+            console.log('Checkout Session already paid, cannot cancel:', {
+              sessionId: findPayment.checkoutSessionId,
+              paymentStatus: session.payment_status,
+            });
+          } else {
+            // Try to expire if not yet paid
+            await stripe.checkout.sessions.expire(findPayment.checkoutSessionId);
+          }
         }
+        // If it's a regular PaymentIntent
+        else if (findPayment.paymentIntentId) {
+          const paymentIntent = await stripe.paymentIntents.retrieve(
+            findPayment.paymentIntentId,
+          );
+
+          if (paymentIntent.status === 'requires_capture') {
+            // Capture full amount - this triggers the transfer_data to shop owner
+            await stripe.paymentIntents.capture(findPayment.paymentIntentId);
+          }
+          // If already succeeded, do nothing - payment already captured
+        }
+      } catch (error: any) {
+        console.error('Error processing payment after 5 mins:', error.message);
+        // Continue with DB update
       }
-      // If already succeeded, do nothing - payment already captured
 
       await tx.payment.update({
         where: { id: findPayment.id },
         data: {
           status: PaymentStatus.COMPLETED,
-          paymentAmount: totalAmount,
+          paymentAmount: findPayment.paymentAmount || 0,
         },
       });
     }

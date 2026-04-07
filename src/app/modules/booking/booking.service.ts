@@ -1,4 +1,5 @@
 import { StripeServices } from './../payment/payment.service';
+import Stripe from 'stripe';
 import prisma from '../../utils/prisma';
 import {
   BookingStatus,
@@ -16,6 +17,11 @@ import { calculatePagination } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { customerService } from '../customer/customer.service';
 import config from '../../../config';
+
+// Initialize Stripe
+const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
+  apiVersion: '2025-08-27.basil',
+});
 
 const createQueueBookingIntoDb1 = async (userId: string, data: any) => {
   const {
@@ -6015,14 +6021,19 @@ const updateBookingStatusIntoDb = async (
 };
 
 const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
-  // Fetch the existing booking to verify ownership
+  // Fetch the existing booking to verify ownership and get payment info
   const booking = await prisma.booking.findUnique({
     where: {
       id: bookingId,
       userId: userId,
+      bookingType: BookingType.BOOKING,
+      status: {
+        in: [ BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED],
     },
+  },
     include: {
       queueSlot: true,
+      Payment: true,
     },
   });
 
@@ -6030,8 +6041,125 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
   }
 
+  /* ---------------------------------------------------- */
+  /* Calculate Time to Booking Start                    */
+  /* ---------------------------------------------------- */
+  
+  const now = new Date();
+  const bookingStartTime = booking.startDateTime || new Date();
+  const hoursUntilBooking = (bookingStartTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const isMoreThanOneDayBefore = hoursUntilBooking > 24;
+
+  /* ---------------------------------------------------- */
+  /* Handle Payment Cancellation                        */
+  /* ---------------------------------------------------- */
+
+  if (booking.Payment && booking.Payment.length > 0) {
+    const payment = booking.Payment[0];
+
+    const SERVICE_FEE_PENCE = 50; // £0.50
+
+    try {
+      // CASE 1: Cancelled MORE than 1 day before booking
+      // Customer gets FULL refund (no service fee deduction)
+      if (isMoreThanOneDayBefore) {
+        console.log('Cancellation > 1 day before booking: Full refund to customer');
+
+        if (payment.checkoutSessionId) {
+          const session = await stripe.checkout.sessions.retrieve(
+            payment.checkoutSessionId,
+          );
+
+          // If not yet paid, expire the session
+          if (session.payment_status !== 'paid') {
+            await stripe.checkout.sessions.expire(payment.checkoutSessionId);
+          } else {
+            // If already paid, create full refund
+            await stripe.refunds.create({
+              payment_intent: payment.paymentIntentId!,
+              amount: payment.paymentAmount || 0,
+            });
+          }
+        } else if (payment.paymentIntentId) {
+          const paymentIntent = await stripe.paymentIntents.retrieve(
+            payment.paymentIntentId,
+          );
+
+          if (paymentIntent.status === 'requires_capture') {
+            // Cancel the intent (auto-refunds authorized amount)
+            await stripe.paymentIntents.cancel(payment.paymentIntentId);
+          } else if (paymentIntent.status === 'succeeded') {
+            // Refund full amount
+            await stripe.refunds.create({
+              payment_intent: payment.paymentIntentId,
+              amount: paymentIntent.amount,
+            });
+          }
+        }
+
+        // Update payment to REFUNDED with full refund amount
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: PaymentStatus.REFUNDED,
+            paymentAmount: payment.paymentAmount || 0,
+          },
+        });
+      }
+      // CASE 2: Cancelled on or less than 1 day before booking
+      // Customer gets NO refund, Shop owner gets full amount, Admin keeps £0.50
+      else {
+        console.log('Cancellation on/within 1 day of booking: No customer refund, shop owner gets full amount');
+
+        if (payment.checkoutSessionId) {
+          const session = await stripe.checkout.sessions.retrieve(
+            payment.checkoutSessionId,
+          );
+
+          // If payment is already completed, just update DB (funds already transferred)
+          if (session.payment_status === 'paid') {
+            console.log('Checkout Session already paid, shop owner already received funds');
+          } else {
+            // If not yet paid, try to expire
+            try {
+              await stripe.checkout.sessions.expire(payment.checkoutSessionId);
+            } catch (error) {
+              console.warn('Could not expire session:', error);
+            }
+          }
+        } else if (payment.paymentIntentId) {
+          const paymentIntent = await stripe.paymentIntents.retrieve(
+            payment.paymentIntentId,
+          );
+
+          if (paymentIntent.status === 'requires_capture') {
+            // Capture full amount - triggers transfer_data to shop owner
+            await stripe.paymentIntents.capture(payment.paymentIntentId);
+          }
+          // If already succeeded, funds already transferred
+        }
+
+        // Update payment to COMPLETED (shop owner gets funds, admin keeps £0.50)
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: PaymentStatus.COMPLETED,
+            paymentAmount: payment.paymentAmount || 0,
+          },
+        });
+      }
+    } catch (error: any) {
+      console.error('Error processing payment cancellation:', error.message);
+      // Continue with booking cancellation even if payment handling fails
+    }
+  }
+
+  /* ---------------------------------------------------- */
+  /* Update Booking and Related Records                 */
+  /* ---------------------------------------------------- */
+
   const result = await prisma.$transaction(async tx => {
-    // 1. Update booking status to CANCELED
+    // 1. Update booking status to CANCELLED
     const updatedBooking = await tx.booking.update({
       where: {
         id: bookingId,
@@ -6047,12 +6175,6 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
 
     // 2. Delete associated queueSlot if exists
     if (booking.queueSlot && booking.queueSlot.length > 0) {
-      // Delete the queueSlot for this booking
-      // await tx.queueSlot.deleteMany({
-      //   where: { bookingId: bookingId },
-      // });
-
-      // Read the slot first so we still have its queueId after deletion
       const slot = await tx.queueSlot.findUnique({
         where: { id: booking.queueSlot[0].id },
       });

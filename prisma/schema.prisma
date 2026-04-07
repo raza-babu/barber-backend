@@ -794,6 +794,7 @@ model Payment {
   amountProvider     String?
   amountReceiver     String?
   paymentIntentId    String?
+  checkoutSessionId  String?       // Stripe Checkout Session ID
   paymentMethodId    String?
   // Apple IAP fields
   appleTransactionId String?
