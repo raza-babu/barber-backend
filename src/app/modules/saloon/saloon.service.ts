@@ -1,4 +1,5 @@
 import { customerRoutes } from './../customer/customer.routes';
+import Stripe from 'stripe';
 import {
   BookingStatus,
   BookingType,
@@ -16,6 +17,11 @@ import {
 import prisma from '../../utils/prisma';
 import config from '../../../config';
 
+// Initialize Stripe
+const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
+  apiVersion: '2025-08-27.basil',
+});
+
 const manageBookingsIntoDb = async (
   userId: string,
   data: {
@@ -23,82 +29,228 @@ const manageBookingsIntoDb = async (
     status: BookingStatus;
   },
 ) => {
-  return await prisma.$transaction(async tx => {
-    const booking = await tx.booking.findUnique({
-      where: {
-        id: data.bookingId,
-        saloonOwnerId: userId,
-      },
-      include: {
-        BookedServices: true,
-      },
-    });
+  const booking = await prisma.booking.findUnique({
+    where: {
+      id: data.bookingId,
+      saloonOwnerId: userId,
+    },
+    include: {
+      BookedServices: true,
+      Payment: true,
+    },
+  });
 
-    if (!booking) {
-      throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
-    }
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+  }
 
-    const currentStatus = booking.status;
-    const targetStatus = data.status;
+  const currentStatus = booking.status;
+  const targetStatus = data.status;
 
-    // ---------- Status Transition Validation ----------
-    switch (targetStatus) {
-      case BookingStatus.PENDING:
+  /* ---------------------------------------------------- */
+  /* Status Transition Validation                       */
+  /* ---------------------------------------------------- */
+  
+  switch (targetStatus) {
+    case BookingStatus.PENDING:
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Status cannot be changed back to pending',
+      );
+
+    case BookingStatus.COMPLETED:
+      // COMPLETED validations - check for invalid states first
+      if (currentStatus === BookingStatus.CANCELLED) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
-          'Status cannot be changed back to pending',
+          'Cancelled bookings cannot be marked as completed',
         );
-
-      case BookingStatus.CONFIRMED:
-        if (currentStatus !== BookingStatus.PENDING) {
+      }
+      if (currentStatus === BookingStatus.NO_SHOW) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'No-show bookings cannot be marked as completed',
+        );
+      }
+      if (currentStatus !== (BookingStatus.CONFIRMED || BookingStatus.ENDED)) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Only confirmed and ended bookings can be marked as completed',
+        );
+      }
+      // Check 15 minutes before end time
+      if (booking.endDateTime) {
+        const currentTime = new Date();
+        const fifteenMinutesBeforeEnd = new Date(
+          booking.endDateTime.getTime() - 15 * 60 * 1000,
+        );
+        if (currentTime < fifteenMinutesBeforeEnd) {
           throw new AppError(
             httpStatus.BAD_REQUEST,
-            'Only pending bookings can be confirmed',
+            'Cannot complete booking before 15 minutes prior to end time',
           );
         }
-        break;
+      }
+      break;
 
-      case BookingStatus.COMPLETED:
-        if (currentStatus !== BookingStatus.CONFIRMED) {
+    case BookingStatus.NO_SHOW:
+      // NO_SHOW validations - check for invalid states first
+      if (currentStatus === BookingStatus.COMPLETED) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Completed bookings cannot be marked as no-show',
+        );
+      }
+      if (currentStatus === BookingStatus.CANCELLED) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Cancelled bookings cannot be marked as no-show',
+        );
+      }
+      if (currentStatus === BookingStatus.NO_SHOW) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Booking is already marked as no-show',
+        );
+      }
+      if (currentStatus !== BookingStatus.CONFIRMED) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Only confirmed bookings can be marked as no-show',
+        );
+      }
+      // Check 15 minutes before end time
+      if (booking.endDateTime) {
+        const currentTime = new Date();
+        const fifteenMinutesBeforeEnd = new Date(
+          booking.endDateTime.getTime() - 15 * 60 * 1000,
+        );
+        if (currentTime < fifteenMinutesBeforeEnd) {
           throw new AppError(
             httpStatus.BAD_REQUEST,
-            'Only confirmed bookings can be marked as completed',
+            'Cannot mark as no-show before 15 minutes prior to end time',
           );
         }
-        if (booking.endDateTime) {
-          const currentTime = new Date();
-          const fifteenMinutesBeforeEnd = new Date(
-            booking.endDateTime.getTime() - 15 * 60 * 1000,
+      }
+      break;
+
+    case BookingStatus.CANCELLED:
+      // CANCELLED validations
+      if (currentStatus === BookingStatus.COMPLETED) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Completed bookings cannot be cancelled',
+        );
+      }
+      if (currentStatus === BookingStatus.CANCELLED) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Booking is already cancelled',
+        );
+      }
+      if (currentStatus === BookingStatus.NO_SHOW) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'No-show bookings cannot be cancelled',
+        );
+      }
+      break;
+
+    default:
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid status transition');
+  }
+
+  /* ---------------------------------------------------- */
+  /* Handle Payment Operations                          */
+  /* ---------------------------------------------------- */
+
+  if (booking.Payment && booking.Payment.length > 0) {
+    const payment = booking.Payment[0];
+
+    // COMPLETED or NO_SHOW: Capture the payment
+    if (targetStatus === BookingStatus.COMPLETED || targetStatus === BookingStatus.NO_SHOW) {
+      try {
+        // Only capture if payment is in REQUIRES_CAPTURE status
+        if (payment.status === PaymentStatus.REQUIRES_CAPTURE && payment.paymentIntentId) {
+          const paymentIntent = await stripe.paymentIntents.retrieve(
+            payment.paymentIntentId,
           );
-          if (currentTime < fifteenMinutesBeforeEnd) {
-            throw new AppError(
-              httpStatus.BAD_REQUEST,
-              'Cannot complete booking before 15 minutes prior to end time',
-            );
+
+          if (paymentIntent.status === 'requires_capture') {
+            // Capture the payment - triggers transfer_data to shop owner
+            await stripe.paymentIntents.capture(payment.paymentIntentId);
+            console.log('Payment captured for booking:', { bookingId: booking.id, paymentId: payment.id });
           }
         }
-        break;
 
-      case BookingStatus.CANCELLED:
-        if (currentStatus === BookingStatus.COMPLETED) {
-          throw new AppError(
-            httpStatus.BAD_REQUEST,
-            'Completed bookings cannot be cancelled',
-          );
-        }
-        if (currentStatus === BookingStatus.CANCELLED) {
-          throw new AppError(
-            httpStatus.BAD_REQUEST,
-            'Booking is already cancelled',
-          );
-        }
-        break;
-
-      default:
-        throw new AppError(httpStatus.BAD_REQUEST, 'Invalid status transition');
+        // Update payment to COMPLETED
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.COMPLETED },
+        });
+      } catch (error: any) {
+        console.error('Error capturing payment:', error.message);
+        throw new AppError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          'Failed to process payment capture',
+        );
+      }
     }
 
-    // ---------- Update Booking ----------
+    // CANCELLED: Full refund (no service fee)
+    if (targetStatus === BookingStatus.CANCELLED) {
+      try {
+        // Check if payment is uncaptured (REQUIRES_CAPTURE)
+        if (payment.status === PaymentStatus.REQUIRES_CAPTURE && payment.paymentIntentId) {
+          const paymentIntent = await stripe.paymentIntents.retrieve(
+            payment.paymentIntentId,
+          );
+
+          if (paymentIntent.status === 'requires_capture') {
+            // Cancel the uncaptured payment intent
+            await stripe.paymentIntents.cancel(payment.paymentIntentId);
+            console.log('Uncaptured payment cancelled (full refund):', { bookingId: booking.id, paymentId: payment.id });
+          } else if (paymentIntent.status === 'succeeded') {
+            // If already captured, create full refund (entire amount)
+            await stripe.refunds.create({
+              payment_intent: payment.paymentIntentId,
+              amount: paymentIntent.amount, // Full refund without deducting service fee
+            });
+            console.log('Full refund issued for captured payment:', { bookingId: booking.id, paymentId: payment.id });
+          }
+        } else if (payment.status === PaymentStatus.COMPLETED && payment.paymentIntentId) {
+          // Already captured, issue full refund
+          const paymentIntent = await stripe.paymentIntents.retrieve(
+            payment.paymentIntentId,
+          );
+
+          await stripe.refunds.create({
+            payment_intent: payment.paymentIntentId,
+            amount: paymentIntent.amount, // Full refund
+          });
+          console.log('Full refund issued for completed payment:', { bookingId: booking.id, paymentId: payment.id });
+        }
+
+        // Update payment to REFUNDED
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.REFUNDED },
+        });
+      } catch (error: any) {
+        console.error('Error processing refund:', error.message);
+        throw new AppError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          'Failed to process payment refund',
+        );
+      }
+    }
+  }
+
+  /* ---------------------------------------------------- */
+  /* Update Booking Status                              */
+  /* ---------------------------------------------------- */
+
+  return await prisma.$transaction(async tx => {
     const updatedBooking = await tx.booking.update({
       where: {
         id: data.bookingId,
@@ -109,8 +261,8 @@ const manageBookingsIntoDb = async (
       },
     });
 
-    // ---------- Handle Post-Completion Tasks ----------
-    if (targetStatus === BookingStatus.COMPLETED) {
+    // ---------- Handle Post-Completion/NO_SHOW Tasks ----------
+    if (targetStatus === BookingStatus.COMPLETED || targetStatus === BookingStatus.NO_SHOW) {
       // Delete barber real-time availability
       if (updatedBooking.startDateTime && updatedBooking.endDateTime) {
         const barberRealTimeStatus = await tx.barberRealTimeStatus.findFirst({
@@ -125,7 +277,7 @@ const manageBookingsIntoDb = async (
         });
         if (barberRealTimeStatus) {
           console.log(
-            'Deleted barber real-time status for completed booking',
+            'Deleted barber real-time status for completed/no-show booking',
             barberRealTimeStatus.id,
           );
           await tx.barberRealTimeStatus.delete({
@@ -156,7 +308,7 @@ const manageBookingsIntoDb = async (
             },
           });
 
-          console.log('Updating queue slots for completed booking');
+          console.log('Updating queue slots for completed/no-show booking');
 
           await tx.queueSlot.updateMany({
             where: {
@@ -164,7 +316,7 @@ const manageBookingsIntoDb = async (
               bookingId: updatedBooking.id,
             },
             data: {
-              status: QueueStatus.COMPLETED,
+              status: targetStatus === BookingStatus.COMPLETED ? QueueStatus.COMPLETED : QueueStatus.CANCELLED,
               position: 0,
             },
           });
@@ -172,73 +324,119 @@ const manageBookingsIntoDb = async (
       }
 
       // ---------- Handle Loyalty Points (Registered Users Only) ----------
-      // Check if the customer is a registered user
-      const checkRegUser = await tx.user.findUnique({
-        where: { id: booking.userId },
-      });
+      // Only add loyalty points if COMPLETED (not for NO_SHOW)
+      if (targetStatus === BookingStatus.COMPLETED) {
+        const checkRegUser = await tx.user.findUnique({
+          where: { id: booking.userId },
+        });
 
-      // If user is not registered, skip loyalty points processing
-      if (!checkRegUser) {
-        return updatedBooking;
-      }
+        if (!checkRegUser) {
+          return updatedBooking;
+        }
 
-      // User is registered, proceed with loyalty logic
-      const serviceIds = booking.BookedServices.map(bs => bs.serviceId);
+        const serviceIds = booking.BookedServices.map(bs => bs.serviceId);
 
-      const loyaltyPrograms = await tx.loyaltyProgram.findMany({
-        where: {
-          userId: userId,
-          serviceId: { in: serviceIds },
-        },
-      });
+        const loyaltyPrograms = await tx.loyaltyProgram.findMany({
+          where: {
+            userId: userId,
+            serviceId: { in: serviceIds },
+          },
+        });
 
-      if (loyaltyPrograms.length > 0) {
-        const totalPoints = loyaltyPrograms.reduce(
-          (sum, lp) => sum + lp.points,
-          0,
-        );
+        if (loyaltyPrograms.length > 0) {
+          const totalPoints = loyaltyPrograms.reduce(
+            (sum, lp) => sum + lp.points,
+            0,
+          );
 
-        if (totalPoints > 0) {
-          await tx.customerLoyalty.create({
-            data: {
-              userId: booking.userId,
-              saloonOwnerId: userId,
-              totalPoints: totalPoints,
-            },
-          });
-
-          await tx.customerVisit.create({
-            data: {
-              customerId: booking.userId,
-              saloonOwnerId: userId,
-              serviceId: serviceIds,
-              visitDate: new Date(),
-              amountSpent: booking.totalPrice,
-              earnedPoints: totalPoints,
-            },
-          });
-
-          const existingLog = await tx.loyaltyPointLog.findFirst({
-            where: {
-              customerId: booking.userId,
-              saloonId: userId,
-            },
-          });
-
-          if (existingLog) {
-            await tx.loyaltyPointLog.update({
-              where: { id: existingLog.id },
-              data: { visitCount: { increment: 1 } },
-            });
-          } else {
-            await tx.loyaltyPointLog.create({
+          if (totalPoints > 0) {
+            await tx.customerLoyalty.create({
               data: {
-                customerId: booking.userId,
-                saloonId: userId,
-                visitCount: 1,
+                userId: booking.userId,
+                saloonOwnerId: userId,
+                totalPoints: totalPoints,
               },
             });
+
+            await tx.customerVisit.create({
+              data: {
+                customerId: booking.userId,
+                saloonOwnerId: userId,
+                serviceId: serviceIds,
+                visitDate: new Date(),
+                amountSpent: booking.totalPrice,
+                earnedPoints: totalPoints,
+              },
+            });
+
+            const existingLog = await tx.loyaltyPointLog.findFirst({
+              where: {
+                customerId: booking.userId,
+                saloonId: userId,
+              },
+            });
+
+            if (existingLog) {
+              await tx.loyaltyPointLog.update({
+                where: { id: existingLog.id },
+                data: { visitCount: { increment: 1 } },
+              });
+            } else {
+              await tx.loyaltyPointLog.create({
+                data: {
+                  customerId: booking.userId,
+                  saloonId: userId,
+                  visitCount: 1,
+                },
+              });
+            }
           }
+        }
+      }
+    }
+
+    // ---------- Handle Cancellation Cleanup ----------
+    if (targetStatus === BookingStatus.CANCELLED) {
+      // Delete barber real-time availability
+      if (updatedBooking.startDateTime && updatedBooking.endDateTime) {
+        await tx.barberRealTimeStatus.deleteMany({
+          where: {
+            barberId: booking.barberId,
+            startDateTime: updatedBooking.startDateTime,
+            endDateTime: updatedBooking.endDateTime,
+          },
+        });
+      }
+
+      // Handle queue bookings
+      if (updatedBooking.bookingType === BookingType.QUEUE) {
+        const saloonQueue = await tx.queue.findFirst({
+          where: {
+            saloonOwnerId: userId,
+            barberId: booking.barberId,
+            isActive: true,
+            date: updatedBooking.date,
+          },
+        });
+        if (saloonQueue && saloonQueue.currentPosition > 0) {
+          await tx.queue.update({
+            where: {
+              id: saloonQueue.id,
+            },
+            data: {
+              currentPosition: { decrement: 1 },
+            },
+          });
+
+          await tx.queueSlot.updateMany({
+            where: {
+              queueId: saloonQueue.id,
+              bookingId: updatedBooking.id,
+            },
+            data: {
+              status: QueueStatus.CANCELLED,
+            },
+          });
         }
       }
     }

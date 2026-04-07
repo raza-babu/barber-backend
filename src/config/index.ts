@@ -49,6 +49,8 @@ export default {
   stripe: {
     stripe_secret_key: process.env.STRIPE_SECRET_KEY,
     stripe_webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
+    stripe_publishable_key: process.env.STRIPE_PUBLISHABLE_KEY,
+    stripe_platform_account_id: process.env.STRIPE_PLATFORM_ACCOUNT_ID,
   },
   apple: {
     bundleId: process.env.APPLE_BUNDLE_ID,

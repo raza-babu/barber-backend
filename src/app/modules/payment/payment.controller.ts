@@ -239,7 +239,7 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
 
   // Handle the event types
   switch (event.type) {
-    case 'account.updated':
+     case 'account.updated':
       const account = event.data.object;
       console.log(account, 'check account from webhook');
 
@@ -314,6 +314,7 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
       break;
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
+
       const bookingId = session.client_reference_id;
       if (!bookingId) break;
 
@@ -1198,7 +1199,7 @@ const payoutToBarber = catchAsync(async (req: any, res: any) => {
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Payout to barber successfully',
+    message: 'Payout to barber processed successfully! Funds transferred automatically.',
     data: result,
   });
 });

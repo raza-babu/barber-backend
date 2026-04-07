@@ -1317,7 +1317,7 @@ const createNewAccountIntoStripe = async (userId: string) => {
   const newAccount = await stripe.accounts.create({
     type: 'express',
     email: userData.email,
-    country: 'GB',
+    country: 'US',
     capabilities: {
       card_payments: { requested: true },
       transfers: { requested: true },
@@ -1572,205 +1572,260 @@ const payoutToBarberService = async (
     );
   }
 
-  // Get saloon owner (user making the payout)
-  const saloonOwner = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      SaloonOwner: {
-        select: { userId: true },
-      },
-    },
-  });
-
-  if (!saloonOwner) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner not found');
-  }
-
-  // Verify user is a saloon owner
-  if (!saloonOwner.SaloonOwner || saloonOwner.SaloonOwner.length === 0) {
-    throw new AppError(
-      httpStatus.FORBIDDEN,
-      'User is not a saloon owner',
-    );
-  }
-
-  // Verify saloon owner has valid Stripe account
-  if (!saloonOwner.stripeAccountId) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Saloon owner is not connected to Stripe',
-    );
-  }
-
-  // Get barber
-  const barber = await prisma.barber.findUnique({
-    where: { userId: barberId },
-    include: {
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          stripeAccountId: true,
+  return await prisma.$transaction(async tx => {
+    // Get saloon owner (user making the payout)
+    const saloonOwner = await tx.user.findUnique({
+      where: { id: userId },
+      include: {
+        SaloonOwner: {
+          select: { userId: true },
         },
       },
-    },
-  });
-
-  if (!barber || !barber.user) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
-  }
-
-  // Verify barber has valid Stripe account
-  if (!barber.user.stripeAccountId) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Barber is not connected to Stripe',
-    );
-  }
-
-  // Verify saloon owner's Stripe account exists
-  try {
-    await stripe.accounts.retrieve(saloonOwner.stripeAccountId);
-  } catch (error: any) {
-    if (error.code === 'resource_missing') {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Saloon owner Stripe account is invalid or no longer exists',
-      );
-    }
-    throw error;
-  }
-
-  // Verify barber's Stripe account exists
-  try {
-    await stripe.accounts.retrieve(barber.user.stripeAccountId);
-  } catch (error: any) {
-    if (error.code === 'resource_missing') {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Barber Stripe account is invalid or no longer exists',
-      );
-    }
-    throw error;
-  }
-
-  // Verify saloon owner account has transfer capability
-  try {
-    const saloonOwnerAccount = await stripe.accounts.retrieve(
-      saloonOwner.stripeAccountId,
-    );
-
-    const transferCapability = saloonOwnerAccount.capabilities?.transfers;
-    
-    console.log('Saloon Owner Account Status:', {
-      accountId: saloonOwner.stripeAccountId,
-      chargesEnabled: saloonOwnerAccount.charges_enabled,
-      transferCapability,
-      pendingVerification: saloonOwnerAccount.requirements?.pending_verification,
     });
 
-    if (transferCapability !== 'active') {
+    if (!saloonOwner) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner not found');
+    }
+
+    // Verify user is a saloon owner
+    if (!saloonOwner.SaloonOwner || saloonOwner.SaloonOwner.length === 0) {
       throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Saloon owner transfer capability is not active (status: ${transferCapability}). Please complete Stripe onboarding.`,
+        httpStatus.FORBIDDEN,
+        'User is not a saloon owner',
       );
     }
-  } catch (error: any) {
-    if (error instanceof AppError) {
+
+    // Verify saloon owner has valid Stripe account
+    if (!saloonOwner.stripeAccountId) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Saloon owner is not connected to Stripe',
+      );
+    }
+
+    // Get barber
+    const barber = await tx.barber.findUnique({
+      where: { userId: barberId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            stripeAccountId: true,
+          },
+        },
+      },
+    });
+
+    if (!barber || !barber.user) {
+      throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
+    }
+
+    // Verify barber has valid Stripe account
+    if (!barber.user.stripeAccountId) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Barber is not connected to Stripe',
+      );
+    }
+
+    // Verify saloon owner's Stripe account exists
+    try {
+      await stripe.accounts.retrieve(saloonOwner.stripeAccountId);
+    } catch (error: any) {
+      if (error.code === 'resource_missing') {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Saloon owner Stripe account is invalid or no longer exists',
+        );
+      }
       throw error;
     }
-    if (error.code === 'resource_missing') {
+
+    // Verify barber's Stripe account exists
+    try {
+      await stripe.accounts.retrieve(barber.user.stripeAccountId);
+    } catch (error: any) {
+      if (error.code === 'resource_missing') {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Barber Stripe account is invalid or no longer exists',
+        );
+      }
+      throw error;
+    }
+
+    // Verify saloon owner has transfer capability
+    try {
+      const saloonOwnerAccount = await stripe.accounts.retrieve(
+        saloonOwner.stripeAccountId,
+      );
+
+      if (saloonOwnerAccount.capabilities?.transfers !== 'active') {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Saloon owner transfer capability is not active. Please complete Stripe onboarding.',
+        );
+      }
+    } catch (error: any) {
+      if (error instanceof AppError) throw error;
       throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Saloon owner Stripe account is invalid or no longer exists',
+        httpStatus.CONFLICT,
+        `Account verification failed: ${error.message}`,
       );
     }
-    throw error;
-  }
 
-  // CHECK BALANCE before attempting transfer
-  try {
-    const balance = await stripe.balance.retrieve({
-      stripeAccount: saloonOwner.stripeAccountId,
-    });
-
-    const requestedAmountPence = Math.round(amount * 100);
-    
-    // For transfers, use instant_available (available for immediate transfer in test mode)
-    // Fallback to available if instant_available not present
-    const transferableBalance = balance.instant_available?.[0]?.amount || balance.available[0]?.amount || 0; // in pence
-    const availableBalance = balance.available[0]?.amount || 0; // in pence
-    const pendingBalance = balance.pending[0]?.amount || 0; // in pence
-    const transferableBalanceGBP = transferableBalance / 100;
-    const availableBalanceGBP = availableBalance / 100;
-    const pendingBalanceGBP = pendingBalance / 100;
-
-    console.log('Complete Balance Check:', {
-      saloonOwnerId: saloonOwner.id,
-      saloonOwnerName: saloonOwner.fullName,
-      requestedAmount: amount,
-      requestedAmountPence,
-      transferableBalancePence: transferableBalance,
-      transferableBalanceGBP,
-      availableBalancePence: availableBalance,
-      availableBalanceGBP,
-      pendingBalancePence: pendingBalance,
-      pendingBalanceGBP,
-      sufficientForTransfer: transferableBalance >= requestedAmountPence,
-    });
-
-    if (transferableBalance < requestedAmountPence) {
-      console.warn('Insufficient TRANSFERABLE balance for transfer', {
-        transferable: transferableBalanceGBP.toFixed(2),
-        available: availableBalanceGBP.toFixed(2),
-        pending: pendingBalanceGBP.toFixed(2),
-        requested: amount.toFixed(2),
+    // CHECK BALANCE on Shop Owner's account
+    try {
+      const balance = await stripe.balance.retrieve({
+        stripeAccount: saloonOwner.stripeAccountId,
       });
+
+      const requestedAmountPence = Math.round(amount * 100);
+      const availableBalance = balance.available[0]?.amount || 0;
+
+      if (availableBalance < requestedAmountPence) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Insufficient balance. Available: £${(availableBalance / 100).toFixed(2)}, Requested: £${amount.toFixed(2)}`,
+        );
+      }
+    } catch (error: any) {
+      if (error instanceof AppError) throw error;
       throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Insufficient balance for transfer. Available: £${transferableBalanceGBP.toFixed(2)}, Requested: £${amount.toFixed(2)}`,
+        httpStatus.CONFLICT,
+        `Balance check failed: ${error.message}`,
       );
     }
-  } catch (error: any) {
-    if (error instanceof AppError) {
-      throw error; // Re-throw AppError
-    }
-    console.error('Balance check failed:', error.message);
-    throw new AppError(
-      httpStatus.CONFLICT,
-      `Balance check failed: ${error.message}`,
-    );
-  }
 
-  // Database-Only Accounting: Track payout request without moving money through Stripe
-  // Shop owner's balance stays on their account
-  // Payout is logged in DB and must be settled manually (via bank transfer, etc)
-  try {
+    // Step 1: Create payout request in database (PENDING)
     const amountInPence = Math.round(amount * 100);
-
-    // Create payout request in database
-    const payoutRequest = await prisma.barberPayoutRequest.create({
+    const payoutRequest = await tx.barberPayoutRequest.create({
       data: {
         saloonOwnerId: saloonOwner.id,
         barberId: barber.user.id,
         amount: amount,
         status: 'PENDING',
       },
+    });
+
+    // Step 2: Use two-step transfer (Shop Owner → Platform → Barber)
+    // Note: Direct connected-to-connected transfers are not allowed by Stripe
+    // So we use Platform Account as intermediary
+    
+    // Verify platform account ID is configured
+    const platformAccountId = config.stripe.stripe_platform_account_id;
+    if (!platformAccountId) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Platform account ID is not configured. Please set STRIPE_PLATFORM_ACCOUNT_ID environment variable.',
+      );
+    }
+
+    let transfer1, transfer2;
+    
+    try {
+      // Transfer 1: Shop Owner's Account → Platform Account
+      // NOTE: Using USD for testing - change to 'gbp' for production
+      transfer1 = await stripe.transfers.create(
+        {
+          amount: amountInPence,
+          currency: 'usd',
+          destination: platformAccountId, // Transfer to main platform account
+          description: `Transfer from ${saloonOwner.fullName} to be paid to barber`,
+          metadata: {
+            payoutRequestId: payoutRequest.id,
+            saloonOwnerId: saloonOwner.id,
+            barberId: barber.user.id,
+            type: 'shop_to_platform',
+          },
+        },
+        {
+          stripeAccount: saloonOwner.stripeAccountId,
+        },
+      );
+
+      console.log('Step 1 Complete - Transfer from Shop Owner to Platform:', {
+        transferId: transfer1.id,
+        amount: amount,
+        from: saloonOwner.fullName,
+        to: 'Platform Account',
+      });
+    } catch (error: any) {
+      console.error('Transfer from shop owner to platform failed:', error.message);
+      
+      // Handle country mismatch errors
+      if (error.message.includes('Account debits are not supported from')) {
+        throw new AppError(
+          httpStatus.CONFLICT,
+          `Country mismatch error: Your platform account and shop owner account are in different countries. Ensure your platform account (${platformAccountId}) is in the same country as the shop owner's account.`,
+        );
+      }
+      
+      throw new AppError(
+        httpStatus.CONFLICT,
+        `Transfer from shop owner failed: ${error.message}`,
+      );
+    }
+
+    try {
+      // Transfer 2: Platform Account → Barber's Account
+      // NOTE: Using USD for testing - change to 'gbp' for production
+      transfer2 = await stripe.transfers.create({
+        amount: amountInPence,
+        currency: 'usd',
+        destination: barber.user.stripeAccountId!,
+        description: `Payout from ${saloonOwner.fullName} to ${barber.user.fullName}`,
+        metadata: {
+          payoutRequestId: payoutRequest.id,
+          saloonOwnerId: saloonOwner.id,
+          barberId: barber.user.id,
+          type: 'platform_to_barber',
+        },
+      });
+
+      console.log('Step 2 Complete - Transfer from Platform to Barber:', {
+        transferId: transfer2.id,
+        amount: amount,
+        from: 'Platform Account',
+        to: barber.user.fullName,
+      });
+    } catch (error: any) {
+      console.error('Transfer from platform to barber failed:', error.message);
+      throw new AppError(
+        httpStatus.CONFLICT,
+        `Transfer to barber failed: ${error.message}`,
+      );
+    }
+
+    // Step 3: Update payout request status to COMPLETED
+    const completedPayout = await tx.barberPayoutRequest.update({
+      where: { id: payoutRequest.id },
+      data: {
+        status: PayoutRequestStatus.SETTLED,
+      },
       include: {
         saloonOwner: {
           select: {
             id: true,
-            userId: true,
             shopName: true,
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                stripeAccountId: true,
+              },
+            },
           },
         },
         barber: {
           select: {
-            id: true,
             userId: true,
             user: {
               select: {
+                id: true,
                 fullName: true,
+                stripeAccountId: true,
               },
             },
           },
@@ -1778,56 +1833,42 @@ const payoutToBarberService = async (
       },
     });
 
-    console.log('Barber Payout Request Created:', {
-      payoutRequestId: payoutRequest.id,
-      saloonOwnerId: saloonOwner.id,
-      saloonOwnerName: saloonOwner.fullName,
-      barberName: barber.user.fullName,
-      barberId: barber.user.id,
-      amount: amount,
-      amountInPence: amountInPence,
-      saloonOwnerStripeAccount: saloonOwner.stripeAccountId,
-      barberStripeAccount: barber.user.stripeAccountId,
-      note: 'Payout logged in database. Settlement required outside Stripe: Shop owner withdraws to bank, then transfers to barber.',
-      timestamp: new Date(),
-    });
-
     return {
       success: true,
-      payoutType: 'manual_settlement',
-      payoutRequestId: payoutRequest.id,
-      message: 'Payout request created successfully. Settlement requires manual coordination.',
-      instructions: {
-        step1: 'Shop owner withdraws £' + amount.toFixed(2) + ' from Stripe account to bank account',
-        step2: 'Shop owner transfers £' + amount.toFixed(2) + ' from bank account to barber',
-        step3: 'Platform admin confirms settlement in database',
+      payoutType: 'two_step_automatic_transfer',
+      payoutRequestId: completedPayout.id,
+      message: 'Payout completed successfully! Funds transferred through platform. [TEST MODE - USD CURRENCY]',
+      transfers: {
+        step1: {
+          transferId: transfer1.id,
+          direction: `${saloonOwner.fullName} → Platform`,
+          amount: amount,
+          currency: 'usd', // Testing with USD
+        },
+        step2: {
+          transferId: transfer2.id,
+          direction: `Platform → ${barber.user.fullName}`,
+          amount: amount,
+          currency: 'usd', // Testing with USD
+        },
       },
       from: {
         id: saloonOwner.id,
         name: saloonOwner.fullName,
-        stripeAccountId: saloonOwner.stripeAccountId,
+        stripeAccount: saloonOwner.stripeAccountId,
       },
       to: {
         id: barber.user.id,
         name: barber.user.fullName,
-        stripeAccountId: barber.user.stripeAccountId,
+        stripeAccount: barber.user.stripeAccountId,
       },
       amount: amount,
-      currency: 'gbp',
       amountInPence: amountInPence,
-      status: payoutRequest.status,
-      createdAt: payoutRequest.createdAt,
-      note: 'Balance on shop owner account: £' + 
-            (Math.round(amount * 100) / 100).toFixed(2) + 
-            ' ready to withdraw. Barber will receive funds via bank transfer after manual coordination.',
+      status: completedPayout.status,
+      createdAt: completedPayout.createdAt,
+      completedAt: new Date(),
     };
-  } catch (error: any) {
-    console.error('Payout request creation failed:', error.message);
-    throw new AppError(
-      httpStatus.CONFLICT,
-      `Payout request failed: ${error.message}`,
-    );
-  }
+  });
 };
 
 const withdrawFundsFromStripeService = async (userId: string) => {
