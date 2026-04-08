@@ -2725,6 +2725,7 @@ const createQueueBookingForCustomerIntoDb = async (
       const overlappingStatus = await tx.barberRealTimeStatus.findFirst({
         where: {
           barberId,
+          isAvailable: false, // Only check active (unavailable) status records
           AND: [
             { startDateTime: { lt: endDateTimeForCheck } },
             { endDateTime: { gt: utcDateTime } },
@@ -2735,6 +2736,10 @@ const createQueueBookingForCustomerIntoDb = async (
       const overlappingBooking = await tx.booking.findFirst({
         where: {
           barberId,
+          // Exclude cancelled bookings - only check active bookings
+          status: {
+            in: [BookingStatus.CONFIRMED, BookingStatus.PENDING, BookingStatus.COMPLETED],
+          },
           AND: [
             { startDateTime: { lt: endDateTimeForCheck } },
             { endDateTime: { gt: utcDateTime } },
