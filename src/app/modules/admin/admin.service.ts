@@ -907,6 +907,11 @@ const getSubscribersListFromDb = async (
             endDate: { gte: new Date() }, // Not expired
           },
         },
+        Payment: {
+          some: {
+            status: PaymentStatus.COMPLETED,
+          },
+        },
       },
       skip,
       take: limit,
@@ -920,6 +925,9 @@ const getSubscribersListFromDb = async (
           where: {
             paymentStatus: PaymentStatus.COMPLETED,
             endDate: { gte: new Date() },
+          },
+          orderBy: {
+            endDate: 'desc',
           },
           select: {
             id: true,
@@ -939,6 +947,22 @@ const getSubscribersListFromDb = async (
             },
           },
         },
+        Payment: {
+          where: {
+            status: PaymentStatus.COMPLETED,
+          },
+          orderBy: {
+            paymentDate: 'desc',
+          },
+          take: 1,
+          select: {
+            id: true,
+            paymentAmount: true,
+            paymentDate: true,
+            status: true,
+            paymentIntentId: true,
+          },
+        },
       },
     }),
     prisma.user.count({
@@ -950,6 +974,11 @@ const getSubscribersListFromDb = async (
             endDate: { gte: new Date() },
           },
         },
+        Payment: {
+          some: {
+            status: PaymentStatus.COMPLETED,
+          },
+        },
       },
     }),
   ]);
@@ -957,6 +986,7 @@ const getSubscribersListFromDb = async (
   // Flatten the response so that subscription fields are at the top level
   const flattenedSubscribers = subscribers.map(subscriber => {
     const subscription = subscriber.UserSubscription?.[0];
+    const latestPayment = subscriber.Payment?.[0];
     return {
       id: subscriber.id,
       fullName: subscriber.fullName,
@@ -975,6 +1005,15 @@ const getSubscribersListFromDb = async (
             price: subscription.subscriptionOffer.price,
             currency: subscription.subscriptionOffer.currency,
             duration: subscription.subscriptionOffer.duration,
+          }
+        : null,
+      latestPayment: latestPayment
+        ? {
+            id: latestPayment.id,
+            amount: latestPayment.paymentAmount,
+            paymentDate: latestPayment.paymentDate,
+            status: latestPayment.status,
+            paymentIntentId: latestPayment.paymentIntentId,
           }
         : null,
     };

@@ -1156,7 +1156,7 @@ const getTransactionsFromDb = async (
 
   // Main where clause (payments that belong to bookings for this salon owner)
   const whereClause: any = {
-    status: { in: [PaymentStatus.COMPLETED, PaymentStatus.REFUNDED] },
+    status: { in: [PaymentStatus.COMPLETED, PaymentStatus.CASH, PaymentStatus.REFUNDED, PaymentStatus.CANCELLED] },
     booking: {
       saloonOwnerId: userId,
       ...(bookingSearchOr.length ? { AND: [{ OR: bookingSearchOr }] } : {}),

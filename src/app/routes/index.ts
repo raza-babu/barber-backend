@@ -35,6 +35,7 @@ import { loyaltyProgramRoutes } from '../modules/loyaltyProgram/loyaltyProgram.r
 import { loyaltySchemeRoutes } from '../modules/loyaltyScheme/loyaltyScheme.routes';
 import { nonRegisteredBookingRoutes } from '../modules/nonRegisteredBooking/nonRegisteredBooking.routes';
 import { barberRoutes } from '../modules/barber/barber.routes';
+import { NotificationRoutes } from '../modules/notification/notification.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -54,10 +55,10 @@ const moduleRoutes = [
     path: '/groups',
     route: groupRoutes,
   },
-  // {
-  //   path: '/notifications',
-  //   route: NotificationRoutes,
-  // },
+  {
+    path: '/notifications',
+    route: NotificationRoutes,
+  },
   {
     path: '/services',
     route: ServiceRoutes,

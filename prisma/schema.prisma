@@ -777,7 +777,8 @@ model Notification {
   title     String
   body      String
   data      String?
-  read      Boolean  @default(false)
+  isRead    Boolean  @default(false)
+  isClicked Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -786,7 +787,6 @@ model Notification {
 
   @@map("notifications")
 }
-
 
 model Payment {
   id                 String        @id @default(auto()) @map("_id") @db.ObjectId

@@ -43,6 +43,7 @@ export interface ISearchAndFilterOptions extends IPaginationOptions {
   experienceYears?: string;
   experienceRequired?: string;
   isVerified?: boolean;
+  isRead?: boolean | string;
   role?: string;
   isSuperAdmin?: boolean | string;
   priceMin?: string;
