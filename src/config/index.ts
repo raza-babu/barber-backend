@@ -21,12 +21,15 @@ const loadApplePrivateKey = () => {
 const loadFirebaseConfig = () => {
   const firebaseConfigPath = path.join(process.cwd(), 'firebase.config.json');
 
-  
+  if (!fs.existsSync(firebaseConfigPath)) {
+    throw new Error(`Firebase config file not found at ${firebaseConfigPath}. Please create it from firebase.config.example.json or set up environment variables.`);
+  }
+
   try {
     const firebaseContent = fs.readFileSync(firebaseConfigPath, 'utf-8');
     return JSON.parse(firebaseContent);
   } catch (error) {
-    throw new Error(`Failed to read Firebase config file at ${firebaseConfigPath}`);
+    throw new Error(`Failed to parse Firebase config file at ${firebaseConfigPath}: ${error}`);
   }
 };
 
