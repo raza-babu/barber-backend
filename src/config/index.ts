@@ -18,6 +18,12 @@ const loadApplePrivateKey = () => {
   }
 };
 
+const parsePrivateKey = (keyString?: string) => {
+  if (!keyString) return undefined;
+  // Convert escaped newlines to actual newlines for PEM format
+  return keyString.replace(/\\n/g, '\n');
+};
+
 export default {
   env: process.env.NODE_ENV,
   port: process.env.PORT,
@@ -54,9 +60,10 @@ export default {
   },
   firebase: {
     project_id: process.env.FIREBASE_PROJECT_ID,
-    private_key: process.env.FIREBASE_PRIVATE_KEY,
+    private_key: parsePrivateKey(process.env.FIREBASE_PRIVATE_KEY),
     private_key_id: process.env.FIREBASE_PRIVATE_ID,
     client_email: process.env.FIREBASE_CLIENT_EMAIL,
+    client_id: process.env.FIREBASE_CLIENT_ID,
   },
   apple: {
     bundleId: process.env.APPLE_BUNDLE_ID,
