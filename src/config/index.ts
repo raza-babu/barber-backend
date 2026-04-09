@@ -21,7 +21,6 @@ const loadApplePrivateKey = () => {
 const parsePrivateKey = (keyString?: string) => {
   if (!keyString) return undefined;
   // Convert escaped newlines to actual newlines for PEM format
-  console.log("Original Key String:", keyString);
   return keyString.replace(/\\n/g, '\n');
 };
 
