@@ -903,15 +903,15 @@ const getSubscribersListFromDb = async (
         ...whereClause,
         UserSubscription: {
           some: {
-            paymentStatus: PaymentStatus.COMPLETED, // Active subscription
+            // paymentStatus: PaymentStatus.COMPLETED, // Active subscription
             // endDate: { gte: new Date() }, // Not expired
           },
         },
-        Payment: {
-          some: {
-            status: PaymentStatus.COMPLETED,
-          },
-        },
+        // Payment: {
+        //   some: {
+        //     status: PaymentStatus.COMPLETED,
+        //   },
+        // },
       },
       skip,
       take: limit,
@@ -924,34 +924,27 @@ const getSubscribersListFromDb = async (
         subscriptionEnd: true,
         subscriptionPlan: true,
         UserSubscription: {
-          where: {
-            paymentStatus: PaymentStatus.COMPLETED,
-            endDate: { gte: new Date() },
-          },
+          // where: {
+            // paymentStatus: PaymentStatus.COMPLETED,
+            // endDate: { gte: new Date() },
+          // },
           orderBy: {
             endDate: 'desc',
           },
+          take: 1,
           select: {
             id: true,
             startDate: true,
             endDate: true,
             // stripeSubscriptionId: true,
             paymentStatus: true,
-            subscriptionOffer: {
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                price: true,
-                currency: true,
-                duration: true,
-              },
-            },
           },
         },
         Payment: {
           where: {
-            status: PaymentStatus.COMPLETED,
+            paymentIntentId: {
+              not: null,
+            },
           },
           orderBy: {
             paymentDate: 'desc',
@@ -971,22 +964,22 @@ const getSubscribersListFromDb = async (
       where: {
         ...whereClause,
         UserSubscription: {
-          some: {
-            paymentStatus: PaymentStatus.COMPLETED,
-            endDate: { gte: new Date() },
-          },
+          // some: {
+          //   paymentStatus: PaymentStatus.COMPLETED,
+          //   endDate: { gte: new Date() },
+          // },
         },
         Payment: {
-          some: {
-            status: PaymentStatus.COMPLETED,
-          },
+          // some: {
+          //   status: PaymentStatus.COMPLETED,
+          // },
         },
       },
     }),
   ]);
 
   // Flatten the response so that subscription fields are at the top level
-  const flattenedSubscribers = subscribers.map(subscriber => {
+  const flattenedSubscribers = subscribers.map((subscriber: any) => {
     const subscription = subscriber.UserSubscription?.[0];
     const latestPayment = subscriber.Payment?.[0];
     return {
@@ -995,23 +988,17 @@ const getSubscribersListFromDb = async (
       email: subscriber.email,
       phoneNumber: subscriber.phoneNumber,
       subscriptionId: subscription?.id || null,
-      startDate: subscriber.UserSubscription?.[0]?.startDate || null,
-      endDate: subscriber.UserSubscription?.[0]?.endDate || null,
+      startDate: subscription?.startDate || null,
+      endDate: subscription?.endDate || null,
       subscriptionEnd: subscriber.subscriptionEnd || null,
       subscriptionPlan: subscriber.subscriptionPlan || null,
       // stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
       paymentStatus: subscription?.paymentStatus || null,
-      expired: subscription?.endDate ? subscription.endDate < new Date() : false,
-      offer: subscription?.subscriptionOffer
-        ? {
-            id: subscription.subscriptionOffer.id,
-            title: subscription.subscriptionOffer.title,
-            description: subscription.subscriptionOffer.description,
-            price: subscription.subscriptionOffer.price,
-            currency: subscription.subscriptionOffer.currency,
-            duration: subscription.subscriptionOffer.duration,
-          }
+      expired: subscriber.subscriptionEnd
+        ? new Date(subscriber.subscriptionEnd) > new Date()
         : null,
+      lastSubscriptionPaymentDate: latestPayment?.paymentIntentId ? latestPayment.paymentDate : null,
+      offer: null,
       latestPayment: latestPayment
         ? {
             id: latestPayment.id,
