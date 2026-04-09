@@ -29,7 +29,15 @@ const verifyGooglePlayPurchase = catchAsync(async (req, res) => {
     const subscriptionId = googleIAPService.validateSubscriptionId(productId);
     
     // Get packageName from config
-    const packageName = config.google.packageName;
+    const packageName = config.google?.packageName;
+    if (!packageName) {
+      return sendResponse(res, {
+        statusCode: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
+        message: 'GOOGLE_PACKAGE_NAME not configured',
+        data: null,
+      });
+    }
 
     const result = await googleIAPService.verifyGooglePlayPurchase(
       packageName,
@@ -78,7 +86,15 @@ const checkSubscriptionStatus = catchAsync(async (req, res) => {
   }
 
   const subscriptionId = googleIAPService.validateSubscriptionId(productId);
-  const packageName = config.google.packageName;
+  const packageName = config.google?.packageName;
+  if (!packageName) {
+    return sendResponse(res, {
+      statusCode: httpStatus.INTERNAL_SERVER_ERROR,
+      success: false,
+      message: 'GOOGLE_PACKAGE_NAME not configured',
+      data: null,
+    });
+  }
 
   const result = await googleIAPService.checkSubscriptionStatus(
     packageName,
@@ -111,7 +127,15 @@ const getSubscriptionHistory = catchAsync(async (req, res) => {
   }
 
   const subscriptionId = googleIAPService.validateSubscriptionId(productId);
-  const packageName = config.google.packageName;
+  const packageName = config.google?.packageName;
+  if (!packageName) {
+    return sendResponse(res, {
+      statusCode: httpStatus.INTERNAL_SERVER_ERROR,
+      success: false,
+      message: 'GOOGLE_PACKAGE_NAME not configured',
+      data: null,
+    });
+  }
 
   const result = await googleIAPService.getSubscriptionPurchaseHistory(
     packageName,
@@ -144,7 +168,15 @@ const acknowledgePurchase = catchAsync(async (req, res) => {
   }
 
   const subscriptionId = googleIAPService.validateSubscriptionId(productId);
-  const packageName = config.google.packageName;
+  const packageName = config.google?.packageName;
+  if (!packageName) {
+    return sendResponse(res, {
+      statusCode: httpStatus.INTERNAL_SERVER_ERROR,
+      success: false,
+      message: 'GOOGLE_PACKAGE_NAME not configured',
+      data: null,
+    });
+  }
 
   await googleIAPService.acknowledgePurchase(
     packageName,
@@ -176,7 +208,15 @@ const cancelSubscription = catchAsync(async (req, res) => {
   }
 
   const subscriptionId = googleIAPService.validateSubscriptionId(productId);
-  const packageName = config.google.packageName;
+  const packageName = config.google?.packageName;
+  if (!packageName) {
+    return sendResponse(res, {
+      statusCode: httpStatus.INTERNAL_SERVER_ERROR,
+      success: false,
+      message: 'GOOGLE_PACKAGE_NAME not configured',
+      data: null,
+    });
+  }
 
   await googleIAPService.cancelSubscription(
     packageName,

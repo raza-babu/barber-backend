@@ -27,7 +27,9 @@ const SUBSCRIPTION_ID_MAPPING: Record<string, string> = {
  */
 const initializeGooglePlayClient = async () => {
   try {
-    if (!config.google?.credentials) {
+    const credentials = config.google?.credentials;
+    
+    if (!credentials) {
       throw new AppError(
         httpStatus.INTERNAL_SERVER_ERROR,
         'Google IAP credentials not configured',
@@ -36,7 +38,7 @@ const initializeGooglePlayClient = async () => {
 
     let parsedCredentials;
     try {
-      parsedCredentials = JSON.parse(config.google.credentials);
+      parsedCredentials = JSON.parse(credentials);
     } catch (parseError: any) {
       console.error('❌ Failed to parse Google credentials JSON:', parseError.message);
       throw new AppError(

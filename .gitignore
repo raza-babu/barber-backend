@@ -7,6 +7,7 @@ yarn-error.log*
 lerna-debug.log*
 AuthKey_ZCH3L987YV.p8
 firebase.config.json
+google-credentials.json
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

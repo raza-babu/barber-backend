@@ -33,6 +33,27 @@ const loadFirebaseConfig = () => {
   }
 };
 
+const loadGoogleCredentials = () => {
+  const credentialsPath = 'google-credentials.json';
+  const resolvedPath = path.isAbsolute(credentialsPath)
+    ? credentialsPath
+    : path.join(process.cwd(), credentialsPath);
+
+  try {
+    if (!fs.existsSync(resolvedPath)) {
+      console.warn(`⚠️ Google credentials file not found at ${resolvedPath}`);
+      console.warn('   Create google-credentials.json or set GOOGLE_IAP_CREDENTIALS in .env');
+      return null;
+    }
+
+    const credentialsContent = fs.readFileSync(resolvedPath, 'utf-8');
+    const parsed = JSON.parse(credentialsContent);
+    return JSON.stringify(parsed); // Return as JSON string for consistency with .env approach
+  } catch (error) {
+    throw new Error(`Failed to load Google credentials from ${resolvedPath}: ${error}`);
+  }
+};
+
 export default {
   env: process.env.NODE_ENV,
   port: process.env.PORT,
@@ -78,21 +99,8 @@ export default {
     isProduction: process.env.NODE_ENV === 'production', // ✅ Fixed: should be 'production' not 'development'
   },
   google: {
-    packageName: process.env.GOOGLE_PACKAGE_NAME || 'com.barberstime.barber_time_app',
-    credentials: process.env.GOOGLE_IAP_CREDENTIALS, // JSON credential string from Google Play Console
-    // Credentials structure should be:
-    // {
-    //   "type": "service_account",
-    //   "project_id": "...",
-    //   "private_key_id": "...",
-    //   "private_key": "...",
-    //   "client_email": "...",
-    //   "client_id": "...",
-    //   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    //   "token_uri": "https://oauth2.googleapis.com/token",
-    //   "auth_provider_x509_cert_url": "...",
-    //   "client_x509_cert_url": "..."
-    // }
+    packageName: process.env.GOOGLE_PACKAGE_NAME,
+    credentials: loadGoogleCredentials() || process.env.GOOGLE_IAP_CREDENTIALS, // Try to load from file first, then env
   },
   backend_base_url: process.env.BACKEND_BASE_URL,
   frontend_base_url: process.env.FRONTEND_BASE_URL,
