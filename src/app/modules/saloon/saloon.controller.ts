@@ -100,6 +100,19 @@ const getAllBarbers = catchAsync(async (req, res) => {
   });
 });
 
+
+const getAllBarbersAll = catchAsync(async (req, res) => {
+  const user = req.user as any;
+
+  const result = await saloonService.getAllBarbersAllFromDb(user.id);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Barber list retrieved successfully',
+    data: result
+  });
+});
+
 const getRemainingBarbersToSchedule = catchAsync(async (req, res) => {
   const user = req.user as any;
   const filters = pickValidFields(req.query, [
@@ -248,6 +261,7 @@ export const saloonController = {
   getTransactions,
   getCustomerBookings,
   getAllBarbers,
+  getAllBarbersAll,
   getRemainingBarbersToSchedule,
   getFreeBarbersOnADate,
   getASaloonById,

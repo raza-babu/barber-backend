@@ -51,6 +51,13 @@ router.get(
 );
 
 router.get(
+  '/barbers-all',
+  auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
+  saloonController.getAllBarbersAll,
+);
+
+router.get(
   '/remaining-barbers-to-schedule',
   auth(UserRoleEnum.SALOON_OWNER),
   checkSubscriptionForSalonOwners(),

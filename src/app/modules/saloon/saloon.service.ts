@@ -1434,6 +1434,48 @@ const getAllBarbersFromDb = async (
   return formatPaginationResponse(barbers, total, page, limit);
 };
 
+const getAllBarbersAllFromDb = async (
+  userId: string,
+) => {
+ 
+
+
+  const result = await prisma.hiredBarber.findMany({
+    where: {
+      userId: userId,
+    },
+    select: {
+      barberId: true,
+      hourlyRate: true,
+      barber: {
+        select: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              image: true,
+              phoneNumber: true,
+              address: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+
+  const barbers = result.map(barber => ({
+    barberId: barber.barberId,
+    barberImage: barber.barber.user.image,
+    barberName: barber.barber.user.fullName,
+    barberPhone: barber.barber.user.phoneNumber,
+    barberAddress: barber.barber.user.address,
+    hourlyRate: barber.hourlyRate,
+  }));
+
+  return barbers;
+};
+
 const terminateBarberIntoDb = async (
   userId: string,
   data: {
@@ -1878,6 +1920,7 @@ export const saloonService = {
   getTransactionsFromDb,
   getSaloonListFromDb,
   getAllBarbersFromDb,
+  getAllBarbersAllFromDb,
   terminateBarberIntoDb,
   getASaloonByIdFromDb,
   getFreeBarbersOnADateFromDb,
