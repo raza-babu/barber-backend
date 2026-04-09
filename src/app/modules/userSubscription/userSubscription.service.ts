@@ -853,9 +853,11 @@ const createGooglePlaySubscriptionIntoDb = async (
           subscriptionOfferId: subscriptionOffer.id,
           startDate: startDate,
           endDate: endDate,
-          appleTransactionId: data.purchaseToken, // Store purchase token as transaction ID
-          appleProductId: googleSubscriptionId,
-          appleReceiptData: JSON.stringify({
+          // Google Play specific fields
+          googleTransactionId: data.purchaseToken, // Purchase token from Google Play
+          googleProductId: googleSubscriptionId,   // Full subscription ID (com.barberstime.barber_time_app.monthly)
+          googleOrderId: googlePurchaseData.orderId,
+          googleReceiptData: JSON.stringify({
             platform: data.platform,
             packageName: data.packageName,
             subscriptionId: googleSubscriptionId,
@@ -864,6 +866,7 @@ const createGooglePlaySubscriptionIntoDb = async (
           }),
           autoRenew: googlePurchaseData.autoRenewing || true,
           paymentStatus: PaymentStatus.COMPLETED,
+          platform: 'google', // Explicitly set platform to google
         },
       });
 
@@ -871,7 +874,7 @@ const createGooglePlaySubscriptionIntoDb = async (
       await tx.payment.create({
         data: {
           userId: userId,
-          appleTransactionId: googlePurchaseData.orderId,
+          appleTransactionId: googlePurchaseData.orderId, // Use orderId as transaction ID
           appleProductId: googleSubscriptionId,
           appleReceiptData: JSON.stringify(googlePurchaseData),
           paymentAmount: subscriptionOffer.price,

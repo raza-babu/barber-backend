@@ -10,7 +10,8 @@ model SubscriptionOffer {
   planType        SubscriptionPlanStatus @default(BASIC_PREMIUM)
   status          UserStatus             @default(ACTIVE)
   // Apple IAP Fields
-  appleProductId  String?                @unique // e.g., "com.barbershift.premium.monthly"
+  appleProductId  String? // e.g., "com.barbershift.premium.monthly"
+  googleProductId String? // e.g., "com.barberstime.barber_time_app.monthly"
   // Legacy Stripe Fields (deprecated)
   stripeProductId String?
   stripePriceId   String?

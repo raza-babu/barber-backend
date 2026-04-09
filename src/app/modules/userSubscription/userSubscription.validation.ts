@@ -43,20 +43,12 @@ const verifyAppleReceiptSchema = z.object({
 
 const verifyGooglePlayPurchaseSchema = z.object({
   body: z.object({
-    packageName: z.string({
-      required_error: 'Package name is required!',
-    }),
     purchaseToken: z.string({
       required_error: 'Purchase token is required!',
     }),
-    subscriptionId: z.string({
-      required_error: 'Subscription ID is required!',
-    }),
     productId: z.string({
       required_error: 'Product ID is required!',
-    }),
-    platform: z.string({
-      required_error: 'Platform is required!',
+      // Accepts both: short form (silver, gold, diamond) or full form (com.barberstime.barber_time_app.monthly, etc)
     }),
   }),
 });
@@ -88,14 +80,25 @@ const createGooglePaySubscriptionSchema = z.object({
 
 const checkGoogleSubscriptionStatusSchema = z.object({
   body: z.object({
-    packageName: z.string({
-      required_error: 'Package name is required!',
-    }).default('com.barberstime.barber_time_app'),
     purchaseToken: z.string({
       required_error: 'Purchase token is required!',
     }),
-    subscriptionId: z.string({
-      required_error: 'Subscription ID is required!',
+    productId: z.string({
+      required_error: 'Product ID is required!',
+      // Accepts both: short form (silver, gold, diamond) or full form (com.barberstime.barber_time_app.monthly, etc)
+    }),
+  }),
+});
+
+// Reuse the same schema for subscription history, acknowledge, and cancel endpoints
+const googlePlayPurchaseActionSchema = z.object({
+  body: z.object({
+    purchaseToken: z.string({
+      required_error: 'Purchase token is required!',
+    }),
+    productId: z.string({
+      required_error: 'Product ID is required!',
+      // Accepts both: short form (silver, gold, diamond) or full form (com.barberstime.barber_time_app.monthly, etc)
     }),
   }),
 });
@@ -107,4 +110,5 @@ export const userSubscriptionValidation = {
   verifyGooglePlayPurchaseSchema,
   createGooglePaySubscriptionSchema,
   checkGoogleSubscriptionStatusSchema,
+  googlePlayPurchaseActionSchema,
 };

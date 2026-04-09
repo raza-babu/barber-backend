@@ -9,10 +9,16 @@ model UserSubscription {
   appleTransactionId         String?
   appleProductId             String?
   appleOriginalTransactionId String? // For renewals/restores
+  // Google Play IAP fields
+  googleReceiptData          String? // Raw Google Play purchase data
+  googleTransactionId        String? // Purchase token from Google Play
+  googleProductId            String? // Google subscription ID (e.g., com.barberstime.barber_time_app.monthly)
+  googleOrderId              String? // Order ID from Google Play
   // Renewal settings
   autoRenew                  Boolean       @default(true)
   cancellationReason         String? // Why subscription was cancelled
   paymentStatus              PaymentStatus @default(PENDING)
+  platform                   String?       @default("apple") // "apple" or "google"
   createdAt                  DateTime      @default(now())
   updatedAt                  DateTime      @updatedAt
 

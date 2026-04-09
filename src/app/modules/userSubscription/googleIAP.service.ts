@@ -9,7 +9,8 @@ import { google } from 'googleapis';
  * Handles verification of Google Play In-App Purchase receipts
  */
 
-const GOOGLE_PLAY_API_BASE = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
+const GOOGLE_PLAY_API_BASE =
+  'https://androidpublisher.googleapis.com/androidpublisher/v3';
 
 /**
  * Mapping of subscription plan types to Google Play subscription IDs
@@ -33,18 +34,36 @@ const initializeGooglePlayClient = async () => {
       );
     }
 
+    let parsedCredentials;
+    try {
+      parsedCredentials = JSON.parse(config.google.credentials);
+    } catch (parseError: any) {
+      console.error('❌ Failed to parse Google credentials JSON:', parseError.message);
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        `Invalid Google credentials JSON: ${parseError.message}`,
+      );
+    }
+
     const auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(config.google.credentials),
+      credentials: parsedCredentials,
       scopes: ['https://www.googleapis.com/auth/androidpublisher'],
     });
 
     const authClient = await auth.getClient();
     return authClient;
   } catch (error: any) {
+    // If already an AppError, re-throw it
+    if (error instanceof AppError) {
+      throw error;
+    }
+
     console.error('❌ Failed to initialize Google Play client:', error.message);
+    console.error('Error details:', error);
+    
     throw new AppError(
       httpStatus.INTERNAL_SERVER_ERROR,
-      'Failed to initialize Google Play authentication',
+      `Google Play authentication failed: ${error.message}`,
     );
   }
 };
@@ -59,31 +78,13 @@ const verifyGooglePlayPurchase = async (
   purchaseToken: string,
 ): Promise<any> => {
   try {
-    // TEST MODE: For local testing
-    if (purchaseToken.startsWith('TEST_')) {
-      console.log('🧪 TEST MODE: Mocking Google Play purchase verification');
-      return {
-        kind: 'androidpublisher#subscriptionPurchase',
-        startTimeMillis: Date.now().toString(),
-        expiryTimeMillis: (Date.now() + 30 * 24 * 60 * 60 * 1000).toString(),
-        autoRenewing: true,
-        priceCurrencyCode: 'USD',
-        priceAmountMicros: '999000',
-        countryCode: 'US',
-        developerPayload: '',
-        paymentState: 1, // 1 = Purchased
-        orderId: 'TEST_ORDER_' + Date.now(),
-        packageName: packageName,
-        purchaseToken: purchaseToken,
-        subscriptionId: subscriptionId,
-      };
-    }
-
     // Get authenticated client
     const authClient = await initializeGooglePlayClient();
 
     console.log('🔗 Google Play API Request:');
-    console.log('   URL: /purchases/subscriptions/{subscriptionId}/tokens/{purchaseToken}');
+    console.log(
+      '   URL: /purchases/subscriptions/{subscriptionId}/tokens/{purchaseToken}',
+    );
     console.log('   Package Name:', packageName);
     console.log('   Subscription ID:', subscriptionId);
     console.log('   Method: GET');
@@ -134,7 +135,9 @@ const verifyGooglePlayPurchase = async (
       ...response.data,
       isValid: true,
       expiryDate: expiryTime.toISOString(),
-      startDate: new Date(parseInt(response.data.startTimeMillis)).toISOString(),
+      startDate: new Date(
+        parseInt(response.data.startTimeMillis),
+      ).toISOString(),
     };
   } catch (error: any) {
     console.error('❌ Google Play purchase verification error:', error.message);
@@ -142,7 +145,9 @@ const verifyGooglePlayPurchase = async (
     // Log detailed error info
     if (error.response?.status === 400) {
       console.error('   ❌ Bad Request (400)');
-      console.error('   Invalid package name, subscription ID, or purchase token');
+      console.error(
+        '   Invalid package name, subscription ID, or purchase token',
+      );
       throw new AppError(
         httpStatus.BAD_REQUEST,
         'Invalid purchase details. Please verify package name, subscription ID, and purchase token.',
@@ -197,18 +202,30 @@ const getGoogleAccessToken = async (authClient: any): Promise<string> => {
 
 /**
  * Validate subscription ID against supported plans
+ * Accepts both short form (silver, gold, diamond) and full form (com.barberstime.barber_time_app.monthly, etc)
  */
-const validateSubscriptionId = (planType: string): string => {
-  const subscriptionId = SUBSCRIPTION_ID_MAPPING[planType.toLowerCase()];
+const validateSubscriptionId = (planInput: string): string => {
+  const lowerInput = planInput.toLowerCase();
 
-  if (!subscriptionId) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `Invalid plan type. Supported types: ${Object.keys(SUBSCRIPTION_ID_MAPPING).join(', ')}`,
-    );
+  // First, try to match short form (silver, gold, diamond)
+  const shortFormMatch = SUBSCRIPTION_ID_MAPPING[lowerInput];
+  if (shortFormMatch) {
+    return shortFormMatch;
   }
 
-  return subscriptionId;
+  // Second, try to match full form (com.barberstime.barber_time_app.monthly, etc)
+  const fullFormMatch = Object.values(SUBSCRIPTION_ID_MAPPING).find(
+    value => value.toLowerCase() === lowerInput
+  );
+  if (fullFormMatch) {
+    return fullFormMatch;
+  }
+
+  // Invalid - throw error with supported types
+  throw new AppError(
+    httpStatus.BAD_REQUEST,
+    `Invalid plan type. Supported short forms: ${Object.keys(SUBSCRIPTION_ID_MAPPING).join(', ')} or full forms: ${Object.values(SUBSCRIPTION_ID_MAPPING).join(', ')}`,
+  );
 };
 
 /**

@@ -64,6 +64,7 @@ router.post(
 router.post(
   '/google/subscription-history',
   auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(userSubscriptionValidation.googlePlayPurchaseActionSchema),
   googleIAPController.getSubscriptionHistory,
 );
 
@@ -71,6 +72,7 @@ router.post(
 router.post(
   '/google/acknowledge',
   auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(userSubscriptionValidation.googlePlayPurchaseActionSchema),
   googleIAPController.acknowledgePurchase,
 );
 
@@ -78,6 +80,7 @@ router.post(
 router.post(
   '/google/cancel',
   auth(UserRoleEnum.SALOON_OWNER),
+  validateRequest(userSubscriptionValidation.googlePlayPurchaseActionSchema),
   googleIAPController.cancelSubscription,
 );
 
