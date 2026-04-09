@@ -21,6 +21,7 @@ const loadApplePrivateKey = () => {
 const parsePrivateKey = (keyString?: string) => {
   if (!keyString) return undefined;
   // Convert escaped newlines to actual newlines for PEM format
+  console.log("Original Key String:", keyString);
   return keyString.replace(/\\n/g, '\n');
 };
 
@@ -64,6 +65,7 @@ export default {
     private_key_id: process.env.FIREBASE_PRIVATE_ID,
     client_email: process.env.FIREBASE_CLIENT_EMAIL,
     client_id: process.env.FIREBASE_CLIENT_ID,
+    client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
   },
   apple: {
     bundleId: process.env.APPLE_BUNDLE_ID,
