@@ -1,12 +1,12 @@
-import cors from "cors";
-import express, { Application, NextFunction, Request, Response } from "express";
-import httpStatus from "http-status";
-import globalErrorHandler from "./app/middlewares/globalErrorHandler";
-import router from "./app/routes";
-import { logger, loggerConsole } from "./app/middlewares/logger";
-import path from "path";
-import { appleIAPController } from "./app/modules/userSubscription/appleIAP.controller";
-import { PaymentController } from "./app/modules/payment/payment.controller";
+import cors from 'cors';
+import express, { Application, NextFunction, Request, Response } from 'express';
+import httpStatus from 'http-status';
+import globalErrorHandler from './app/middlewares/globalErrorHandler';
+import router from './app/routes';
+import { logger, loggerConsole } from './app/middlewares/logger';
+import path from 'path';
+import { appleIAPController } from './app/modules/userSubscription/appleIAP.controller';
+import { PaymentController } from './app/modules/payment/payment.controller';
 
 const app: Application = express();
 
@@ -16,25 +16,27 @@ app.use(loggerConsole);
 app.use(
   cors({
     origin: [
-      "http://localhost:3001",
-      "http://localhost:3000",
-      "http://10.10.20.60:3005",
-      "http://10.10.10.15:56004",
-      "http://10.10.20.60:3006",
-      "http://10.10.20.60:3007",
-      "http://10.10.20.60:3008",
-      "https://dashboard.barberstime.com",
-      "https://www.dashboard.barberstime.com",
-      "https://barberowner.barberstime.com",
-      "https://www.barberowner.barberstime.com",
-      "http://13.48.206.147:5174",
-      "http://13.48.206.147:5175",
-      "https://barber-shift-owner-dashboard.vercel.app",
-      "https://barber-shift-dashboard.vercel.app",
-      
+      'http://localhost:3001',
+      'http://localhost:3000',
+      'http://10.10.20.60:3005',
+      'http://10.10.10.15:56004',
+      'http://10.10.20.60:3006',
+      'http://10.10.20.60:3007',
+      'http://10.10.20.60:3008',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175',
+      'https://dashboard.barberstime.com',
+      'https://www.dashboard.barberstime.com',
+      'https://barberowner.barberstime.com',
+      'https://www.barberowner.barberstime.com',
+      'http://13.48.206.147:5174',
+      'http://13.48.206.147:5175',
+      'https://barber-shift-owner-dashboard.vercel.app',
+      'https://barber-shift-dashboard.vercel.app',
     ],
     credentials: true,
-  })
+  }),
 );
 app.use(
   cors({
@@ -69,27 +71,25 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.get("/", (req: Request, res: Response) => {
+app.get('/', (req: Request, res: Response) => {
   res.send({
-    Message: "The server is running. . .",
+    Message: 'The server is running. . .',
   });
 });
 // Serve static files from 'public' folder
-app.use(express.static(path.join(process.cwd(), "public")));
+app.use(express.static(path.join(process.cwd(), 'public')));
 
-app.use("/api/v1", router);
+app.use('/api/v1', router);
 
 app.use(globalErrorHandler);
-
-
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.status(httpStatus.NOT_FOUND).json({
     success: false,
-    message: "API NOT FOUND!",
+    message: 'API NOT FOUND!',
     error: {
       path: req.originalUrl,
-      message: "Your requested path is not found!",
+      message: 'Your requested path is not found!',
     },
   });
 });

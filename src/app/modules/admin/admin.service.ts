@@ -922,6 +922,7 @@ const getSubscribersListFromDb = async (
         email: true,
         phoneNumber: true,
         subscriptionEnd: true,
+        subscriptionPlan: true,
         UserSubscription: {
           where: {
             paymentStatus: PaymentStatus.COMPLETED,
@@ -994,9 +995,10 @@ const getSubscribersListFromDb = async (
       email: subscriber.email,
       phoneNumber: subscriber.phoneNumber,
       subscriptionId: subscription?.id || null,
-      startDate: subscription?.startDate || null,
-      endDate: subscription?.endDate || null,
+      startDate: subscriber.UserSubscription?.[0]?.startDate || null,
+      endDate: subscriber.UserSubscription?.[0]?.endDate || null,
       subscriptionEnd: subscriber.subscriptionEnd || null,
+      subscriptionPlan: subscriber.subscriptionPlan || null,
       // stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
       paymentStatus: subscription?.paymentStatus || null,
       expired: subscription?.endDate ? subscription.endDate < new Date() : false,
