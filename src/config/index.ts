@@ -6,7 +6,7 @@ import path from "path";
 dotenv.config({ path: path.join(process.cwd(), ".env") });
 
 const loadApplePrivateKey = () => {
-  const keyPath = process.env.APPLE_PRIVATE_KEY_PATH || 'AuthKey_ZCH3L987YV.p8';
+  const keyPath = 'AuthKey_ZCH3L987YV.p8';
   const resolvedPath = path.isAbsolute(keyPath)
     ? keyPath
     : path.join(process.cwd(), keyPath);
@@ -18,10 +18,16 @@ const loadApplePrivateKey = () => {
   }
 };
 
-const parsePrivateKey = (keyString?: string) => {
-  if (!keyString) return undefined;
-  // Convert escaped newlines to actual newlines for PEM format
-  return keyString.replace(/\\n/g, '\n');
+const loadFirebaseConfig = () => {
+  const firebaseConfigPath = path.join(process.cwd(), 'firebase.config.json');
+
+  
+  try {
+    const firebaseContent = fs.readFileSync(firebaseConfigPath, 'utf-8');
+    return JSON.parse(firebaseContent);
+  } catch (error) {
+    throw new Error(`Failed to read Firebase config file at ${firebaseConfigPath}`);
+  }
 };
 
 export default {
@@ -58,14 +64,7 @@ export default {
     stripe_publishable_key: process.env.STRIPE_PUBLISHABLE_KEY,
     stripe_platform_account_id: process.env.STRIPE_PLATFORM_ACCOUNT_ID,
   },
-  firebase: {
-    project_id: process.env.FIREBASE_PROJECT_ID,
-    private_key: parsePrivateKey(process.env.FIREBASE_PRIVATE_KEY),
-    private_key_id: process.env.FIREBASE_PRIVATE_ID,
-    client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    client_id: process.env.FIREBASE_CLIENT_ID,
-    client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
-  },
+  firebase: loadFirebaseConfig(),
   apple: {
     bundleId: process.env.APPLE_BUNDLE_ID,
     issuerId: process.env.APPLE_ISSUER_ID,
