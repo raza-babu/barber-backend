@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import fs from "fs";
+import { firebase } from "googleapis/build/src/apis/firebase";
 import path from "path";
 
 dotenv.config({ path: path.join(process.cwd(), ".env") });
@@ -51,6 +52,12 @@ export default {
     stripe_publishable_key: process.env.STRIPE_PUBLISHABLE_KEY,
     stripe_platform_account_id: process.env.STRIPE_PLATFORM_ACCOUNT_ID,
   },
+  firebase: {
+    project_id: process.env.FIREBASE_PROJECT_ID,
+    private_key: process.env.FIREBASE_PRIVATE_KEY,
+    private_key_id: process.env.FIREBASE_PRIVATE_ID,
+    client_email: process.env.FIREBASE_CLIENT_EMAIL,
+  },
   apple: {
     bundleId: process.env.APPLE_BUNDLE_ID,
     issuerId: process.env.APPLE_ISSUER_ID,
@@ -79,4 +86,5 @@ export default {
   },
   backend_base_url: process.env.BACKEND_BASE_URL,
   frontend_base_url: process.env.FRONTEND_BASE_URL,
+
 };
