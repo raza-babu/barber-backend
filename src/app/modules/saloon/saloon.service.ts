@@ -59,6 +59,15 @@ const manageBookingsIntoDb = async (
         'Status cannot be changed back to pending',
       );
 
+    case BookingStatus.CONFIRMED:
+      if (currentStatus !== BookingStatus.PENDING) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Only pending bookings can be confirmed',
+        );
+      }
+      break;
+
     case BookingStatus.COMPLETED:
       // COMPLETED validations - check for invalid states first
       if (currentStatus === BookingStatus.CANCELLED) {
@@ -73,7 +82,7 @@ const manageBookingsIntoDb = async (
           'No-show bookings cannot be marked as completed',
         );
       }
-      if (currentStatus !== (BookingStatus.CONFIRMED || BookingStatus.ENDED)) {
+      if (currentStatus !== BookingStatus.CONFIRMED && currentStatus !== BookingStatus.ENDED) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
           'Only confirmed and ended bookings can be marked as completed',
