@@ -28,6 +28,13 @@ router.post(
   appleIAPController.handleAppleWebhook,
 );
 
+// POST: Google Play Pub/Sub Notifications Webhook
+// IMPORTANT: This endpoint does NOT require authentication as it's called by Google Pub/Sub
+router.post(
+  '/google/webhook',
+  googleIAPController.handleGooglePlayWebhook,
+);
+
 // POST: Check subscription status via transaction ID
 router.post(
   '/apple/check-status',

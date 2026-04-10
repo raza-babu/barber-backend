@@ -1,5 +1,5 @@
 import prisma from '../../utils/prisma';
-import { PaymentStatus, SubscriptionPlanStatus } from '@prisma/client';
+import { PaymentStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { appleIAPService } from './appleIAP.service';

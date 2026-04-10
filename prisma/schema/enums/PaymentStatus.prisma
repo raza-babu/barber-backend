@@ -7,4 +7,5 @@ enum PaymentStatus {
   REFUNDED
   REQUIRES_CAPTURE
   CANCELLED
+  PAUSED
 }

@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { googleIAPService } from './googleIAP.service';
+import { googleWebhookService } from './googleWebhook.service';
 import config from '../../../config';
 
 /**
@@ -232,10 +233,77 @@ const cancelSubscription = catchAsync(async (req, res) => {
   });
 });
 
+/**
+ * Handle Google Play Pub/Sub webhook
+ * Receives real-time subscription events from Google Play
+ * IMPORTANT: This endpoint does NOT require authentication as it's called by Google Pub/Sub
+ */
+const handleGooglePlayWebhook = catchAsync(async (req, res) => {
+  try {
+    const pubsubMessage = req.body.message;
+
+    if (!pubsubMessage) {
+      return sendResponse(res, {
+        statusCode: httpStatus.BAD_REQUEST,
+        success: false,
+        message: 'Invalid Pub/Sub message format',
+        data: null,
+      });
+    }
+
+    console.log('🔔 Google Play Pub/Sub webhook received');
+
+    // Extract project_id from credentials
+    let projectId: string | undefined;
+    if (config.google?.credentials) {
+      try {
+        const credentialsObj = typeof config.google.credentials === 'string'
+          ? JSON.parse(config.google.credentials)
+          : config.google.credentials;
+        projectId = credentialsObj.project_id;
+      } catch (error) {
+        console.warn('⚠️ Failed to extract project_id from credentials:', error);
+      }
+    }
+
+    // Process the webhook
+    const result = await googleWebhookService.handleGooglePlayWebhook(
+      pubsubMessage,
+      projectId,
+    );
+
+    // Always respond with 200 to acknowledge receipt by Pub/Sub
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: result.success,
+      message: result.message,
+      data: {
+        notificationType: result.notificationType,
+        processed: true,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Error in Google Play webhook:', error);
+
+    // Always return 200 to prevent Pub/Sub retries
+    // Error is logged for monitoring/alerting
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: false,
+      message: 'Webhook received but processing failed',
+      data: {
+        error: error.message,
+        processed: false,
+      },
+    });
+  }
+});
+
 export const googleIAPController = {
   verifyGooglePlayPurchase,
   checkSubscriptionStatus,
   getSubscriptionHistory,
   acknowledgePurchase,
   cancelSubscription,
+  handleGooglePlayWebhook,
 };
