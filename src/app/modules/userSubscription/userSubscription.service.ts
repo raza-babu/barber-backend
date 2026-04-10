@@ -12,6 +12,7 @@ import emailSender from '../../utils/emailSender';
 import { appleIAPService } from './appleIAP.service';
 import { googleIAPService } from './googleIAP.service';
 import jwt from 'jsonwebtoken';
+import { notificationService } from '../notification/notification.service';
 
 const extractAppleTransactionMetadata = (
   receiptData?: string,
@@ -358,6 +359,31 @@ const createUserSubscriptionIntoDb = async (
     // Don't fail the subscription creation if email fails
   }
 
+  // Send push notification to user about subscription activation
+  try {
+    const subscriber = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fcmToken: true, fullName: true },
+    });
+
+    if (subscriber?.fcmToken) {
+      const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription is now active! Enjoy all premium features.`;
+      
+      await notificationService
+        .sendNotification(
+          subscriber.fcmToken,
+          'Subscription Activated',
+          message,
+          userId,
+        )
+        .catch(error =>
+          console.error('Error sending subscription activation notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending subscription activation notification:', error);
+  }
+
   return result;
 };
 
@@ -560,6 +586,31 @@ const updateUserSubscriptionIntoDb = async (
     },
   );
 
+  // Send push notification to user about subscription renewal
+  try {
+    const subscriber = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fcmToken: true, fullName: true },
+    });
+
+    if (subscriber?.fcmToken) {
+      const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription has been renewed successfully!`;
+      
+      await notificationService
+        .sendNotification(
+          subscriber.fcmToken,
+          'Subscription Renewed',
+          message,
+          userId,
+        )
+        .catch(error =>
+          console.error('Error sending subscription renewal notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending subscription renewal notification:', error);
+  }
+
   return result;
 };
 
@@ -597,6 +648,32 @@ const cancelAutomaticRenewalIntoDb = async (
       subscription: updatedSubscription,
     };
   });
+
+  // Send push notification to user about automatic renewal cancellation
+  try {
+    const subscriber = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fcmToken: true, fullName: true },
+    });
+
+    if (subscriber?.fcmToken) {
+      const expireDate = result.subscription.endDate.toLocaleDateString();
+      const message = `${subscriber.fullName}, automatic renewal is now disabled. Your subscription will expire on ${expireDate}.`;
+      
+      await notificationService
+        .sendNotification(
+          subscriber.fcmToken,
+          'Automatic Renewal Cancelled',
+          message,
+          userId,
+        )
+        .catch(error =>
+          console.error('Error sending renewal cancellation notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending renewal cancellation notification:', error);
+  }
 
   return result;
 };
@@ -654,6 +731,31 @@ const deleteCustomerSubscriptionItemFromDb = async (
       saloonOwnerId: saloonOwnerId,
     };
   });
+
+  // Send push notification to salon owner about subscription cancellation
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: saloonOwnerId },
+      select: { fcmToken: true, fullName: true },
+    });
+
+    if (owner?.fcmToken) {
+      const message = `${owner.fullName}, your subscription has been cancelled by an administrator. Your premium access is now revoked.`;
+      
+      await notificationService
+        .sendNotification(
+          owner.fcmToken,
+          'Subscription Cancelled',
+          message,
+          saloonOwnerId,
+        )
+        .catch(error =>
+          console.error('Error sending admin cancellation notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending admin cancellation notification:', error);
+  }
 
   return result;
 };
@@ -724,6 +826,31 @@ const deleteUserSubscriptionItemFromDb = async (
       cancelledSubscriptionId: existing.id,
     };
   });
+
+  // Send push notification to user about subscription cancellation
+  try {
+    const subscriber = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fcmToken: true, fullName: true },
+    });
+
+    if (subscriber?.fcmToken) {
+      const message = `${subscriber.fullName}, your subscription has been cancelled. You will lose access to premium features.`;
+      
+      await notificationService
+        .sendNotification(
+          subscriber.fcmToken,
+          'Subscription Cancelled',
+          message,
+          userId,
+        )
+        .catch(error =>
+          console.error('Error sending user cancellation notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending user cancellation notification:', error);
+  }
 
   return result;
 };
@@ -909,6 +1036,31 @@ const createGooglePlaySubscriptionIntoDb = async (
   } catch (emailError) {
     console.error('Email sending failed:', emailError);
     // Continue despite email error
+  }
+
+  // Send push notification to user about Google Play subscription activation
+  try {
+    const subscriber = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fcmToken: true, fullName: true },
+    });
+
+    if (subscriber?.fcmToken) {
+      const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription is now active! Enjoy all premium features.`;
+      
+      await notificationService
+        .sendNotification(
+          subscriber.fcmToken,
+          'Subscription Activated',
+          message,
+          userId,
+        )
+        .catch(error =>
+          console.error('Error sending Google Play subscription activation notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending Google Play subscription activation notification:', error);
   }
 
   return result;

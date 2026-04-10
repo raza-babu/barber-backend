@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import emailSender from '../../utils/emailSender';
+import { notificationService } from '../notification/notification.service';
 import {
   ReplyStatus,
   ReplyType,
@@ -40,6 +41,34 @@ const createSupportRepliesIntoDb = async (userId: string, data: any) => {
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Support Item is not created');
   }
+
+  // Send notification to user about support ticket creation
+  try {
+    if (user?.id) {
+      const userRecord = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { fcmToken: true },
+      });
+
+      if (userRecord?.fcmToken) {
+        const message = `Your support ticket has been received: ${data.message?.substring(0, 50)}...`;
+        
+        await notificationService
+          .sendNotification(
+            userRecord.fcmToken,
+            'Support Ticket Created',
+            message,
+            user.id,
+          )
+          .catch(error =>
+            console.error('Error sending support creation notification:', error),
+          );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending support ticket creation notification:', error);
+  }
+
   return result;
 };
 
@@ -296,6 +325,26 @@ const updateSupportByIdFromDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Reply not created');
     }
 
+    // Send notification to user about support reply
+    try {
+      if (userData?.fcmToken) {
+        const message = `Your support ticket has been updated: ${data.message.substring(0, 50)}...`;
+        
+        await notificationService
+          .sendNotification(
+            userData.fcmToken,
+            'Support Reply Received',
+            message,
+            data.userId,
+          )
+          .catch(error =>
+            console.error('Error sending support reply notification:', error),
+          );
+      }
+    } catch (error) {
+      console.error('Error sending support reply notification:', error);
+    }
+
     return updateReplies;
   });
 };
@@ -394,6 +443,27 @@ const updateSupportRepliesIntoDb = async (
     if (!reportUpdate) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Reply not created');
     }
+
+    // Send notification to user about support update
+    try {
+      if (userData?.fcmToken) {
+        const message = `Your support issue has been updated: ${data.message.substring(0, 50)}...`;
+        
+        await notificationService
+          .sendNotification(
+            userData.fcmToken,
+            'Support Status Updated',
+            message,
+            data.userId,
+          )
+          .catch(error =>
+            console.error('Error sending support update notification:', error),
+          );
+      }
+    } catch (error) {
+      console.error('Error sending support update notification:', error);
+    }
+
     return reportUpdate;
   });
 };
@@ -465,6 +535,11 @@ const deleteSupportRepliesItemFromDb = async (
   userId: string,
   supportRepliesId: string,
 ) => {
+  const supportItem = await prisma.support.findUnique({
+    where: { id: supportRepliesId },
+    select: { userId: true, message: true },
+  });
+
   const deletedItem = await prisma.support.delete({
     where: {
       id: supportRepliesId,
@@ -475,6 +550,33 @@ const deleteSupportRepliesItemFromDb = async (
       httpStatus.BAD_REQUEST,
       'supportRepliesId is not deleted',
     );
+  }
+
+  // Send notification to user about support deletion
+  try {
+    if (supportItem?.userId) {
+      const userRecord = await prisma.user.findUnique({
+        where: { id: supportItem.userId },
+        select: { fcmToken: true, fullName: true },
+      });
+
+      if (userRecord?.fcmToken) {
+        const message = `Your support ticket has been deleted`;
+        
+        await notificationService
+          .sendNotification(
+            userRecord.fcmToken,
+            'Support Ticket Deleted',
+            message,
+            supportItem.userId,
+          )
+          .catch(error =>
+            console.error('Error sending support deletion notification:', error),
+          );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending support deletion notification:', error);
   }
 
   return deletedItem;

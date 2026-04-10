@@ -7,6 +7,7 @@ import AppError from '../../errors/AppError';
 import emailSender from '../../utils/emailSender';
 import { generateToken, refreshToken } from '../../utils/generateToken';
 import prisma from '../../utils/prisma';
+import { notificationService } from '../notification/notification.service';
 import { SubscriptionPlanStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import FormData from 'form-data';
@@ -152,6 +153,32 @@ const registerUserIntoDB = async (payload: any) => {
 
       `,
   );
+
+  // Send notification to user about registration
+  try {
+    const registeredUser = await prisma.user.findUnique({
+      where: { email: payload.email },
+      select: { id: true, fcmToken: true, fullName: true },
+    });
+
+    if (registeredUser?.fcmToken) {
+      const message = `Welcome to Barbers Time, ${registeredUser.fullName}! Please verify your email with the OTP sent.`;
+      
+      await notificationService
+        .sendNotification(
+          registeredUser.fcmToken,
+          'Verify Your Email',
+          message,
+          registeredUser.id,
+        )
+        .catch(error =>
+          console.error('Error sending registration notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending registration notification:', error);
+  }
+
   return { message: 'OTP sent via your email successfully' };
 };
 
@@ -1054,6 +1081,26 @@ const verifyOtpInDB = async (bodyData: {
     throw new AppError(httpStatus.BAD_REQUEST, 'Stripe customer not created!');
   }
 
+  // Send notification to user about OTP verification
+  try {
+    if (userData?.fcmToken) {
+      const message = `Welcome ${userData.fullName}! Your email has been verified successfully.`;
+      
+      await notificationService
+        .sendNotification(
+          userData.fcmToken,
+          'Email Verified',
+          message,
+          userData.id,
+        )
+        .catch(error =>
+          console.error('Error sending OTP verification notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending OTP verification notification:', error);
+  }
+
   return { message: 'OTP verified successfully!' };
 };
 
@@ -1299,6 +1346,26 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
     response.onBoarding = userRecord.onBoarding;
   }
 
+  // Send notification to user about social login
+  try {
+    if (userRecord.id && payload.fcmToken) {
+      const message = `Welcome back to Barbers Time, ${userRecord.fullName}!`;
+      
+      await notificationService
+        .sendNotification(
+          payload.fcmToken,
+          'Login Successful',
+          message,
+          userRecord.id,
+        )
+        .catch(error =>
+          console.error('Error sending social login notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending social login notification:', error);
+  }
+
   return response;
 };
 
@@ -1319,6 +1386,27 @@ const updatePasswordIntoDb = async (payload: any) => {
       password: hashedPassword,
     },
   });
+
+  // Send notification to user about password update
+  try {
+    if (userData?.fcmToken) {
+      const message = `Your password has been successfully updated.`;
+      
+      await notificationService
+        .sendNotification(
+          userData.fcmToken,
+          'Password Updated',
+          message,
+          userData.id,
+        )
+        .catch(error =>
+          console.error('Error sending password update notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending password update notification:', error);
+  }
+
   return {
     message: 'Password updated successfully!',
   };
@@ -1341,8 +1429,8 @@ const deleteAccountFromDB = async (
 
   // match password from the user given input
   const checkPassword: boolean = await bcrypt.compare(
-    userData.password!,
     data.password,
+    userData.password!,
   );
   if (!checkPassword) {
     throw new AppError(httpStatus.CONFLICT, 'Password is incorrect!');
@@ -1355,6 +1443,27 @@ const deleteAccountFromDB = async (
       deleteReason: data.reason || 'No reason provided',
     },
   });
+
+  // Send notification to user about account deletion
+  try {
+    if (userData?.fcmToken) {
+      const message = `Your account has been successfully deleted. If this was a mistake, please contact support.`;
+      
+      await notificationService
+        .sendNotification(
+          userData.fcmToken,
+          'Account Deleted',
+          message,
+          id,
+        )
+        .catch(error =>
+          console.error('Error sending account deletion notification:', error),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending account deletion notification:', error);
+  }
+
   return { message: 'Account deleted successfully!' };
 };
 

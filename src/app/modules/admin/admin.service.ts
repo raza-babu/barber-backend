@@ -995,6 +995,11 @@ const getSubscribersListFromDb = async (
         phoneNumber: true,
         subscriptionEnd: true,
         subscriptionPlan: true,
+        SaloonOwner: {
+          select: {
+            shopName: true,
+          },
+        },
         UserSubscription: {
           orderBy: {
             endDate: 'desc',
@@ -1048,12 +1053,13 @@ const getSubscribersListFromDb = async (
   const flattenedSubscribers = subscribers.map((subscriber: any) => {
     const subscription = subscriber.UserSubscription?.[0];
     const latestPayment = subscriber.Payment?.[0];
-
+ 
     return {
       id: subscriber.id,
       fullName: subscriber.fullName,
       email: subscriber.email,
       phoneNumber: subscriber.phoneNumber,
+      shopName: subscriber.SaloonOwner?.[0]?.shopName || null,
       subscriptionId: subscription?.id || null,
       startDate: subscription?.startDate || null,
       endDate: subscription?.endDate || null,
@@ -1062,8 +1068,8 @@ const getSubscribersListFromDb = async (
       subscriptionPrice: subscription?.subscriptionOffer?.price || null,
       subscriptionTitle: subscription?.subscriptionOffer?.title || null,
       paymentStatus: subscription?.paymentStatus || null,
-      expired: subscription?.endDate
-        ? new Date(subscription.endDate) < new Date()
+      expired: subscriber.subscriptionEnd
+        ? new Date(subscriber.subscriptionEnd) < new Date()
         : null,
       lastSubscriptionPaymentDate: latestPayment?.paymentIntentId ? latestPayment.paymentDate : null,
       latestPayment: latestPayment

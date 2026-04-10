@@ -3,6 +3,7 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { DateTime } from 'luxon';
 import config from '../../../config';
+import { notificationService } from '../notification/notification.service';
 
 // Type for schedule input
 type ScheduleInput = {
@@ -88,6 +89,52 @@ const createSaloonScheduleIntoDb = async (
     }
 
     return createdSchedules;
+  }).then(async (result) => {
+    // Send notification to followers about schedule creation
+    try {
+      const saloon = await prisma.saloonOwner.findUnique({
+        where: { userId },
+        select: { user: { select: { fullName: true } } },
+      });
+
+      const followers = await prisma.follow.findMany({
+        where: { followingId: userId },
+        select: { userId: true },
+      });
+
+      if (followers.length > 0) {
+        const followerIds = followers.map(f => f.userId);
+        const followerTokens = await prisma.user.findMany({
+          where: { id: { in: followerIds } },
+          select: { id: true, fcmToken: true },
+        });
+
+        const saloonName = saloon?.user?.fullName || 'Salon';
+        const daysCount = mappedSchedules.length;
+        const message = `${saloonName} updated its schedule for ${daysCount} days`;
+
+        await Promise.all(
+          followerTokens
+            .filter(f => f.fcmToken)
+            .map(f =>
+              notificationService
+                .sendNotification(
+                  f.fcmToken!,
+                  'Salon Schedule Updated',
+                  message,
+                  f.id,
+                )
+                .catch(error =>
+                  console.error('Error sending schedule creation notification:', error),
+                ),
+            ),
+        );
+      }
+    } catch (error) {
+      console.error('Error sending schedule creation notifications:', error);
+    }
+
+    return result;
   });
 };
 
@@ -193,6 +240,51 @@ const updateSaloonScheduleIntoDb = async (
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'saloonScheduleId, not updated');
   }
+
+  // Send notification to followers about schedule update
+  try {
+    const saloon = await prisma.saloonOwner.findUnique({
+      where: { userId },
+      select: { user: { select: { fullName: true } } },
+    });
+
+    const followers = await prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { userId: true },
+    });
+
+    if (followers.length > 0) {
+      const followerIds = followers.map(f => f.userId);
+      const followerTokens = await prisma.user.findMany({
+        where: { id: { in: followerIds } },
+        select: { id: true, fcmToken: true },
+      });
+
+      const saloonName = saloon?.user?.fullName || 'Salon';
+      const statusText = data.isActive ? 'opened' : 'closed';
+      const message = `${saloonName} ${result.dayName} schedule is now ${statusText}`;
+
+      await Promise.all(
+        followerTokens
+          .filter(f => f.fcmToken)
+          .map(f =>
+            notificationService
+              .sendNotification(
+                f.fcmToken!,
+                'Salon Schedule Updated',
+                message,
+                f.id,
+              )
+              .catch(error =>
+                console.error('Error sending schedule update notification:', error),
+              ),
+          ),
+      );
+    }
+  } catch (error) {
+    console.error('Error sending schedule update notifications:', error);
+  }
+
   return result;
 };
 
@@ -204,6 +296,49 @@ const deleteSaloonScheduleItemFromDb = async (userId: string) => {
   });
   if (!deletedItem) {
     throw new AppError(httpStatus.BAD_REQUEST, 'saloonScheduleId, not deleted');
+  }
+
+  // Send notification to followers about schedule deletion
+  try {
+    const saloon = await prisma.saloonOwner.findUnique({
+      where: { userId },
+      select: { user: { select: { fullName: true } } },
+    });
+
+    const followers = await prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { userId: true },
+    });
+
+    if (followers.length > 0) {
+      const followerIds = followers.map(f => f.userId);
+      const followerTokens = await prisma.user.findMany({
+        where: { id: { in: followerIds } },
+        select: { id: true, fcmToken: true },
+      });
+
+      const saloonName = saloon?.user?.fullName || 'Salon';
+      const message = `${saloonName} schedule has been cleared`;
+
+      await Promise.all(
+        followerTokens
+          .filter(f => f.fcmToken)
+          .map(f =>
+            notificationService
+              .sendNotification(
+                f.fcmToken!,
+                'Salon Schedule Cleared',
+                message,
+                f.id,
+              )
+              .catch(error =>
+                console.error('Error sending schedule deletion notification:', error),
+              ),
+          ),
+      );
+    }
+  } catch (error) {
+    console.error('Error sending schedule deletion notifications:', error);
   }
 
   return deletedItem;

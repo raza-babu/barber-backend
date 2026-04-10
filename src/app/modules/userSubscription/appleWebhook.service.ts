@@ -3,6 +3,7 @@ import { PaymentStatus, SubscriptionPlanStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { appleIAPService } from './appleIAP.service';
+import { notificationService } from '../notification/notification.service';
 
 /**
  * Apple Server-to-Server Notification Handler
@@ -82,6 +83,32 @@ const handleSubscribedNotification = async (
     });
 
     console.log('✅ User subscribed:', updatedData.id);
+    
+    // Send push notification to user about subscription
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: subscription.userId },
+        select: { fcmToken: true, fullName: true },
+      });
+
+      if (user?.fcmToken && subscription.subscriptionOffer) {
+        const message = `${user.fullName}, your ${subscription.subscriptionOffer.planType} subscription has been activated successfully!`;
+        
+        await notificationService
+          .sendNotification(
+            user.fcmToken,
+            'Subscription Activated',
+            message,
+            subscription.userId,
+          )
+          .catch(error =>
+            console.error('Error sending subscription activation webhook notification:', error),
+          );
+      }
+    } catch (error) {
+      console.error('Error sending subscription activation webhook notification:', error);
+    }
+    
     return updatedData;
   } catch (error) {
     console.error('Error handling subscription notification:', error);
@@ -160,6 +187,32 @@ const handleRenewalNotification = async (
     });
 
     console.log('✅ Subscription renewed:', updatedSubscription.id);
+    
+    // Send push notification to user about subscription renewal
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: subscription.userId },
+        select: { fcmToken: true, fullName: true },
+      });
+
+      if (user?.fcmToken && subscription.subscriptionOffer) {
+        const message = `${user.fullName}, your ${subscription.subscriptionOffer.planType} subscription has been renewed automatically!`;
+        
+        await notificationService
+          .sendNotification(
+            user.fcmToken,
+            'Subscription Renewed',
+            message,
+            subscription.userId,
+          )
+          .catch(error =>
+            console.error('Error sending subscription renewal webhook notification:', error),
+          );
+      }
+    } catch (error) {
+      console.error('Error sending subscription renewal webhook notification:', error);
+    }
+    
     return updatedSubscription;
   } catch (error) {
     console.error('Error handling renewal notification:', error);
@@ -234,6 +287,32 @@ const handleCancellationNotification = async (
     });
 
     console.log('❌ Subscription cancelled:', cancelledSubscription.id);
+    
+    // Send push notification to user about subscription cancellation
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: subscription.userId },
+        select: { fcmToken: true, fullName: true },
+      });
+
+      if (user?.fcmToken) {
+        const message = `${user.fullName}, your subscription has been cancelled. You will no longer have access to premium features.`;
+        
+        await notificationService
+          .sendNotification(
+            user.fcmToken,
+            'Subscription Cancelled',
+            message,
+            subscription.userId,
+          )
+          .catch(error =>
+            console.error('Error sending subscription cancellation webhook notification:', error),
+          );
+      }
+    } catch (error) {
+      console.error('Error sending subscription cancellation webhook notification:', error);
+    }
+    
     return cancelledSubscription;
   } catch (error) {
     console.error('Error handling cancellation notification:', error);
@@ -308,6 +387,32 @@ const handleExpirationNotification = async (
     });
 
     console.log('⏰ Subscription expired:', expiredSubscription.id);
+    
+    // Send push notification to user about subscription expiration
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: subscription.userId },
+        select: { fcmToken: true, fullName: true },
+      });
+
+      if (user?.fcmToken) {
+        const message = `${user.fullName}, your subscription has expired. Renew now to continue enjoying premium features!`;
+        
+        await notificationService
+          .sendNotification(
+            user.fcmToken,
+            'Subscription Expired',
+            message,
+            subscription.userId,
+          )
+          .catch(error =>
+            console.error('Error sending subscription expiration webhook notification:', error),
+          );
+      }
+    } catch (error) {
+      console.error('Error sending subscription expiration webhook notification:', error);
+    }
+    
     return expiredSubscription;
   } catch (error) {
     console.error('Error handling expiration notification:', error);
@@ -388,6 +493,32 @@ const handleFailedRenewalNotification = async (
       '⚠️ Subscription renewal failed (will retry):',
       failedSubscription.id,
     );
+    
+    // Send push notification to user about failed renewal
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: subscription.userId },
+        select: { fcmToken: true, fullName: true },
+      });
+
+      if (user?.fcmToken) {
+        const message = `${user.fullName}, your subscription renewal failed. Please update your payment method to continue service.`;
+        
+        await notificationService
+          .sendNotification(
+            user.fcmToken,
+            'Renewal Failed - Action Required',
+            message,
+            subscription.userId,
+          )
+          .catch(error =>
+            console.error('Error sending failed renewal webhook notification:', error),
+          );
+      }
+    } catch (error) {
+      console.error('Error sending failed renewal webhook notification:', error);
+    }
+    
     return failedSubscription;
   } catch (error) {
     console.error('Error handling failed renewal notification:', error);
@@ -415,6 +546,7 @@ const handleRefundNotification = async (
           { appleOriginalTransactionId: data.originalTransactionId },
         ],
       },
+      include: { subscriptionOffer: true },
     });
 
     let userId = subscription?.userId;
@@ -496,6 +628,34 @@ const handleRefundNotification = async (
       refundResult.refundedPayments.length,
       'payments',
     );
+    
+    // Send push notification to user about refund
+    if (subscription) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: subscription.userId },
+          select: { fcmToken: true, fullName: true },
+        });
+
+        if (user?.fcmToken) {
+          const message = `${user.fullName}, a refund of $${subscription.subscriptionOffer?.price || 'N/A'} has been processed for your subscription.`;
+          
+          await notificationService
+            .sendNotification(
+              user.fcmToken,
+              'Refund Processed',
+              message,
+              subscription.userId,
+            )
+            .catch(error =>
+              console.error('Error sending refund webhook notification:', error),
+            );
+        }
+      } catch (error) {
+        console.error('Error sending refund webhook notification:', error);
+      }
+    }
+    
     return refundResult;
   } catch (error) {
     console.error('Error handling refund notification:', error);

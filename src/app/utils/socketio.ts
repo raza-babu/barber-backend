@@ -4,6 +4,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import prisma from './prisma';
 import { socketAuth } from '../middlewares/socketAuth';
 import { SubscriptionPlanStatus, UserRoleEnum } from '@prisma/client';
+import { notificationService } from '../modules/notification/notification.service';
 
 const onlineUsers = new Set<string>();
 const userSockets = new Map<string, Socket>();
@@ -157,6 +158,37 @@ export function setupSocketIO(server: HTTPServer) {
         }
         // Emit the message to the room
         messagesNameSpace.to(roomName).emit('message', chat);
+
+        // Send push notification to receiver about the new message
+        try {
+          const sender = await prisma.user.findUnique({
+            where: { id: id },
+            select: { fullName: true },
+          });
+
+          const receiverUser = await prisma.user.findUnique({
+            where: { id: payload.receiverId },
+            select: { fcmToken: true, fullName: true },
+          });
+
+          if (receiverUser?.fcmToken && sender?.fullName) {
+            const messagePreview = payload.message.substring(0, 50);
+            const message = `New message from ${sender.fullName}: ${messagePreview}${payload.message.length > 50 ? '...' : ''}`;
+            
+            await notificationService
+              .sendNotification(
+                receiverUser.fcmToken,
+                'New Message',
+                message,
+                payload.receiverId,
+              )
+              .catch(error =>
+                console.error('Error sending message notification:', error),
+              );
+          }
+        } catch (error) {
+          console.error('Error sending message notification:', error);
+        }
 
         // Emit updated messageList to both sender and receiver
         //  [socketio.ts](http://_vscodecontentref_/3)

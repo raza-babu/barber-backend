@@ -16,6 +16,7 @@ import {
 } from '../../utils/pagination';
 import prisma from '../../utils/prisma';
 import config from '../../../config';
+import { notificationService } from '../notification/notification.service';
 
 // Initialize Stripe
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -260,6 +261,39 @@ const manageBookingsIntoDb = async (
         status: targetStatus,
       },
     });
+
+    // Send notification to customer about booking status change
+    try {
+      const customer = await prisma.user.findUnique({
+        where: { id: booking.userId },
+        select: { fcmToken: true  },
+      });
+
+      let notificationTitle = 'Booking Updated';
+      let notificationMessage = 'Your booking status has been updated.';
+
+      if (targetStatus === BookingStatus.COMPLETED) {
+        notificationTitle = 'Booking Completed';
+        notificationMessage = 'Your booking has been completed. Thank you for visiting!';
+      } else if (targetStatus === BookingStatus.NO_SHOW) {
+        notificationTitle = 'Booking Marked as No-Show';
+        notificationMessage = 'Your booking was marked as no-show.';
+      } else if (targetStatus === BookingStatus.CANCELLED) {
+        notificationTitle = 'Booking Cancelled';
+        notificationMessage = 'Your booking has been cancelled and refunded.';
+      }
+
+      if (customer?.fcmToken) {
+        await notificationService.sendNotification(
+          customer.fcmToken,
+          notificationTitle,
+          notificationMessage,
+          booking.userId,
+        ).catch(error => console.error('Error sending booking notification:', error));
+      }
+    } catch (error) {
+      console.error('Error sending booking status notification:', error);
+    }
 
     // ---------- Handle Post-Completion/NO_SHOW Tasks ----------
     if (targetStatus === BookingStatus.COMPLETED || targetStatus === BookingStatus.NO_SHOW) {
@@ -1560,6 +1594,29 @@ const terminateBarberIntoDb = async (
         httpStatus.BAD_REQUEST,
         'Barber not found or not deleted',
       );
+    }
+
+    // Send notification to barber about termination
+    try {
+      const terminatedBarber = await prisma.barber.findUnique({
+        where: { userId: data.barberId },
+        select: { user: { select: { fcmToken: true, fullName: true } } },
+      });
+
+      if (terminatedBarber?.user?.fcmToken) {
+        const terminationDateStr = data.date.toFormat('MMM dd, yyyy');
+        const reasonText = data.reason ? ` Reason: ${data.reason}` : '';
+        const message = `Your employment has been terminated effective ${terminationDateStr}.${reasonText}`;
+        
+        await notificationService.sendNotification(
+          terminatedBarber.user.fcmToken,
+          'Employment Terminated',
+          message,
+          data.barberId,
+        ).catch(error => console.error('Error sending termination notification:', error));
+      }
+    } catch (error) {
+      console.error('Error sending barber termination notification:', error);
     }
 
     return terminationRecord;

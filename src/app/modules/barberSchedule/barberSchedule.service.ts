@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { notificationService } from '../notification/notification.service';
 
 const createBarberScheduleIntoDb = async (saloonOwnerId: string, data: any) => {
   const { barberId, schedules } = data;
@@ -37,6 +38,29 @@ const createBarberScheduleIntoDb = async (saloonOwnerId: string, data: any) => {
       httpStatus.INTERNAL_SERVER_ERROR,
       'Failed to create all barber schedule entries',
     );
+  }
+
+  // Send notification to barber about schedule creation
+  try {
+    const barber = await prisma.barber.findUnique({
+      where: { id: barberId },
+      select: { user: { select: { fcmToken: true, fullName: true } } },
+    });
+
+    if (barber?.user?.fcmToken) {
+      const barberName = barber.user.fullName || 'Barber';
+      const daysList = schedules.map(s => s.dayName).join(', ');
+      const message = `Your schedule has been created for: ${daysList}`;
+      
+      await notificationService.sendNotification(
+        barber.user.fcmToken,
+        'Schedule Created',
+        message,
+        barberId,
+      ).catch(error => console.error('Error sending schedule creation notification:', error));
+    }
+  } catch (error) {
+    console.error('Error sending barber schedule creation notification:', error);
   }
 
   return result;
@@ -143,6 +167,28 @@ const updateBarberScheduleIntoDb = async (
     },
   });
 
+  // Send notification to barber about schedule update
+  try {
+    const barber = await prisma.barber.findUnique({
+      where: { id: result.barberId },
+      select: { user: { select: { fcmToken: true, fullName: true } } },
+    });
+
+    if (barber?.user?.fcmToken) {
+      const statusText = data.isActive ? 'activated' : 'deactivated';
+      const message = `Your ${result.dayName} schedule has been updated (${statusText})`;
+      
+      await notificationService.sendNotification(
+        barber.user.fcmToken,
+        'Schedule Updated',
+        message,
+        result.barberId,
+      ).catch(error => console.error('Error sending schedule update notification:', error));
+    }
+  } catch (error) {
+    console.error('Error sending barber schedule update notification:', error);
+  }
+
   return {
     id: result.id,
     saloonOwnerId: result.saloonOwnerId,
@@ -168,6 +214,27 @@ const deleteBarberScheduleItemFromDb = async (
   });
   if (!deletedItem) {
     throw new AppError(httpStatus.BAD_REQUEST, 'barberScheduleId, not deleted');
+  }
+
+  // Send notification to barber about schedule deletion
+  try {
+    const barber = await prisma.barber.findUnique({
+      where: { id: barberId },
+      select: { user: { select: { fcmToken: true, fullName: true } } },
+    });
+
+    if (barber?.user?.fcmToken) {
+      const message = 'Your schedule has been deleted';
+      
+      await notificationService.sendNotification(
+        barber.user.fcmToken,
+        'Schedule Deleted',
+        message,
+        barberId,
+      ).catch(error => console.error('Error sending schedule deletion notification:', error));
+    }
+  } catch (error) {
+    console.error('Error sending barber schedule deletion notification:', error);
   }
 
   return deletedItem;
