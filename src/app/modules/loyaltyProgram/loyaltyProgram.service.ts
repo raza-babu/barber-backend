@@ -4,6 +4,7 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { calculatePagination } from '../../utils/pagination';
+import { notificationService } from '../notification/notification.service';
 
 const createLoyaltyProgramIntoDb = async (
   userId: string,
@@ -44,6 +45,35 @@ const createLoyaltyProgramIntoDb = async (
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'loyaltyProgram not created');
   }
+
+  // Send notification to followers about new loyalty program
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all followers of this salon owner
+    const followers = await prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { follower: { select: { fcmToken: true } } },
+    });
+
+    if (owner && followers.length > 0) {
+      const notificationPromises = followers.map(follower =>
+        notificationService.sendNotification(
+          follower.follower.fcmToken,
+          'New Loyalty Program',
+          `${owner.fullName} launched a new loyalty program for ${findService.serviceName}!`,
+          userId,
+        ).catch(error => console.error('Error sending loyalty program notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending loyalty program creation notification:', error);
+  }
+
   return result;
 };
 
@@ -145,6 +175,35 @@ const updateLoyaltyProgramIntoDb = async (
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'loyaltyProgramId, not updated');
   }
+
+  // Send notification to followers about loyalty program update
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all followers of this salon owner
+    const followers = await prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { follower: { select: { fcmToken: true } } },
+    });
+
+    if (owner && followers.length > 0) {
+      const notificationPromises = followers.map(follower =>
+        notificationService.sendNotification(
+          follower.follower.fcmToken,
+          'Loyalty Program Updated',
+          `${owner.fullName} updated the loyalty program for ${findService.serviceName}!`,
+          userId,
+        ).catch(error => console.error('Error sending update notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending loyalty program update notification:', error);
+  }
+
   return result;
 };
 
@@ -152,6 +211,16 @@ const deleteLoyaltyProgramItemFromDb = async (
   userId: string,
   loyaltyProgramId: string,
 ) => {
+  const loyaltyProgram = await prisma.loyaltyProgram.findUnique({
+    where: {
+      id: loyaltyProgramId,
+      userId: userId,
+    },
+  });
+  if (!loyaltyProgram) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'loyaltyProgramId, not found');
+  }
+
   const deletedItem = await prisma.loyaltyProgram.delete({
     where: {
       id: loyaltyProgramId,
@@ -160,6 +229,34 @@ const deleteLoyaltyProgramItemFromDb = async (
   });
   if (!deletedItem) {
     throw new AppError(httpStatus.BAD_REQUEST, 'loyaltyProgramId, not deleted');
+  }
+
+  // Send notification to followers about loyalty program deletion
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all followers of this salon owner
+    const followers = await prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { follower: { select: { fcmToken: true } } },
+    });
+
+    if (owner && followers.length > 0) {
+      const notificationPromises = followers.map(follower =>
+        notificationService.sendNotification(
+          follower.follower.fcmToken,
+          'Loyalty Program Deleted',
+          `The loyalty program for ${loyaltyProgram.serviceName} by ${owner.fullName} has been deleted.`,
+          userId,
+        ).catch(error => console.error('Error sending deletion notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending loyalty program deletion notification:', error);
   }
 
   return deletedItem;

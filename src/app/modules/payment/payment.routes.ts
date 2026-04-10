@@ -101,6 +101,7 @@ router.post(
   PaymentController.tipPaymentToBarber,
 );
 
+//
 router.post(
   '/payout-barber',
   auth(UserRoleEnum.SALOON_OWNER),

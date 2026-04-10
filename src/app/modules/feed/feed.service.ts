@@ -3,6 +3,7 @@ import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { deleteFileFromSpace } from '../../utils/deleteImage';
+import { notificationService } from '../notification/notification.service';
 
 const createFeedIntoDb = async (userId: string, data: any) => {
   let saloonOwner;
@@ -22,6 +23,51 @@ const createFeedIntoDb = async (userId: string, data: any) => {
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'feed not created');
   }
+
+  // Send notification to all followers about new feed
+  try {
+    if (userId) {
+      // Get all followers of this user
+      const followers = await prisma.follow.findMany({
+        where: {
+          followingId: userId,
+        },
+        select: {
+          userId: true,
+        },
+      });
+
+      // Get creator's name
+      const creator = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { fullName: true },
+      });
+
+      // Send notifications to all followers
+      if (followers.length > 0 && creator) {
+        const followerIds = followers.map(f => f.userId);
+        
+        // Get FCM tokens for all followers
+        const followerTokens = await prisma.user.findMany({
+          where: { id: { in: followerIds } },
+          select: { id: true, fcmToken: true },
+        });
+
+        // Send notification to each follower
+        for (const follower of followerTokens) {
+          await notificationService.sendNotification(
+            follower.fcmToken,
+            'New Feed Posted',
+            `${creator.fullName} posted new content!`,
+            follower.id,
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error sending feed creation notification:', error);
+  }
+
   return result;
 };
 

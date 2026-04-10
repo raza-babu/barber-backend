@@ -15,6 +15,7 @@ import {
   TipStatus,
 } from '@prisma/client';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { notificationService } from '../notification/notification.service';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -36,6 +37,19 @@ const createAccount = catchAsync(async (req: Request, res: Response) => {
 const createNewAccount = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
   const result = await StripeServices.createNewAccountIntoStripe(user.id);
+  
+  // Send notification about account creation
+  try {
+    await notificationService.sendNotification(
+      user.fcmToken,
+      'Account Created',
+      'Your Stripe account has been created successfully!',
+      user.id,
+    );
+  } catch (error) {
+    console.error('Error sending account creation notification:', error);
+  }
+  
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
@@ -70,6 +84,18 @@ const authorizedPaymentWithSaveCard = catchAsync(async (req: any, res: any) => {
     req.body,
   );
 
+  // Send notification about payment authorization
+  try {
+    await notificationService.sendNotification(
+      user.fcmToken,
+      'Payment Authorized',
+      'Payment has been authorized. Please confirm to complete the transaction.',
+      user.id,
+    );
+  } catch (error) {
+    console.error('Error sending authorization notification:', error);
+  }
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -86,6 +112,32 @@ const capturePaymentRequest = catchAsync(async (req: any, res: any) => {
     req.body,
   );
 
+  // Send notification about payment capture
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: req.body.bookingId },
+      select: { userId: true },
+    });
+
+    if (booking) {
+      const customer = await prisma.user.findUnique({
+        where: { id: booking.userId },
+        select: { fcmToken: true },
+      });
+
+      if (customer?.fcmToken) {
+        await notificationService.sendNotification(
+          customer.fcmToken,
+          'Payment Captured',
+          'Your payment has been captured successfully!',
+          booking.userId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending capture notification:', error);
+  }
+
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -100,6 +152,33 @@ const cancelPaymentRequest = catchAsync(async (req: any, res: any) => {
     user.id,
     req.body,
   );
+
+  // Send notification about payment cancellation
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: req.body.bookingId },
+      select: { userId: true },
+    });
+
+    if (booking) {
+      const customer = await prisma.user.findUnique({
+        where: { id: booking.userId },
+        select: { fcmToken: true },
+      });
+
+      if (customer?.fcmToken) {
+        await notificationService.sendNotification(
+          customer.fcmToken,
+          'Payment Cancelled',
+          'Your payment request has been cancelled.',
+          booking.userId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending cancellation notification:', error);
+  }
+
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -167,6 +246,32 @@ const deleteCardFromCustomer = catchAsync(async (req: any, res: any) => {
 // Refund payment to customer
 const refundPaymentToCustomer = catchAsync(async (req: any, res: any) => {
   const result = await StripeServices.refundPaymentToCustomer(req.body);
+
+  // Send notification about refund
+  try {
+    const payment = await prisma.payment.findFirst({
+      where: { paymentIntentId: req.body.paymentIntentId },
+      select: { userId: true },
+    });
+
+    if (payment) {
+      const customer = await prisma.user.findUnique({
+        where: { id: payment.userId },
+        select: { fcmToken: true },
+      });
+
+      if (customer?.fcmToken) {
+        await notificationService.sendNotification(
+          customer.fcmToken,
+          'Refund Processed',
+          'Your refund has been processed successfully!',
+          payment.userId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending refund notification:', error);
+  }
 
   sendResponse(res, {
     statusCode: 200,
@@ -474,6 +579,25 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
           'Status:',
           updatedBooking.status,
         );
+
+        // Send notification to customer about successful payment
+        try {
+          const customer = await prisma.user.findUnique({
+            where: { id: booking.userId },
+            select: { fcmToken: true },
+          });
+
+          if (customer?.fcmToken) {
+            await notificationService.sendNotification(
+              customer.fcmToken,
+              'Payment Successful',
+              'Your payment has been processed successfully! Your booking is confirmed.',
+              booking.userId,
+            );
+          }
+        } catch (error) {
+          console.error('Error sending payment success notification:', error);
+        }
       } catch (error) {
         console.error('Error processing checkout.session.completed:', error);
       }
@@ -496,6 +620,25 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
         if (!booking) {
           console.log('Booking not found for failed payment:', bookingId);
           break;
+        }
+
+        // Send notification to customer about payment failure
+        try {
+          const customer = await prisma.user.findUnique({
+            where: { id: booking.userId },
+            select: { fcmToken: true },
+          });
+
+          if (customer?.fcmToken) {
+            await notificationService.sendNotification(
+              customer.fcmToken,
+              'Payment Failed',
+              'Your payment has failed. Please try again with another payment method.',
+              booking.userId,
+            );
+          }
+        } catch (notificationError) {
+          console.error('Error sending payment failure notification:', notificationError);
         }
 
         // Only cleanup if booking is still PENDING (not yet confirmed)
@@ -574,6 +717,25 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
         if (!booking) {
           console.log('Booking not found for failed charge:', bookingId);
           break;
+        }
+
+        // Send notification to customer about charge failure
+        try {
+          const customer = await prisma.user.findUnique({
+            where: { id: booking.userId },
+            select: { fcmToken: true },
+          });
+
+          if (customer?.fcmToken) {
+            await notificationService.sendNotification(
+              customer.fcmToken,
+              'Charge Failed',
+              'Your charge has failed. Please try again with another payment method.',
+              booking.userId,
+            );
+          }
+        } catch (notificationError) {
+          console.error('Error sending charge failure notification:', notificationError);
         }
 
         // Only cleanup if booking is still PENDING
@@ -1184,6 +1346,38 @@ const tipPaymentToBarber = catchAsync(async (req: any, res: any) => {
     req.body,
   );
 
+  // Send notification to barber about tip
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: req.body.bookingId },
+      select: { barberId: true },
+    });
+
+    if (booking) {
+      const barber = await prisma.barber.findUnique({
+        where: { id: booking.barberId },
+        select: { user: { select: { fullName: true, fcmToken: true, id: true } } },
+      });
+
+      const customer = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: {  fullName: true   },
+      });
+
+      if (barber?.user?.fcmToken) {
+        const tipAmount = req.body.barberAmount || 0;
+        await notificationService.sendNotification(
+          barber.user.fcmToken,
+          'Tip Received',
+          `${customer?.fullName || 'A customer'} sent you a tip of $${tipAmount}!`,
+          barber.user.id,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending tip notification:', error);
+  }
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -1195,6 +1389,25 @@ const tipPaymentToBarber = catchAsync(async (req: any, res: any) => {
 const payoutToBarber = catchAsync(async (req: any, res: any) => {
   const user = req.user as any;
   const result = await StripeServices.payoutToBarberService(user.id, req.body);
+
+  // Send notification to barber about payout
+  try {
+    const barber = await prisma.barber.findUnique({
+      where: { userId: req.body.barberId },
+      select: { user: { select: { fullName: true, fcmToken: true } } },
+    });
+
+    if (barber?.user?.fcmToken) {
+      await notificationService.sendNotification(
+        barber.user.fcmToken,
+        'Payout Processed',
+        `A payout of $${req.body.amount} has been transferred to your account!`,
+        req.body.barberId,
+      );
+    }
+  } catch (error) {
+    console.error('Error sending payout notification:', error);
+  }
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -1286,6 +1499,32 @@ const settleBarberPayout = catchAsync(async (req: Request, res: Response) => {
     payoutRequestId,
   );
 
+  // Send notification to barber about payout settlement
+  try {
+    const payoutRequest = await prisma.barberPayoutRequest.findUnique({
+      where: { id: payoutRequestId },
+      select: { barberId: true, amount: true },
+    });
+
+    if (payoutRequest) {
+      const barber = await prisma.barber.findUnique({
+        where: { id: payoutRequest.barberId },
+        select: { user: { select: { fcmToken: true } } },
+      });
+
+      if (barber?.user?.fcmToken) {
+        await notificationService.sendNotification(
+          barber.user.fcmToken,
+          'Payout Settled',
+          `Your payout of $${payoutRequest.amount} has been settled and transferred to your account!`,
+          payoutRequest.barberId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending payout settlement notification:', error);
+  }
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -1313,6 +1552,35 @@ const rejectBarberPayout = catchAsync(async (req: Request, res: Response) => {
     payoutRequestId,
     notes,
   );
+
+  // Send notification to barber about payout rejection
+  try {
+    const payoutRequest = await prisma.barberPayoutRequest.findUnique({
+      where: { id: payoutRequestId },
+      select: { barberId: true, amount: true },
+    });
+
+    if (payoutRequest) {
+      const barber = await prisma.barber.findUnique({
+        where: { id: payoutRequest.barberId },
+        select: { user: { select: { fcmToken: true } } },
+      });
+
+      if (barber?.user?.fcmToken) {
+        const message = notes
+          ? `Your payout request of $${payoutRequest.amount} has been rejected. Reason: ${notes}`
+          : `Your payout request of $${payoutRequest.amount} has been rejected.`;
+        await notificationService.sendNotification(
+          barber.user.fcmToken,
+          'Payout Rejected',
+          message,
+          payoutRequest.barberId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending payout rejection notification:', error);
+  }
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

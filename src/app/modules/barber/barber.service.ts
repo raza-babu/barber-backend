@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { BookingStatus } from '@prisma/client';
+import { notificationService } from '../notification/notification.service';
 
 const createBarberIntoDb = async (userId: string, data: any) => {
   const result = await prisma.barber.create({
@@ -515,6 +516,43 @@ const updateBookingStatusIntoDb = async (
         `✅ Created new queue time: ${actualDurationMinutes}min for services [${serviceIds.join(', ')}]`,
       );
     }
+  }
+
+  // Send notification to customer about booking status change
+  try {
+    if (result.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: result.userId },
+        select: { fcmToken: true },
+      });
+
+      if (user) {
+        let notificationTitle = 'Booking Status Updated';
+        let notificationBody = '';
+
+        switch (result.status) {
+          case BookingStatus.STARTED:
+            notificationTitle = 'Service Started';
+            notificationBody = 'Your barber has started the service.';
+            break;
+          case BookingStatus.ENDED:
+            notificationTitle = 'Service Completed';
+            notificationBody = 'Your service has been completed. Please leave a review!';
+            break;      
+        }
+
+        if (notificationBody) {
+          await notificationService.sendNotification(
+            user.fcmToken,
+            notificationTitle,
+            notificationBody,
+            result.userId,
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error sending booking status notification:', error);
   }
 
   return result;

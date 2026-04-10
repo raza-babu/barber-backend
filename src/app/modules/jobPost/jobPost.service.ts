@@ -15,6 +15,7 @@ import {
   buildNumericRangeQuery,
 } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { notificationService } from '../notification/notification.service';
 
 const createJobPostIntoDb = async (
   userId: string,
@@ -95,6 +96,34 @@ const createJobPostIntoDb = async (
         jobPostCount: { increment: 1 },
       },
     });
+
+    // Send notification to followers about new job posting
+    try {
+      const owner = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { fullName: true },
+      });
+
+      // Get all followers of this saloon owner
+      const followers = await prisma.follow.findMany({
+        where: { followingId: userId },
+        select: { follower: { select: { fcmToken: true } } },
+      });
+
+      if (owner && followers.length > 0) {
+        const notificationPromises = followers.map(follower =>
+          notificationService.sendNotification(
+            follower.follower.fcmToken,
+            'New Job Opening',
+            `${owner.fullName} posted a new job opening!`,
+            userId,
+          ).catch(error => console.error('Error sending follower notification:', error))
+        );
+        await Promise.all(notificationPromises);
+      }
+    } catch (error) {
+      console.error('Error sending job post notification:', error);
+    }
 
     return result;
   });
@@ -413,6 +442,35 @@ const updateJobPostIntoDb = async (
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'jobPostId, not updated');
   }
+
+  // Send notification to applicants about job post update
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all applicants for this job post
+    const applicants = await prisma.jobApplication.findMany({
+      where: { jobPostId: jobPostId },
+      select: { barber: { select: { user: { select: { fcmToken: true } } } } },
+    });
+
+    if (owner && applicants.length > 0) {
+      const notificationPromises = applicants.map(applicant =>
+        notificationService.sendNotification(
+          applicant.barber?.user?.fcmToken,
+          'Job Update',
+          `Job details have been updated by ${owner.fullName}!`,
+          userId,
+        ).catch(error => console.error('Error sending applicant notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending job update notification:', error);
+  }
+
   return result;
 };
 
@@ -441,6 +499,36 @@ const toggleJobPostActiveIntoDb = async (userId: string, jobPostId: string) => {
       'JobPost active status not toggled',
     );
   }
+
+  // Send notification to applicants about job post status change
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all applicants for this job post
+    const applicants = await prisma.jobApplication.findMany({
+      where: { jobPostId: jobPostId },
+      select: { barber: { select: { user: { select: { fcmToken: true } } } } },
+    });
+
+    if (owner && applicants.length > 0) {
+      const statusMessage = updatedJobPost.isActive ? 'activated' : 'deactivated';
+      const notificationPromises = applicants.map(applicant =>
+        notificationService.sendNotification(
+          applicant.barber?.user?.fcmToken,
+          'Job Status Changed',
+          `The job posting has been ${statusMessage} by ${owner.fullName}.`,
+          userId,
+        ).catch(error => console.error('Error sending status notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending job status notification:', error);
+  }
+
   return updatedJobPost;
 };
 
@@ -468,6 +556,34 @@ const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
       httpStatus.BAD_REQUEST,
       'Cannot delete job post with existing applications',
     );
+  }
+
+  // Send notification to applicants about job post deletion before deleting
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all applicants for this job post
+    const applicants = await prisma.jobApplication.findMany({
+      where: { jobPostId: jobPostId },
+      select: { barber: { select: { user: { select: { fcmToken: true } } } } },
+    });
+
+    if (owner && applicants.length > 0) {
+      const notificationPromises = applicants.map(applicant =>
+        notificationService.sendNotification(
+          applicant.barber?.user?.fcmToken,
+          'Job Deleted',
+          `The job posting has been deleted by ${owner.fullName}.`,
+          userId,
+        ).catch(error => console.error('Error sending deletion notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending job deletion notification:', error);
   }
 
   const deletedItem = await prisma.jobPost.delete({

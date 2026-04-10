@@ -1,13 +1,12 @@
 import prisma from '../../utils/prisma';
-import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import {
   calculatePagination,
   formatPaginationResponse,
 } from '../../utils/pagination';
-import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { notificationService } from '../notification/notification.service';
 
 const createFavoriteFeedIntoDb = async (
   userId: string,
@@ -37,6 +36,37 @@ const createFavoriteFeedIntoDb = async (
     },
   });
 
+  // Send notification to feed creator
+  try {
+    const feed = await prisma.feed.findUnique({
+      where: { id: data.feedId },
+      select: { userId: true },
+    });
+
+    if (feed && feed.userId) {
+      const feedCreator = await prisma.user.findUnique({
+        where: { id: feed.userId },
+        select: { fcmToken: true },
+      });
+
+      // Get the customer's name who favorited the feed
+      const customer = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { fullName: true },
+      });
+
+      if (feedCreator && customer) {
+        await notificationService.sendNotification(
+          feedCreator.fcmToken,
+          'Feed Liked',
+          `${customer.fullName} liked your feed!`,
+          feed.userId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending feed favorite notification:', error);
+  }
 
   return result;
 };

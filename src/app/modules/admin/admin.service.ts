@@ -14,6 +14,8 @@ import {
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import config from '../../../config';
+import { notificationService } from '../notification/notification.service';
+import { subscribe } from 'node:diagnostics_channel';
 
 const getSaloonFromDb = async (
   userId: string,
@@ -383,6 +385,24 @@ const blockSaloonByIdIntoDb = async (saloonOwnerId: string, data: any) => {
     );
   }
 
+  // Send notification to saloon owner
+  try {
+    const saloonOwner = await prisma.user.findUnique({
+      where: { id: saloonOwnerId },
+      select: { fcmToken: true },
+    });
+
+    const statusText = status === true ? 'activated' : 'blocked';
+    await notificationService.sendNotification(
+      saloonOwner?.fcmToken,
+      'Saloon Status Updated',
+      `Your salon has been ${statusText} by the admin.`,
+      saloonOwnerId,
+    );
+  } catch (error) {
+    console.error('Error sending notification to saloon owner:', error);
+  }
+
   return result;
 };
 
@@ -633,6 +653,25 @@ const blockBarberByIdIntoDb = async (
       'Barber not found or not updated',
     );
   }
+
+  // Send notification to barber
+  try {
+    const barber = await prisma.user.findUnique({
+      where: { id: barberId },
+      select: { fcmToken: true },
+    });
+
+    const statusText = data.status === true ? 'blocked' : 'activated';
+    await notificationService.sendNotification(
+      barber?.fcmToken,
+      'Account Status Updated',
+      `Your account has been ${statusText} by the admin.`,
+      barberId,
+    );
+  } catch (error) {
+    console.error('Error sending notification to barber:', error);
+  }
+
   return result;
 };
 
@@ -715,6 +754,25 @@ const blockCustomerByIdIntoDb = async (
       'Customer not found or not updated',
     );
   }
+
+  // Send notification to customer
+  try {
+    const customer = await prisma.user.findUnique({
+      where: { id: customerId },
+      select: { fcmToken: true },
+    });
+
+    const statusText = data.status === true ? 'blocked' : 'activated';
+    await notificationService.sendNotification(
+      customer?.fcmToken,
+      'Account Status Updated',
+      `Your account has been ${statusText} by the admin.`,
+      customerId,
+    );
+  } catch (error) {
+    console.error('Error sending notification to customer:', error);
+  }
+
   return result;
 };
 
@@ -738,6 +796,28 @@ const updateSaloonOwnerByIdIntoDb = async (
       'Saloon owner not found or not updated',
     );
   }
+
+  // Send notification to saloon owner about verification status
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: saloonOwnerId },
+      select: { fcmToken: true },
+    });
+
+    const message = status === true
+      ? 'Congratulations! Your salon has been verified and is now active.'
+      : 'Your salon verification has been updated.';
+
+    await notificationService.sendNotification(
+      owner?.fcmToken,
+      'Salon Verification Status Updated',
+      message,
+      saloonOwnerId,
+    );
+  } catch (error) {
+    console.error('Error sending verification notification to saloon owner:', error);
+  }
+
   return saloonOwner;
 };
 
@@ -902,16 +982,8 @@ const getSubscribersListFromDb = async (
       where: {
         ...whereClause,
         UserSubscription: {
-          some: {
-            // paymentStatus: PaymentStatus.COMPLETED, // Active subscription
-            // endDate: { gte: new Date() }, // Not expired
-          },
+          some: {},
         },
-        // Payment: {
-        //   some: {
-        //     status: PaymentStatus.COMPLETED,
-        //   },
-        // },
       },
       skip,
       take: limit,
@@ -924,10 +996,6 @@ const getSubscribersListFromDb = async (
         subscriptionEnd: true,
         subscriptionPlan: true,
         UserSubscription: {
-          // where: {
-            // paymentStatus: PaymentStatus.COMPLETED,
-            // endDate: { gte: new Date() },
-          // },
           orderBy: {
             endDate: 'desc',
           },
@@ -936,8 +1004,13 @@ const getSubscribersListFromDb = async (
             id: true,
             startDate: true,
             endDate: true,
-            // stripeSubscriptionId: true,
             paymentStatus: true,
+            subscriptionOffer: {
+              select: {
+                id: true,
+                price: true,
+              },
+            },
           },
         },
         Payment: {
@@ -964,15 +1037,7 @@ const getSubscribersListFromDb = async (
       where: {
         ...whereClause,
         UserSubscription: {
-          // some: {
-          //   paymentStatus: PaymentStatus.COMPLETED,
-          //   endDate: { gte: new Date() },
-          // },
-        },
-        Payment: {
-          // some: {
-          //   status: PaymentStatus.COMPLETED,
-          // },
+          some: {},
         },
       },
     }),
@@ -982,6 +1047,7 @@ const getSubscribersListFromDb = async (
   const flattenedSubscribers = subscribers.map((subscriber: any) => {
     const subscription = subscriber.UserSubscription?.[0];
     const latestPayment = subscriber.Payment?.[0];
+
     return {
       id: subscriber.id,
       fullName: subscriber.fullName,
@@ -992,13 +1058,12 @@ const getSubscribersListFromDb = async (
       endDate: subscription?.endDate || null,
       subscriptionEnd: subscriber.subscriptionEnd || null,
       subscriptionPlan: subscriber.subscriptionPlan || null,
-      // stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
+      subscriptionPrice: subscription?.subscriptionOffer?.price || null,
       paymentStatus: subscription?.paymentStatus || null,
-      expired: subscriber.subscriptionEnd
-        ? new Date(subscriber.subscriptionEnd) > new Date()
+      expired: subscription?.endDate
+        ? new Date(subscription.endDate) < new Date()
         : null,
       lastSubscriptionPaymentDate: latestPayment?.paymentIntentId ? latestPayment.paymentDate : null,
-      offer: null,
       latestPayment: latestPayment
         ? {
             id: latestPayment.id,
@@ -1009,8 +1074,6 @@ const getSubscribersListFromDb = async (
           }
         : null,
     };
-  
-  
   });
 
 

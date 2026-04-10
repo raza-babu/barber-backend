@@ -4,6 +4,7 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { calculatePagination } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { notificationService } from '../notification/notification.service';
 
 const createLoyaltySchemeIntoDb = async (
   userId: string,
@@ -37,6 +38,35 @@ const createLoyaltySchemeIntoDb = async (
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'loyaltyScheme not created');
   }
+
+  // Send notification to followers about new loyalty scheme
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all followers of this salon owner
+    const followers = await prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { follower: { select: { fcmToken: true } } },
+    });
+
+    if (owner && followers.length > 0) {
+      const notificationPromises = followers.map(follower =>
+        notificationService.sendNotification(
+          follower.follower.fcmToken,
+          'New Loyalty Scheme',
+          `${owner.fullName} introduced a new loyalty scheme with ${data.percentage}% discount!`,
+          userId,
+        ).catch(error => console.error('Error sending loyalty scheme notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending loyalty scheme creation notification:', error);
+  }
+
   return result;
 };
 
@@ -193,6 +223,34 @@ const updateLoyaltySchemeIntoDb = async (
     },
   });
 
+  // Send notification to followers about loyalty scheme update
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all followers of this salon owner
+    const followers = await prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { follower: { select: { fcmToken: true } } },
+    });
+
+    if (owner && followers.length > 0) {
+      const notificationPromises = followers.map(follower =>
+        notificationService.sendNotification(
+          follower.follower.fcmToken,
+          'Loyalty Scheme Updated',
+          `${owner.fullName} updated the loyalty scheme to ${finalPercentage}% discount!`,
+          userId,
+        ).catch(error => console.error('Error sending update notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending loyalty scheme update notification:', error);
+  }
+
   return result;
 };
 
@@ -200,6 +258,16 @@ const deleteLoyaltySchemeItemFromDb = async (
   userId: string,
   loyaltySchemeId: string,
 ) => {
+  const loyaltyScheme = await prisma.loyaltyScheme.findUnique({
+    where: {
+      id: loyaltySchemeId,
+      userId: userId,
+    },
+  });
+  if (!loyaltyScheme) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'loyaltySchemeId, not found');
+  }
+
   const deletedItem = await prisma.loyaltyScheme.delete({
     where: {
       id: loyaltySchemeId,
@@ -208,6 +276,34 @@ const deleteLoyaltySchemeItemFromDb = async (
   });
   if (!deletedItem) {
     throw new AppError(httpStatus.BAD_REQUEST, 'loyaltySchemeId, not deleted');
+  }
+
+  // Send notification to followers about loyalty scheme deletion
+  try {
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    // Get all followers of this salon owner
+    const followers = await prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { follower: { select: { fcmToken: true } } },
+    });
+
+    if (owner && followers.length > 0) {
+      const notificationPromises = followers.map(follower =>
+        notificationService.sendNotification(
+          follower.follower.fcmToken,
+          'Loyalty Scheme Deleted',
+          `The loyalty scheme by ${owner.fullName} has been deleted.`,
+          userId,
+        ).catch(error => console.error('Error sending deletion notification:', error))
+      );
+      await Promise.all(notificationPromises);
+    }
+  } catch (error) {
+    console.error('Error sending loyalty scheme deletion notification:', error);
   }
 
   return deletedItem;

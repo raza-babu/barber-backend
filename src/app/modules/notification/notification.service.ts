@@ -11,7 +11,7 @@ import {
 import admin from '../../utils/firebase';
 
 const sendNotification = async (
-  deviceToken: string | undefined,
+  deviceToken: string | null | undefined,
   title: string,
   body: string,
   userId: string,

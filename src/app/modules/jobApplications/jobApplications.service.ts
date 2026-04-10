@@ -5,6 +5,7 @@ import httpStatus from 'http-status';
 import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { notificationService } from '../notification/notification.service';
 
 const createJobApplicationsIntoDb = async (userId: string, data: any) => {
   const saloonDetails = await prisma.jobPost.findUnique({
@@ -41,6 +42,31 @@ const createJobApplicationsIntoDb = async (userId: string, data: any) => {
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'jobApplications not created');
   }
+
+  // Send notification to saloon owner about new job application
+  try {
+    const barberUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    const saloonOwner = await prisma.saloonOwner.findUnique({
+      where: { userId: saloonDetails.saloonOwnerId },
+      select: { user: { select: { fcmToken: true } } },
+    });
+
+    if (barberUser && saloonOwner?.user) {
+      await notificationService.sendNotification(
+        saloonOwner.user.fcmToken,
+        'New Job Application',
+        `${barberUser.fullName} applied for your job opening!`,
+        saloonDetails.saloonOwnerId,
+      );
+    }
+  } catch (error) {
+    console.error('Error sending job application notification:', error);
+  }
+
   return result;
 };
 
@@ -403,6 +429,42 @@ const updateJobApplicationsIntoDb = async (
       'jobApplicationsId, not updated',
     );
   }
+
+  // Send notification to barber about application status update
+  try {
+    const saloonOwner = await prisma.saloonOwner.findUnique({
+      where: { userId: result.saloonOwnerId },
+      select: { shopName: true },
+    });
+
+    const barber = await prisma.barber.findUnique({
+      where: { userId: result.userId },
+      select: { user: { select: { fcmToken: true } } },
+    });
+
+    if (saloonOwner && barber?.user) {
+      let notificationMessage = '';
+      if (result.status === JobApplicationStatus.ONGOING) {
+        notificationMessage = `Your application at ${saloonOwner.shopName} has been accepted!`;
+      } else if (result.status === JobApplicationStatus.REJECTED) {
+        notificationMessage = `Your application at ${saloonOwner.shopName} has been rejected.`;
+      } else if (result.status === JobApplicationStatus.COMPLETED) {
+        notificationMessage = `Your job at ${saloonOwner.shopName} has been completed!`;
+      }
+
+      if (notificationMessage) {
+        await notificationService.sendNotification(
+          barber.user.fcmToken,
+          'Job Application Update',
+          notificationMessage,
+          result.userId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending job application update notification:', error);
+  }
+
   if (result.status === JobApplicationStatus.COMPLETED) {
     const newHiredBarber = await prisma.hiredBarber.create({
       data: {

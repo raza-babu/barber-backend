@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { notificationService } from '../notification/notification.service';
 
 const createFollowIntoDb = async (
   userId: string,
@@ -61,6 +62,30 @@ const createFollowIntoDb = async (
 
       return follow;
     });
+
+    // Send notification to followed user about new follower
+    try {
+      const follower = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { fullName: true },
+      });
+
+      const followedUser = await prisma.user.findUnique({
+        where: { id: data.followingId },
+        select: { fcmToken: true },
+      });
+
+      if (follower && followedUser) {
+        await notificationService.sendNotification(
+          followedUser.fcmToken,
+          'New Follower',
+          `${follower.fullName} started following you!`,
+          data.followingId,
+        );
+      }
+    } catch (error) {
+      console.error('Error sending follow notification:', error);
+    }
 
     return result;
   } catch (error) {
@@ -290,6 +315,30 @@ const deleteFollowingFromDb = async (userId: string, followId: string) => {
 
       return deletedItem;
     });
+
+    // Send notification to unfollowed user about unfollow
+    try {
+      const unfollower = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { fullName: true },
+      });
+
+      const unfollowedUser = await prisma.user.findUnique({
+        where: { id: follow.followingId },
+        select: { fcmToken: true },
+      });
+
+      if (unfollower && unfollowedUser) {
+        await notificationService.sendNotification(
+          unfollowedUser.fcmToken,
+          'Unfollowed',
+          `${unfollower.fullName} unfollowed you!`,
+          follow.followingId,
+        );
+      }
+    } catch (error) {
+      console.error('Error sending unfollow notification:', error);
+    }
 
     return result;
   } catch (error) {

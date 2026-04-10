@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { notificationService } from '../notification/notification.service';
 
 const createCustomerIntoDb = async (userId: string, data: any) => {
   const result = await prisma.saloonOwner.create({
@@ -1434,6 +1435,26 @@ const addSaloonToFavoritesInDb = async (
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Saloon not added to favorites');
   }
+
+  // Send notification to saloon owner
+  try {
+    const saloonOwner = await prisma.user.findUnique({
+      where: { id: saloonOwnerId },
+      select: { fcmToken: true },
+    });
+
+    if (saloonOwner) {
+      await notificationService.sendNotification(
+        saloonOwner.fcmToken,
+        'New Favorite',
+        'A customer has added your salon to their favorites!',
+        saloonOwnerId,
+      );
+    }
+  } catch (error) {
+    console.error('Error sending favorite notification:', error);
+  }
+
   return result;
 };
 
@@ -2165,6 +2186,45 @@ const checkInToSaloonInDb = async (
       where: { id: bookingId },
       data: { checkIn: true },
     });
+
+    // Send check-in notification to barber and saloon owner
+    try {
+      // Notify barber
+      if (updatedBooking.barberId) {
+        const barber = await prisma.user.findUnique({
+          where: { id: updatedBooking.barberId },
+          select: { fcmToken: true },
+        });
+
+        if (barber) {
+          await notificationService.sendNotification(
+            barber.fcmToken,
+            'Customer Checked In',
+            'A customer has checked in for their appointment.',
+            updatedBooking.barberId,
+          );
+        }
+      }
+
+      // Notify saloon owner
+      if (updatedBooking.saloonOwnerId) {
+        const saloonOwner = await prisma.user.findUnique({
+          where: { id: updatedBooking.saloonOwnerId },
+          select: { fcmToken: true },
+        });
+
+        if (saloonOwner) {
+          await notificationService.sendNotification(
+            saloonOwner.fcmToken,
+            'Customer Checked In',
+            'A customer has checked in for their appointment.',
+            updatedBooking.saloonOwnerId,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error sending check-in notification:', error);
+    }
 
     return {
       message: 'Check-in successful',
