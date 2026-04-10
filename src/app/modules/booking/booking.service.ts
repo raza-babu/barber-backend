@@ -4228,7 +4228,7 @@ const getBookingListForBarberFromDb = async (
         ],
       }
     : {};
-  const allowedStatuses = [BookingStatus.CONFIRMED, BookingStatus.PENDING];
+  const allowedStatuses = [BookingStatus.CONFIRMED, BookingStatus.STARTED, BookingStatus.ENDED];
 
   const date = options.date
     ? (() => {
@@ -4387,7 +4387,9 @@ const getBookingListForBarberFromDb = async (
       total,
       page,
       limit,
-      pageCount: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit),
+      hasNextPage: page * limit < total,
+      hasPrevPage: page > 1,
     },
   };
 };
