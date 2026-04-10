@@ -1008,6 +1008,7 @@ const getSubscribersListFromDb = async (
             subscriptionOffer: {
               select: {
                 id: true,
+                title: true,
                 price: true,
               },
             },
@@ -1059,6 +1060,7 @@ const getSubscribersListFromDb = async (
       subscriptionEnd: subscriber.subscriptionEnd || null,
       subscriptionPlan: subscriber.subscriptionPlan || null,
       subscriptionPrice: subscription?.subscriptionOffer?.price || null,
+      subscriptionTitle: subscription?.subscriptionOffer?.title || null,
       paymentStatus: subscription?.paymentStatus || null,
       expired: subscription?.endDate
         ? new Date(subscription.endDate) < new Date()
