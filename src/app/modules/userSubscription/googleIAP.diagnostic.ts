@@ -1,9 +1,5 @@
 import config from '../../../config';
 
-/**
- * Diagnostic utility for Google IAP configuration
- * Run this on server startup to verify credentials are valid
- */
 
 export const validateGoogleIAPConfig = () => {
   console.log('\n🔍 Checking Google IAP Configuration...\n');

@@ -4049,6 +4049,7 @@ const getBookingListForSalonOwnerFromDb = async (
       endTime: true,
       status: true,
       bookingType: true,
+      remoteQueue: true,
       createdAt: true,
       queueSlot: {
         select: { id: true, position: true },
@@ -4158,6 +4159,7 @@ const getBookingListForSalonOwnerFromDb = async (
       startTime: b.startTime,
       endTime: b.endTime,
       bookingType: b.bookingType,
+      remoteQueue: b.remoteQueue,
       services: b.BookedServices.map(s => ({
         serviceId: s.service.id,
         serviceName: s.service.serviceName,
@@ -4268,6 +4270,7 @@ const getBookingListForBarberFromDb = async (
         startTime: true,
         endTime: true,
         status: true,
+        remoteQueue: true,
         BookedServices: {
           select: {
             id: true,
@@ -4367,6 +4370,7 @@ const getBookingListForBarberFromDb = async (
       customerName: userInfo.fullName,
       // customerEmail: userInfo.email,
       // customerPhone: userInfo.phoneNumber,
+      remoteQueue: b.remoteQueue,
       bookingDate: b.date,
       startTime: b.startTime,
       endTime: b.endTime,
