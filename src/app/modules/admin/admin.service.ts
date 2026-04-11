@@ -30,6 +30,7 @@ const getSaloonFromDb = async (
     },
     {
       role: UserRoleEnum.SALOON_OWNER,
+      isProfileComplete: true,
       ...(options.status
         ? { status: options.status }
         : { status: { not: UserStatus.PENDING } }),
