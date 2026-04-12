@@ -1,3 +1,4 @@
+import { fcm } from "googleapis/build/src/apis/fcm";
 import z from "zod";
 const loginUser = z.object({
   body: z.object({
@@ -11,6 +12,8 @@ const loginUser = z.object({
     password: z.string({
       required_error: "Password is required!",
     }),
+    fcmToken: z.string().optional(),
+  
   }),
 });
 

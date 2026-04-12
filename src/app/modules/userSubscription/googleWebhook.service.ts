@@ -122,6 +122,7 @@ const handleSubscriptionPurchased = async (
       const updated = await tx.userSubscription.update({
         where: { id: subscription.id },
         data: {
+          googleTransactionId: subscriptionData.purchaseToken,
           googleOrderId: subscriptionData.orderId,
           googleProductId: subscriptionData.subscriptionId,
           startDate,
@@ -148,6 +149,9 @@ const handleSubscriptionPurchased = async (
           await tx.payment.create({
             data: {
               userId: subscription.userId,
+              googleTransactionId: subscriptionData.purchaseToken,
+              googleProductId: subscriptionData.subscriptionId,
+              googleOrderId: subscriptionData.orderId,
               paymentAmount: subscription.subscriptionOffer.price,
               status: 'COMPLETED' as const,
               paymentDate: new Date(),
@@ -230,6 +234,7 @@ const handleSubscriptionRenewed = async (
       const updated = await tx.userSubscription.update({
         where: { id: subscription.id },
         data: {
+          googleTransactionId: subscriptionData.purchaseToken,
           endDate: expiryDate,
           paymentStatus: 'COMPLETED' as const,
           autoRenew: subscriptionData.autoRenewing,
@@ -252,6 +257,9 @@ const handleSubscriptionRenewed = async (
           await tx.payment.create({
             data: {
               userId: subscription.userId,
+              googleTransactionId: subscriptionData.purchaseToken,
+              googleProductId: subscriptionData.subscriptionId,
+              googleOrderId: subscriptionData.orderId,
               paymentAmount: subscription.subscriptionOffer.price,
               status: 'COMPLETED' as const,
               paymentDate: new Date(),
@@ -612,7 +620,15 @@ const handleSubscriptionOnHold = async (
         },
       });
 
-      // Keep user subscribed but flag for payment
+      // Disable access during hold - user must resolve billing issue
+      await tx.user.update({
+        where: { id: subscription.userId },
+        data: {
+          isSubscribed: false,
+          subscriptionPlan: 'FREE',
+        },
+      });
+
       return updated;
     });
 
@@ -696,6 +712,25 @@ const handleSubscriptionRecovered = async (
           subscriptionEnd: expiryDate,
         },
       });
+
+      // Create payment record for recovery
+      if (subscription.subscriptionOffer) {
+        try {
+          await tx.payment.create({
+            data: {
+              userId: subscription.userId,
+              googleTransactionId: subscriptionData.purchaseToken,
+              googleProductId: subscriptionData.subscriptionId,
+              googleOrderId: subscriptionData.orderId,
+              paymentAmount: subscription.subscriptionOffer.price,
+              status: 'COMPLETED' as const,
+              paymentDate: new Date(),
+            },
+          });
+        } catch (error) {
+          console.warn('⚠️ Failed to create recovery payment record:', error);
+        }
+      }
 
       return updated;
     });

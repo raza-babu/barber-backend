@@ -1001,9 +1001,10 @@ const createGooglePlaySubscriptionIntoDb = async (
       await tx.payment.create({
         data: {
           userId: userId,
-          appleTransactionId: googlePurchaseData.orderId, // Use orderId as transaction ID
-          appleProductId: googleSubscriptionId,
-          appleReceiptData: JSON.stringify(googlePurchaseData),
+          googleTransactionId: data.purchaseToken,
+          googleOrderId: googlePurchaseData.orderId,
+          googleProductId: googleSubscriptionId,
+          googleReceiptData: JSON.stringify(googlePurchaseData),
           paymentAmount: subscriptionOffer.price,
           status: PaymentStatus.COMPLETED,
         },

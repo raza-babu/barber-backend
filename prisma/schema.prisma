@@ -51,6 +51,7 @@ enum PaymentStatus {
   REFUNDED
   REQUIRES_CAPTURE
   CANCELLED
+  PAUSED
 }
 
 
@@ -789,25 +790,30 @@ model Notification {
 }
 
 model Payment {
-  id                 String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId             String        @db.ObjectId
-  amountProvider     String?
-  amountReceiver     String?
-  paymentIntentId    String?
-  checkoutSessionId  String?       // Stripe Checkout Session ID
-  paymentMethodId    String?
+  id                  String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId              String        @db.ObjectId
+  amountProvider      String?
+  amountReceiver      String?
+  paymentIntentId     String?
+  checkoutSessionId   String? // Stripe Checkout Session ID
+  paymentMethodId     String?
   // Apple IAP fields
-  appleTransactionId String?
-  appleProductId     String?
-  appleReceiptData   String? // Raw receipt for verification audit trail
+  appleTransactionId  String?
+  appleProductId      String?
+  appleReceiptData    String? // Raw receipt for verification audit trail
+  // Google Play IAP fields
+  googleTransactionId String? // Purchase token from Google Play
+  googleProductId     String? // Subscription ID from Google (e.g., com.barberstime.barber_time_app.monthly)
+  googleOrderId       String? // Order ID from Google Play
+  googleReceiptData   String? // Raw Google Play purchase data
   // Payment details
-  paymentAmount      Float
-  bookingId          String?       @db.ObjectId
-  paymentDate        DateTime      @default(now())
+  paymentAmount       Float
+  bookingId           String?       @db.ObjectId
+  paymentDate         DateTime      @default(now())
   // Status
-  status             PaymentStatus @default(PENDING)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  status              PaymentStatus @default(PENDING)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   booking Booking? @relation(fields: [bookingId], references: [id])
   user    User     @relation(fields: [userId], references: [id])

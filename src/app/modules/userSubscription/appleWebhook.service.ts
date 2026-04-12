@@ -58,6 +58,8 @@ const handleSubscribedNotification = async (
       const updated = await tx.userSubscription.update({
         where: { id: subscription.id },
         data: {
+          appleTransactionId: data.transactionId,
+          appleProductId: data.productId,
           paymentStatus: PaymentStatus.COMPLETED,
           autoRenew: true,
           endDate: new Date(
@@ -66,6 +68,19 @@ const handleSubscribedNotification = async (
           ),
         },
       });
+
+      // Create payment record for initial subscription
+      if (subscription.subscriptionOffer) {
+        await tx.payment.create({
+          data: {
+            userId: subscription.userId,
+            appleTransactionId: data.transactionId,
+            appleProductId: data.productId,
+            paymentAmount: subscription.subscriptionOffer.price,
+            status: PaymentStatus.COMPLETED,
+          },
+        });
+      }
 
       // Update user - set isSubscribed to true
       await tx.user.update({
