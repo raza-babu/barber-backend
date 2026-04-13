@@ -477,7 +477,6 @@ const sendReferenceImagesToAI = async (
   const form = new FormData();
   form.append('barber_code', userId);
 
-  console.log(form);
 
   const filesToCleanup: string[] = [];
 
@@ -610,7 +609,7 @@ const sendReferenceImagesToAI = async (
       // Optional: Verify the upload by calling the GET API
       try {
         const verifyResp = await axios.get(
-          'https://reyai.dsrt321.online/get_barbers',
+          'http://13.48.206.147:8000/get_barbers',
           {
             timeout: 10000,
           },
