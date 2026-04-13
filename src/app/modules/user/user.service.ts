@@ -164,7 +164,7 @@ const registerUserIntoDB = async (payload: any) => {
 
     if (registeredUser?.fcmToken) {
       const message = `Welcome to Barbers Time, ${registeredUser.fullName}! Please verify your email with the OTP sent.`;
-      
+
       await notificationService
         .sendNotification(
           registeredUser.fcmToken,
@@ -328,6 +328,32 @@ const updateSaloonOwnerIntoDB = async (userId: string, payload: any) => {
     }
 
     const result = await prisma.$transaction(async tx => {
+      // delete removed shop images from aws s3 space
+      const currentSaloonOwner = await tx.saloonOwner.findUnique({
+        where: { userId: existingUser.id },
+        select: { shopImages: true, shopVideo: true },
+      });
+      const currentImages = currentSaloonOwner?.shopImages || [];
+      const newImages = payload.shopImages || [];
+      const removedImages = currentImages.filter(
+        (img: string) => !newImages.includes(img),
+      );
+      const currentVideos = currentSaloonOwner?.shopVideo || [];
+      const newVideos = payload.shopVideos || [];
+      const removedVideos = currentVideos.filter(
+        (vid: string) => !newVideos.includes(vid),
+      );
+      for (const img of removedImages) {
+        await deleteFileFromSpace(img).catch(error =>
+          console.error('Error deleting old shop image from S3:', error),
+        );
+      }
+      for (const vid of removedVideos) {
+        await deleteFileFromSpace(vid).catch(error =>
+          console.error('Error deleting old shop video from S3:', error),
+        );
+      }
+
       const updatedSaloonOwner = await tx.saloonOwner.update({
         where: { userId: existingUser.id },
         data: payload,
@@ -373,6 +399,24 @@ const updateBarberIntoDB = async (userId: string, payload: any) => {
         throw new AppError(httpStatus.BAD_REQUEST, 'Barber is not created!');
       }
     }
+  }
+
+  // delete removed reference images from aws s3 space
+  const currentBarber = await prisma.barber.findUnique({
+    where: { userId: existingUser!.id },
+    select: { portfolio: true },
+  });
+  const currentImages = currentBarber?.portfolio || [];
+  const newImages = payload.portfolio || [];
+  const removedImages = currentImages.filter(
+    (img: string) => !newImages.includes(img),
+  );
+
+  // Delete removed images from S3
+  for (const img of removedImages) {
+    await deleteFileFromSpace(img).catch(error =>
+      console.error('Error deleting old reference image from S3:', error),
+    );
   }
 
   const result = await prisma.$transaction(async (transactionClient: any) => {
@@ -1086,7 +1130,7 @@ const verifyOtpInDB = async (bodyData: {
   try {
     if (userData?.fcmToken) {
       const message = `Welcome ${userData.fullName}! Your email has been verified successfully.`;
-      
+
       await notificationService
         .sendNotification(
           userData.fcmToken,
@@ -1166,7 +1210,10 @@ interface SocialLoginPayload {
 const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
   // Validate and sanitize role (default to CUSTOMER if invalid/missing)
   let userRole: UserRoleEnum = UserRoleEnum.CUSTOMER;
-  if (payload.intendedRole && Object.values(UserRoleEnum).includes(payload.intendedRole)) {
+  if (
+    payload.intendedRole &&
+    Object.values(UserRoleEnum).includes(payload.intendedRole)
+  ) {
     userRole = payload.intendedRole;
   }
 
@@ -1203,8 +1250,9 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
   // If user exists, check if they're trying to use the same email for a different role
   if (existingUser) {
     // Check if the existing user's role or intendedRole matches the requested role
-    const matchesRole = existingUser.role === userRole || existingUser.intendedRole === userRole;
-    
+    const matchesRole =
+      existingUser.role === userRole || existingUser.intendedRole === userRole;
+
     if (!matchesRole) {
       throw new AppError(
         httpStatus.CONFLICT,
@@ -1259,7 +1307,10 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
         fcmToken: payload.fcmToken,
         phoneNumber: payload.phoneNumber ?? null,
         address: payload.address ?? null,
-        isProfileComplete: userRole === UserRoleEnum.CUSTOMER || userRole === UserRoleEnum.BARBER ? true : false, // Auto-complete profile for CUSTOMER and BARBER
+        isProfileComplete:
+          userRole === UserRoleEnum.CUSTOMER || userRole === UserRoleEnum.BARBER
+            ? true
+            : false, // Auto-complete profile for CUSTOMER and BARBER
       },
       select: {
         id: true,
@@ -1351,7 +1402,7 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
   try {
     if (userRecord.id && payload.fcmToken) {
       const message = `Welcome back to Barbers Time, ${userRecord.fullName}!`;
-      
+
       await notificationService
         .sendNotification(
           payload.fcmToken,
@@ -1392,7 +1443,7 @@ const updatePasswordIntoDb = async (payload: any) => {
   try {
     if (userData?.fcmToken) {
       const message = `Your password has been successfully updated.`;
-      
+
       await notificationService
         .sendNotification(
           userData.fcmToken,
@@ -1449,14 +1500,9 @@ const deleteAccountFromDB = async (
   try {
     if (userData?.fcmToken) {
       const message = `Your account has been successfully deleted. If this was a mistake, please contact support.`;
-      
+
       await notificationService
-        .sendNotification(
-          userData.fcmToken,
-          'Account Deleted',
-          message,
-          id,
-        )
+        .sendNotification(userData.fcmToken, 'Account Deleted', message, id)
         .catch(error =>
           console.error('Error sending account deletion notification:', error),
         );
@@ -1472,7 +1518,6 @@ const updateProfileImageIntoDB = async (
   userId: string,
   profileImageUrl: string,
 ) => {
-
   // delete old image from aws s3 bucket
   const userData = await prisma.user.findUnique({
     where: { id: userId },
@@ -1483,7 +1528,6 @@ const updateProfileImageIntoDB = async (
       console.error('Error deleting old profile image from S3:', error),
     );
   }
-
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },
