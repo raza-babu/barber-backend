@@ -15,6 +15,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { Type } from '@aws-sdk/client-s3';
+import { deleteFileFromSpace } from '../../utils/deleteImage';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -1471,6 +1472,19 @@ const updateProfileImageIntoDB = async (
   userId: string,
   profileImageUrl: string,
 ) => {
+
+  // delete old image from aws s3 bucket
+  const userData = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { image: true },
+  });
+  if (userData?.image) {
+    await deleteFileFromSpace(userData.image).catch(error =>
+      console.error('Error deleting old profile image from S3:', error),
+    );
+  }
+
+
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {

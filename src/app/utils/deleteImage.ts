@@ -16,14 +16,14 @@ const s3 = new S3Client({
 });
 
 export const uploadFileToS3 = async (file: Express.Multer.File, folder: string) => {
-  if (!process.env.AWS_S3_BUCKET) {
+  if (!config.aws.aws_s3_bucket) {
     throw new Error('AWS_S3_BUCKET is not defined in environment variables.');
   }
 
   const key = `${folder}/${Date.now()}_${file.originalname}`;
 
   const params = {
-    Bucket: process.env.AWS_S3_BUCKET,
+    Bucket: config.aws.aws_s3_bucket,
     Key: key,
     Body: file.buffer,
     ContentType: file.mimetype,
@@ -48,7 +48,7 @@ export const uploadFileToS3 = async (file: Express.Multer.File, folder: string) 
 };
 
 export const deleteFileFromSpace = async (fileUrl: string) => {
-  if (!process.env.AWS_S3_BUCKET) {
+  if (!config.aws.aws_s3_bucket) {
     throw new Error('AWS_S3_BUCKET is not defined in environment variables.');
   }
 
@@ -56,7 +56,7 @@ export const deleteFileFromSpace = async (fileUrl: string) => {
   const key = url.pathname.substring(1); // remove leading "/"
 
   const params = {
-    Bucket: process.env.AWS_S3_BUCKET,
+    Bucket: config.aws.aws_s3_bucket,
     Key: key,
   };
 
