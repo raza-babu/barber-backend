@@ -270,6 +270,7 @@ const checkSubscriptionStatus = async (
   subscriptionId: string,
   purchaseToken: string,
 ): Promise<any> => {
+  
   try {
     const purchaseData = await verifyGooglePlayPurchase(
       packageName,
