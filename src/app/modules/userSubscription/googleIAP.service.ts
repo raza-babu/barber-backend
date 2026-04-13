@@ -262,7 +262,6 @@ const getSubscriptionPurchaseHistory = async (
     );
   }
 };
-
 /**
  * Check if subscription is still active
  */
