@@ -2,8 +2,8 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { deleteFileFromSpace } from '../../utils/deleteImage';
 import { notificationService } from '../notification/notification.service';
+import { deleteFileFromSpace } from '../../utils/deleteImage';
 
 const createFeedIntoDb = async (userId: string, data: any) => {
   let saloonOwner;
