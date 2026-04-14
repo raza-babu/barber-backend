@@ -542,6 +542,35 @@ const sendReferenceImagesToAI = async (
       );
     }
 
+    // Delete previous images from AI service before uploading new ones
+    try {
+      const deleteUrl = `http://13.48.206.147:8000/delete_barber/${userId}`;
+      console.log('=== Deleting Previous Images ===');
+      console.log('Delete URL:', deleteUrl);
+
+      const deleteResp = await axios.delete(deleteUrl, {
+        timeout: 30000,
+        validateStatus: status => status < 500,
+      });
+
+      // console.log('Delete Response Status:', deleteResp.status);
+      // console.log('Delete Response:', JSON.stringify(deleteResp.data, null, 2));
+
+      if (deleteResp.status >= 400) {
+        console.warn(
+          `⚠️ Warning: Failed to delete previous images (status: ${deleteResp.status}). Proceeding with upload anyway.`,
+        );
+      } else {
+        console.log(`✅ Successfully deleted previous images for barber ${userId}`);
+      }
+    } catch (deleteErr: any) {
+      console.warn(
+        '⚠️ Warning: Error deleting previous images:',
+        deleteErr.message,
+      );
+      console.log('Proceeding with upload despite deletion error.');
+    }
+
     const url = 'http://13.48.206.147:8000/upload_reference';
 
     // Get form-data headers (includes Content-Type with boundary)
