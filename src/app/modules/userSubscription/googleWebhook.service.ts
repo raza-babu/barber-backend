@@ -164,6 +164,7 @@ const handleSubscriptionPurchased = async (
 
       return updated;
     });
+    
 
     console.log('✅ Subscription purchased:', {
       id: updatedSubscription.id,
