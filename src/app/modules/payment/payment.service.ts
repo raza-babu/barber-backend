@@ -951,19 +951,38 @@ const cancelQueuePaymentRequestToStripe = async (
       // WITHIN 5 MINS: Refund (totalAmount - £0.50)
       
       try {
-        // If this is a Checkout Session, expire the session
+        // If this is a Checkout Session
         if (findPayment.checkoutSessionId) {
-          const session = await stripe.checkout.sessions.expire(
+          const session = await stripe.checkout.sessions.retrieve(
             findPayment.checkoutSessionId,
           );
 
-          console.log('Checkout Session Expired:', {
+          console.log('Checkout Session Status:', {
             sessionId: findPayment.checkoutSessionId,
-            status: session.payment_status,
-            timestamp: new Date(),
+            paymentStatus: session.payment_status,
+            paymentIntentId: session.payment_intent,
           });
 
-          // Session is expired, payment will be canceled automatically
+          // If already paid, create refund for amount minus service fee
+          if (session.payment_status === 'paid' && session.payment_intent) {
+            const refundAmount = Math.max(0, (findPayment.paymentAmount || 0) - SERVICE_FEE_PENCE);
+            if (refundAmount > 0) {
+              await stripe.refunds.create({
+                payment_intent: session.payment_intent as string,
+                amount: refundAmount,
+              });
+              console.log('Refund created for Checkout Session:', {
+                paymentIntentId: session.payment_intent,
+                refundAmount,
+              });
+            }
+          } else {
+            // If not yet paid, expire the session
+            await stripe.checkout.sessions.expire(findPayment.checkoutSessionId);
+            console.log('Checkout Session Expired (not yet paid):', {
+              sessionId: findPayment.checkoutSessionId,
+            });
+          }
         } 
         // If this is a regular PaymentIntent (not from Checkout)
         else if (findPayment.paymentIntentId) {
@@ -995,8 +1014,8 @@ const cancelQueuePaymentRequestToStripe = async (
           }
         }
       } catch (error: any) {
-        console.error('Error canceling/expiring payment:', error.message);
-        // Continue with DB update even if Stripe action fails
+        console.error('Error processing payment cancellation:', error.message);
+        throw error; // Throw error instead of silencing it
       }
 
       await tx.payment.update({

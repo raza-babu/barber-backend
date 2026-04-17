@@ -5101,25 +5101,23 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
     const SERVICE_FEE_PENCE = 50; // £0.50
 
     try {
-      // CASE 1: Cancelled MORE than 1 day before booking
-      // Customer gets FULL refund (no service fee deduction)
-      if (isMoreThanOneDayBefore) {
-        console.log('Cancellation > 1 day before booking: Full refund to customer');
+      // CASE 1: Cancelled LESS than 1 day before booking
+      // NO REFUND - App keeps full amount as cancellation penalty (last-minute cancellation)
+      if (!isMoreThanOneDayBefore) {
+        console.log('Cancellation < 1 day before booking: NO REFUND - last-minute cancellation penalty');
 
         if (payment.checkoutSessionId) {
           const session = await stripe.checkout.sessions.retrieve(
             payment.checkoutSessionId,
           );
 
-          // If not yet paid, expire the session
+          // If not yet paid, expire the session (no charge)
           if (session.payment_status !== 'paid') {
             await stripe.checkout.sessions.expire(payment.checkoutSessionId);
+            console.log('Checkout Session expired (no payment taken)');
           } else {
-            // If already paid, create full refund
-            await stripe.refunds.create({
-              payment_intent: payment.paymentIntentId!,
-              amount: payment.paymentAmount || 0,
-            });
+            // If already paid, keep the money - NO REFUND
+            console.log('Checkout Session already paid - NO REFUND applied (last-minute penalty)');
           }
         } else if (payment.paymentIntentId) {
           const paymentIntent = await stripe.paymentIntents.retrieve(
@@ -5127,30 +5125,28 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
           );
 
           if (paymentIntent.status === 'requires_capture') {
-            // Cancel the intent (auto-refunds authorized amount)
+            // Just cancel without capturing - releases authorization, NO REFUND
             await stripe.paymentIntents.cancel(payment.paymentIntentId);
+            console.log('PaymentIntent canceled - NO REFUND (last-minute penalty)');
           } else if (paymentIntent.status === 'succeeded') {
-            // Refund full amount
-            await stripe.refunds.create({
-              payment_intent: payment.paymentIntentId,
-              amount: paymentIntent.amount,
-            });
+            // Already succeeded - keep the money, NO REFUND
+            console.log('Payment already succeeded - NO REFUND (last-minute penalty)');
           }
         }
 
-        // Update payment to REFUNDED with full refund amount
+        // Update payment to COMPLETED - app keeps full amount
         await prisma.payment.update({
           where: { id: payment.id },
           data: {
-            status: PaymentStatus.REFUNDED,
-            paymentAmount: payment.paymentAmount || 0,
+            status: PaymentStatus.COMPLETED,
+            paymentAmount: payment.paymentAmount || 0, // App keeps entire amount
           },
         });
       }
-      // CASE 2: Cancelled on or less than 1 day before booking
+      // CASE 2: Cancelled MORE than 1 day before booking
       // Customer gets refund (totalAmount - £0.50), Admin keeps £0.50 service fee
       else {
-        console.log('Cancellation on/within 1 day of booking: Refund (totalAmount - £0.50), admin keeps service fee');
+        console.log('Cancellation > 1 day before booking: Refund (totalAmount - £0.50), admin keeps service fee');
 
         if (payment.checkoutSessionId) {
           const session = await stripe.checkout.sessions.retrieve(
@@ -5160,10 +5156,10 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
           // If payment is already completed, refund amount minus service fee
           if (session.payment_status === 'paid') {
             console.log('Checkout Session already paid, creating refund for customer');
-            const refundAmount = payment.paymentAmount - SERVICE_FEE_PENCE;
-            if (refundAmount > 0 && payment.paymentIntentId) {
+            const refundAmount = Math.max(0, (payment.paymentAmount || 0) - SERVICE_FEE_PENCE);
+            if (refundAmount > 0 && session.payment_intent) {
               await stripe.refunds.create({
-                payment_intent: payment.paymentIntentId,
+                payment_intent: session.payment_intent as string,
                 amount: refundAmount,
               });
             }
@@ -5214,8 +5210,12 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
         });
       }
     } catch (error: any) {
-      console.error('Error processing payment cancellation:', error.message);
-      // Continue with booking cancellation even if payment handling fails
+      console.error('❌ Error processing payment cancellation:', {
+        message: error.message,
+        code: error.code,
+        type: error.type,
+      });
+      // Continue with booking cancellation - payment error should not block booking cancellation
     }
   }
 
