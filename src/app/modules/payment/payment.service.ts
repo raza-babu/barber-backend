@@ -972,8 +972,17 @@ const cancelQueuePaymentRequestToStripe = async (
           );
 
           if (paymentIntent.status === 'requires_capture') {
-            // Cancel the intent (auto-refunds authorized amount)
-            await stripe.paymentIntents.cancel(findPayment.paymentIntentId);
+            // FIRST: Capture the full amount to settle the payment
+            await stripe.paymentIntents.capture(findPayment.paymentIntentId);
+            
+            // THEN: Immediately refund amount minus service fee (£0.50)
+            const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);
+            if (refundAmount > 0) {
+              await stripe.refunds.create({
+                payment_intent: findPayment.paymentIntentId,
+                amount: refundAmount,
+              });
+            }
           } else if (paymentIntent.status === 'succeeded') {
             // Create refund for amount minus service fee
             const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);

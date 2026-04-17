@@ -5148,18 +5148,25 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
         });
       }
       // CASE 2: Cancelled on or less than 1 day before booking
-      // Customer gets NO refund, Shop owner gets full amount, Admin keeps £0.50
+      // Customer gets refund (totalAmount - £0.50), Admin keeps £0.50 service fee
       else {
-        console.log('Cancellation on/within 1 day of booking: No customer refund, shop owner gets full amount');
+        console.log('Cancellation on/within 1 day of booking: Refund (totalAmount - £0.50), admin keeps service fee');
 
         if (payment.checkoutSessionId) {
           const session = await stripe.checkout.sessions.retrieve(
             payment.checkoutSessionId,
           );
 
-          // If payment is already completed, just update DB (funds already transferred)
+          // If payment is already completed, refund amount minus service fee
           if (session.payment_status === 'paid') {
-            console.log('Checkout Session already paid, shop owner already received funds');
+            console.log('Checkout Session already paid, creating refund for customer');
+            const refundAmount = payment.paymentAmount - SERVICE_FEE_PENCE;
+            if (refundAmount > 0 && payment.paymentIntentId) {
+              await stripe.refunds.create({
+                payment_intent: payment.paymentIntentId,
+                amount: refundAmount,
+              });
+            }
           } else {
             // If not yet paid, try to expire
             try {
@@ -5174,18 +5181,35 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
           );
 
           if (paymentIntent.status === 'requires_capture') {
-            // Capture full amount - triggers transfer_data to shop owner
+            // FIRST: Capture the full amount to settle the payment
             await stripe.paymentIntents.capture(payment.paymentIntentId);
+            
+            // THEN: Immediately refund amount minus service fee (£0.50)
+            const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);
+            if (refundAmount > 0) {
+              await stripe.refunds.create({
+                payment_intent: payment.paymentIntentId,
+                amount: refundAmount,
+              });
+            }
+          } else if (paymentIntent.status === 'succeeded') {
+            // Already succeeded, refund amount minus service fee
+            const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);
+            if (refundAmount > 0) {
+              await stripe.refunds.create({
+                payment_intent: payment.paymentIntentId,
+                amount: refundAmount,
+              });
+            }
           }
-          // If already succeeded, funds already transferred
         }
 
-        // Update payment to COMPLETED (shop owner gets funds, admin keeps £0.50)
+        // Update payment to COMPLETED with service fee kept (£0.50)
         await prisma.payment.update({
           where: { id: payment.id },
           data: {
             status: PaymentStatus.COMPLETED,
-            paymentAmount: payment.paymentAmount || 0,
+            paymentAmount: SERVICE_FEE_PENCE,
           },
         });
       }
