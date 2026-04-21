@@ -2237,12 +2237,17 @@ const getBookingListFromDb = async (
   }
 
   // Filter by status
-  if (!status) {
-    whereConditions.status = { isNot: BookingStatus.PENDING };
-  }
+  // if (!status) {
+  //   whereConditions.status = { isNot: BookingStatus.PENDING };
+  // }
+  whereConditions.Payment = {
+    some: {
+      status: PaymentStatus.COMPLETED,
+    },
+  };
 
   if (status) {
-    delete whereConditions.status;
+    // delete whereConditions.status;
     whereConditions.status = status;
   }
 
