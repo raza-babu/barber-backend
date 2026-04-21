@@ -2229,7 +2229,6 @@ const getBookingListFromDb = async (
   // Build where clause
   const whereConditions: any = {
     userId,
-    Payment: { isNot: null },
   };
 
   // Filter by booking type
@@ -2238,7 +2237,12 @@ const getBookingListFromDb = async (
   }
 
   // Filter by status
+  if (!status) {
+    whereConditions.status = { isNot: BookingStatus.PENDING };
+  }
+
   if (status) {
+    delete whereConditions.status;
     whereConditions.status = status;
   }
 
