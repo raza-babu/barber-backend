@@ -2236,13 +2236,9 @@ const getBookingListFromDb = async (
     whereConditions.bookingType = type;
   }
 
-  // Filter by status
-  // if (!status) {
-  //   whereConditions.status = { isNot: BookingStatus.PENDING };
-  // }
+//  TODO: TO HIDE THE DATA WITHOUT PAYMENT
   whereConditions.Payment = {
     some: {
-      status: PaymentStatus.COMPLETED,
     },
   };
 
