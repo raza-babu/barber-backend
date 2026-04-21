@@ -2229,7 +2229,7 @@ const getBookingListFromDb = async (
   // Build where clause
   const whereConditions: any = {
     userId,
-    payment: { not: null },
+    Payment: { not: null },
   };
 
   // Filter by booking type
