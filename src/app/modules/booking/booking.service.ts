@@ -39,12 +39,12 @@ const sendBookingConfirmationNotification = async (
     });
 
     if (user) {
-      const title = bookingType === 'QUEUE' 
-        ? 'Queue Confirmed' 
-        : 'Booking Confirmed';
-      const body = bookingType === 'QUEUE'
-        ? 'You have been added to the queue. You will be notified when it\'s your turn.'
-        : 'Your appointment booking has been confirmed. Please arrive on time.';
+      const title =
+        bookingType === 'QUEUE' ? 'Queue Confirmed' : 'Booking Confirmed';
+      const body =
+        bookingType === 'QUEUE'
+          ? "You have been added to the queue. You will be notified when it's your turn."
+          : 'Your appointment booking has been confirmed. Please arrive on time.';
 
       await notificationService.sendNotification(
         user.fcmToken,
@@ -116,7 +116,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     0,
   );
 
-
   // 🔥 Check QueueTime model for this barber + saloon + service combination
   const queueTimeRecord = await prisma.queueTime.findFirst({
     where: {
@@ -166,7 +165,6 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     date,
     BookingType.QUEUE,
   );
-
 
   if (
     !availableBarbers ||
@@ -334,426 +332,436 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   const utcDateTime = localDateTime.toUTC().toJSDate();
 
   // 8. Transaction for all DB operations
-  const result = await prisma.$transaction(async tx => {
-    // 8a. Clean up stale PENDING bookings (>5 mins old with no completed payment) if remoteQueue
-    if (remoteQueue) {
-      const fiveMinutesAgo = DateTime.now().minus({ minutes: 5 }).toJSDate();
-      const stalePendingBookings = await tx.booking.findMany({
-        where: {
-          barberId,
-          saloonOwnerId,
-          bookingType: BookingType.QUEUE,
-          status: BookingStatus.PENDING,
-          createdAt: { lt: fiveMinutesAgo },
-        },
-      });
-
-      if (stalePendingBookings.length > 0) {
-        const staleBookingIds = stalePendingBookings.map(b => b.id);
-        const payments = await tx.payment.findMany({
+  const result = await prisma.$transaction(
+    async tx => {
+      // 8a. Clean up stale PENDING bookings (>5 mins old with no completed payment) if remoteQueue
+      if (remoteQueue) {
+        const fiveMinutesAgo = DateTime.now().minus({ minutes: 5 }).toJSDate();
+        const stalePendingBookings = await tx.booking.findMany({
           where: {
-            bookingId: { in: staleBookingIds },
-            status: { not: PaymentStatus.COMPLETED },
+            barberId,
+            saloonOwnerId,
+            bookingType: BookingType.QUEUE,
+            status: BookingStatus.PENDING,
+            createdAt: { lt: fiveMinutesAgo },
           },
         });
 
-        // Delete stale unpaid bookings and cleanup related records
-        for (const staleBooking of stalePendingBookings) {
-          if (payments.length > 0) {
-            await tx.bookedServices.deleteMany({
-              where: { bookingId: staleBooking.id },
-            });
-            await tx.barberRealTimeStatus.deleteMany({
-              where: {
-                barberId,
-                startDateTime: staleBooking.startDateTime || new Date(),
-                endDateTime: staleBooking.endDateTime || new Date(),
-              },
-            });
-            await tx.queueSlot.deleteMany({
-              where: { bookingId: staleBooking.id },
-            });
-            await tx.booking.delete({
-              where: { id: staleBooking.id },
-            });
+        if (stalePendingBookings.length > 0) {
+          const staleBookingIds = stalePendingBookings.map(b => b.id);
+          const payments = await tx.payment.findMany({
+            where: {
+              bookingId: { in: staleBookingIds },
+              status: { not: PaymentStatus.COMPLETED },
+            },
+          });
+
+          // Delete stale unpaid bookings and cleanup related records
+          for (const staleBooking of stalePendingBookings) {
+            if (payments.length > 0) {
+              await tx.bookedServices.deleteMany({
+                where: { bookingId: staleBooking.id },
+              });
+              await tx.barberRealTimeStatus.deleteMany({
+                where: {
+                  barberId,
+                  startDateTime: staleBooking.startDateTime || new Date(),
+                  endDateTime: staleBooking.endDateTime || new Date(),
+                },
+              });
+              await tx.queueSlot.deleteMany({
+                where: { bookingId: staleBooking.id },
+              });
+              await tx.booking.delete({
+                where: { id: staleBooking.id },
+              });
+            }
           }
         }
       }
-    }
 
-    // 8b. Check if barber exists
-    const barber = await tx.barber.findUnique({
-      where: { userId: barberId },
-      select: {
-        id: true,
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            image: true,
+      // 8b. Check if barber exists
+      const barber = await tx.barber.findUnique({
+        where: { userId: barberId },
+        select: {
+          id: true,
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              image: true,
+            },
           },
         },
-      },
-    });
-    if (!barber) {
-      throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
-    }
-
-    // Check if barber is on holiday
-    const barberHoliday = await tx.barberDayOff.findFirst({
-      where: {
-        barberId: barber.id,
-        date: localDateTime.toJSDate(),
-        saloonOwnerId: saloonOwnerId,
-      },
-    });
-    if (barberHoliday) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Barber is on holiday');
-    }
-
-    // Check lunch/break time overlap
-    const barberBreak = await tx.lunch.findFirst({
-      where: {
-        saloonOwnerId: saloonOwnerId,
-      },
-    });
-
-    if (barberBreak && barberBreak.startTime && barberBreak.endTime) {
-      const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
-        zone: config.timezone,
       });
-      const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
-
-      const breakStartTime = DateTime.fromFormat(
-        barberBreak.startTime,
-        'hh:mm a',
-        { zone: config.timezone },
-      );
-      const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
-        zone: config.timezone,
-      });
-
-      if (
-        (bookingStartTime >= breakStartTime &&
-          bookingStartTime < breakEndTime) ||
-        (bookingEndTime > breakStartTime && bookingEndTime <= breakEndTime) ||
-        (bookingStartTime <= breakStartTime && bookingEndTime >= breakEndTime)
-      ) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Barber is unavailable during break/lunch time',
-        );
+      if (!barber) {
+        throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
       }
-    }
 
-    // Clean up old queues
-    await tx.queue.deleteMany({
-      where: {
-        barberId,
-        saloonOwnerId,
-        isActive: false,
-        date: { lt: new Date() },
-      },
-    });
+      // Check if barber is on holiday
+      const barberHoliday = await tx.barberDayOff.findFirst({
+        where: {
+          barberId: barber.id,
+          date: localDateTime.toJSDate(),
+          saloonOwnerId: saloonOwnerId,
+        },
+      });
+      if (barberHoliday) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Barber is on holiday');
+      }
 
-    // Find or create queue
-    let queue = await tx.queue.findFirst({
-      where: {
-        barberId,
-        saloonOwnerId,
-        date: new Date(date),
-      },
-    });
+      // Check lunch/break time overlap
+      const barberBreak = await tx.lunch.findFirst({
+        where: {
+          saloonOwnerId: saloonOwnerId,
+        },
+      });
 
-    if (!queue) {
-      queue = await tx.queue.create({
-        data: {
+      if (barberBreak && barberBreak.startTime && barberBreak.endTime) {
+        const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
+          zone: config.timezone,
+        });
+        const bookingEndTime = bookingStartTime.plus({
+          minutes: totalDuration,
+        });
+
+        const breakStartTime = DateTime.fromFormat(
+          barberBreak.startTime,
+          'hh:mm a',
+          { zone: config.timezone },
+        );
+        const breakEndTime = DateTime.fromFormat(
+          barberBreak.endTime,
+          'hh:mm a',
+          {
+            zone: config.timezone,
+          },
+        );
+
+        if (
+          (bookingStartTime >= breakStartTime &&
+            bookingStartTime < breakEndTime) ||
+          (bookingEndTime > breakStartTime && bookingEndTime <= breakEndTime) ||
+          (bookingStartTime <= breakStartTime && bookingEndTime >= breakEndTime)
+        ) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            'Barber is unavailable during break/lunch time',
+          );
+        }
+      }
+
+      // Clean up old queues
+      await tx.queue.deleteMany({
+        where: {
+          barberId,
+          saloonOwnerId,
+          isActive: false,
+          date: { lt: new Date() },
+        },
+      });
+
+      // Find or create queue
+      let queue = await tx.queue.findFirst({
+        where: {
           barberId,
           saloonOwnerId,
           date: new Date(date),
-          currentPosition: 1,
-        },
-      });
-    } else {
-      queue = await tx.queue.update({
-        where: { id: queue.id },
-        data: {
-          currentPosition: queue.currentPosition + 1,
-        },
-      });
-    }
-
-    // Get existing slots and determine insert position
-    const existingSlots = await tx.queueSlot.findMany({
-      where: { queueId: queue.id },
-      orderBy: { startedAt: 'asc' },
-    });
-
-    let insertPosition = 1;
-    for (let i = 0; i < existingSlots.length; i++) {
-      const slot = existingSlots[i];
-      if (slot && slot.startedAt && utcDateTime > slot.startedAt) {
-        insertPosition = i + 2;
-      } else {
-        break;
-      }
-    }
-
-    // Shift positions
-    for (let i = existingSlots.length - 1; i >= insertPosition - 1; i--) {
-      await tx.queueSlot.update({
-        where: { id: existingSlots[i].id },
-        data: { position: existingSlots[i].position + 1 },
-      });
-    }
-
-    // Create queue slot
-    const queueSlot = await tx.queueSlot.create({
-      data: {
-        queueId: queue.id,
-        customerId: userId,
-        barberId: barberId,
-        position: insertPosition,
-        startedAt: utcDateTime,
-      },
-    });
-
-    // Handle loyalty
-    let price = totalPrice;
-    let loyaltyUsed = null;
-
-    if (loyaltySchemeId) {
-      const loyaltyScheme = await tx.loyaltyScheme.findUnique({
-        where: { id: loyaltySchemeId, userId: saloonOwnerId },
-      });
-      if (!loyaltyScheme) {
-        throw new AppError(httpStatus.NOT_FOUND, 'Loyalty scheme not found');
-      }
-
-      const customerLoyalty = await tx.customerLoyalty.findFirst({
-        where: { userId: userId, saloonOwnerId: saloonOwnerId },
-        select: { id: true, totalPoints: true },
-      });
-
-      if (
-        !customerLoyalty ||
-        (customerLoyalty.totalPoints || 0) < loyaltyScheme.pointThreshold
-      ) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Not enough loyalty points');
-      }
-
-      await tx.customerLoyalty.update({
-        where: { id: customerLoyalty.id },
-        data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
-      });
-
-      loyaltyUsed = await tx.loyaltyRedemption.create({
-        data: {
-          customerId: userId,
-          loyaltySchemeId: customerLoyalty.id,
-          pointsUsed: loyaltyScheme.pointThreshold,
         },
       });
 
-      price = totalPrice - totalPrice * (loyaltyScheme.percentage / 100);
-      if (price < 0) price = 0;
-    }
-
-    // Create booking
-    const booking = await tx.booking.create({
-      data: {
-        userId,
-        barberId,
-        saloonOwnerId,
-        appointmentAt: utcDateTime,
-        date: new Date(date),
-        notes,
-        bookingType: BookingType.QUEUE,
-        isInQueue: !!(saloonOwner.isQueueEnabled && isInQueue),
-        totalPrice: price,
-        startDateTime: utcDateTime,
-        endDateTime: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
-          .toJSDate(),
-        startTime: localDateTime.toFormat('hh:mm a'),
-        endTime: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
-          .toFormat('hh:mm a'),
-        loyaltySchemeId: loyaltySchemeId || null,
-        loyaltyUsed: !!loyaltyUsed,
-        remoteQueue: remoteQueue ?? false,
-        status: remoteQueue ? BookingStatus.PENDING : BookingStatus.CONFIRMED,
-      },
-    });
-
-    // Create payment record with PENDING status (will be updated after authorization)
-    // let paymentRecord = null;
-    // if (isInQueue && booking) {
-    //   paymentRecord = await tx.payment.create({
-    //     data: {
-    //       userId: userId,
-    //       bookingId: booking.id,
-    //       paymentAmount: price,
-    //       status: PaymentStatus.COMPLETED,
-    //       paymentDate: new Date(),
-    //     },
-    //   });
-    // }
-
-    // Update loyalty redemption with bookingId
-    if (loyaltyUsed) {
-      await tx.loyaltyRedemption.update({
-        where: { id: loyaltyUsed.id },
-        data: { bookingId: booking.id },
-      });
-    }
-
-    // Create booked services
-    await Promise.all(
-      serviceRecords.map(service =>
-        tx.bookedServices.create({
+      if (!queue) {
+        queue = await tx.queue.create({
           data: {
-            bookingId: booking.id,
-            customerId: userId,
-            serviceId: service.id,
-            price: service.price,
+            barberId,
+            saloonOwnerId,
+            date: new Date(date),
+            currentPosition: 1,
           },
-        }),
-      ),
-    );
-
-    // Update queue slot with booking details
-    await tx.queueSlot.update({
-      where: { id: queueSlot.id },
-      data: {
-        bookingId: booking.id,
-        completedAt: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
-          .toJSDate(),
-      },
-    });
-
-    // Create barber real-time status
-    const endDateTime = DateTime.fromJSDate(utcDateTime)
-      .plus({ minutes: totalDuration })
-      .toJSDate();
-
-    const dayName = DateTime.fromJSDate(utcDateTime)
-      .toFormat('cccc')
-      .toLowerCase();
-
-    const barberSchedule = await tx.barberSchedule.findFirst({
-      where: {
-        barberId: barberId,
-        dayName: dayName,
-        isActive: true,
-        type: ScheduleType.QUEUE,
-      },
-    });
-
-    if (!barberSchedule) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Barber schedule not found for this day',
-      );
-    }
-
-    const openingDateTime = DateTime.fromFormat(
-      `${date} ${barberSchedule.openingTime}`,
-      'yyyy-MM-dd hh:mm a',
-      { zone: config.timezone },
-    );
-    const closingDateTime = DateTime.fromFormat(
-      `${date} ${barberSchedule.closingTime}`,
-      'yyyy-MM-dd hh:mm a',
-      { zone: config.timezone },
-    );
-
-    // For QUEUE bookings: only check if START time is within working hours
-    // Allow the booking to extend beyond closing time
-    if (localDateTime < openingDateTime) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Booking cannot start before barber opening time',
-      );
-    }
-
-    // Check that booking starts before closing time
-    if (localDateTime >= closingDateTime) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Booking must start before barber closing time',
-      );
-    }
-
-    // Check for overlapping barber status (keep this to prevent double booking)
-    const overlappingStatus = await tx.barberRealTimeStatus.findFirst({
-      where: {
-        barberId,
-        OR: [
-          {
-            startDateTime: {
-              lt: endDateTime,
-            },
-            endDateTime: {
-              gt: utcDateTime,
-            },
-          },
-        ],
-      },
-    });
-
-    if (overlappingStatus) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Barber already has a booking or is unavailable during the requested time slot',
-      );
-    }
-
-    await tx.barberRealTimeStatus.create({
-      data: {
-        barberId,
-        startDateTime: utcDateTime,
-        endDateTime: endDateTime,
-        isAvailable: false,
-        startTime: localDateTime.toFormat('hh:mm a'),
-        endTime: DateTime.fromJSDate(endDateTime).toFormat('hh:mm a'),
-      },
-    });
-
-    // Create payment only if remoteQueue is true
-    let payment;
-    if (remoteQueue) {
-      try {
-        payment = await StripeServices.authorizeAndSplitPayment(userId, {
-          bookingId: booking.id as string,
-          booking: booking,
-          tx: tx,
         });
-        if (!payment) {
+      } else {
+        queue = await tx.queue.update({
+          where: { id: queue.id },
+          data: {
+            currentPosition: queue.currentPosition + 1,
+          },
+        });
+      }
+
+      // Get existing slots and determine insert position
+      const existingSlots = await tx.queueSlot.findMany({
+        where: { queueId: queue.id },
+        orderBy: { startedAt: 'asc' },
+      });
+
+      let insertPosition = 1;
+      for (let i = 0; i < existingSlots.length; i++) {
+        const slot = existingSlots[i];
+        if (slot && slot.startedAt && utcDateTime > slot.startedAt) {
+          insertPosition = i + 2;
+        } else {
+          break;
+        }
+      }
+
+      // Shift positions
+      for (let i = existingSlots.length - 1; i >= insertPosition - 1; i--) {
+        await tx.queueSlot.update({
+          where: { id: existingSlots[i].id },
+          data: { position: existingSlots[i].position + 1 },
+        });
+      }
+
+      // Create queue slot
+      const queueSlot = await tx.queueSlot.create({
+        data: {
+          queueId: queue.id,
+          customerId: userId,
+          barberId: barberId,
+          position: insertPosition,
+          startedAt: utcDateTime,
+        },
+      });
+
+      // Handle loyalty
+      let price = totalPrice;
+      let loyaltyUsed = null;
+
+      if (loyaltySchemeId) {
+        const loyaltyScheme = await tx.loyaltyScheme.findUnique({
+          where: { id: loyaltySchemeId, userId: saloonOwnerId },
+        });
+        if (!loyaltyScheme) {
+          throw new AppError(httpStatus.NOT_FOUND, 'Loyalty scheme not found');
+        }
+
+        const customerLoyalty = await tx.customerLoyalty.findFirst({
+          where: { userId: userId, saloonOwnerId: saloonOwnerId },
+          select: { id: true, totalPoints: true },
+        });
+
+        if (
+          !customerLoyalty ||
+          (customerLoyalty.totalPoints || 0) < loyaltyScheme.pointThreshold
+        ) {
           throw new AppError(
             httpStatus.BAD_REQUEST,
-            'Unable to create checkout session. Booking cancelled.',
+            'Not enough loyalty points',
           );
         }
-      } catch (paymentError) {
+
+        await tx.customerLoyalty.update({
+          where: { id: customerLoyalty.id },
+          data: { totalPoints: { decrement: loyaltyScheme.pointThreshold } },
+        });
+
+        loyaltyUsed = await tx.loyaltyRedemption.create({
+          data: {
+            customerId: userId,
+            loyaltySchemeId: customerLoyalty.id,
+            pointsUsed: loyaltyScheme.pointThreshold,
+          },
+        });
+
+        price = totalPrice - totalPrice * (loyaltyScheme.percentage / 100);
+        if (price < 0) price = 0;
+      }
+
+      // Create booking
+      const booking = await tx.booking.create({
+        data: {
+          userId,
+          barberId,
+          saloonOwnerId,
+          appointmentAt: utcDateTime,
+          date: new Date(date),
+          notes,
+          bookingType: BookingType.QUEUE,
+          isInQueue: !!(saloonOwner.isQueueEnabled && isInQueue),
+          totalPrice: price,
+          startDateTime: utcDateTime,
+          endDateTime: DateTime.fromJSDate(utcDateTime)
+            .plus({ minutes: totalDuration })
+            .toJSDate(),
+          startTime: localDateTime.toFormat('hh:mm a'),
+          endTime: DateTime.fromJSDate(utcDateTime)
+            .plus({ minutes: totalDuration })
+            .toFormat('hh:mm a'),
+          loyaltySchemeId: loyaltySchemeId || null,
+          loyaltyUsed: !!loyaltyUsed,
+          remoteQueue: remoteQueue ?? false,
+          status: remoteQueue ? BookingStatus.PENDING : BookingStatus.CONFIRMED,
+        },
+      });
+
+      // Create payment record with PENDING status (will be updated after authorization)
+      // let paymentRecord = null;
+      // if (isInQueue && booking) {
+      //   paymentRecord = await tx.payment.create({
+      //     data: {
+      //       userId: userId,
+      //       bookingId: booking.id,
+      //       paymentAmount: price,
+      //       status: PaymentStatus.COMPLETED,
+      //       paymentDate: new Date(),
+      //     },
+      //   });
+      // }
+
+      // Update loyalty redemption with bookingId
+      if (loyaltyUsed) {
+        await tx.loyaltyRedemption.update({
+          where: { id: loyaltyUsed.id },
+          data: { bookingId: booking.id },
+        });
+      }
+
+      // Create booked services
+      await Promise.all(
+        serviceRecords.map(service =>
+          tx.bookedServices.create({
+            data: {
+              bookingId: booking.id,
+              customerId: userId,
+              serviceId: service.id,
+              price: service.price,
+            },
+          }),
+        ),
+      );
+
+      // Update queue slot with booking details
+      await tx.queueSlot.update({
+        where: { id: queueSlot.id },
+        data: {
+          bookingId: booking.id,
+          completedAt: DateTime.fromJSDate(utcDateTime)
+            .plus({ minutes: totalDuration })
+            .toJSDate(),
+        },
+      });
+
+      // Create barber real-time status
+      const endDateTime = DateTime.fromJSDate(utcDateTime)
+        .plus({ minutes: totalDuration })
+        .toJSDate();
+
+      const dayName = DateTime.fromJSDate(utcDateTime)
+        .toFormat('cccc')
+        .toLowerCase();
+
+      const barberSchedule = await tx.barberSchedule.findFirst({
+        where: {
+          barberId: barberId,
+          dayName: dayName,
+          isActive: true,
+          type: ScheduleType.QUEUE,
+        },
+      });
+
+      if (!barberSchedule) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
-          paymentError instanceof AppError
-            ? paymentError.message
-            : 'Payment initialization failed. Booking cancelled.',
+          'Barber schedule not found for this day',
         );
       }
-    }
 
-    return {
-      booking,
-      queue,
-      queueSlot,
-      totalPrice: price,
-      appointmentAt: localDateTime.toFormat('hh:mm a'),
-      payment,
-    };
+      const openingDateTime = DateTime.fromFormat(
+        `${date} ${barberSchedule.openingTime}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: config.timezone },
+      );
+      const closingDateTime = DateTime.fromFormat(
+        `${date} ${barberSchedule.closingTime}`,
+        'yyyy-MM-dd hh:mm a',
+        { zone: config.timezone },
+      );
+
+      // For QUEUE bookings: only check if START time is within working hours
+      // Allow the booking to extend beyond closing time
+      if (localDateTime < openingDateTime) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Booking cannot start before barber opening time',
+        );
+      }
+
+      // Check that booking starts before closing time
+      if (localDateTime >= closingDateTime) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Booking must start before barber closing time',
+        );
+      }
+
+      // Check for overlapping barber status (keep this to prevent double booking)
+      const overlappingStatus = await tx.barberRealTimeStatus.findFirst({
+        where: {
+          barberId,
+          OR: [
+            {
+              startDateTime: {
+                lt: endDateTime,
+              },
+              endDateTime: {
+                gt: utcDateTime,
+              },
+            },
+          ],
+        },
+      });
+
+      if (overlappingStatus) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Barber already has a booking or is unavailable during the requested time slot',
+        );
+      }
+
+      await tx.barberRealTimeStatus.create({
+        data: {
+          barberId,
+          startDateTime: utcDateTime,
+          endDateTime: endDateTime,
+          isAvailable: false,
+          startTime: localDateTime.toFormat('hh:mm a'),
+          endTime: DateTime.fromJSDate(endDateTime).toFormat('hh:mm a'),
+        },
+      });
+
+      // Create payment only if remoteQueue is true
+      let payment;
+      if (remoteQueue) {
+        try {
+          payment = await StripeServices.authorizeAndSplitPayment(userId, {
+            bookingId: booking.id as string,
+            booking: booking,
+            tx: tx,
+          });
+          if (!payment) {
+            throw new AppError(
+              httpStatus.BAD_REQUEST,
+              'Unable to create checkout session. Booking cancelled.',
+            );
+          }
+        } catch (paymentError) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            paymentError instanceof AppError
+              ? paymentError.message
+              : 'Payment initialization failed. Booking cancelled.',
+          );
+        }
+      }
+
+      return {
+        booking,
+        queue,
+        queueSlot,
+        totalPrice: price,
+        appointmentAt: localDateTime.toFormat('hh:mm a'),
+        payment,
+      };
     },
     {
       timeout: 25000,
@@ -762,7 +770,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
 
   // Send booking confirmation notification
   await sendBookingConfirmationNotification(userId, 'queue');
-  
+
   return result;
 };
 
@@ -1192,7 +1200,6 @@ const createQueueBookingForSalonOwnerIntoDb = async (
 
   return result;
 };
-
 
 const createQueueBookingForCustomerIntoDb = async (
   userId: string,
@@ -1692,7 +1699,11 @@ const createQueueBookingForCustomerIntoDb = async (
           barberId,
           // Exclude cancelled bookings - only check active bookings
           status: {
-            in: [BookingStatus.CONFIRMED, BookingStatus.PENDING, BookingStatus.COMPLETED],
+            in: [
+              BookingStatus.CONFIRMED,
+              BookingStatus.PENDING,
+              BookingStatus.COMPLETED,
+            ],
           },
           AND: [
             { startDateTime: { lt: endDateTimeForCheck } },
@@ -1729,7 +1740,9 @@ const createQueueBookingForCustomerIntoDb = async (
       }
 
       // Set booking status based on remoteQueue flag
-      const bookingStatus = remoteQueue ? BookingStatus.PENDING : BookingStatus.CONFIRMED;
+      const bookingStatus = remoteQueue
+        ? BookingStatus.PENDING
+        : BookingStatus.CONFIRMED;
 
       const booking = await tx.booking.create({
         data: {
@@ -1837,7 +1850,6 @@ const createQueueBookingForCustomerIntoDb = async (
 
   return result;
 };
-
 
 const createBookingIntoDb = async (userId: string, data: any) => {
   const {
@@ -2224,8 +2236,14 @@ const getBookingListFromDb = async (
     whereConditions.bookingType = type;
   }
 
-  // Filter by status
+//  TODO: TO HIDE THE DATA WITHOUT PAYMENT
+  whereConditions.Payment = {
+    some: {
+    },
+  };
+
   if (status) {
+    // delete whereConditions.status;
     whereConditions.status = status;
   }
 
@@ -4230,7 +4248,11 @@ const getBookingListForBarberFromDb = async (
         ],
       }
     : {};
-  const allowedStatuses = [BookingStatus.CONFIRMED, BookingStatus.STARTED, BookingStatus.ENDED];
+  const allowedStatuses = [
+    BookingStatus.CONFIRMED,
+    BookingStatus.STARTED,
+    BookingStatus.ENDED,
+  ];
 
   const date = options.date
     ? (() => {
@@ -4811,10 +4833,7 @@ const updateBookingStatusIntoDb = async (
           },
           queueSlot: true,
         },
-
       });
-
-  
 
       if (bookingWithServices) {
         const serviceIds = bookingWithServices.BookedServices.map(
@@ -4877,8 +4896,8 @@ const updateBookingStatusIntoDb = async (
         await tx.barberRealTimeStatus.deleteMany({
           where: {
             barberId: bookingWithServices.barberId,
-            startDateTime: bookingWithServices.startDateTime! ,
-            endDateTime: bookingWithServices.endDateTime! ,
+            startDateTime: bookingWithServices.startDateTime!,
+            endDateTime: bookingWithServices.endDateTime!,
           },
         });
 
@@ -4892,10 +4911,14 @@ const updateBookingStatusIntoDb = async (
           data: { currentPosition: { decrement: 1 } },
         });
 
-        await StripeServices.capturePaymentRequestToStripe(userId, {
-          bookingId,
-          status: BookingStatus.COMPLETED,
-        }, tx);
+        await StripeServices.capturePaymentRequestToStripe(
+          userId,
+          {
+            bookingId,
+            status: BookingStatus.COMPLETED,
+          },
+          tx,
+        );
 
         return completedBooking;
       }
@@ -4990,10 +5013,14 @@ const updateBookingStatusIntoDb = async (
           data: { currentPosition: { decrement: 1 } },
         });
 
-        await StripeServices.capturePaymentRequestToStripe(userId, {
-          bookingId,
-          status: BookingStatus.NO_SHOW,
-        }, tx);
+        await StripeServices.capturePaymentRequestToStripe(
+          userId,
+          {
+            bookingId,
+            status: BookingStatus.NO_SHOW,
+          },
+          tx,
+        );
 
         return completedBooking;
       }
@@ -5024,7 +5051,8 @@ const updateBookingStatusIntoDb = async (
         switch (result.status) {
           case BookingStatus.COMPLETED:
             notificationTitle = 'Service Completed';
-            notificationBody = 'Your service has been completed. Please leave a review!';
+            notificationBody =
+              'Your service has been completed. Please leave a review!';
             break;
           case BookingStatus.CANCELLED:
             notificationTitle = 'Booking Cancelled';
@@ -5036,7 +5064,8 @@ const updateBookingStatusIntoDb = async (
             break;
           case BookingStatus.NO_SHOW:
             notificationTitle = 'No Show Recorded';
-            notificationBody = 'You have been marked as a no-show for your booking.';
+            notificationBody =
+              'You have been marked as a no-show for your booking.';
             break;
           case BookingStatus.ENDED:
             notificationTitle = 'Service Ended';
@@ -5069,9 +5098,13 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
       userId: userId,
       bookingType: BookingType.BOOKING,
       status: {
-        in: [ BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED],
+        in: [
+          BookingStatus.PENDING,
+          BookingStatus.CONFIRMED,
+          BookingStatus.RESCHEDULED,
+        ],
+      },
     },
-  },
     include: {
       queueSlot: true,
       Payment: true,
@@ -5085,10 +5118,11 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
   /* ---------------------------------------------------- */
   /* Calculate Time to Booking Start                    */
   /* ---------------------------------------------------- */
-  
+
   const now = new Date();
   const bookingStartTime = booking.startDateTime || new Date();
-  const hoursUntilBooking = (bookingStartTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const hoursUntilBooking =
+    (bookingStartTime.getTime() - now.getTime()) / (1000 * 60 * 60);
   const isMoreThanOneDayBefore = hoursUntilBooking > 24;
 
   /* ---------------------------------------------------- */
@@ -5104,7 +5138,9 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
       // CASE 1: Cancelled LESS than 1 day before booking
       // NO REFUND - App keeps full amount as cancellation penalty (last-minute cancellation)
       if (!isMoreThanOneDayBefore) {
-        console.log('Cancellation < 1 day before booking: NO REFUND - last-minute cancellation penalty');
+        console.log(
+          'Cancellation < 1 day before booking: NO REFUND - last-minute cancellation penalty',
+        );
 
         if (payment.checkoutSessionId) {
           const session = await stripe.checkout.sessions.retrieve(
@@ -5117,7 +5153,9 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
             console.log('Checkout Session expired (no payment taken)');
           } else {
             // If already paid, keep the money - NO REFUND
-            console.log('Checkout Session already paid - NO REFUND applied (last-minute penalty)');
+            console.log(
+              'Checkout Session already paid - NO REFUND applied (last-minute penalty)',
+            );
           }
         } else if (payment.paymentIntentId) {
           const paymentIntent = await stripe.paymentIntents.retrieve(
@@ -5128,10 +5166,14 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
           if (paymentIntent.status === 'requires_capture') {
             // Just cancel without capturing - releases authorization, NO REFUND
             await stripe.paymentIntents.cancel(payment.paymentIntentId);
-            console.log('PaymentIntent canceled - NO REFUND (last-minute penalty)');
+            console.log(
+              'PaymentIntent canceled - NO REFUND (last-minute penalty)',
+            );
           } else if (paymentIntent.status === 'succeeded') {
             // Already succeeded - keep the money, NO REFUND
-            console.log('Payment already succeeded - NO REFUND (last-minute penalty)');
+            console.log(
+              'Payment already succeeded - NO REFUND (last-minute penalty)',
+            );
           }
         }
 
@@ -5147,7 +5189,9 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
       // CASE 2: Cancelled MORE than 1 day before booking
       // Customer gets refund (totalAmount - £0.50), Admin keeps £0.50 service fee
       else {
-        console.log('Cancellation > 1 day before booking: Refund (totalAmount - £0.50), admin keeps service fee');
+        console.log(
+          'Cancellation > 1 day before booking: Refund (totalAmount - £0.50), admin keeps service fee',
+        );
 
         if (payment.checkoutSessionId) {
           const session = await stripe.checkout.sessions.retrieve(
@@ -5156,8 +5200,13 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
 
           // If payment is already completed, refund amount minus service fee
           if (session.payment_status === 'paid') {
-            console.log('Checkout Session already paid, creating refund for customer');
-            const refundAmount = Math.max(0, (payment.paymentAmount || 0) - SERVICE_FEE_PENCE);
+            console.log(
+              'Checkout Session already paid, creating refund for customer',
+            );
+            const refundAmount = Math.max(
+              0,
+              (payment.paymentAmount || 0) - SERVICE_FEE_PENCE,
+            );
             if (refundAmount > 0 && session.payment_intent) {
               await stripe.refunds.create({
                 payment_intent: session.payment_intent as string,
@@ -5180,9 +5229,12 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
           if (paymentIntent.status === 'requires_capture') {
             // FIRST: Capture the full amount to settle the payment
             await stripe.paymentIntents.capture(payment.paymentIntentId);
-            
+
             // THEN: Immediately refund amount minus service fee (£0.50)
-            const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);
+            const refundAmount = Math.max(
+              0,
+              paymentIntent.amount - SERVICE_FEE_PENCE,
+            );
             if (refundAmount > 0) {
               await stripe.refunds.create({
                 payment_intent: payment.paymentIntentId,
@@ -5191,7 +5243,10 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
             }
           } else if (paymentIntent.status === 'succeeded') {
             // Already succeeded, refund amount minus service fee
-            const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);
+            const refundAmount = Math.max(
+              0,
+              paymentIntent.amount - SERVICE_FEE_PENCE,
+            );
             if (refundAmount > 0) {
               await stripe.refunds.create({
                 payment_intent: payment.paymentIntentId,
