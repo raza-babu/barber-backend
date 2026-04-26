@@ -19,6 +19,11 @@ const registerUser = z.object({
         required_error: 'Role is required!',
       })
       .optional(),
+      phoneNumber: z
+      .string({
+        required_error: 'Phone number is required!',
+      })
+      .optional(),
   }),
 });
 
