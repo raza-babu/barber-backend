@@ -25,10 +25,30 @@ const sendNotification = async (
   try {
     let pushSent = false;
 
+    // Get current unread notification count
+    const badgeCount = await prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+      },
+    });
+
     if (deviceToken) {
       const message = {
         notification: { title, body },
         token: deviceToken,
+        webpush: {
+          data: {
+            badge: (badgeCount + 1).toString(),
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              badge: badgeCount + 1,
+            },
+          },
+        },
       };
 
       try {
@@ -47,6 +67,8 @@ const sendNotification = async (
       },
     });
 
+    const updatedBadgeCount = badgeCount + 1;
+
     if (!pushSent) {
       console.log('Notification saved to DB (no Firebase push delivered)');
       return {
@@ -54,11 +76,12 @@ const sendNotification = async (
         body,
         userId,
         delivery: 'database-only',
+        badge: updatedBadgeCount,
       };
     }
 
     console.log('Notification sent successfully');
-    return { title, body, userId, delivery: 'push-and-database' };
+    return { title, body, userId, delivery: 'push-and-database', badge: updatedBadgeCount };
   } catch (error) {
     console.error('Error sending notification:', error);
     throw error;
@@ -164,7 +187,19 @@ const readNotificationByUserId = async (userId: string) => {
       where: { userId, isRead: false },
       data: { isRead: true, isClicked: true },
     });
-    return notifications;
+
+    // Get updated badge count
+    const badgeCount = await prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+      },
+    });
+
+    return {
+      ...notifications,
+      badge: badgeCount,
+    };
   } catch (error) {
     console.error('Error marking notifications as read:', error);
     throw error;
@@ -182,6 +217,14 @@ const sendNotificationToGroupIntoDb = async (
   const { title, body, users } = notificationData;
 
   const notifications = users.map(async user => {
+    // Get current unread count before creating the notification
+    const currentBadgeCount = await prisma.notification.count({
+      where: {
+        userId: user,
+        isRead: false,
+      },
+    });
+
     const fcmToken = await prisma.user.findUnique({
       where: { id: user },
       select: { fcmToken: true },
@@ -191,6 +234,18 @@ const sendNotificationToGroupIntoDb = async (
       const message = {
         notification: { title, body },
         token: fcmToken.fcmToken,
+        webpush: {
+          data: {
+            badge: (currentBadgeCount + 1).toString(),
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              badge: currentBadgeCount + 1,
+            },
+          },
+        },
       };
 
       try {
@@ -200,18 +255,21 @@ const sendNotificationToGroupIntoDb = async (
       }
     }
 
-    const notifications = await prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         title,
         body,
         userId: user,
       },
     });
+
+    return {
+      ...notification,
+      badge: currentBadgeCount + 1,
+    };
   });
 
-  await Promise.all(notifications);
-
-  return notifications;
+  return await Promise.all(notifications);
 };
 
 const readANotificationByUserId = async (
@@ -223,7 +281,19 @@ const readANotificationByUserId = async (
       where: { id: notificationId, userId },
       data: { isRead: true, isClicked: true },
     });
-    return notification;
+
+    // Get updated badge count
+    const badgeCount = await prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+      },
+    });
+
+    return {
+      ...notification,
+      badge: badgeCount,
+    };
   } catch (error) {
     console.error('Error marking notification as read:', error);
     throw error;
@@ -248,7 +318,18 @@ const deleteNotificationByUserId = async (userId: string) => {
     throw new Error('Failed to delete notifications for the user');
   }
 
-  return deletedNotifications;
+  // Get updated badge count
+  const badgeCount = await prisma.notification.count({
+    where: {
+      userId,
+      isRead: false,
+    },
+  });
+
+  return {
+    ...deletedNotifications,
+    badge: badgeCount,
+  };
 };
 
 const deleteANotificationByUserId = async (userId: string, notificationId: string) => {
@@ -268,9 +349,36 @@ const deleteANotificationByUserId = async (userId: string, notificationId: strin
   if (!deletedNotification) {
     throw new Error('Failed to delete the notification for the user');
   }
+
+  // Get updated badge count
+  const badgeCount = await prisma.notification.count({
+    where: {
+      userId,
+      isRead: false,
+    },
+  });
   
-  return deletedNotification;
+  return {
+    ...deletedNotification,
+    badge: badgeCount,
+  };
 }
+
+const getBadgeCount = async (userId: string): Promise<{ badge: number }> => {
+  try {
+    const badgeCount = await prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+      },
+    });
+
+    return { badge: badgeCount };
+  } catch (error) {
+    console.error('Error fetching badge count:', error);
+    throw error;
+  }
+};
 
 export const notificationService = {
   sendNotification,
@@ -281,4 +389,8 @@ export const notificationService = {
   deleteNotificationByUserId,
   deleteANotificationByUserId,
   readANotificationByUserId,
+  getBadgeCount,
 };
+
+
+
