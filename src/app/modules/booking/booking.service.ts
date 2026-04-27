@@ -769,7 +769,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   );
 
   // Send booking confirmation notification
-  await sendBookingConfirmationNotification(userId, 'queue');
+  // await sendBookingConfirmationNotification(userId, 'queue');
 
   return result;
 };
@@ -1846,7 +1846,7 @@ const createQueueBookingForCustomerIntoDb = async (
   );
 
   // Send booking confirmation notification
-  await sendBookingConfirmationNotification(userId, 'queue');
+  // await sendBookingConfirmationNotification(userId, 'queue');
 
   return result;
 };
@@ -2189,7 +2189,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   );
 
   // Send booking confirmation notification
-  await sendBookingConfirmationNotification(userId, 'booking');
+  // await sendBookingConfirmationNotification(userId, 'booking');
 
   return result;
 };
