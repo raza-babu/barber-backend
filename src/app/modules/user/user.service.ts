@@ -94,6 +94,7 @@ const registerUserIntoDB = async (payload: any) => {
     intendedRole: payload.intendedRole
       ? payload.intendedRole
       : UserRoleEnum.CUSTOMER,
+    phoneNumber: payload.phoneNumber || undefined,
   };
 
   const result = await prisma.$transaction(async (transactionClient: any) => {

@@ -595,6 +595,35 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
               booking.userId,
             );
           }
+          // Send notification to barber about new confirmed booking
+          const barber = await prisma.user.findUnique({
+            where: { id: booking.barberId },
+            select: { fcmToken: true },
+          });
+          if (barber?.fcmToken) {
+            await notificationService.sendNotification(
+              barber.fcmToken,
+              'New Booking Confirmed',
+              `A new booking has been confirmed for ${booking.appointmentAt?.toLocaleString()}.`,
+              booking.barberId,
+            );
+          }
+          
+          // Send notification to saloon owner about new confirmed booking
+          const saloonOwner = await prisma.user.findUnique({
+            where: { id: booking.saloonOwnerId },
+            select: { fcmToken: true },
+          });
+          if (saloonOwner?.fcmToken) {
+            await notificationService.sendNotification(
+              saloonOwner.fcmToken,
+              'New Booking Confirmed',
+              `A new booking has been confirmed for ${booking.appointmentAt?.toLocaleString()}.`,
+              booking.saloonOwnerId,
+            );
+          }
+
+
         } catch (error) {
           console.error('Error sending payment success notification:', error);
         }

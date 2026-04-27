@@ -5161,6 +5161,7 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
           const paymentIntent = await stripe.paymentIntents.retrieve(
             payment.paymentIntentId,
           );
+          
 
           if (paymentIntent.status === 'requires_capture') {
             // Just cancel without capturing - releases authorization, NO REFUND

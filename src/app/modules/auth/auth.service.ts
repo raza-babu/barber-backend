@@ -1,3 +1,4 @@
+import { fcm } from 'googleapis/build/src/apis/fcm';
 import * as bcrypt from 'bcrypt';
 import httpStatus from 'http-status';
 import { Secret } from 'jsonwebtoken';
@@ -11,6 +12,7 @@ import { UserRoleEnum, UserStatus } from '@prisma/client';
 const loginUserFromDB = async (payload: {
   email: string;
   password: string;
+  fcmToken?: string;
 }) => {
   const userData = await prisma.user.findUnique({
     where: {
@@ -55,6 +57,14 @@ const loginUserFromDB = async (payload: {
       httpStatus.FORBIDDEN,
       'Your account is blocked. Please contact support.',
     );
+  }
+
+  // Update FCM token if provided
+  if (payload.fcmToken) {
+    await prisma.user.update({
+      where: { id: userData.id },
+      data: { fcmToken: payload.fcmToken },
+    });
   }
 
   // track QR code presence for saloon owners without mutating the Prisma user object
@@ -148,6 +158,7 @@ const loginUserFromDB = async (payload: {
       throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User login failed');
     }
   }
+
 
   const accessToken = await generateToken(
     {
