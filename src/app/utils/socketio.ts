@@ -174,7 +174,7 @@ export function setupSocketIO(server: HTTPServer) {
           if (receiverUser?.fcmToken && sender?.fullName) {
             const messagePreview = payload.message.substring(0, 50);
             const message = `New message from ${sender.fullName}: ${messagePreview}${payload.message.length > 50 ? '...' : ''}`;
-            
+
             await notificationService
               .sendNotification(
                 receiverUser.fcmToken,
@@ -609,6 +609,7 @@ export function setupSocketIO(server: HTTPServer) {
           select: {
             id: true,
             fullName: true,
+            phoneNumber: true,
             image: true,
             subscriptionPlan: true,
             role: true,
