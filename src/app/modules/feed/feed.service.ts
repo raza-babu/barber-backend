@@ -46,7 +46,7 @@ const createFeedIntoDb = async (userId: string, data: any) => {
       // Send notifications to all followers
       if (followers.length > 0 && creator) {
         const followerIds = followers.map(f => f.userId);
-        
+
         // Get FCM tokens for all followers
         const followerTokens = await prisma.user.findMany({
           where: { id: { in: followerIds } },
@@ -337,7 +337,7 @@ const updateFeedIntoDb = async (
 
   // Delete images removed by the client
   const removedImages = (feed.images || []).filter(
-    img => !data.images.includes(img),
+    img => !existingImages.includes(img),
   );
 
   for (const img of removedImages) {
