@@ -376,7 +376,7 @@ const updateSaloonOwnerStatus = catchAsync(async (req, res) => {
   const payload = req.body;
   const id = req.params.id;
 
-  const result = await UserServices.updateSaloonOwnerStatus(id, payload);
+  const result = await UserServices.updateSalonOwnerStatus(id, payload);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

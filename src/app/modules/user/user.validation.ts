@@ -316,8 +316,8 @@ const updateSaloonOwnerStatus = z.object({
      })
    }),
    body: z.object({ 
-     status: z.enum(['ACTIVE', 'BLOCKED'], { 
-       required_error: 'Status is required!', 
+     isVerified: z.boolean({ 
+       required_error: 'isVerified is required!', 
      })
    })
 })

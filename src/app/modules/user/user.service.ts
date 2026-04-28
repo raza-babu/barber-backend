@@ -1581,11 +1581,10 @@ const updateProfileImageIntoDB = async (
 };
 
 //  1. Update Saloon owner status:
-const updateSaloonOwnerStatus = async (
+const updateSalonOwnerStatus = async (
   id: string,
   payload: TUpdateSaloonOwnerStatusTypePayload,
 ) => {
-  // Find out the is user exists:
   const user = await prisma.user.findUnique({
     where: {
       id,
@@ -1593,21 +1592,25 @@ const updateSaloonOwnerStatus = async (
     },
   });
 
-  // 1. Check is user exists :
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, `User doesn't exist!`);
   }
 
-  // 2. Check is user profile completed ?:
   if (!user.isProfileComplete) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      `User profile haven't completed yet!`,
+      `User profile hasn't been completed yet!`,
     );
   }
 
-  // 3. Retrived user profile now :
-  const saloonOwner = prisma.saloonOwner.findUnique({
+  switch (user.status) {
+    case 'BLOCKED':
+      throw new AppError(httpStatus.BAD_REQUEST, 'User is blocked!');
+    case 'PENDING':
+      throw new AppError(httpStatus.BAD_REQUEST, 'User approval is pending!');
+  }
+
+  const saloonOwner = await prisma.saloonOwner.findUnique({
     where: { userId: user.id },
   });
 
@@ -1615,50 +1618,23 @@ const updateSaloonOwnerStatus = async (
     throw new AppError(httpStatus.NOT_FOUND, `User profile doesn't exist!`);
   }
 
-  if (user.status === 'ACTIVE' && payload.status === 'ACTIVE') {
-    throw new AppError(httpStatus.CONFLICT, `User is already approved!`);
-  }
-
-  if (user.status === 'BLOCKED' && payload.status === 'BLOCKED') {
-    throw new AppError(httpStatus.CONFLICT, `User is already Blocked!`);
-  }
-
-  const result = await prisma.$transaction(async tx => {
-    // 1. update the status in user table :
-    const updatedUser = await tx.user.update({
-      where: {
-        id: user.id,
-      },
-      data: {
-        status: payload.status,
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-        status: true,
-        isProfileComplete: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    if (payload.status === 'ACTIVE') {
-      await tx.saloonOwner.update({
-        where: {
-          userId: user.id,
-        },
-        data: {
-          isVerified: true,
-        },
-      });
-    }
-
-    return updatedUser;
+  const updated = await prisma.saloonOwner.updateMany({
+    where: {
+      userId: user.id,
+      isVerified: false,
+    },
+    data: {
+      isVerified: true,
+    },
   });
 
-  return result
+  if (updated.count === 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Profile already verified!');
+  }
+
+  return await prisma.saloonOwner.findUnique({
+    where: { userId: user.id },
+  });
 };
 
 export const UserServices = {
@@ -1682,5 +1658,5 @@ export const UserServices = {
   resendUserVerificationEmail,
   deleteAccountFromDB,
   updateProfileImageIntoDB,
-  updateSaloonOwnerStatus,
+  updateSalonOwnerStatus,
 };
