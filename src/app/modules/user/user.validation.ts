@@ -1,3 +1,4 @@
+import { error } from 'node:console';
 import z from 'zod';
 const registerUser = z.object({
   body: z.object({
@@ -308,6 +309,19 @@ const deleteAccount = z.object({
   }),
 });
 
+const updateSaloonOwnerStatus = z.object({ 
+   params: z.object({ 
+     id: z.string({
+       required_error: `Saloon Owner Id is required!`
+     })
+   }),
+   body: z.object({ 
+     status: z.enum(['ACTIVE', 'BLOCKED'], { 
+       required_error: 'Status is required!', 
+     })
+   })
+})
+
 export const UserValidations = {
   registerUser,
   updateProfileSchema,
@@ -319,5 +333,9 @@ export const UserValidations = {
   socialLoginSchema,
   createSaloonOwner,
   updateBarber,
-  deleteAccount
+  deleteAccount,
+  updateSaloonOwnerStatus
 };
+
+
+export type TUpdateSaloonOwnerStatusTypePayload = z.infer<typeof updateSaloonOwnerStatus>['body']

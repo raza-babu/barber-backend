@@ -16,6 +16,7 @@ import path from 'path';
 import axios from 'axios';
 import { Type } from '@aws-sdk/client-s3';
 import { deleteFileFromSpace } from '../../utils/deleteImage';
+import { TUpdateSaloonOwnerStatusTypePayload } from './user.validation';
 
 // Initialize Stripe with your secret API key
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -478,7 +479,6 @@ const sendReferenceImagesToAI = async (
   const form = new FormData();
   form.append('barber_code', userId);
 
-
   const filesToCleanup: string[] = [];
 
   try {
@@ -562,7 +562,9 @@ const sendReferenceImagesToAI = async (
           `⚠️ Warning: Failed to delete previous images (status: ${deleteResp.status}). Proceeding with upload anyway.`,
         );
       } else {
-        console.log(`✅ Successfully deleted previous images for barber ${userId}`);
+        console.log(
+          `✅ Successfully deleted previous images for barber ${userId}`,
+        );
       }
     } catch (deleteErr: any) {
       console.warn(
@@ -1578,6 +1580,85 @@ const updateProfileImageIntoDB = async (
   return updatedUser;
 };
 
+//  1. Update Saloon owner status:
+const updateSaloonOwnerStatus = async (
+  id: string,
+  payload: TUpdateSaloonOwnerStatusTypePayload,
+) => {
+  // Find out the is user exists:
+  const user = await prisma.user.findUnique({
+    where: {
+      id,
+      role: UserRoleEnum.SALOON_OWNER,
+    },
+  });
+
+  // 1. Check is user exists :
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, `User doesn't exist!`);
+  }
+
+  // 2. Check is user profile completed ?:
+  if (!user.isProfileComplete) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `User profile haven't completed yet!`,
+    );
+  }
+
+  // 3. Retrived user profile now :
+  const saloonOwner = prisma.saloonOwner.findUnique({
+    where: { userId: user.id },
+  });
+
+  if (!saloonOwner) {
+    throw new AppError(httpStatus.NOT_FOUND, `User profile doesn't exist!`);
+  }
+
+  if (user.status === 'ACTIVE' && payload.status === 'ACTIVE') {
+    throw new AppError(httpStatus.CONFLICT, `User is already approved!`);
+  }
+
+  if (user.status === 'BLOCKED' && payload.status === 'BLOCKED') {
+    throw new AppError(httpStatus.CONFLICT, `User is already Blocked!`);
+  }
+
+  const result = await prisma.$transaction(async tx => {
+    // 1. update the status in user table :
+    const updatedUser = await tx.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        status: payload.status,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        status: true,
+        isProfileComplete: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (payload.status === 'ACTIVE') {
+      await tx.saloonOwner.update({
+        where: {
+          userId: user.id,
+        },
+        data: {
+          isVerified: true,
+        },
+      });
+    }
+
+    return updatedUser;
+  });
+};
+
 export const UserServices = {
   registerUserIntoDB,
   registerSaloonOwnerIntoDB,
@@ -1599,4 +1680,5 @@ export const UserServices = {
   resendUserVerificationEmail,
   deleteAccountFromDB,
   updateProfileImageIntoDB,
+  updateSaloonOwnerStatus,
 };

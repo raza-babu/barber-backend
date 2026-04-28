@@ -54,9 +54,7 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
   // Upload shop images
   if (fileGroups.shop_images?.length) {
     const imageUploads = await Promise.all(
-      fileGroups.shop_images.map(file =>
-        uploadFileToS3(file, 'saloon-images'),
-      ),
+      fileGroups.shop_images.map(file => uploadFileToS3(file, 'saloon-images')),
     );
     uploads.shopImages.push(...imageUploads);
   }
@@ -64,9 +62,7 @@ const registerSaloonOwner = catchAsync(async (req, res) => {
   // Upload shop videos
   if (fileGroups.shop_videos?.length) {
     const videoUploads = await Promise.all(
-      fileGroups.shop_videos.map(file =>
-        uploadFileToS3(file, 'saloon-videos'),
-      ),
+      fileGroups.shop_videos.map(file => uploadFileToS3(file, 'saloon-videos')),
     );
     uploads.shopVideos.push(...videoUploads);
   }
@@ -98,33 +94,30 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
     shopImages: [],
     shopVideos: [],
   };
-  const fileGroups = files as {
-    shop_logo?: Express.Multer.File[];
-    shop_images?: Express.Multer.File[];
-    shop_videos?: Express.Multer.File[];
-  } || {};
+  const fileGroups =
+    (files as {
+      shop_logo?: Express.Multer.File[];
+      shop_images?: Express.Multer.File[];
+      shop_videos?: Express.Multer.File[];
+    }) || {};
   // Upload shop logo (optional)
   if (fileGroups.shop_logo?.[0]) {
     uploads.shopLogo = await uploadFileToS3(
       fileGroups.shop_logo[0],
       'saloon-logos',
     );
-  } 
+  }
   // Upload shop images (optional)
   if (fileGroups.shop_images?.length) {
     const imageUploads = await Promise.all(
-      fileGroups.shop_images.map(file =>
-        uploadFileToS3(file, 'saloon-images'),
-      ),
+      fileGroups.shop_images.map(file => uploadFileToS3(file, 'saloon-images')),
     );
     uploads.shopImages.push(...imageUploads);
   }
   // Upload shop videos (optional)
   if (fileGroups.shop_videos?.length) {
     const videoUploads = await Promise.all(
-      fileGroups.shop_videos.map(file =>
-        uploadFileToS3(file, 'saloon-videos'),
-      ),
+      fileGroups.shop_videos.map(file => uploadFileToS3(file, 'saloon-videos')),
     );
     uploads.shopVideos.push(...videoUploads);
   }
@@ -147,9 +140,8 @@ const updateSaloonOwner = catchAsync(async (req, res) => {
     payload.shopVideo = [
       ...(Array.isArray(body.shopVideo) ? body.shopVideo : []),
       ...uploads.shopVideos,
-    ]
+    ];
   }
-
 
   const result = await UserServices.updateSaloonOwnerIntoDB(user.id, payload);
   sendResponse(res, {
@@ -183,11 +175,11 @@ const updateBarber = catchAsync(async (req, res) => {
     uploads.portfolioImages.push(...uploadedImages);
   }
 
-  if(uploads.portfolioImages.length) {
+  if (uploads.portfolioImages.length) {
     body.portfolio = [
       ...(Array.isArray(body.portfolio) ? body.portfolio : []),
       ...uploads.portfolioImages,
-    ]
+    ];
   }
 
   const payload = {
@@ -202,14 +194,17 @@ const updateBarber = catchAsync(async (req, res) => {
   // Here we call a service function which should build the form-data (images + barber_codes)
   // and POST to http://127.0.0.1:8080/upload_reference.
   if (uploads.portfolioImages.length) {
-    if(!fileGroups.portfolioImages?.length) {
+    if (!fileGroups.portfolioImages?.length) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
         'No portfolio images found to send to AI service.',
       );
     }
     // Send the original uploaded files (not the uploaded URLs) to the AI service
-    await UserServices.sendReferenceImagesToAI(user.id, fileGroups.portfolioImages);
+    await UserServices.sendReferenceImagesToAI(
+      user.id,
+      fileGroups.portfolioImages,
+    );
   }
 
   sendResponse(res, {
@@ -377,6 +372,19 @@ const updateProfileImage = catchAsync(async (req, res) => {
   });
 });
 
+const updateSaloonOwnerStatus = catchAsync(async (req, res) => {
+  const payload = req.body;
+  const id = req.params.id;
+
+  const result = await UserServices.updateSaloonOwnerStatus(id, payload);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'Saloon owner status updated successfully',
+    data: result,
+  });
+});
+
 export const UserControllers = {
   registerUser,
   registerSaloonOwner,
@@ -396,4 +404,5 @@ export const UserControllers = {
   resendOtp,
   deleteAccount,
   updateProfileImage,
+  updateSaloonOwnerStatus,
 };
