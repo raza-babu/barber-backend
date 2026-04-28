@@ -1657,6 +1657,8 @@ const updateSaloonOwnerStatus = async (
 
     return updatedUser;
   });
+
+  return result
 };
 
 export const UserServices = {
