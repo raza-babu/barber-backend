@@ -620,8 +620,10 @@ export function setupSocketIO(server: HTTPServer) {
           },
         });
 
+
         // Get current user's info
         const currentUser = userInfos.find(u => u.id === id);
+
 
         let filteredRooms = rooms;
 
@@ -674,9 +676,12 @@ export function setupSocketIO(server: HTTPServer) {
               // Current user's own info
               senderName: currentUser?.fullName || null,
               senderImage: currentUser?.image || null,
+              senderPhoneNumber: currentUser?.phoneNumber || null,
+
               // The other person in the conversation
               receiverName: otherUser?.fullName || null,
               receiverImage: otherUser?.image || null,
+              receiverPhoneNumber: otherUser?.phoneNumber || null,
               saloonOwnerSubscriptionPlan:
                 user.role === UserRoleEnum.SALOON_OWNER
                   ? user.subscriptionPlan
@@ -686,6 +691,8 @@ export function setupSocketIO(server: HTTPServer) {
             };
           }),
         );
+
+        
 
         // Sort by lastMessageAt
         const sortedRooms = roomsWithUnreadMessages.sort((a, b) => {
@@ -697,6 +704,8 @@ export function setupSocketIO(server: HTTPServer) {
             new Date(a.lastMessageAt).getTime()
           );
         });
+
+      
 
         console.log(
           '📤 Emitting messageList with',
