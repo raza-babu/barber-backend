@@ -43,11 +43,11 @@ const getSaloonFromDb = async (
   );
 
   // Handle SaloonOwner specific filters
-  if (options.isVerified !== undefined) {
-    whereClause.SaloonOwner = {
-      isVerified: options.isVerified === true,
-    };
-  }
+  // if (options.isVerified !== undefined) {
+  //   whereClause.SaloonOwner = {
+  //     isVerified: options.isVerified === true,
+  //   };
+  // }
 
   const [saloons, total] = await Promise.all([
     prisma.user.findMany({

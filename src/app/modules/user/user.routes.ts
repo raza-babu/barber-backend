@@ -130,7 +130,7 @@ router.patch(
   '/:id/update-saloon-owner-status',
   auth(UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN),
   validateRequest(UserValidations.updateSaloonOwnerStatus),
-  UserControllers.updateSaloonOwnerStatus,
+  UserControllers.updateSaloonOwnerStatus, 
 );
 
 export const UserRouters = router;
