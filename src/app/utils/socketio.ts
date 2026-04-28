@@ -467,6 +467,7 @@ export function setupSocketIO(server: HTTPServer) {
               id: true,
               fullName: true,
               image: true,
+              phoneNumber: true
             },
           });
 
@@ -494,14 +495,17 @@ export function setupSocketIO(server: HTTPServer) {
                 // Current user's info
                 senderName: currentUser?.fullName || null,
                 senderImage: currentUser?.image || null,
+                senderPhoneNumber: currentUser?.phoneNumber || null,
                 // The other person in the chat
                 receiverName: otherUser?.fullName || null,
                 receiverImage: otherUser?.image || null,
+                receiverPhoneNumber: otherUser?.phoneNumber || null,
                 lastMessageAt: room.chat[0]?.createdAt || null,
                 roomId: room.id,
               };
             }),
           );
+
 
           const sortedRooms = roomsWithUnreadMessages.sort((a, b) => {
             if (!a.lastMessageAt && !b.lastMessageAt) return 0;
