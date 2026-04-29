@@ -49,7 +49,10 @@ const createAdsIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getAdsListFromDb = async (options: ISearchAndFilterOptions = {}) => {
+const getAdsListFromDb = async (
+  user: any,
+  options: ISearchAndFilterOptions = {},
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
   // Build search query for description
@@ -81,7 +84,7 @@ const getAdsListFromDb = async (options: ISearchAndFilterOptions = {}) => {
   };
 
   const now = new Date();
-  
+
   const [result, total] = await Promise.all([
     prisma.ads.findMany({
       where: whereClause,
@@ -99,15 +102,22 @@ const getAdsListFromDb = async (options: ISearchAndFilterOptions = {}) => {
     return now >= start && now <= end;
   });
 
-  const activeTotal = await prisma.ads.count({
-    where: {
-      ...whereClause,
-      startDate: { lte: now },
-      endDate: { gte: now },
-    },
-  });
+  if (
+    [UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN].includes(user.role) &&
+    options.status
+  ) {
+    return formatPaginationResponse(result, total, page, limit);
+  }
 
-  return formatPaginationResponse(activeAds, activeTotal, page, limit);
+  // const activeTotal = await prisma.ads.count({
+  //   where: {
+  //     ...whereClause,
+  //     startDate: { lte: now },
+  //     endDate: { gte: now },
+  //   },
+  // });
+
+  return formatPaginationResponse(activeAds, total, page, limit);
 };
 
 const getAdsByIdFromDb = async (adsId: string) => {
@@ -126,14 +136,14 @@ const updateAdsIntoDb = async (
   userId: string,
   adsId: string,
   data: any,
-  existingImages: string[]
+  existingImages: string[],
 ) => {
   const existingAd = await prisma.ads.findUnique({
     where: { id: adsId },
   });
 
   if (!existingAd) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Ads not found");
+    throw new AppError(httpStatus.BAD_REQUEST, 'Ads not found');
   }
 
   // Dates normalization
@@ -142,14 +152,17 @@ const updateAdsIntoDb = async (
     const endDate = new Date(data.endDate);
 
     if (startDate >= endDate) {
-      throw new AppError(httpStatus.BAD_REQUEST, "Start date must be before end date");
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Start date must be before end date',
+      );
     }
 
     data.startDate = new Date(
-      startDate.getTime() - startDate.getTimezoneOffset() * 60000
+      startDate.getTime() - startDate.getTimezoneOffset() * 60000,
     ).toISOString();
     data.endDate = new Date(
-      endDate.getTime() - endDate.getTimezoneOffset() * 60000
+      endDate.getTime() - endDate.getTimezoneOffset() * 60000,
     ).toISOString();
   }
 
@@ -170,17 +183,16 @@ const updateAdsIntoDb = async (
 
   // Remove images that are not in final list anymore
   const removedImages = (existingAd.images || []).filter(
-    img => !finalImages.includes(img)
+    img => !finalImages.includes(img),
   );
 
   for (const img of removedImages) {
     await deleteFileFromSpace(img);
-    console.log("Deleted image from space:", img);
+    console.log('Deleted image from space:', img);
   }
 
   return result;
 };
-
 
 const deleteAdsItemFromDb = async (userId: string, adsId: string) => {
   const deletedItem = await prisma.ads.delete({

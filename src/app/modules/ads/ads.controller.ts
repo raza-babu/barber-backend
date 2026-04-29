@@ -54,7 +54,7 @@ const getAdsList = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
   ]);
-  const result = await adsService.getAdsListFromDb(filters);
+  const result = await adsService.getAdsListFromDb(user, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
