@@ -102,10 +102,7 @@ const getAdsListFromDb = async (
     return now >= start && now <= end;
   });
 
-  if (
-    [UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN].includes(user.role) &&
-    options.status
-  ) {
+  if ([UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN].includes(user.role)) {
     return formatPaginationResponse(result, total, page, limit);
   }
 
