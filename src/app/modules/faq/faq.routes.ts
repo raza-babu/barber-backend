@@ -12,19 +12,23 @@ const router = express.Router();
 router.post(
   '/',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
-  checkPermissions(UserAccessFunctionName.ALL || UserAccessFunctionName.SETTINGS),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.SETTINGS,
+  ),
   validateRequest(faqValidation.createFaqSchema),
   faqController.createFaq,
 );
 
-router.get('/', auth(), faqController.getFaqList);
+router.get('/', faqController.getFaqList);
 
-router.get('/:id', auth(), faqController.getFaqById);
+router.get('/:id', faqController.getFaqById);
 
 router.patch(
   '/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
-  checkPermissions(UserAccessFunctionName.ALL || UserAccessFunctionName.SETTINGS),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.SETTINGS,
+  ),
   validateRequest(faqValidation.updateFaqSchema),
   faqController.updateFaq,
 );
@@ -32,7 +36,9 @@ router.patch(
 router.delete(
   '/:id',
   auth(UserRoleEnum.SUPER_ADMIN, UserRoleEnum.ADMIN),
-  checkPermissions(UserAccessFunctionName.ALL || UserAccessFunctionName.SETTINGS),
+  checkPermissions(
+    UserAccessFunctionName.ALL || UserAccessFunctionName.SETTINGS,
+  ),
   faqController.deleteFaq,
 );
 
