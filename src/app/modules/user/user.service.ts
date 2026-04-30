@@ -828,6 +828,11 @@ const getBarberProfileFromDB = async (userId: string) => {
       },
     },
   });
+
+  if (!profile) {
+    throw new AppError(httpStatus.NOT_FOUND, `Barber profile not found!`);
+  }
+
   const { user, ...restProfile } = profile!;
   return {
     isMe: profile?.userId === userId,
