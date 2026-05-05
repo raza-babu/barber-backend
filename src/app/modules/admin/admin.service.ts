@@ -31,9 +31,10 @@ const getSaloonFromDb = async (
     {
       role: UserRoleEnum.SALOON_OWNER,
       isProfileComplete: true,
-      ...(options.status
-        ? { status: options.status }
-        : { status: { not: UserStatus.PENDING } }),
+      // ...(options.status
+      //   ? { status: options.status }
+      //   : { status: { not: UserStatus.PENDING } }),
+      ...(options?.status && { status: options.status }),
     },
     {
       startDate: options.startDate,
@@ -287,20 +288,20 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       [key: string]: any;
     }
 
-  //   const bankAccount: StripeBankAccount | undefined = (
-  //     account as StripeAccount
-  //   )?.external_accounts?.data?.find(
-  //     (acc: StripeBankAccount) => acc.object === 'bank_account',
-  //   );
-  //   bankName = bankAccount?.bank_name || null;
-  //   accountHolderName =
-  //     account?.individual?.first_name && account?.individual?.last_name
-  //       ? `${account.individual.first_name} ${account.individual.last_name}`
-  //       : null;
+    //   const bankAccount: StripeBankAccount | undefined = (
+    //     account as StripeAccount
+    //   )?.external_accounts?.data?.find(
+    //     (acc: StripeBankAccount) => acc.object === 'bank_account',
+    //   );
+    //   bankName = bankAccount?.bank_name || null;
+    //   accountHolderName =
+    //     account?.individual?.first_name && account?.individual?.last_name
+    //       ? `${account.individual.first_name} ${account.individual.last_name}`
+    //       : null;
 
-  //   branchCity = bankAccount?.bank_name || null;
-  //   branchCode = bankAccount?.routing_number || null;
-  //   accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+    //   branchCity = bankAccount?.bank_name || null;
+    //   branchCode = bankAccount?.routing_number || null;
+    //   accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
   }
 
   return {
@@ -470,7 +471,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
                 id: true,
                 hourlyRate: true,
               },
-            },        
+            },
           },
         },
       },
@@ -482,7 +483,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
 
   // Flatten the response so that Barber fields are at the top level
   const flattenedBarbers = barbers.map(barber => {
-    const {Barber, ...userFields } = barber;
+    const { Barber, ...userFields } = barber;
     return {
       ...userFields,
       userId: Barber?.userId || userFields.id,
@@ -573,20 +574,20 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
       [key: string]: any;
     }
 
-  //   const bankAccount: StripeBankAccount | undefined = (
-  //     account as StripeAccount
-  //   )?.external_accounts?.data?.find(
-  //     (acc: StripeBankAccount) => acc.object === 'bank_account',
-  //   );
-  //   bankName = bankAccount?.bank_name || null;
-  //   accountHolderName =
-  //     account?.individual?.first_name && account?.individual?.last_name
-  //       ? `${account.individual.first_name} ${account.individual.last_name}`
-  //       : null;
+    //   const bankAccount: StripeBankAccount | undefined = (
+    //     account as StripeAccount
+    //   )?.external_accounts?.data?.find(
+    //     (acc: StripeBankAccount) => acc.object === 'bank_account',
+    //   );
+    //   bankName = bankAccount?.bank_name || null;
+    //   accountHolderName =
+    //     account?.individual?.first_name && account?.individual?.last_name
+    //       ? `${account.individual.first_name} ${account.individual.last_name}`
+    //       : null;
 
-  //   branchCity = bankAccount?.bank_name || null;
-  //   branchCode = bankAccount?.routing_number || null;
-  //   accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
+    //   branchCity = bankAccount?.bank_name || null;
+    //   branchCode = bankAccount?.routing_number || null;
+    //   accountNumber = bankAccount?.last4 ? `****${bankAccount.last4}` : null;
   }
 
   return {
@@ -805,9 +806,10 @@ const updateSaloonOwnerByIdIntoDb = async (
       select: { fcmToken: true },
     });
 
-    const message = status === true
-      ? 'Congratulations! Your salon has been verified and is now active.'
-      : 'Your salon verification has been updated.';
+    const message =
+      status === true
+        ? 'Congratulations! Your salon has been verified and is now active.'
+        : 'Your salon verification has been updated.';
 
     await notificationService.sendNotification(
       owner?.fcmToken,
@@ -816,7 +818,10 @@ const updateSaloonOwnerByIdIntoDb = async (
       saloonOwnerId,
     );
   } catch (error) {
-    console.error('Error sending verification notification to saloon owner:', error);
+    console.error(
+      'Error sending verification notification to saloon owner:',
+      error,
+    );
   }
 
   return saloonOwner;
@@ -1054,7 +1059,7 @@ const getSubscribersListFromDb = async (
   const flattenedSubscribers = subscribers.map((subscriber: any) => {
     const subscription = subscriber.UserSubscription?.[0];
     const latestPayment = subscriber.Payment?.[0];
- 
+
     return {
       id: subscriber.id,
       fullName: subscriber.fullName,
@@ -1072,7 +1077,9 @@ const getSubscribersListFromDb = async (
       expired: subscriber.subscriptionEnd
         ? new Date(subscriber.subscriptionEnd) < new Date()
         : null,
-      lastSubscriptionPaymentDate: latestPayment?.paymentIntentId ? latestPayment.paymentDate : null,
+      lastSubscriptionPaymentDate: latestPayment?.paymentIntentId
+        ? latestPayment.paymentDate
+        : null,
       latestPayment: latestPayment
         ? {
             id: latestPayment.id,
@@ -1085,10 +1092,8 @@ const getSubscribersListFromDb = async (
     };
   });
 
-
   return formatPaginationResponse(flattenedSubscribers, total, page, limit);
 };
-
 
 export const adminService = {
   getSaloonFromDb,
