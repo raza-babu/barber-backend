@@ -1124,6 +1124,7 @@ const verifyOtpInDB = async (bodyData: {
     if (userData.intendedRole === UserRoleEnum.SALOON_OWNER) {
       updateData.intendedRole = UserRoleEnum.SALOON_OWNER;
       updateData.role = UserRoleEnum.SALOON_OWNER;
+      updateData.status = UserStatus.ACTIVE;
       updateData.isProfileComplete = false;
       updateData.isVerified = true;
     } else if (userData.intendedRole === UserRoleEnum.BARBER) {
