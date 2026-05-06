@@ -36,7 +36,7 @@ router.get(
 router.get(
   '/salon-owners',
   auth(UserRoleEnum.SALOON_OWNER),
-  checkSubscriptionForSalonOwners(),
+  // checkSubscriptionForSalonOwners(),
   jobPostController.getMyJobPostsList,
 );
 
