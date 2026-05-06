@@ -27,7 +27,7 @@ const SUBSCRIPTION_ID_MAPPING: Record<string, string> = {
  */
 const initializeGooglePlayClient = async () => {
   try {
-    const credentials = config.google?.credentials;
+    const credentials = config.google?.credentials; // done
     
     if (!credentials) {
       throw new AppError(
