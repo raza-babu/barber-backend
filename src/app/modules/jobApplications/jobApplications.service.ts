@@ -2,7 +2,10 @@ import prisma from '../../utils/prisma';
 import { JobApplicationStatus, UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { notificationService } from '../notification/notification.service';
@@ -29,7 +32,10 @@ const createJobApplicationsIntoDb = async (userId: string, data: any) => {
     },
   });
   if (!barber || barber.user.status !== UserStatus.ACTIVE) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Barber professional profile not found or inactive');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Barber professional profile not found or inactive',
+    );
   }
 
   const result = await prisma.jobApplication.create({
@@ -70,9 +76,12 @@ const createJobApplicationsIntoDb = async (userId: string, data: any) => {
   return result;
 };
 
-const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
+const getJobApplicationsListFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   // Build base where clause for user access
   const baseWhereClause = {
     OR: [{ userId: userId }, { saloonOwnerId: userId }],
@@ -82,7 +91,11 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
   const searchAndFilterQuery = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
-      searchFields: ['barber.user.fullName', 'barber.user.email', 'jobPost.description'],
+      searchFields: [
+        'barber.user.fullName',
+        'barber.user.email',
+        'jobPost.description',
+      ],
     },
     {
       status: options.status,
@@ -92,7 +105,7 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
       startDate: options.startDate,
       endDate: options.endDate,
       dateField: 'createdAt',
-    }
+    },
   );
 
   // Since Prisma doesn't handle nested search well, we'll handle it manually
@@ -152,7 +165,6 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
     ];
   }
 
-
   const [jobApplications, total] = await Promise.all([
     prisma.jobApplication.findMany({
       where: whereClause,
@@ -164,8 +176,8 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
       include: {
         barber: {
           select: {
-            ratingCount : true,
-            avgRating : true,
+            ratingCount: true,
+            avgRating: true,
             user: {
               select: {
                 id: true,
@@ -191,10 +203,10 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
             saloonOwner: {
               select: {
                 shopAddress: true,
-                ratingCount : true,
-                avgRating : true,
+                ratingCount: true,
+                avgRating: true,
               },
-            }
+            },
           },
         },
       },
@@ -220,18 +232,20 @@ const getJobApplicationsListFromDb = async (userId: string, options: ISearchAndF
       ratingCount: app.barber?.ratingCount,
       avgRating: app.barber?.avgRating,
     },
-    jobPost: app.jobPost ? {
-      id: app.jobPost.id,
-      description: app.jobPost.description,
-      hourlyRate: app.jobPost.hourlyRate,
-      startDate: app.jobPost.startDate,
-      endDate: app.jobPost.endDate,
-      datePosted: app.jobPost.datePosted,
-      shopName: app.jobPost.shopName,
-      shopAddress: app.jobPost.saloonOwner?.shopAddress,
-      saloonOwnerRatingCount: app.jobPost.saloonOwner?.ratingCount,
-      saloonOwnerAvgRating: app.jobPost.saloonOwner?.avgRating,
-    } : null,
+    jobPost: app.jobPost
+      ? {
+          id: app.jobPost.id,
+          description: app.jobPost.description,
+          hourlyRate: app.jobPost.hourlyRate,
+          startDate: app.jobPost.startDate,
+          endDate: app.jobPost.endDate,
+          datePosted: app.jobPost.datePosted,
+          shopName: app.jobPost.shopName,
+          shopAddress: app.jobPost.saloonOwner?.shopAddress,
+          saloonOwnerRatingCount: app.jobPost.saloonOwner?.ratingCount,
+          saloonOwnerAvgRating: app.jobPost.saloonOwner?.avgRating,
+        }
+      : null,
   }));
 
   return formatPaginationResponse(transformedData, total, page, limit);
@@ -275,7 +289,7 @@ const getJobApplicationsByIdFromDb = async (
     },
   });
   if (!result) {
-    return {message: 'Job application not found'  };
+    return { message: 'Job application not found' };
   }
   return {
     id: result.id,
@@ -287,9 +301,12 @@ const getJobApplicationsByIdFromDb = async (
   };
 };
 
-const getHiredBarbersListFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
+const getHiredBarbersListFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   // Build where clause
   let whereClause: any = {
     userId: userId,
@@ -503,7 +520,6 @@ const deleteJobApplicationsItemFromDb = async (
   userId: string,
   jobApplicationsId: string,
 ) => {
-
   // Verify existence
   const existingApplication = await prisma.jobApplication.findUnique({
     where: {
@@ -542,10 +558,12 @@ const deleteJobApplicationsItemFromDb = async (
   return deletedItem;
 };
 
-
-const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
+const getMyJobApplicationsListFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+
   // Build base where clause for user access
   const baseWhereClause = {
     userId: userId,
@@ -555,7 +573,12 @@ const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAn
   const searchAndFilterQuery = buildCompleteQuery(
     {
       searchTerm: options.searchTerm,
-      searchFields: ['barber.user.fullName', 'barber.user.email', 'jobPost.description', 'jobPost.status' ],
+      searchFields: [
+        'barber.user.fullName',
+        'barber.user.email',
+        'jobPost.description',
+        'jobPost.status',
+      ],
     },
     {
       status: options.status,
@@ -565,7 +588,7 @@ const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAn
       startDate: options.startDate,
       endDate: options.endDate,
       dateField: 'createdAt',
-    }
+    },
   );
 
   // Since Prisma doesn't handle nested search well, we'll handle it manually
@@ -577,7 +600,7 @@ const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAn
   }
   if (options.jobPostId) {
     whereClause.jobPostId = options.jobPostId;
-  } 
+  }
   // Add date range filter
   if (options.startDate || options.endDate) {
     whereClause.createdAt = {};
@@ -677,7 +700,7 @@ const getMyJobApplicationsListFromDb = async (userId: string, options: ISearchAn
   }));
 
   return formatPaginationResponse(transformedData, total, page, limit);
-}
+};
 
 const getJobApplicationsByIdForBarberFromDb = async (
   userId: string,
@@ -718,7 +741,8 @@ const getJobApplicationsByIdForBarberFromDb = async (
     },
   });
   if (!result) {
-    return {message: 'Job application not found'  };
+    // return {message: 'Job application not found'  };
+    throw new AppError(httpStatus.NOT_FOUND, 'Job application not found');
   }
   return {
     id: result.id,
@@ -728,7 +752,7 @@ const getJobApplicationsByIdForBarberFromDb = async (
     barber: result.barber?.user,
     jobPost: result.jobPost,
   };
-}
+};
 
 export const jobApplicationsService = {
   createJobApplicationsIntoDb,
