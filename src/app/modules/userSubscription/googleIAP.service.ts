@@ -28,7 +28,14 @@ const SUBSCRIPTION_ID_MAPPING: Record<string, string> = {
 const initializeGooglePlayClient = async () => {
   try {
     const credentials = config.google?.credentials; // done
-    
+
+    console.log(
+      {
+        credentials,
+      },
+      { depth: Infinity },
+    );
+
     if (!credentials) {
       throw new AppError(
         httpStatus.INTERNAL_SERVER_ERROR,
@@ -40,7 +47,10 @@ const initializeGooglePlayClient = async () => {
     try {
       parsedCredentials = JSON.parse(credentials);
     } catch (parseError: any) {
-      console.error('❌ Failed to parse Google credentials JSON:', parseError.message);
+      console.error(
+        '❌ Failed to parse Google credentials JSON:',
+        parseError.message,
+      );
       throw new AppError(
         httpStatus.INTERNAL_SERVER_ERROR,
         `Invalid Google credentials JSON: ${parseError.message}`,
@@ -62,7 +72,7 @@ const initializeGooglePlayClient = async () => {
 
     console.error('❌ Failed to initialize Google Play client:', error.message);
     console.error('Error details:', error);
-    
+
     throw new AppError(
       httpStatus.INTERNAL_SERVER_ERROR,
       `Google Play authentication failed: ${error.message}`,
@@ -217,7 +227,7 @@ const validateSubscriptionId = (planInput: string): string => {
 
   // Second, try to match full form (com.barberstime.barber_time_app.monthly, etc)
   const fullFormMatch = Object.values(SUBSCRIPTION_ID_MAPPING).find(
-    value => value.toLowerCase() === lowerInput
+    value => value.toLowerCase() === lowerInput,
   );
   if (fullFormMatch) {
     return fullFormMatch;
@@ -270,7 +280,6 @@ const checkSubscriptionStatus = async (
   subscriptionId: string,
   purchaseToken: string,
 ): Promise<any> => {
-  
   try {
     const purchaseData = await verifyGooglePlayPurchase(
       packageName,
