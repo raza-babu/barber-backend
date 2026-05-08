@@ -198,13 +198,17 @@ const verifyGooglePlayPurchase = async (
  */
 const getGoogleAccessToken = async (authClient: any): Promise<string> => {
   try {
-    const { credentials } = await authClient.getAccessToken();
-    if (!credentials.access_token) {
-      throw new Error('Failed to obtain access token');
+    const result = await authClient.getAccessToken();
+    const token = result?.token || result?.access_token;
+    
+    if (!token) {
+      console.error('❌ Access token result structure:', JSON.stringify(result, null, 2));
+      throw new Error('Failed to obtain access token from Google auth client');
     }
-    return credentials.access_token;
+    return token;
   } catch (error: any) {
     console.error('❌ Failed to get Google access token:', error.message);
+    console.error('   Error details:', error);
     throw new AppError(
       httpStatus.INTERNAL_SERVER_ERROR,
       'Failed to authenticate with Google Play',
