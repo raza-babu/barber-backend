@@ -152,8 +152,8 @@ const verifyGooglePlayPurchase = async (
       ).toISOString(),
     };
   } catch (error: any) {
+    console.log(error);
     console.error('❌ Google Play purchase verification error:', error.message);
-
     // Log detailed error info
     if (error.response?.status === 400) {
       console.error('   ❌ Bad Request (400)');
@@ -200,9 +200,12 @@ const getGoogleAccessToken = async (authClient: any): Promise<string> => {
   try {
     const result = await authClient.getAccessToken();
     const token = result?.token || result?.access_token;
-    
+
     if (!token) {
-      console.error('❌ Access token result structure:', JSON.stringify(result, null, 2));
+      console.error(
+        '❌ Access token result structure:',
+        JSON.stringify(result, null, 2),
+      );
       throw new Error('Failed to obtain access token from Google auth client');
     }
     return token;
