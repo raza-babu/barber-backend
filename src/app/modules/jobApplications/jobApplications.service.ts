@@ -238,6 +238,13 @@ const getJobApplicationsListFromDb = async (
       address: app.barber?.user.address,
       ratingCount: app.barber?.ratingCount,
       avgRating: app.barber?.avgRating,
+      followingCount: app.barber?.followingCount,
+      followerCount: app.barber?.followerCount,
+      portfolio: app.barber?.portfolio,
+      skills: app.barber?.skills,
+      experienceYears: app.barber?.experienceYears,
+      bio: app.barber?.bio,
+      currentWorkDes: app.barber?.currentWorkDes,
     },
     jobPost: app.jobPost
       ? {
