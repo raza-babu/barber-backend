@@ -2918,7 +2918,15 @@ const getAllPayments = async (query: Record<string, unknown>) => {
       booking: {
         select: {
           bookingType: true,
-          barberName: true,
+          barber: {
+            select: {
+              user: {
+                select: {
+                  fullName: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -2943,7 +2951,7 @@ const getAllPayments = async (query: Record<string, unknown>) => {
           // booking info:
           bookingId: payment?.bookingId || null,
           bookingtype: payment?.booking?.bookingType || null,
-          barbarName: payment?.booking?.barberName || null,
+          barbarName: payment?.booking?.barber?.user?.fullName || null,
 
           // other payments info:
           amountProvider: payment?.amountProvider || null,
