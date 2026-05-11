@@ -130,7 +130,12 @@ router.post(
 
 router.get(
   '/check-balance',
-  auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER, UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN),
+  auth(
+    UserRoleEnum.SALOON_OWNER,
+    UserRoleEnum.BARBER,
+    UserRoleEnum.ADMIN,
+    UserRoleEnum.SUPER_ADMIN,
+  ),
   PaymentController.checkAvailableBalance,
 );
 
@@ -138,6 +143,12 @@ router.post(
   '/withdraw-funds',
   auth(UserRoleEnum.SALOON_OWNER, UserRoleEnum.BARBER),
   PaymentController.withdrawFundsFromStripe,
+);
+
+router.get(
+  '/all',
+  auth(UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN),
+  PaymentController.getAllPaymentsHistory,
 );
 
 export const PaymentRoutes = router;

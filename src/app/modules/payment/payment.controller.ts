@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { query, Request, Response } from 'express';
 
 import httpStatus from 'http-status';
 
@@ -37,7 +37,7 @@ const createAccount = catchAsync(async (req: Request, res: Response) => {
 const createNewAccount = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
   const result = await StripeServices.createNewAccountIntoStripe(user.id);
-  
+
   // Send notification about account creation
   try {
     await notificationService.sendNotification(
@@ -49,7 +49,7 @@ const createNewAccount = catchAsync(async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error sending account creation notification:', error);
   }
-  
+
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
     success: true,
@@ -344,7 +344,7 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
 
   // Handle the event types
   switch (event.type) {
-     case 'account.updated':
+    case 'account.updated':
       const account = event.data.object;
       console.log(account, 'check account from webhook');
 
@@ -608,7 +608,7 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
               booking.barberId,
             );
           }
-          
+
           // Send notification to saloon owner about new confirmed booking
           const saloonOwner = await prisma.user.findUnique({
             where: { id: booking.saloonOwnerId },
@@ -622,8 +622,6 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
               booking.saloonOwnerId,
             );
           }
-
-
         } catch (error) {
           console.error('Error sending payment success notification:', error);
         }
@@ -667,7 +665,10 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
             );
           }
         } catch (notificationError) {
-          console.error('Error sending payment failure notification:', notificationError);
+          console.error(
+            'Error sending payment failure notification:',
+            notificationError,
+          );
         }
 
         // Only cleanup if booking is still PENDING (not yet confirmed)
@@ -764,7 +765,10 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
             );
           }
         } catch (notificationError) {
-          console.error('Error sending charge failure notification:', notificationError);
+          console.error(
+            'Error sending charge failure notification:',
+            notificationError,
+          );
         }
 
         // Only cleanup if booking is still PENDING
@@ -1385,12 +1389,14 @@ const tipPaymentToBarber = catchAsync(async (req: any, res: any) => {
     if (booking) {
       const barber = await prisma.barber.findUnique({
         where: { id: booking.barberId },
-        select: { user: { select: { fullName: true, fcmToken: true, id: true } } },
+        select: {
+          user: { select: { fullName: true, fcmToken: true, id: true } },
+        },
       });
 
       const customer = await prisma.user.findUnique({
         where: { id: user.id },
-        select: {  fullName: true   },
+        select: { fullName: true },
       });
 
       if (barber?.user?.fcmToken) {
@@ -1441,56 +1447,62 @@ const payoutToBarber = catchAsync(async (req: any, res: any) => {
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Payout to barber processed successfully! Funds transferred automatically.',
+    message:
+      'Payout to barber processed successfully! Funds transferred automatically.',
     data: result,
   });
 });
 
-const withdrawFundsFromStripe = catchAsync(async (req: Request, res: Response) => {
-  const user = req.user as any;
+const withdrawFundsFromStripe = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as any;
 
-  // Determine user role and call appropriate service
-  const userWithRole = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: {
-      Barber: { select: { id: true } },
-      SaloonOwner: { select: { id: true } },
-    },
-  });
-
-  if (!userWithRole) {
-    return sendResponse(res, {
-      statusCode: httpStatus.NOT_FOUND,
-      success: false,
-      message: 'User not found',
-      data: null,
+    // Determine user role and call appropriate service
+    const userWithRole = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        Barber: { select: { id: true } },
+        SaloonOwner: { select: { id: true } },
+      },
     });
-  }
 
-  let result;
+    if (!userWithRole) {
+      return sendResponse(res, {
+        statusCode: httpStatus.NOT_FOUND,
+        success: false,
+        message: 'User not found',
+        data: null,
+      });
+    }
 
-  if (userWithRole.Barber) {
-    // Call barber-specific withdrawal service
-    result = await StripeServices.withdrawFundsAsBarberService(user.id);
-  } else if (userWithRole.SaloonOwner) {
-    // Call saloon owner-specific withdrawal service
-    result = await StripeServices.withdrawFundsAsSaloonOwnerService(user.id);
-  } else {
-    return sendResponse(res, {
-      statusCode: httpStatus.FORBIDDEN,
-      success: false,
-      message: 'User must be either a barber or a saloon owner to withdraw funds',
-      data: null,
+    let result;
+
+    if (userWithRole.Barber) {
+      // Call barber-specific withdrawal service
+      result = await StripeServices.withdrawFundsAsBarberService(user.id);
+    } else if (userWithRole.SaloonOwner) {
+      // Call saloon owner-specific withdrawal service
+      result = await StripeServices.withdrawFundsAsSaloonOwnerService(user.id);
+    } else {
+      return sendResponse(res, {
+        statusCode: httpStatus.FORBIDDEN,
+        success: false,
+        message:
+          'User must be either a barber or a saloon owner to withdraw funds',
+        data: null,
+      });
+    }
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: result.success
+        ? 'Funds withdrawal initiated successfully'
+        : 'Unable to withdraw funds',
+      data: result,
     });
-  }
-
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: result.success ? 'Funds withdrawal initiated successfully' : 'Unable to withdraw funds',
-    data: result,
-  });
-});
+  },
+);
 
 const getPendingBarberPayouts = catchAsync(
   async (req: Request, res: Response) => {
@@ -1619,17 +1631,36 @@ const rejectBarberPayout = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const checkAvailableBalance = catchAsync(async (req: Request, res: Response) => {
-  const user = req.user as any;
-  const result = await StripeServices.checkAvailableBalanceService(user.id);
-  
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: 'Available balance retrieved successfully',
-    data: result,
-  });
-});
+const checkAvailableBalance = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as any;
+    const result = await StripeServices.checkAvailableBalanceService(user.id);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Available balance retrieved successfully',
+      data: result,
+    });
+  },
+);
+
+// Get all payment history:
+const getAllPaymentsHistory = catchAsync(
+  async (req: Request, res: Response) => {
+    // const user = req.user as any;
+    const result = await StripeServices.getAllPayments(req.query);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'All payments are retrived successfully',
+      meta: result.pagination,
+      data: result.payments,
+      // filters: result.filters,
+    });
+  },
+);
 
 export const PaymentController = {
   saveCardWithCustomerInfo,
@@ -1654,4 +1685,5 @@ export const PaymentController = {
   settleBarberPayout,
   rejectBarberPayout,
   checkAvailableBalance,
+  getAllPaymentsHistory,
 };

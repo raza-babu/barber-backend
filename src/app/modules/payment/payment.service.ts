@@ -11,10 +11,13 @@ import {
   QueueStatus,
   BookingType,
   PayoutRequestStatus,
+  Prisma,
 } from '@prisma/client';
 import Stripe from 'stripe';
 import { TStripeSaveWithCustomerInfoPayload } from './payment.interface';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { DateTime } from 'luxon';
+import paymentTransfer from '../../utils/paymentTransfer';
 // import { notificationService } from '../Notification/Notification.service';
 
 // Initialize Stripe with your secret API key
@@ -84,9 +87,14 @@ const saveCardWithCustomerInfoIntoStripe = async (
       try {
         await stripe.customers.retrieve(findUserStripeId.stripeCustomerId);
       } catch (error: any) {
-        if (error.code === 'resource_missing' || error.message.includes('No such customer')) {
+        if (
+          error.code === 'resource_missing' ||
+          error.message.includes('No such customer')
+        ) {
           customerExists = false;
-          console.warn(`Stripe customer ${findUserStripeId.stripeCustomerId} not found. Creating new customer.`);
+          console.warn(
+            `Stripe customer ${findUserStripeId.stripeCustomerId} not found. Creating new customer.`,
+          );
         } else {
           throw error;
         }
@@ -129,14 +137,11 @@ const saveCardWithCustomerInfoIntoStripe = async (
         });
 
         // Set PaymentMethod as Default
-        await stripe.customers.update(
-          findUserStripeId.stripeCustomerId,
-          {
-            invoice_settings: {
-              default_payment_method: paymentMethodId,
-            },
+        await stripe.customers.update(findUserStripeId.stripeCustomerId, {
+          invoice_settings: {
+            default_payment_method: paymentMethodId,
           },
-        );
+        });
 
         finalCustomerId = findUserStripeId.stripeCustomerId;
       }
@@ -163,11 +168,13 @@ const authorizeAndSplitPayment = async (
   const { bookingId, booking: passedBooking, tx: transactionClient } = payload;
 
   // Use provided transaction or create a new one
-  const executeInTransaction = transactionClient ? 
-    async (callback: (txClient: any) => Promise<any>) => callback(transactionClient) :
-    async (callback: (txClient: any) => Promise<any>) => prisma.$transaction(callback);
+  const executeInTransaction = transactionClient
+    ? async (callback: (txClient: any) => Promise<any>) =>
+        callback(transactionClient)
+    : async (callback: (txClient: any) => Promise<any>) =>
+        prisma.$transaction(callback);
 
-  return await executeInTransaction(async (tx) => {
+  return await executeInTransaction(async tx => {
     // Use passed booking if available, otherwise query for it
     let findBooking = passedBooking;
     if (!findBooking) {
@@ -234,7 +241,6 @@ const authorizeAndSplitPayment = async (
           ? findBooking.user?.email
           : (() => {
               throw new AppError(httpStatus.BAD_REQUEST, 'Email not found');
-              
             })(),
       });
 
@@ -250,9 +256,14 @@ const authorizeAndSplitPayment = async (
       try {
         await stripe.customers.retrieve(customerId);
       } catch (error: any) {
-        if (error.code === 'resource_missing' || error.message.includes('No such customer')) {
-          console.warn(`Stripe customer ${customerId} not found. Creating new customer.`);
-          
+        if (
+          error.code === 'resource_missing' ||
+          error.message.includes('No such customer')
+        ) {
+          console.warn(
+            `Stripe customer ${customerId} not found. Creating new customer.`,
+          );
+
           // Customer doesn't exist in this Stripe account, create a new one
           const stripeCustomer = await stripe.customers.create({
             email: findBooking.user?.email
@@ -276,17 +287,17 @@ const authorizeAndSplitPayment = async (
       }
     }
 
-    let adminFeeAmount = 0.50 * 100; // £0.50 in pence
+    let adminFeeAmount = 0.5 * 100; // £0.50 in pence
     let transferAmount = findBooking.totalPrice * 100; // Amount in pence
     const totalAmount = transferAmount + adminFeeAmount;
 
     // Validate that the saloon owner's Stripe connected account exists
     let destinationAccountId = findBooking.saloonOwner.user?.stripeAccountId;
-    
+
     if (!destinationAccountId) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        'Saloon owner has not connected their Stripe account'
+        'Saloon owner has not connected their Stripe account',
       );
     }
 
@@ -294,11 +305,16 @@ const authorizeAndSplitPayment = async (
     try {
       await stripe.accounts.retrieve(destinationAccountId);
     } catch (error: any) {
-      if (error.code === 'resource_missing' || error.message.includes('No such account')) {
-        console.warn(`Stripe account ${destinationAccountId} not found for destination transfer.`);
+      if (
+        error.code === 'resource_missing' ||
+        error.message.includes('No such account')
+      ) {
+        console.warn(
+          `Stripe account ${destinationAccountId} not found for destination transfer.`,
+        );
         throw new AppError(
           httpStatus.BAD_REQUEST,
-          'Saloon owner Stripe account is no longer valid. Please reconnect your Stripe account.'
+          'Saloon owner Stripe account is no longer valid. Please reconnect your Stripe account.',
         );
       } else {
         // Re-throw other Stripe errors
@@ -361,7 +377,6 @@ const capturePaymentRequestToStripe = async (
 ) => {
   const { bookingId, status } = payload;
 
-  
   // Use provided transaction or create a new one
   if (tx) {
     const findBooking = await tx.booking.findUnique({
@@ -388,10 +403,13 @@ const capturePaymentRequestToStripe = async (
     if (!findBooking) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
     }
-    
+
     // Verify the user is authorized (either saloon owner or customer)
     if (findBooking.saloonOwnerId !== userId && findBooking.userId !== userId) {
-      throw new AppError(httpStatus.FORBIDDEN, 'Not authorized to capture this booking payment');
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'Not authorized to capture this booking payment',
+      );
     }
     if (status === BookingStatus.COMPLETED) {
       await tx.barberRealTimeStatus.deleteMany({
@@ -586,10 +604,13 @@ const capturePaymentRequestToStripe = async (
     if (!findBooking) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
     }
-    
+
     // Verify the user is authorized (either saloon owner or customer)
     if (findBooking.saloonOwnerId !== userId && findBooking.userId !== userId) {
-      throw new AppError(httpStatus.FORBIDDEN, 'Not authorized to capture this booking payment');
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'Not authorized to capture this booking payment',
+      );
     }
     if (status === BookingStatus.COMPLETED) {
       await tx.barberRealTimeStatus.deleteMany({
@@ -921,19 +942,13 @@ const cancelQueuePaymentRequestToStripe = async (
       where: {
         bookingId: findBooking.id,
         status: {
-          in: [
-            PaymentStatus.REQUIRES_CAPTURE,
-            PaymentStatus.COMPLETED,
-          ],
+          in: [PaymentStatus.REQUIRES_CAPTURE, PaymentStatus.COMPLETED],
         },
       },
     });
 
     if (!findPayment) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Payment record not found',
-      );
+      throw new AppError(httpStatus.BAD_REQUEST, 'Payment record not found');
     }
 
     if (!findPayment.checkoutSessionId && !findPayment.paymentIntentId) {
@@ -949,7 +964,7 @@ const cancelQueuePaymentRequestToStripe = async (
 
     if (isWithinFiveMinutes) {
       // WITHIN 5 MINS: Refund (totalAmount - £0.50)
-      
+
       try {
         // If this is a Checkout Session
         if (findPayment.checkoutSessionId) {
@@ -965,7 +980,10 @@ const cancelQueuePaymentRequestToStripe = async (
 
           // If already paid, create refund for amount minus service fee
           if (session.payment_status === 'paid' && session.payment_intent) {
-            const refundAmount = Math.max(0, (findPayment.paymentAmount || 0) - SERVICE_FEE_PENCE);
+            const refundAmount = Math.max(
+              0,
+              (findPayment.paymentAmount || 0) - SERVICE_FEE_PENCE,
+            );
             if (refundAmount > 0) {
               await stripe.refunds.create({
                 payment_intent: session.payment_intent as string,
@@ -978,12 +996,14 @@ const cancelQueuePaymentRequestToStripe = async (
             }
           } else {
             // If not yet paid, expire the session
-            await stripe.checkout.sessions.expire(findPayment.checkoutSessionId);
+            await stripe.checkout.sessions.expire(
+              findPayment.checkoutSessionId,
+            );
             console.log('Checkout Session Expired (not yet paid):', {
               sessionId: findPayment.checkoutSessionId,
             });
           }
-        } 
+        }
         // If this is a regular PaymentIntent (not from Checkout)
         else if (findPayment.paymentIntentId) {
           const paymentIntent = await stripe.paymentIntents.retrieve(
@@ -993,9 +1013,12 @@ const cancelQueuePaymentRequestToStripe = async (
           if (paymentIntent.status === 'requires_capture') {
             // FIRST: Capture the full amount to settle the payment
             await stripe.paymentIntents.capture(findPayment.paymentIntentId);
-            
+
             // THEN: Immediately refund amount minus service fee (£0.50)
-            const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);
+            const refundAmount = Math.max(
+              0,
+              paymentIntent.amount - SERVICE_FEE_PENCE,
+            );
             if (refundAmount > 0) {
               await stripe.refunds.create({
                 payment_intent: findPayment.paymentIntentId,
@@ -1004,7 +1027,10 @@ const cancelQueuePaymentRequestToStripe = async (
             }
           } else if (paymentIntent.status === 'succeeded') {
             // Create refund for amount minus service fee
-            const refundAmount = Math.max(0, paymentIntent.amount - SERVICE_FEE_PENCE);
+            const refundAmount = Math.max(
+              0,
+              paymentIntent.amount - SERVICE_FEE_PENCE,
+            );
             if (refundAmount > 0) {
               await stripe.refunds.create({
                 payment_intent: findPayment.paymentIntentId,
@@ -1027,7 +1053,7 @@ const cancelQueuePaymentRequestToStripe = async (
       });
     } else {
       // AFTER 5 MINS: No refund, admin keeps £0.50
-      
+
       try {
         // If this is a Checkout Session, we cannot do anything since it's already completed
         if (findPayment.checkoutSessionId) {
@@ -1043,7 +1069,9 @@ const cancelQueuePaymentRequestToStripe = async (
             });
           } else {
             // Try to expire if not yet paid
-            await stripe.checkout.sessions.expire(findPayment.checkoutSessionId);
+            await stripe.checkout.sessions.expire(
+              findPayment.checkoutSessionId,
+            );
           }
         }
         // If it's a regular PaymentIntent
@@ -1315,23 +1343,25 @@ const createNewAccountIntoStripe = async (userId: string) => {
   // Opportunistic cleanup: Remove abandoned pending account if older than 7 days
   if (userData.stripeAccountIdPending) {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    
+
     if (userData.updatedAt < sevenDaysAgo) {
       try {
         console.log(
           `🧹 Cleaning up abandoned pending account ${userData.stripeAccountIdPending} for user ${userId}`,
         );
-        
+
         // Delete the abandoned pending account from Stripe
         await stripe.accounts.del(userData.stripeAccountIdPending);
-        
+
         // Clear pending account from DB
         await prisma.user.update({
           where: { id: userId },
           data: { stripeAccountIdPending: null },
         });
-        
-        console.log(`✅ Cleaned up abandoned pending Stripe account for user ${userId}`);
+
+        console.log(
+          `✅ Cleaned up abandoned pending Stripe account for user ${userId}`,
+        );
       } catch (cleanupError: any) {
         console.error(
           `⚠️ Failed to cleanup abandoned pending account: ${cleanupError.message}`,
@@ -1376,7 +1406,8 @@ const createNewAccountIntoStripe = async (userId: string) => {
   return {
     accountLink: accountLink.url,
     stripeAccountId: newAccount.id,
-    message: 'Complete onboarding to activate the new account. Previous account remains active for ongoing transactions.',
+    message:
+      'Complete onboarding to activate the new account. Previous account remains active for ongoing transactions.',
   };
 };
 
@@ -1401,8 +1432,10 @@ const cleanupAbandonedPendingAccounts = async () => {
 
   for (const user of usersWithPendingAccounts) {
     try {
-      console.log(`Cleaning up abandoned Stripe account ${user.stripeAccountIdPending} for user ${user.id}`);
-      
+      console.log(
+        `Cleaning up abandoned Stripe account ${user.stripeAccountIdPending} for user ${user.id}`,
+      );
+
       // Delete the abandoned pending account from Stripe
       await stripe.accounts.del(user.stripeAccountIdPending!);
 
@@ -1420,7 +1453,10 @@ const cleanupAbandonedPendingAccounts = async () => {
         updatedAt: user.updatedAt,
       });
     } catch (error: any) {
-      console.error(`Failed to cleanup pending account for user ${user.id}:`, error.message);
+      console.error(
+        `Failed to cleanup pending account for user ${user.id}:`,
+        error.message,
+      );
       deletedResults.push({
         userId: user.id,
         email: user.email,
@@ -1448,7 +1484,10 @@ const tipPaymentToBarberService = async (
   const { bookingId, barberAmount = 0, saloonOwnerAmount = 0 } = payload;
 
   // Validate that at least one amount is provided and valid
-  if ((barberAmount === 0 && saloonOwnerAmount === 0) || (!isValidAmount(barberAmount) && !isValidAmount(saloonOwnerAmount))) {
+  if (
+    (barberAmount === 0 && saloonOwnerAmount === 0) ||
+    (!isValidAmount(barberAmount) && !isValidAmount(saloonOwnerAmount))
+  ) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'At least one valid tip amount must be provided. Amount must be positive with up to 2 decimals.',
@@ -1479,11 +1518,10 @@ const tipPaymentToBarberService = async (
     },
   });
 
-  if (!booking)
-    throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
+  if (!booking) throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
   if (!booking.user?.stripeCustomerId)
     throw new AppError(httpStatus.BAD_REQUEST, 'Customer has no Stripe ID');
-  
+
   // Only validate account IDs for the recipients being tipped
   if (saloonOwnerAmount > 0 && !booking.saloonOwner.user?.stripeAccountId)
     throw new AppError(
@@ -1500,8 +1538,12 @@ const tipPaymentToBarberService = async (
   const TIP_FEE_PENCE = 10; // £0.10 fixed tip fee per recipient - deducted only if amount is provided
 
   // Actual amounts to transfer (fee deducted only for provided amounts)
-  const barberActualAmount = barberAmount > 0 ? Math.max(0, barberAmount - (TIP_FEE_PENCE / 100)) : 0;
-  const saloonOwnerActualAmount = saloonOwnerAmount > 0 ? Math.max(0, saloonOwnerAmount - (TIP_FEE_PENCE / 100)) : 0;
+  const barberActualAmount =
+    barberAmount > 0 ? Math.max(0, barberAmount - TIP_FEE_PENCE / 100) : 0;
+  const saloonOwnerActualAmount =
+    saloonOwnerAmount > 0
+      ? Math.max(0, saloonOwnerAmount - TIP_FEE_PENCE / 100)
+      : 0;
 
   // Customer pays the tip amounts without any additional fee
   const finalAmount = totalAmount;
@@ -1519,14 +1561,18 @@ const tipPaymentToBarberService = async (
       await stripe.accounts.retrieve(barberAccountId);
     }
   } catch (error: any) {
-    if (error.code === 'resource_missing' || error.message.includes('No such account')) {
-      const invalidAccount = saloonOwnerAccountId === error.param?.split('[')[1] 
-        ? 'Saloon owner' 
-        : 'Barber';
+    if (
+      error.code === 'resource_missing' ||
+      error.message.includes('No such account')
+    ) {
+      const invalidAccount =
+        saloonOwnerAccountId === error.param?.split('[')[1]
+          ? 'Saloon owner'
+          : 'Barber';
       console.warn(`Stripe account not found for ${invalidAccount} transfer.`);
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        `${invalidAccount} Stripe account is no longer valid. Please reconnect your Stripe account.`
+        `${invalidAccount} Stripe account is no longer valid. Please reconnect your Stripe account.`,
       );
     } else {
       throw error;
@@ -1587,10 +1633,7 @@ const payoutToBarberService = async (
 
   // Validate amount
   if (!amount || amount <= 0) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Amount must be greater than 0',
-    );
+    throw new AppError(httpStatus.BAD_REQUEST, 'Amount must be greater than 0');
   }
 
   if (!isValidAmount(amount)) {
@@ -1617,10 +1660,7 @@ const payoutToBarberService = async (
 
     // Verify user is a saloon owner
     if (!saloonOwner.SaloonOwner) {
-      throw new AppError(
-        httpStatus.FORBIDDEN,
-        'User is not a saloon owner',
-      );
+      throw new AppError(httpStatus.FORBIDDEN, 'User is not a saloon owner');
     }
 
     // Verify saloon owner has valid Stripe account
@@ -1740,7 +1780,7 @@ const payoutToBarberService = async (
     // Step 2: Use two-step transfer (Shop Owner → Platform → Barber)
     // Note: Direct connected-to-connected transfers are not allowed by Stripe
     // So we use Platform Account as intermediary
-    
+
     // Verify platform account ID is configured
     const platformAccountId = config.stripe.stripe_platform_account_id;
     if (!platformAccountId) {
@@ -1751,7 +1791,7 @@ const payoutToBarberService = async (
     }
 
     let transfer1, transfer2;
-    
+
     try {
       // Transfer 1: Shop Owner's Account → Platform Account
       // NOTE: Using USD for testing - change to 'gbp' for production
@@ -1780,8 +1820,11 @@ const payoutToBarberService = async (
         to: 'Platform Account',
       });
     } catch (error: any) {
-      console.error('Transfer from shop owner to platform failed:', error.message);
-      
+      console.error(
+        'Transfer from shop owner to platform failed:',
+        error.message,
+      );
+
       // Handle country mismatch errors
       if (error.message.includes('Account debits are not supported from')) {
         throw new AppError(
@@ -1789,7 +1832,7 @@ const payoutToBarberService = async (
           `Country mismatch error: Your platform account and shop owner account are in different countries. Ensure your platform account (${platformAccountId}) is in the same country as the shop owner's account.`,
         );
       }
-      
+
       throw new AppError(
         httpStatus.CONFLICT,
         `Transfer from shop owner failed: ${error.message}`,
@@ -1865,7 +1908,8 @@ const payoutToBarberService = async (
       success: true,
       payoutType: 'two_step_automatic_transfer',
       payoutRequestId: completedPayout.id,
-      message: 'Payout completed successfully! Funds transferred through platform. [TEST MODE - USD CURRENCY]',
+      message:
+        'Payout completed successfully! Funds transferred through platform. [TEST MODE - USD CURRENCY]',
       transfers: {
         step1: {
           transferId: transfer1.id,
@@ -1916,10 +1960,7 @@ const withdrawFundsAsBarberService = async (userId: string) => {
 
   // Verify user is a barber
   if (!user.Barber) {
-    throw new AppError(
-      httpStatus.FORBIDDEN,
-      'User is not a barber',
-    );
+    throw new AppError(httpStatus.FORBIDDEN, 'User is not a barber');
   }
 
   // Authorization check: User can only withdraw their own funds
@@ -1950,10 +1991,7 @@ const withdrawFundsAsSaloonOwnerService = async (userId: string) => {
 
   // Verify user is a saloon owner
   if (!user.SaloonOwner) {
-    throw new AppError(
-      httpStatus.FORBIDDEN,
-      'User is not a saloon owner',
-    );
+    throw new AppError(httpStatus.FORBIDDEN, 'User is not a saloon owner');
   }
 
   // Authorization check: User can only withdraw their own funds
@@ -1968,7 +2006,10 @@ const withdrawFundsAsSaloonOwnerService = async (userId: string) => {
 };
 
 // Core withdrawal process (shared logic)
-const performWithdrawalProcess = async (user: any, userType: 'barber' | 'saloon_owner') => {
+const performWithdrawalProcess = async (
+  user: any,
+  userType: 'barber' | 'saloon_owner',
+) => {
   // Verify user has valid Stripe account
   if (!user.stripeAccountId) {
     throw new AppError(
@@ -2027,11 +2068,12 @@ const performWithdrawalProcess = async (user: any, userType: 'barber' | 'saloon_
 
     // Check if bank account is connected
     const externalAccounts = stripeAccount.external_accounts;
-    
+
     if (!externalAccounts || externalAccounts.data.length === 0) {
       return {
         success: false,
-        message: 'No bank account connected to your Stripe account. Please add a bank account first via Stripe dashboard.',
+        message:
+          'No bank account connected to your Stripe account. Please add a bank account first via Stripe dashboard.',
         loginUrl: null,
         needsBankAccount: true,
         balanceInfo: {
@@ -2039,14 +2081,15 @@ const performWithdrawalProcess = async (user: any, userType: 'barber' | 'saloon_
           pending: pendingBalanceGBP.toFixed(2),
           currency: 'gbp',
         },
-        instructions: 'Please connect a bank account to your Stripe account to enable automatic payouts.',
+        instructions:
+          'Please connect a bank account to your Stripe account to enable automatic payouts.',
       };
     }
 
     // Calculate payout amount with buffer for potential fees
     payoutAmount = Math.max(
       MINIMUM_PAYOUT_PENCE,
-      availableBalance - RESERVE_BUFFER_PENCE
+      availableBalance - RESERVE_BUFFER_PENCE,
     );
 
     console.log('Attempting payout:', {
@@ -2085,14 +2128,15 @@ const performWithdrawalProcess = async (user: any, userType: 'barber' | 'saloon_
     });
 
     // Calculate arrival date
-    const arrivalDate = payout.arrival_date 
-      ? new Date(payout.arrival_date * 1000) 
+    const arrivalDate = payout.arrival_date
+      ? new Date(payout.arrival_date * 1000)
       : new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // Default 2 business days
 
     return {
       success: true,
       payoutType: 'automatic_bank_transfer',
-      message: 'Funds are being transferred to your bank account automatically!',
+      message:
+        'Funds are being transferred to your bank account automatically!',
       payoutDetails: {
         payoutId: payout.id,
         amount: availableBalanceGBP.toFixed(2),
@@ -2107,7 +2151,10 @@ const performWithdrawalProcess = async (user: any, userType: 'barber' | 'saloon_
         email: user.email,
         stripeAccountId: user.stripeAccountId,
         userType: userType,
-        ...(userType === 'saloon_owner' && user.SaloonOwner?.shopName && { shopName: user.SaloonOwner.shopName }),
+        ...(userType === 'saloon_owner' &&
+          user.SaloonOwner?.shopName && {
+            shopName: user.SaloonOwner.shopName,
+          }),
       },
       balanceInfo: {
         transferred: availableBalanceGBP.toFixed(2),
@@ -2137,19 +2184,21 @@ const performWithdrawalProcess = async (user: any, userType: 'barber' | 'saloon_
         const currentBalance = await stripe.balance.retrieve({
           stripeAccount: user.stripeAccountId,
         });
-        const currentAvailable = (currentBalance.available[0]?.amount || 0) / 100;
+        const currentAvailable =
+          (currentBalance.available[0]?.amount || 0) / 100;
         const currentPending = (currentBalance.pending[0]?.amount || 0) / 100;
-        
+
         // Check if there's a significant discrepancy (indicates holds/restrictions)
-        const hasAccountHolds = currentPending > 0 && currentAvailable < payoutAmount / 100;
-        
+        const hasAccountHolds =
+          currentPending > 0 && currentAvailable < payoutAmount / 100;
+
         if (hasAccountHolds) {
           throw new AppError(
             httpStatus.BAD_REQUEST,
             `Your account has pending transactions or holds that prevent immediate payout. Available: £${currentAvailable.toFixed(2)}, Pending: £${currentPending.toFixed(2)}. Please check your Stripe dashboard for pending disputes or restrictions, or try again after pending transactions clear.`,
           );
         }
-        
+
         throw new AppError(
           httpStatus.BAD_REQUEST,
           `Insufficient funds for payout. Available balance: £${currentAvailable.toFixed(2)}. Your Stripe account may have restrictions or holds. Please check your Stripe dashboard at https://dashboard.stripe.com/balances or contact Stripe support.`,
@@ -2182,7 +2231,7 @@ const performWithdrawalProcess = async (user: any, userType: 'barber' | 'saloon_
         'No bank account connected. Please add a bank account to your Stripe account first.',
       );
     }
-    
+
     // Log detailed error for debugging
     console.error('Failed to create automatic payout:', {
       errorMessage: error.message,
@@ -2293,11 +2342,12 @@ const withdrawFundsFromStripeService = async (userId: string) => {
 
     // Check if bank account is connected
     const externalAccounts = stripeAccount.external_accounts;
-    
+
     if (!externalAccounts || externalAccounts.data.length === 0) {
       return {
         success: false,
-        message: 'No bank account connected to your Stripe account. Please add a bank account first via Stripe dashboard.',
+        message:
+          'No bank account connected to your Stripe account. Please add a bank account first via Stripe dashboard.',
         loginUrl: null,
         needsBankAccount: true,
         balanceInfo: {
@@ -2305,7 +2355,8 @@ const withdrawFundsFromStripeService = async (userId: string) => {
           pending: pendingBalanceGBP.toFixed(2),
           currency: 'gbp',
         },
-        instructions: 'Please connect a bank account to your Stripe account to enable automatic payouts.',
+        instructions:
+          'Please connect a bank account to your Stripe account to enable automatic payouts.',
       };
     }
 
@@ -2336,14 +2387,15 @@ const withdrawFundsFromStripeService = async (userId: string) => {
     });
 
     // Calculate arrival date
-    const arrivalDate = payout.arrival_date 
-      ? new Date(payout.arrival_date * 1000) 
+    const arrivalDate = payout.arrival_date
+      ? new Date(payout.arrival_date * 1000)
       : new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // Default 2 business days
 
     return {
       success: true,
       payoutType: 'automatic_bank_transfer',
-      message: 'Funds are being transferred to your bank account automatically!',
+      message:
+        'Funds are being transferred to your bank account automatically!',
       payoutDetails: {
         payoutId: payout.id,
         amount: availableBalanceGBP.toFixed(2),
@@ -2358,7 +2410,10 @@ const withdrawFundsFromStripeService = async (userId: string) => {
         email: user.email,
         stripeAccountId: user.stripeAccountId,
         userType: isBarber ? 'barber' : 'saloon_owner',
-        ...(isSaloonOwner && user.SaloonOwner?.[0]?.shopName && { shopName: user.SaloonOwner[0].shopName }),
+        ...(isSaloonOwner &&
+          user.SaloonOwner?.[0]?.shopName && {
+            shopName: user.SaloonOwner[0].shopName,
+          }),
       },
       balanceInfo: {
         transferred: availableBalanceGBP.toFixed(2),
@@ -2394,17 +2449,19 @@ const withdrawFundsFromStripeService = async (userId: string) => {
         'No bank account connected. Please add a bank account to your Stripe account first.',
       );
     }
-    
+
     console.error('Failed to create automatic payout:', error.message);
     throw new AppError(
       httpStatus.CONFLICT,
       `Failed to process automatic payout: ${error.message}`,
     );
   }
-}
+};
 
 // Get all pending barber payout requests
-const getPendingBarberPayoutsService = async (options?: ISearchAndFilterOptions) => {
+const getPendingBarberPayoutsService = async (
+  options?: ISearchAndFilterOptions,
+) => {
   try {
     const where: any = {};
     let skip = 0;
@@ -2430,8 +2487,11 @@ const getPendingBarberPayoutsService = async (options?: ISearchAndFilterOptions)
 
     // Handle additional filters passed through filters object
     if (options?.filters) {
-      Object.keys(options.filters).forEach((key) => {
-        if (options.filters![key] !== undefined && options.filters![key] !== null) {
+      Object.keys(options.filters).forEach(key => {
+        if (
+          options.filters![key] !== undefined &&
+          options.filters![key] !== null
+        ) {
           where[key] = options.filters![key];
         }
       });
@@ -2441,7 +2501,7 @@ const getPendingBarberPayoutsService = async (options?: ISearchAndFilterOptions)
     if (options?.startDate || options?.endDate) {
       const dateField = options?.dateField || 'createdAt';
       where[dateField] = {};
-      
+
       if (options?.startDate) {
         where[dateField].gte = new Date(options.startDate);
       }
@@ -2721,38 +2781,220 @@ const rejectBarberPayoutService = async (
   }
 };
 
-const checkAvailableBalanceService
-  = async (userId: string) => {
-    // Get user and check if they're a barber or saloon owner
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+const checkAvailableBalanceService = async (userId: string) => {
+  // Get user and check if they're a barber or saloon owner
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
 
-    if (!user) {
-      throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-    }
-    try {
-      const balance = await stripe.balance.retrieve({
-        stripeAccount: user.stripeAccountId!,
-      });
-      const availableBalance = balance.available[0]?.amount || 0; // in pence
-      const pendingBalance = balance.pending[0]?.amount || 0; // in pence
-      return {  
-        availableBalance: availableBalance / 100, // Convert to GBP
-        pendingBalance: pendingBalance / 100, // Convert to GBP
-        currency: balance.available[0]?.currency.toUpperCase() || 'GBP',
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+  try {
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: user.stripeAccountId!,
+    });
+    const availableBalance = balance.available[0]?.amount || 0; // in pence
+    const pendingBalance = balance.pending[0]?.amount || 0; // in pence
+    return {
+      availableBalance: availableBalance / 100, // Convert to GBP
+      pendingBalance: pendingBalance / 100, // Convert to GBP
+      currency: balance.available[0]?.currency.toUpperCase() || 'GBP',
+    };
+  } catch (error: any) {
+    console.error('Failed to retrieve balance:', error.message);
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Failed to retrieve balance: ${error.message}`,
+    );
+  }
+};
+
+const getAllPayments = async (query: Record<string, unknown>) => {
+  const {
+    page = 1,
+    limit = 10,
+    startDate,
+    endDate,
+    userId,
+    bookingId,
+    searchTerm,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+  } = query;
+
+  // Page and limit calculation:
+  const pageNum = Math.max(1, parseInt(String(page), 1) || 1);
+  const limitNum = Math.max(1, parseInt(String(limit), 10) || 10);
+
+  const whereClause: Prisma.PaymentWhereInput = {};
+
+  if (userId) {
+    whereClause.userId = userId;
+  }
+
+  if (bookingId) {
+    whereClause.bookingId = bookingId;
+  }
+
+  if (startDate || endDate) {
+    const start = startDate
+      ? DateTime.fromISO(startDate as string, { zone: config.timezone })
+      : null;
+    const end = endDate
+      ? DateTime.fromISO(endDate as string, { zone: config.timezone })
+      : null;
+
+    if (start?.isValid || end?.isValid) {
+      whereClause.paymentDate = {
+        ...(start?.isValid && { gte: start.startOf('day').toJSDate() }),
+        ...(end?.isValid && { lte: end.endOf('day').toJSDate() }),
       };
     }
-    catch (error: any) {
-      console.error('Failed to retrieve balance:', error.message);
-      throw new AppError(
-        httpStatus.CONFLICT,
-        `Failed to retrieve balance: ${error.message}`,
-      );
+  }
+
+  // Sorting
+  const orderBy: any = {};
+  if (sortBy === 'paymentAmount') {
+    orderBy.paymentAmount = sortOrder;
+  } else if (sortBy === 'paymentDate') {
+    orderBy.paymentDate = sortOrder;
+  } else if (sortBy === 'createdAt') {
+    orderBy.createdAt = sortOrder;
+  }
+
+  // Pagination
+  const skip = (pageNum - 1) * limitNum;
+
+  // total
+  const total = await prisma.payment.count({
+    where: whereClause,
+  });
+
+  // Search term (search in notes, barber name, salon name)
+  if (searchTerm) {
+    whereClause.OR = [
+      {
+        user: {
+          fullName: {
+            contains: searchTerm as string,
+            mode: 'insensitive',
+          },
+        },
+      },
+      {
+        user: {
+          email: {
+            contains: searchTerm as string,
+            mode: 'insensitive',
+          },
+        },
+      },
+      {
+        booking: {
+          barberName: {
+            contains: searchTerm as string,
+            mode: 'insensitive',
+          },
+        },
+      },
+    ];
+  }
+
+  // where clause
+  const payments = await prisma.payment.findMany({
+    where: whereClause,
+    skip,
+    take: limitNum,
+    orderBy,
+
+    include: {
+      user: {
+        select: {
+          fullName: true,
+          email: true,
+        },
+      },
+      booking: {
+        select: {
+          bookingType: true,
+          barberName: true,
+        },
+      },
+    },
+  });
+
+  // Calculate pagination metadata
+  const totalPages = Math.ceil(total / limitNum);
+  const hasNextPage = pageNum < totalPages;
+  const hasPrevPage = pageNum > 1;
+
+  const formatPayments = (payments: any) => {
+    if (Array.isArray(payments) && payments.length > 0) {
+      return payments.map(payment => {
+        return {
+          id: payment?.id || null,
+
+          // user info:
+          userId: payment?.userId || null,
+          userName: payment?.user?.fullName || null,
+          userEmail: payment?.user?.email || null,
+
+          // booking info:
+          bookingId: payment?.bookingId || null,
+          bookingtype: payment?.booking?.bookingType || null,
+          barbarName: payment?.booking?.barberName || null,
+
+          // other payments info:
+          amountProvider: payment?.amountProvider || null,
+          amountReceiver: payment?.amountReceiver || null,
+
+          // paymentIntentId: payment?.paymentIntentId || null,
+          // checkoutSessionId: payment?.checkoutSessionId || null,
+          // paymentMethodId: payment?.paymentMethodId || null,
+
+          // appleTransactionId: payment?.appleTransactionId || null,
+          // appleProductId: payment?.appleProductId || null,
+          // appleReceiptData: payment?.appleReceiptData || null,
+
+          // googleTransactionId: payment?.googleTransactionId || null,
+          // googleProductId: payment?.googleProductId || null,
+          // googleOrderId: payment?.googleOrderId || null,
+          // googleReceiptData: payment?.googleReceiptData || null,
+
+          paymentAmount: payment?.paymentAmount || null,
+          paymentDate: payment?.paymentDate || null,
+
+          status: payment?.status || null,
+
+          createdAt: payment?.createdAt || null,
+          updatedAt: payment?.updatedAt || null,
+        };
+      });
     }
+
+    return [];
   };
 
-
+  return {
+    payments: formatPayments(payments),
+    pagination: {
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages,
+      hasNextPage,
+      hasPrevPage,
+    },
+    filters: {
+      userId: userId || null,
+      bookingId: bookingId || null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      searchTerm: searchTerm || null,
+    },
+  };
+};
 
 export const StripeServices = {
   saveCardWithCustomerInfoIntoStripe,
@@ -2779,6 +3021,5 @@ export const StripeServices = {
   settleBarberPayoutService,
   rejectBarberPayoutService,
   checkAvailableBalanceService,
+  getAllPayments,
 };
-
-
