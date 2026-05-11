@@ -51,22 +51,29 @@ const createBarberScheduleIntoDb = async (saloonOwnerId: string, data: any) => {
       const barberName = barber.user.fullName || 'Barber';
       const daysList = schedules.map(s => s.dayName).join(', ');
       const message = `Your schedule has been created for: ${daysList}`;
-      
-      await notificationService.sendNotification(
-        barber.user.fcmToken,
-        'Schedule Created',
-        message,
-        barberId,
-      ).catch(error => console.error('Error sending schedule creation notification:', error));
+
+      await notificationService
+        .sendNotification(
+          barber.user.fcmToken,
+          'Schedule Created',
+          message,
+          barberId,
+        )
+        .catch(error =>
+          console.error('Error sending schedule creation notification:', error),
+        );
     }
   } catch (error) {
-    console.error('Error sending barber schedule creation notification:', error);
+    console.error(
+      'Error sending barber schedule creation notification:',
+      error,
+    );
   }
 
   return result;
 };
 
-const getBarberScheduleListFromDb = async (userId: string,) => {
+const getBarberScheduleListFromDb = async (userId: string) => {
   const result = await prisma.barberSchedule.findMany({
     select: {
       id: true,
@@ -97,7 +104,10 @@ const getBarberScheduleListFromDb = async (userId: string,) => {
   }));
 };
 
-const getBarberScheduleByIdFromDb = async (userId: string, barberScheduleId: string) => {
+const getBarberScheduleByIdFromDb = async (
+  userId: string,
+  barberScheduleId: string,
+) => {
   const result = await prisma.barberSchedule.findMany({
     where: {
       barberId: barberScheduleId,
@@ -117,14 +127,14 @@ const getBarberScheduleByIdFromDb = async (userId: string, barberScheduleId: str
     },
   });
   if (!result) {
-    return []
+    return [];
   }
   return result.map(schedule => ({
     id: schedule.id,
     saloonOwnerId: schedule.saloonOwnerId,
     barberId: schedule.barberId,
     dayName: schedule.dayName,
-    time: `${schedule.openingTime} - ${schedule.closingTime}`,   
+    time: `${schedule.openingTime} - ${schedule.closingTime}`,
     isActive: schedule.isActive,
     type: schedule.type,
     // openingDateTime: schedule.openingDateTime,
@@ -137,6 +147,7 @@ const updateBarberScheduleIntoDb = async (
   barberScheduleId: string,
   data: any,
 ) => {
+  console.log({ data });
   // ensure the schedule exists and belongs to the saloon owner
   const existing = await prisma.barberSchedule.findFirst({
     where: {
@@ -161,7 +172,7 @@ const updateBarberScheduleIntoDb = async (
       openingTime: true,
       closingTime: true,
       isActive: true,
-      type: true
+      type: true,
       // openingDateTime: true,
       // closingDateTime: true,
     },
@@ -177,13 +188,17 @@ const updateBarberScheduleIntoDb = async (
     if (barber?.user?.fcmToken) {
       const statusText = data.isActive ? 'activated' : 'deactivated';
       const message = `Your ${result.dayName} schedule has been updated (${statusText})`;
-      
-      await notificationService.sendNotification(
-        barber.user.fcmToken,
-        'Schedule Updated',
-        message,
-        result.barberId,
-      ).catch(error => console.error('Error sending schedule update notification:', error));
+
+      await notificationService
+        .sendNotification(
+          barber.user.fcmToken,
+          'Schedule Updated',
+          message,
+          result.barberId,
+        )
+        .catch(error =>
+          console.error('Error sending schedule update notification:', error),
+        );
     }
   } catch (error) {
     console.error('Error sending barber schedule update notification:', error);
@@ -225,16 +240,23 @@ const deleteBarberScheduleItemFromDb = async (
 
     if (barber?.user?.fcmToken) {
       const message = 'Your schedule has been deleted';
-      
-      await notificationService.sendNotification(
-        barber.user.fcmToken,
-        'Schedule Deleted',
-        message,
-        barberId,
-      ).catch(error => console.error('Error sending schedule deletion notification:', error));
+
+      await notificationService
+        .sendNotification(
+          barber.user.fcmToken,
+          'Schedule Deleted',
+          message,
+          barberId,
+        )
+        .catch(error =>
+          console.error('Error sending schedule deletion notification:', error),
+        );
     }
   } catch (error) {
-    console.error('Error sending barber schedule deletion notification:', error);
+    console.error(
+      'Error sending barber schedule deletion notification:',
+      error,
+    );
   }
 
   return deletedItem;
