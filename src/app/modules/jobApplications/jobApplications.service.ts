@@ -188,6 +188,13 @@ const getJobApplicationsListFromDb = async (
                 address: true,
               },
             },
+            followingCount: true,
+            followerCount: true,
+            portfolio: true,
+            skills: true,
+            experienceYears: true,
+            bio: true,
+            currentWorkDes: true,
           },
         },
         jobPost: {
