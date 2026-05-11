@@ -2236,10 +2236,9 @@ const getBookingListFromDb = async (
     whereConditions.bookingType = type;
   }
 
-//  TODO: TO HIDE THE DATA WITHOUT PAYMENT
+  //  TODO: TO HIDE THE DATA WITHOUT PAYMENT
   whereConditions.Payment = {
-    some: {
-    },
+    some: {},
   };
 
   if (status) {
@@ -3454,6 +3453,7 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
               .setZone(config.timezone)
               .toFormat('hh:mm a'),
           services: b.BookedServices.map(bs => bs.service?.serviceName),
+          appointmentAt: b.appointmentAt,
           totalTime: b.BookedServices.reduce(
             (sum, bs) => sum + (bs.service?.duration || 0),
             0,
@@ -3624,6 +3624,8 @@ const getAvailableBarbersFromDb = async (
     return { message: 'No barbers with schedules found for this salon' };
   }
   barbers = filteredBarbers;
+
+  console.log({ barbers });
 
   // 3. Parallel per-barber checks
   const availableBarbers = await Promise.all(
@@ -5161,7 +5163,6 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
           const paymentIntent = await stripe.paymentIntents.retrieve(
             payment.paymentIntentId,
           );
-          
 
           if (paymentIntent.status === 'requires_capture') {
             // Just cancel without capturing - releases authorization, NO REFUND
