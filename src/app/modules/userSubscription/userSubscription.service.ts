@@ -120,10 +120,7 @@ const createUserSubscriptionIntoDb = async (
   });
 
   if (!subscriptionOffer) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Subscription offer not found',
-    );
+    throw new AppError(httpStatus.BAD_REQUEST, 'Subscription offer not found');
   }
 
   // 5. Check user is not subscribing to their own plan
@@ -368,7 +365,7 @@ const createUserSubscriptionIntoDb = async (
 
     if (subscriber?.fcmToken) {
       const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription is now active! Enjoy all premium features.`;
-      
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
@@ -377,7 +374,10 @@ const createUserSubscriptionIntoDb = async (
           userId,
         )
         .catch(error =>
-          console.error('Error sending subscription activation notification:', error),
+          console.error(
+            'Error sending subscription activation notification:',
+            error,
+          ),
         );
     }
   } catch (error) {
@@ -410,7 +410,7 @@ const getOwnerSubscriptionPlanFromDb = async (userId: string) => {
           endDate: true,
         },
         where: { paymentStatus: PaymentStatus.COMPLETED },
-      }
+      },
     },
   });
   if (!user) {
@@ -513,10 +513,7 @@ const updateUserSubscriptionIntoDb = async (
   });
 
   if (!subscriptionOffer) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Subscription offer not found',
-    );
+    throw new AppError(httpStatus.BAD_REQUEST, 'Subscription offer not found');
   }
 
   // Step 4: Update in database transaction
@@ -595,7 +592,7 @@ const updateUserSubscriptionIntoDb = async (
 
     if (subscriber?.fcmToken) {
       const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription has been renewed successfully!`;
-      
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
@@ -604,7 +601,10 @@ const updateUserSubscriptionIntoDb = async (
           userId,
         )
         .catch(error =>
-          console.error('Error sending subscription renewal notification:', error),
+          console.error(
+            'Error sending subscription renewal notification:',
+            error,
+          ),
         );
     }
   } catch (error) {
@@ -644,7 +644,9 @@ const cancelAutomaticRenewalIntoDb = async (
     });
 
     return {
-      message: 'Automatic renewal has been cancelled. Your subscription will expire on ' + existing.endDate.toLocaleDateString(),
+      message:
+        'Automatic renewal has been cancelled. Your subscription will expire on ' +
+        existing.endDate.toLocaleDateString(),
       subscription: updatedSubscription,
     };
   });
@@ -659,7 +661,7 @@ const cancelAutomaticRenewalIntoDb = async (
     if (subscriber?.fcmToken) {
       const expireDate = result.subscription.endDate.toLocaleDateString();
       const message = `${subscriber.fullName}, automatic renewal is now disabled. Your subscription will expire on ${expireDate}.`;
-      
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
@@ -668,7 +670,10 @@ const cancelAutomaticRenewalIntoDb = async (
           userId,
         )
         .catch(error =>
-          console.error('Error sending renewal cancellation notification:', error),
+          console.error(
+            'Error sending renewal cancellation notification:',
+            error,
+          ),
         );
     }
   } catch (error) {
@@ -741,7 +746,7 @@ const deleteCustomerSubscriptionItemFromDb = async (
 
     if (owner?.fcmToken) {
       const message = `${owner.fullName}, your subscription has been cancelled by an administrator. Your premium access is now revoked.`;
-      
+
       await notificationService
         .sendNotification(
           owner.fcmToken,
@@ -750,7 +755,10 @@ const deleteCustomerSubscriptionItemFromDb = async (
           saloonOwnerId,
         )
         .catch(error =>
-          console.error('Error sending admin cancellation notification:', error),
+          console.error(
+            'Error sending admin cancellation notification:',
+            error,
+          ),
         );
     }
   } catch (error) {
@@ -836,7 +844,7 @@ const deleteUserSubscriptionItemFromDb = async (
 
     if (subscriber?.fcmToken) {
       const message = `${subscriber.fullName}, your subscription has been cancelled. You will lose access to premium features.`;
-      
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
@@ -909,14 +917,16 @@ const createGooglePlaySubscriptionIntoDb = async (
   }
 
   // 3. Validate subscription ID format
-  const googleSubscriptionId = googleIAPService.validateSubscriptionId(data.productId);
+  const googleSubscriptionId = googleIAPService.validateSubscriptionId(
+    data.productId,
+  );
 
   // 4. Verify Google Play purchase/subscription
   let googlePurchaseData: any;
   try {
     googlePurchaseData = await googleIAPService.verifyGooglePlayPurchase(
       data.packageName,
-      googleSubscriptionId,
+      // googleSubscriptionId,
       data.purchaseToken,
     );
 
@@ -953,10 +963,7 @@ const createGooglePlaySubscriptionIntoDb = async (
   });
 
   if (!subscriptionOffer) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Subscription offer not found',
-    );
+    throw new AppError(httpStatus.BAD_REQUEST, 'Subscription offer not found');
   }
 
   // 6. Check user is not subscribing to their own plan
@@ -982,7 +989,7 @@ const createGooglePlaySubscriptionIntoDb = async (
           endDate: endDate,
           // Google Play specific fields
           googleTransactionId: data.purchaseToken, // Purchase token from Google Play
-          googleProductId: googleSubscriptionId,   // Full subscription ID (com.barberstime.barber_time_app.monthly)
+          googleProductId: googleSubscriptionId, // Full subscription ID (com.barberstime.barber_time_app.monthly)
           googleOrderId: googlePurchaseData.orderId,
           googleReceiptData: JSON.stringify({
             platform: data.platform,
@@ -1033,7 +1040,9 @@ const createGooglePlaySubscriptionIntoDb = async (
   // 8. Send confirmation email
   try {
     // Email notification logic (similar to Apple IAP)
-    console.log(`📧 Sending subscription confirmation email to ${userCheck.email}`);
+    console.log(
+      `📧 Sending subscription confirmation email to ${userCheck.email}`,
+    );
   } catch (emailError) {
     console.error('Email sending failed:', emailError);
     // Continue despite email error
@@ -1048,7 +1057,7 @@ const createGooglePlaySubscriptionIntoDb = async (
 
     if (subscriber?.fcmToken) {
       const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription is now active! Enjoy all premium features.`;
-      
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
@@ -1057,11 +1066,17 @@ const createGooglePlaySubscriptionIntoDb = async (
           userId,
         )
         .catch(error =>
-          console.error('Error sending Google Play subscription activation notification:', error),
+          console.error(
+            'Error sending Google Play subscription activation notification:',
+            error,
+          ),
         );
     }
   } catch (error) {
-    console.error('Error sending Google Play subscription activation notification:', error);
+    console.error(
+      'Error sending Google Play subscription activation notification:',
+      error,
+    );
   }
 
   return result;

@@ -42,7 +42,7 @@ const verifyGooglePlayPurchase = catchAsync(async (req, res) => {
 
     const result = await googleIAPService.verifyGooglePlayPurchase(
       packageName,
-      subscriptionId,
+      // subscriptionId,
       purchaseToken,
     );
 
