@@ -46,6 +46,7 @@ const initializeGooglePlayClient = async () => {
     let parsedCredentials;
     try {
       parsedCredentials = JSON.parse(credentials);
+      console.log(parsedCredentials);
     } catch (parseError: any) {
       console.error(
         '❌ Failed to parse Google credentials JSON:',
@@ -80,125 +81,232 @@ const initializeGooglePlayClient = async () => {
   }
 };
 
+// /**
+//  * Verify Google Play purchase token
+//  * Validates the purchase against Google Play's backend
+//  */
+// const verifyGooglePlayPurchase = async (
+//   packageName: string,
+//   subscriptionId: string,
+//   purchaseToken: string,
+// ): Promise<any> => {
+//   try {
+//     // Get authenticated client
+//     const authClient = await initializeGooglePlayClient();
+
+//     console.log('🔗 Google Play API Request:');
+//     console.log(
+//       `   URL: /purchases/subscriptionsv2/${subscriptionId}/tokens/${purchaseToken}`,
+//     );
+//     console.log('   Package Name:', packageName);
+//     console.log('   Subscription ID:', subscriptionId);
+//     console.log('   Method: GET');
+
+//     // Make request to Google Play API
+//     const url = `${GOOGLE_PLAY_API_BASE}/applications/${packageName}/purchases/tokens/${purchaseToken}`;
+
+//     const response = await axios.get(url, {
+//       headers: {
+//         Authorization: `Bearer ${await getGoogleAccessToken(authClient)}`,
+//       },
+//     });
+
+//     console.log('✅ Google Play API Response:', response.status);
+//     console.log('Purchase Data:', {
+//       orderId: response.data.orderId,
+//       autoRenewing: response.data.autoRenewing,
+//       paymentState: response.data.paymentState,
+//       expiryTime: new Date(parseInt(response.data.expiryTimeMillis)),
+//     });
+
+//     if (response.status !== 200) {
+//       throw new AppError(
+//         httpStatus.BAD_REQUEST,
+//         'Google Play purchase verification failed',
+//       );
+//     }
+
+//     // Validate purchase state (1 = Purchased)
+//     if (response.data.paymentState !== 1) {
+//       throw new AppError(
+//         httpStatus.BAD_REQUEST,
+//         'Invalid purchase state. Payment not completed.',
+//       );
+//     }
+
+//     // Check if subscription is still valid
+//     const expiryTime = new Date(parseInt(response.data.expiryTimeMillis));
+//     if (expiryTime < new Date()) {
+//       console.warn('⚠️ Subscription has expired:', expiryTime);
+//       throw new AppError(
+//         httpStatus.BAD_REQUEST,
+//         'Subscription has expired. Please renew.',
+//       );
+//     }
+
+//     return {
+//       ...response.data,
+//       isValid: true,
+//       expiryDate: expiryTime.toISOString(),
+//       startDate: new Date(
+//         parseInt(response.data.startTimeMillis),
+//       ).toISOString(),
+//     };
+//   } catch (error: any) {
+//     const { status, googleMessage, errorBody } = formatGoogleApiError(error);
+
+//     console.log(error);
+//     console.error('❌ Google Play purchase verification error:', error.message);
+//     if (errorBody) {
+//       console.error(
+//         '   Google Play API error response:',
+//         JSON.stringify(errorBody, null, 2),
+//       );
+//     }
+
+//     if (status === 400) {
+//       console.error('   ❌ Bad Request (400)');
+//       console.error(
+//         '   Invalid package name, subscription ID, or purchase token',
+//       );
+//       throw new AppError(
+//         httpStatus.BAD_REQUEST,
+//         `Invalid purchase details. ${googleMessage || 'Please verify package name, subscription ID, and purchase token.'}`,
+//       );
+//     }
+
+//     if (status === 401) {
+//       console.error('   🔑 Authentication Failed (401)');
+//       console.error(
+//         '   Google IAP credentials are invalid, expired, or the service account is not authorized',
+//       );
+//       throw new AppError(
+//         httpStatus.UNAUTHORIZED,
+//         `Google IAP authentication failed. ${googleMessage || 'Please verify service account credentials and API access.'}`,
+//       );
+//     }
+
+//     if (status === 404) {
+//       console.error('   ❌ Not Found (404)');
+//       console.error('   Purchase token not found in Google Play records');
+//       throw new AppError(
+//         httpStatus.NOT_FOUND,
+//         `Purchase not found. ${googleMessage || 'The purchase token may be invalid, expired, or belong to another app/subscription.'}`,
+//       );
+//     }
+
+//     throw error instanceof AppError
+//       ? error
+//       : new AppError(
+//           httpStatus.BAD_REQUEST,
+//           `Google Play purchase verification failed: ${googleMessage || error.message}`,
+//         );
+//   }
+// };
+
 /**
- * Verify Google Play purchase token
- * Validates the purchase against Google Play's backend
+ * Verify Google Play purchase token using the SubscriptionsV2 API
+ * Required for modern subscriptions with Base Plans and Offers.
  */
 const verifyGooglePlayPurchase = async (
   packageName: string,
-  subscriptionId: string,
   purchaseToken: string,
 ): Promise<any> => {
   try {
-    // Get authenticated client
+    // 1. Get authenticated client (Service Account)
     const authClient = await initializeGooglePlayClient();
+    const accessToken = await getGoogleAccessToken(authClient);
 
-    console.log('🔗 Google Play API Request:');
-    console.log(
-      `   URL: /purchases/subscriptions/${subscriptionId}/tokens/${purchaseToken}`,
-    );
-    console.log('   Package Name:', packageName);
-    console.log('   Subscription ID:', subscriptionId);
-    console.log('   Method: GET');
+    // 2. Build the V2 URL
+    // IMPORTANT: Path is 'subscriptionsv2'. No 'subscriptionId' is needed in the URL path.
+    const url = `${GOOGLE_PLAY_API_BASE}/applications/${packageName}/purchases/subscriptionsv2/tokens/${purchaseToken}`;
 
-    // Make request to Google Play API
-    const url = `${GOOGLE_PLAY_API_BASE}/applications/${packageName}/purchases/subscriptions/${subscriptionId}/tokens/${purchaseToken}`;
+    console.log('🔗 Google Play API v2 Request:');
+    console.log(`   URL: ${url}`);
 
+    // 3. Execute request
     const response = await axios.get(url, {
       headers: {
-        Authorization: `Bearer ${await getGoogleAccessToken(authClient)}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     });
 
-    console.log('✅ Google Play API Response:', response.status);
-    console.log('Purchase Data:', {
-      orderId: response.data.orderId,
-      autoRenewing: response.data.autoRenewing,
-      paymentState: response.data.paymentState,
-      expiryTime: new Date(parseInt(response.data.expiryTimeMillis)),
+    const data = response.data;
+
+    // 4. Validate the response structure
+    if (!data || !data.lineItems || data.lineItems.length === 0) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'No subscription items found for this token.',
+      );
+    }
+
+    // Google V2 API returns an array of lineItems. Usually, for a single purchase,
+    // the first item is the relevant one.
+    const latestLineItem = data.lineItems[0];
+
+    /**
+     * Google V2 States:
+     * SUBSCRIPTION_STATE_PENDING: 0
+     * SUBSCRIPTION_STATE_ACTIVE: 1
+     * SUBSCRIPTION_STATE_PAUSED: 2
+     * SUBSCRIPTION_STATE_IN_GRACE_PERIOD: 3
+     * SUBSCRIPTION_STATE_ON_HOLD: 4 (Payment failed)
+     * SUBSCRIPTION_STATE_CANCELED: 5
+     * SUBSCRIPTION_STATE_EXPIRED: 6
+     */
+    const activeStates = [
+      'SUBSCRIPTION_STATE_ACTIVE',
+      'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
+    ];
+
+    const isStateValid = activeStates.includes(data.subscriptionState);
+    const expiryTime = new Date(latestLineItem.expiryTime);
+    const isNotExpired = expiryTime > new Date();
+
+    console.log('✅ Google Play API Response Success');
+    console.log('Purchase Details:', {
+      orderId: data.latestOrderId,
+      productId: latestLineItem.productId, // This is your 'dmonthly', etc.
+      state: data.subscriptionState,
+      expiry: latestLineItem.expiryTime,
     });
 
-    if (response.status !== 200) {
+    // 5. Final Validation
+    if (!isStateValid || !isNotExpired) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        'Google Play purchase verification failed',
+        `Subscription is not active. Status: ${data.subscriptionState}`,
       );
     }
 
-    // Validate purchase state (1 = Purchased)
-    if (response.data.paymentState !== 1) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Invalid purchase state. Payment not completed.',
-      );
-    }
-
-    // Check if subscription is still valid
-    const expiryTime = new Date(parseInt(response.data.expiryTimeMillis));
-    if (expiryTime < new Date()) {
-      console.warn('⚠️ Subscription has expired:', expiryTime);
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Subscription has expired. Please renew.',
-      );
-    }
-
+    // Return a standardized object for your database
     return {
-      ...response.data,
       isValid: true,
+      productId: latestLineItem.productId,
+      orderId: data.latestOrderId,
+      purchaseToken: purchaseToken,
       expiryDate: expiryTime.toISOString(),
-      startDate: new Date(
-        parseInt(response.data.startTimeMillis),
-      ).toISOString(),
+      startDate: new Date(data.startTime).toISOString(),
+      acknowledgementState: data.acknowledgementState, // 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED'
+      raw: data,
     };
   } catch (error: any) {
+    // Re-use your existing error formatter
     const { status, googleMessage, errorBody } = formatGoogleApiError(error);
 
-    console.log(error);
-    console.error('❌ Google Play purchase verification error:', error.message);
+    console.error('❌ Verification Error:', error.message);
+
     if (errorBody) {
-      console.error(
-        '   Google Play API error response:',
-        JSON.stringify(errorBody, null, 2),
-      );
+      console.error('API Error Body:', JSON.stringify(errorBody, null, 2));
     }
 
-    if (status === 400) {
-      console.error('   ❌ Bad Request (400)');
-      console.error(
-        '   Invalid package name, subscription ID, or purchase token',
-      );
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Invalid purchase details. ${googleMessage || 'Please verify package name, subscription ID, and purchase token.'}`,
-      );
-    }
-
-    if (status === 401) {
-      console.error('   🔑 Authentication Failed (401)');
-      console.error(
-        '   Google IAP credentials are invalid, expired, or the service account is not authorized',
-      );
-      throw new AppError(
-        httpStatus.UNAUTHORIZED,
-        `Google IAP authentication failed. ${googleMessage || 'Please verify service account credentials and API access.'}`,
-      );
-    }
-
-    if (status === 404) {
-      console.error('   ❌ Not Found (404)');
-      console.error('   Purchase token not found in Google Play records');
-      throw new AppError(
-        httpStatus.NOT_FOUND,
-        `Purchase not found. ${googleMessage || 'The purchase token may be invalid, expired, or belong to another app/subscription.'}`,
-      );
-    }
-
+    // Pass the specific Google error message back to the UI if possible
     throw error instanceof AppError
       ? error
       : new AppError(
-          httpStatus.BAD_REQUEST,
-          `Google Play purchase verification failed: ${googleMessage || error.message}`,
+          status || httpStatus.INTERNAL_SERVER_ERROR,
+          `Google Play verification failed: ${googleMessage || error.message}`,
         );
   }
 };
