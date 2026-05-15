@@ -95,7 +95,7 @@ const verifyGooglePlayPurchase = async (
 
     console.log('🔗 Google Play API Request:');
     console.log(
-      '   URL: /purchases/subscriptions/{subscriptionId}/tokens/{purchaseToken}',
+      `   URL: /purchases/subscriptions/${subscriptionId}/tokens/${purchaseToken}`,
     );
     console.log('   Package Name:', packageName);
     console.log('   Subscription ID:', subscriptionId);
