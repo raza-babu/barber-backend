@@ -152,35 +152,45 @@ const verifyGooglePlayPurchase = async (
       ).toISOString(),
     };
   } catch (error: any) {
+    const { status, googleMessage, errorBody } = formatGoogleApiError(error);
+
     console.log(error);
     console.error('❌ Google Play purchase verification error:', error.message);
-    // Log detailed error info
-    if (error.response?.status === 400) {
+    if (errorBody) {
+      console.error(
+        '   Google Play API error response:',
+        JSON.stringify(errorBody, null, 2),
+      );
+    }
+
+    if (status === 400) {
       console.error('   ❌ Bad Request (400)');
       console.error(
         '   Invalid package name, subscription ID, or purchase token',
       );
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        'Invalid purchase details. Please verify package name, subscription ID, and purchase token.',
+        `Invalid purchase details. ${googleMessage || 'Please verify package name, subscription ID, and purchase token.'}`,
       );
     }
 
-    if (error.response?.status === 401) {
+    if (status === 401) {
       console.error('   🔑 Authentication Failed (401)');
-      console.error('   Google IAP credentials are invalid or expired');
+      console.error(
+        '   Google IAP credentials are invalid, expired, or the service account is not authorized',
+      );
       throw new AppError(
         httpStatus.UNAUTHORIZED,
-        'Google IAP authentication failed. Please contact support.',
+        `Google IAP authentication failed. ${googleMessage || 'Please verify service account credentials and API access.'}`,
       );
     }
 
-    if (error.response?.status === 404) {
+    if (status === 404) {
       console.error('   ❌ Not Found (404)');
       console.error('   Purchase token not found in Google Play records');
       throw new AppError(
         httpStatus.NOT_FOUND,
-        'Purchase not found. The purchase token may be invalid or expired.',
+        `Purchase not found. ${googleMessage || 'The purchase token may be invalid, expired, or belong to another app/subscription.'}`,
       );
     }
 
@@ -188,7 +198,7 @@ const verifyGooglePlayPurchase = async (
       ? error
       : new AppError(
           httpStatus.BAD_REQUEST,
-          'Google Play purchase verification failed: ' + error.message,
+          `Google Play purchase verification failed: ${googleMessage || error.message}`,
         );
   }
 };
@@ -196,6 +206,18 @@ const verifyGooglePlayPurchase = async (
 /**
  * Get Google access token from authenticated client
  */
+const formatGoogleApiError = (error: any) => {
+  const errorBody = error?.response?.data;
+  const status = error?.response?.status;
+  const googleMessage =
+    errorBody?.error?.message ||
+    errorBody?.error_description ||
+    errorBody?.message ||
+    error?.message;
+
+  return { status, googleMessage, errorBody };
+};
+
 const getGoogleAccessToken = async (authClient: any): Promise<string> => {
   try {
     const result = await authClient.getAccessToken();

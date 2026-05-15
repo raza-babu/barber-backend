@@ -28,7 +28,7 @@ const verifyGooglePlayPurchase = catchAsync(async (req, res) => {
   try {
     // Convert productId to subscriptionId (silver → com.barberstime.barber_time_app.monthly, etc)
     const subscriptionId = googleIAPService.validateSubscriptionId(productId);
-    
+
     // Get packageName from config
     const packageName = config.google?.packageName;
     if (!packageName) {
@@ -54,17 +54,31 @@ const verifyGooglePlayPurchase = catchAsync(async (req, res) => {
     });
   } catch (error: any) {
     // Enhanced error response with diagnostic info
-    const isAuthError = error.message?.includes('credentials') || error.message?.includes('authentication');
-    
+    const isAuthError =
+      error.message?.includes('credentials') ||
+      error.message?.includes('authentication');
+    const packageName = config.google?.packageName;
+
+    console.error('❌ Google Play verification controller error:', {
+      message: error.message,
+      statusCode: error.statusCode,
+      productId,
+      purchaseToken: purchaseToken
+        ? `${purchaseToken.slice(0, 12)}...`
+        : undefined,
+      packageName,
+    });
+
     sendResponse(res, {
       statusCode: error.statusCode || httpStatus.INTERNAL_SERVER_ERROR,
       success: false,
       message: error.message,
       ...(isAuthError && {
         errorDetails: {
-          hint: 'Ensure GOOGLE_IAP_CREDENTIALS environment variable is set with valid service account JSON',
-          credentialsConfigured: !!config.google.packageName,
-        }
+          hint: 'Ensure GOOGLE_IAP_CREDENTIALS environment variable is set with valid service account JSON and that the service account has Android Publisher access to the app',
+          packageNameConfigured: !!packageName,
+          subscriptionId: googleIAPService.validateSubscriptionId(productId),
+        },
       }),
     });
   }
@@ -257,12 +271,16 @@ const handleGooglePlayWebhook = catchAsync(async (req, res) => {
     let projectId: string | undefined;
     if (config.google?.credentials) {
       try {
-        const credentialsObj = typeof config.google.credentials === 'string'
-          ? JSON.parse(config.google.credentials)
-          : config.google.credentials;
+        const credentialsObj =
+          typeof config.google.credentials === 'string'
+            ? JSON.parse(config.google.credentials)
+            : config.google.credentials;
         projectId = credentialsObj.project_id;
       } catch (error) {
-        console.warn('⚠️ Failed to extract project_id from credentials:', error);
+        console.warn(
+          '⚠️ Failed to extract project_id from credentials:',
+          error,
+        );
       }
     }
 
