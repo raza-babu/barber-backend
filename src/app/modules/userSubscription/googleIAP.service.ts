@@ -420,7 +420,7 @@ const checkSubscriptionStatus = async (
   try {
     const purchaseData = await verifyGooglePlayPurchase(
       packageName,
-      subscriptionId,
+      // subscriptionId,
       purchaseToken,
     );
 
