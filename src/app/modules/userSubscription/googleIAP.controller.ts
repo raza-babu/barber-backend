@@ -4,6 +4,8 @@ import catchAsync from '../../utils/catchAsync';
 import { googleIAPService } from './googleIAP.service';
 import { googleWebhookService } from './googleWebhook.service';
 import config from '../../../config';
+import { userSubscriptionService } from './userSubscription.service';
+import { TVerifyAppReceiptPayloadType } from './userSubscription.validation';
 
 /**
  * Verify Google Play purchase
@@ -13,7 +15,14 @@ import config from '../../../config';
  *   - Full form: { productId: 'com.barberstime.barber_time_app.monthly', purchaseToken: 'xxx' }
  */
 const verifyGooglePlayPurchase = catchAsync(async (req, res) => {
-  const { purchaseToken, productId } = req.body;
+  const user = req.user as any;
+  const {
+    purchaseToken,
+    productId,
+    subscriptionOfferId,
+    platform,
+    subscriptionId,
+  } = req.body as TVerifyAppReceiptPayloadType;
 
   // Validate required fields
   if (!purchaseToken || !productId) {
@@ -46,11 +55,33 @@ const verifyGooglePlayPurchase = catchAsync(async (req, res) => {
       purchaseToken,
     );
 
+    // Call the acknowledge services :
+    await googleIAPService.acknowledgePurchase(
+      packageName,
+      subscriptionId,
+      purchaseToken,
+    );
+
+    // Call create google pay subscription into db:
+
+    const result1 =
+      await userSubscriptionService.createGooglePlaySubscriptionIntoDb(
+        user?.id,
+        {
+          packageName,
+          purchaseToken,
+          subscriptionId,
+          subscriptionOfferId,
+          productId,
+          platform,
+        },
+      );
+
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,
       message: 'Google Play purchase verified successfully',
-      data: result,
+      data: result1,
     });
   } catch (error: any) {
     // Enhanced error response with diagnostic info

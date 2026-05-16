@@ -50,14 +50,28 @@ const verifyGooglePlayPurchaseSchema = z.object({
       required_error: 'Product ID is required!',
       // Accepts both: short form (silver, gold, diamond) or full form (com.barberstime.barber_time_app.monthly, etc)
     }),
+    subscriptionId: z.string({
+      required_error: 'Subscription ID is required!',
+      // Format: com.barberstime.barber_time_app.monthly, etc
+    }),
+    subscriptionOfferId: z.string({
+      required_error: 'Subscription Offer ID is required!',
+    }),
+    platform: z
+      .string({
+        required_error: 'Platform is required!',
+      })
+      .default('android'),
   }),
 });
 
 const createGooglePaySubscriptionSchema = z.object({
   body: z.object({
-    packageName: z.string({
-      required_error: 'Package name is required!',
-    }).default('com.barberstime.barber_time_app'),
+    packageName: z
+      .string({
+        required_error: 'Package name is required!',
+      })
+      .default('com.barberstime.barber_time_app'),
     purchaseToken: z.string({
       required_error: 'Purchase token is required!',
     }),
@@ -72,9 +86,11 @@ const createGooglePaySubscriptionSchema = z.object({
       required_error: 'Product ID is required!',
       // Plan type: silver, gold, diamond
     }),
-    platform: z.string({
-      required_error: 'Platform is required!',
-    }).default('android'),
+    platform: z
+      .string({
+        required_error: 'Platform is required!',
+      })
+      .default('android'),
   }),
 });
 
@@ -112,3 +128,7 @@ export const userSubscriptionValidation = {
   checkGoogleSubscriptionStatusSchema,
   googlePlayPurchaseActionSchema,
 };
+
+export type TVerifyAppReceiptPayloadType = z.infer<
+  typeof verifyGooglePlayPurchaseSchema.shape.body
+>;
