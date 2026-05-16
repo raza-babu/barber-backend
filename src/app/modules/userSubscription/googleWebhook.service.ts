@@ -108,12 +108,13 @@ const handleSubscriptionPurchased = async (
     });
 
     if (!subscription) {
-      console.warn(
-        '⚠️ Subscription not found for purchase token:',
+      console.log(
+        '⏳ Purchase webhook arrived before local subscription was created for token:',
         subscriptionData.purchaseToken,
       );
-      // Create new subscription if it doesn't exist
-      return;
+      // This is expected when Google Play sends the Pub/Sub event before
+      // the app has completed the server-side verify/create flow.
+      return { skipped: true };
     }
 
     // Update subscription in database
@@ -222,11 +223,11 @@ const handleSubscriptionRenewed = async (
     });
 
     if (!subscription) {
-      console.warn(
-        '⚠️ Subscription not found for renewal:',
+      console.log(
+        '⏳ Renewal webhook received before local subscription exists for token:',
         subscriptionData.purchaseToken,
       );
-      return;
+      return { skipped: true };
     }
 
     // Update subscription with new expiry date
@@ -326,11 +327,11 @@ const handleSubscriptionCanceled = async (
     });
 
     if (!subscription) {
-      console.warn(
-        '⚠️ Subscription not found for cancellation:',
+      console.log(
+        '⏳ Cancellation webhook received before local subscription exists for token:',
         subscriptionData.purchaseToken,
       );
-      return;
+      return { skipped: true };
     }
 
     // Map cancel reason
@@ -432,11 +433,11 @@ const handleSubscriptionExpired = async (
     });
 
     if (!subscription) {
-      console.warn(
-        '⚠️ Subscription not found for expiration:',
+      console.log(
+        '⏳ Expiration webhook received before local subscription exists for token:',
         subscriptionData.purchaseToken,
       );
-      return;
+      return { skipped: true };
     }
 
     // Update subscription
@@ -527,11 +528,11 @@ const handleSubscriptionInGracePeriod = async (
     });
 
     if (!subscription) {
-      console.warn(
-        '⚠️ Subscription not found for grace period:',
+      console.log(
+        '⏳ Grace period webhook received before local subscription exists for token:',
         subscriptionData.purchaseToken,
       );
-      return;
+      return { skipped: true };
     }
 
     const gracePeriodExpiry = subscriptionData.gracePeriodExpiresAtMillis
@@ -604,11 +605,11 @@ const handleSubscriptionOnHold = async (
     });
 
     if (!subscription) {
-      console.warn(
-        '⚠️ Subscription not found for account hold:',
+      console.log(
+        '⏳ Account hold webhook received before local subscription exists for token:',
         subscriptionData.purchaseToken,
       );
-      return;
+      return { skipped: true };
     }
 
     // Update subscription
@@ -686,11 +687,11 @@ const handleSubscriptionRecovered = async (
     });
 
     if (!subscription) {
-      console.warn(
-        '⚠️ Subscription not found for recovery:',
+      console.log(
+        '⏳ Recovery webhook received before local subscription exists for token:',
         subscriptionData.purchaseToken,
       );
-      return;
+      return { skipped: true };
     }
 
     // Update subscription back to active
@@ -787,11 +788,11 @@ const handleSubscriptionPaused = async (
     });
 
     if (!subscription) {
-      console.warn(
-        '⚠️ Subscription not found for pause:',
+      console.log(
+        '⏳ Pause webhook received before local subscription exists for token:',
         subscriptionData.purchaseToken,
       );
-      return;
+      return { skipped: true };
     }
 
     // Update subscription
@@ -854,7 +855,6 @@ export const handleGooglePlayWebhook = async (
   projectId?: string,
 ): Promise<any> => {
   try {
-    await new Promise(resolve => setTimeout(resolve, 3000));
     // Decode the Pub/Sub message
     if (!pubsubMessage.data) {
       throw new Error('Invalid Pub/Sub message format: missing data field');
