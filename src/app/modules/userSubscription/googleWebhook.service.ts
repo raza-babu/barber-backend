@@ -139,7 +139,8 @@ const handleSubscriptionPurchased = async (
         data: {
           isSubscribed: true,
           subscriptionEnd: expiryDate,
-          subscriptionPlan: subscription.subscriptionOffer?.planType || 'BASIC_PREMIUM',
+          subscriptionPlan:
+            subscription.subscriptionOffer?.planType || 'BASIC_PREMIUM',
         },
       });
 
@@ -164,7 +165,6 @@ const handleSubscriptionPurchased = async (
 
       return updated;
     });
-    
 
     console.log('✅ Subscription purchased:', {
       id: updatedSubscription.id,
@@ -854,13 +854,16 @@ export const handleGooglePlayWebhook = async (
   projectId?: string,
 ): Promise<any> => {
   try {
+    await new Promise(resolve => setTimeout(resolve, 3000));
     // Decode the Pub/Sub message
     if (!pubsubMessage.data) {
       throw new Error('Invalid Pub/Sub message format: missing data field');
     }
 
     // Decode base64 message
-    const decodedData = Buffer.from(pubsubMessage.data, 'base64').toString('utf-8');
+    const decodedData = Buffer.from(pubsubMessage.data, 'base64').toString(
+      'utf-8',
+    );
     const notification = JSON.parse(decodedData) as GooglePlayNotification;
 
     console.log('🔔 Received Google Play webhook:', {
@@ -892,7 +895,9 @@ export const handleGooglePlayWebhook = async (
       purchaseState: 1, // Default to purchased
       paymentState: 1, // Default to received
       startTimeMillis: new Date().getTime().toString(),
-      expiryTimeMillis: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).getTime().toString(),
+      expiryTimeMillis: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        .getTime()
+        .toString(),
       autoRenewing: true,
     };
 
@@ -901,22 +906,34 @@ export const handleGooglePlayWebhook = async (
     switch (subNotif.notificationType) {
       // 1 = SUBSCRIPTION_RECOVERED
       case 1:
-        result = await handleSubscriptionRecovered(notification, subscriptionData);
+        result = await handleSubscriptionRecovered(
+          notification,
+          subscriptionData,
+        );
         break;
 
       // 2 = SUBSCRIPTION_RENEWED
       case 2:
-        result = await handleSubscriptionRenewed(notification, subscriptionData);
+        result = await handleSubscriptionRenewed(
+          notification,
+          subscriptionData,
+        );
         break;
 
       // 3 = SUBSCRIPTION_CANCELED
       case 3:
-        result = await handleSubscriptionCanceled(notification, subscriptionData);
+        result = await handleSubscriptionCanceled(
+          notification,
+          subscriptionData,
+        );
         break;
 
       // 4 = SUBSCRIPTION_PURCHASED
       case 4:
-        result = await handleSubscriptionPurchased(notification, subscriptionData);
+        result = await handleSubscriptionPurchased(
+          notification,
+          subscriptionData,
+        );
         break;
 
       // 5 = SUBSCRIPTION_ON_HOLD
@@ -926,12 +943,18 @@ export const handleGooglePlayWebhook = async (
 
       // 6 = SUBSCRIPTION_IN_GRACE_PERIOD
       case 6:
-        result = await handleSubscriptionInGracePeriod(notification, subscriptionData);
+        result = await handleSubscriptionInGracePeriod(
+          notification,
+          subscriptionData,
+        );
         break;
 
       // 7 = SUBSCRIPTION_RESTARTED (treat like recovery)
       case 7:
-        result = await handleSubscriptionRecovered(notification, subscriptionData);
+        result = await handleSubscriptionRecovered(
+          notification,
+          subscriptionData,
+        );
         break;
 
       // 10 = SUBSCRIPTION_PAUSED
@@ -941,7 +964,10 @@ export const handleGooglePlayWebhook = async (
 
       // 13 = SUBSCRIPTION_EXPIRED
       case 13:
-        result = await handleSubscriptionExpired(notification, subscriptionData);
+        result = await handleSubscriptionExpired(
+          notification,
+          subscriptionData,
+        );
         break;
 
       default:
