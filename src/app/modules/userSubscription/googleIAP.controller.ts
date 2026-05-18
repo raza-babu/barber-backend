@@ -14,105 +14,55 @@ import { TVerifyAppReceiptPayloadType } from './userSubscription.validation';
  *   - Short form: { productId: 'silver'|'gold'|'diamond', purchaseToken: 'xxx' }
  *   - Full form: { productId: 'com.barberstime.barber_time_app.monthly', purchaseToken: 'xxx' }
  */
+/**
+ * Verify Google Play purchase, acknowledge it, and create the subscription record.
+ * This is the single source of truth for initial subscription creation.
+ */
 const verifyGooglePlayPurchase = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const {
-    purchaseToken,
-    productId,
-    subscriptionOfferId,
-    platform,
-    subscriptionId,
-  } = req.body as TVerifyAppReceiptPayloadType;
+  const { purchaseToken, productId, subscriptionOfferId, platform } =
+    req.body as TVerifyAppReceiptPayloadType;
 
-  // Validate required fields
-  if (!purchaseToken || !productId) {
+  const packageName = config.google?.packageName;
+  if (!packageName) {
     return sendResponse(res, {
-      statusCode: httpStatus.BAD_REQUEST,
+      statusCode: httpStatus.INTERNAL_SERVER_ERROR,
       success: false,
-      message: 'purchaseToken and productId are required',
+      message: 'GOOGLE_PACKAGE_NAME not configured',
       data: null,
     });
   }
 
-  try {
-    // Convert productId to subscriptionId (silver → com.barberstime.barber_time_app.monthly, etc)
-    const subscriptionId = googleIAPService.validateSubscriptionId(productId);
+  const subscriptionId = googleIAPService.validateSubscriptionId(productId);
 
-    // Get packageName from config
-    const packageName = config.google?.packageName;
-    if (!packageName) {
-      return sendResponse(res, {
-        statusCode: httpStatus.INTERNAL_SERVER_ERROR,
-        success: false,
-        message: 'GOOGLE_PACKAGE_NAME not configured',
-        data: null,
-      });
-    }
+  // Step 1: Verify the purchase with Google Play API
+  await googleIAPService.verifyGooglePlayPurchase(packageName, purchaseToken);
 
-    const result = await googleIAPService.verifyGooglePlayPurchase(
+  // Step 2: Acknowledge the purchase so Google doesn't auto-refund
+  await googleIAPService.acknowledgePurchase(
+    packageName,
+    subscriptionId,
+    purchaseToken,
+  );
+
+  // Step 3: Create the subscription record in DB.
+  // This must complete before any webhook tries to update it.
+  const result =
+    await userSubscriptionService.createGooglePlaySubscriptionIntoDb(user?.id, {
       packageName,
-      // subscriptionId,
       purchaseToken,
-    );
-
-    // Call the acknowledge services :
-    await googleIAPService.acknowledgePurchase(
-      packageName,
       subscriptionId,
-      purchaseToken,
-    );
-
-    // Call create google pay subscription into db:
-
-    const result1 =
-      await userSubscriptionService.createGooglePlaySubscriptionIntoDb(
-        user?.id,
-        {
-          packageName,
-          purchaseToken,
-          subscriptionId,
-          subscriptionOfferId,
-          productId,
-          platform,
-        },
-      );
-
-    sendResponse(res, {
-      statusCode: httpStatus.OK,
-      success: true,
-      message: 'Google Play purchase verified successfully',
-      data: result1,
-    });
-  } catch (error: any) {
-    // Enhanced error response with diagnostic info
-    const isAuthError =
-      error.message?.includes('credentials') ||
-      error.message?.includes('authentication');
-    const packageName = config.google?.packageName;
-
-    console.error('❌ Google Play verification controller error:', {
-      message: error.message,
-      statusCode: error.statusCode,
+      subscriptionOfferId,
       productId,
-      purchaseToken: purchaseToken
-        ? `${purchaseToken.slice(0, 12)}...`
-        : undefined,
-      packageName,
+      platform,
     });
 
-    sendResponse(res, {
-      statusCode: error.statusCode || httpStatus.INTERNAL_SERVER_ERROR,
-      success: false,
-      message: error.message,
-      ...(isAuthError && {
-        errorDetails: {
-          hint: 'Ensure GOOGLE_IAP_CREDENTIALS environment variable is set with valid service account JSON and that the service account has Android Publisher access to the app',
-          packageNameConfigured: !!packageName,
-          subscriptionId: googleIAPService.validateSubscriptionId(productId),
-        },
-      }),
-    });
-  }
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Google Play purchase verified successfully',
+    data: result,
+  });
 });
 
 /**
@@ -284,68 +234,43 @@ const cancelSubscription = catchAsync(async (req, res) => {
  * IMPORTANT: This endpoint does NOT require authentication as it's called by Google Pub/Sub
  */
 const handleGooglePlayWebhook = catchAsync(async (req, res) => {
-  try {
-    const pubsubMessage = req.body.message;
+  const pubsubMessage = req.body.message;
 
-    if (!pubsubMessage) {
-      return sendResponse(res, {
-        statusCode: httpStatus.BAD_REQUEST,
-        success: false,
-        message: 'Invalid Pub/Sub message format',
-        data: null,
-      });
-    }
-
-    console.log('🔔 Google Play Pub/Sub webhook received');
-
-    // Extract project_id from credentials
-    let projectId: string | undefined;
-    if (config.google?.credentials) {
-      try {
-        const credentialsObj =
-          typeof config.google.credentials === 'string'
-            ? JSON.parse(config.google.credentials)
-            : config.google.credentials;
-        projectId = credentialsObj.project_id;
-      } catch (error) {
-        console.warn(
-          '⚠️ Failed to extract project_id from credentials:',
-          error,
-        );
-      }
-    }
-
-    // Process the webhook
-    const result = await googleWebhookService.handleGooglePlayWebhook(
-      pubsubMessage,
-      projectId,
-    );
-
-    // Always respond with 200 to acknowledge receipt by Pub/Sub
-    sendResponse(res, {
-      statusCode: httpStatus.OK,
-      success: result.success,
-      message: result.message,
-      data: {
-        notificationType: result.notificationType,
-        processed: true,
-      },
-    });
-  } catch (error: any) {
-    console.error('❌ Error in Google Play webhook:', error);
-
-    // Always return 200 to prevent Pub/Sub retries
-    // Error is logged for monitoring/alerting
-    sendResponse(res, {
+  if (!pubsubMessage) {
+    // Still return 200 to acknowledge receipt
+    return sendResponse(res, {
       statusCode: httpStatus.OK,
       success: false,
-      message: 'Webhook received but processing failed',
-      data: {
-        error: error.message,
-        processed: false,
-      },
+      message: 'Invalid Pub/Sub message format',
+      data: null,
     });
   }
+
+  let projectId: string | undefined;
+  if (config.google?.credentials) {
+    try {
+      const creds =
+        typeof config.google.credentials === 'string'
+          ? JSON.parse(config.google.credentials)
+          : config.google.credentials;
+      projectId = creds.project_id;
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  const result = await googleWebhookService.handleGooglePlayWebhook(
+    pubsubMessage,
+    projectId,
+  );
+
+  // Always 200 — Google Pub/Sub must not retry
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: result.success,
+    message: result.message,
+    data: { notificationType: result.notificationType, processed: true },
+  });
 });
 
 export const googleIAPController = {

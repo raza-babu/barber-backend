@@ -867,90 +867,61 @@ const deleteUserSubscriptionItemFromDb = async (
  * Create Google Play subscription
  * Handles Google Play purchase verification and subscription creation
  */
+
 const createGooglePlaySubscriptionIntoDb = async (
   userId: string,
   data: {
     packageName: string;
     purchaseToken: string;
-    subscriptionId: string;
+    subscriptionId: string; // already-resolved full Google Play ID
     subscriptionOfferId: string;
-    productId: string; // Plan type: silver, gold, diamond
+    productId: string; // original short/full form from the client
     platform: string;
   },
 ) => {
-  // 1. Verify user exists and is active
+  // 1 — Verify the user is an active saloon owner
   const userCheck = await prisma.user.findUnique({
     where: {
       id: userId,
       role: UserRoleEnum.SALOON_OWNER,
       status: UserStatus.ACTIVE,
     },
-    select: {
-      id: true,
-      fullName: true,
-      email: true,
-      role: true,
-      status: true,
-    },
+    select: { id: true, fullName: true, email: true },
   });
-
   if (!userCheck) {
     throw new AppError(httpStatus.BAD_REQUEST, 'User not found or inactive');
   }
 
-  // 2. Check for existing active subscription
-  const existingSubscription = await prisma.userSubscription.findFirst({
+  // 2 — Idempotency guard: if this purchase token is already recorded, return it.
+  //     This safely handles retries and any edge case where the webhook runs
+  //     just before this function completes.
+  const existingByToken = await prisma.userSubscription.findFirst({
+    where: { googleTransactionId: data.purchaseToken },
+    include: { subscriptionOffer: true },
+  });
+  if (existingByToken) {
+    console.log(
+      'ℹ️ Subscription already exists for purchase token — returning existing record',
+    );
+    return existingByToken;
+  }
+
+  // 3 — Guard against a second active subscription on this account
+  const existingActive = await prisma.userSubscription.findFirst({
     where: {
-      userId: userId,
-      endDate: {
-        gt: new Date(),
-      },
+      userId,
+      endDate: { gt: new Date() },
       paymentStatus: PaymentStatus.COMPLETED,
     },
   });
-
-  if (existingSubscription) {
+  if (existingActive) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'An active subscription already exists for this user',
     );
   }
 
-  // 3. Validate subscription ID format
-  const googleSubscriptionId = googleIAPService.validateSubscriptionId(
-    data.productId,
-  );
-
-  // 4. Verify Google Play purchase/subscription
-  let googlePurchaseData: any;
-  try {
-    googlePurchaseData = await googleIAPService.verifyGooglePlayPurchase(
-      data.packageName,
-      // googleSubscriptionId,
-      data.purchaseToken,
-    );
-
-    console.log('Google Play subscription verified:', {
-      orderId: googlePurchaseData.orderId,
-      autoRenewing: googlePurchaseData.autoRenewing,
-      expiryDate: googlePurchaseData.expiryDate,
-    });
-
-    // Acknowledge the purchase to prevent cancellation
-    await googleIAPService.acknowledgePurchase(
-      data.packageName,
-      googleSubscriptionId,
-      data.purchaseToken,
-    );
-  } catch (err) {
-    console.error('Google Play purchase verification failed:', err);
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Google Play purchase verification failed. Please verify your purchase token.',
-    );
-  }
-
-  // 5. Fetch subscription offer
+  // 4 — Fetch the subscription offer
   const subscriptionOffer = await prisma.subscriptionOffer.findUnique({
     where: { id: data.subscriptionOfferId },
     select: {
@@ -961,63 +932,76 @@ const createGooglePlaySubscriptionIntoDb = async (
       creator: { select: { id: true } },
     },
   });
-
   if (!subscriptionOffer) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Subscription offer not found');
   }
-
-  // 6. Check user is not subscribing to their own plan
   if (subscriptionOffer.creator.id === userId) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'You cannot subscribe to your own subscription plan',
+      'You cannot subscribe to your own plan',
     );
   }
 
-  // 7. Database transaction for subscription creation
+  // 5 — Verify the purchase with Google Play to get accurate dates.
+  //     The controller already called this once, but we need the returned
+  //     dates (expiryDate, startDate) for the DB record. Google's API is
+  //     idempotent so a second call is safe and cheap.
+  let googlePurchaseData: Awaited<
+    ReturnType<typeof googleIAPService.verifyGooglePlayPurchase>
+  >;
+  try {
+    googlePurchaseData = await googleIAPService.verifyGooglePlayPurchase(
+      data.packageName,
+      data.purchaseToken,
+    );
+  } catch (err) {
+    console.error('Google Play re-verification failed:', err);
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Google Play purchase verification failed',
+    );
+  }
+
+  // 6 — Persist subscription, payment, and user update in one transaction
   const result = await prisma.$transaction(
     async tx => {
-      const startDate = new Date(parseInt(googlePurchaseData.startTimeMillis));
-      const endDate = new Date(parseInt(googlePurchaseData.expiryTimeMillis));
+      const startDate = new Date(googlePurchaseData.startDate);
+      const endDate = new Date(googlePurchaseData.expiryDate);
 
-      // Create user subscription record
       const createdSubscription = await tx.userSubscription.create({
         data: {
           userId: userCheck.id,
           subscriptionOfferId: subscriptionOffer.id,
-          startDate: startDate,
-          endDate: endDate,
-          // Google Play specific fields
-          googleTransactionId: data.purchaseToken, // Purchase token from Google Play
-          googleProductId: googleSubscriptionId, // Full subscription ID (com.barberstime.barber_time_app.monthly)
-          googleOrderId: googlePurchaseData.orderId,
+          startDate,
+          endDate,
+          googleTransactionId: data.purchaseToken,
+          googleProductId: data.subscriptionId,
+          googleOrderId: googlePurchaseData.orderId ?? '',
           googleReceiptData: JSON.stringify({
             platform: data.platform,
             packageName: data.packageName,
-            subscriptionId: googleSubscriptionId,
+            subscriptionId: data.subscriptionId,
             purchaseToken: data.purchaseToken,
             orderId: googlePurchaseData.orderId,
           }),
-          autoRenew: googlePurchaseData.autoRenewing || true,
+          autoRenew: googlePurchaseData.raw?.autoRenewing ?? true,
           paymentStatus: PaymentStatus.COMPLETED,
-          platform: 'google', // Explicitly set platform to google
+          platform: 'google',
         },
       });
 
-      // Record payment
       await tx.payment.create({
         data: {
-          userId: userId,
+          userId,
           googleTransactionId: data.purchaseToken,
-          googleOrderId: googlePurchaseData.orderId,
-          googleProductId: googleSubscriptionId,
+          googleOrderId: googlePurchaseData.orderId ?? '',
+          googleProductId: data.subscriptionId,
           googleReceiptData: JSON.stringify(googlePurchaseData),
           paymentAmount: subscriptionOffer.price,
           status: PaymentStatus.COMPLETED,
         },
       });
 
-      // Update user profile
       await tx.user.update({
         where: { id: userId },
         data: {
@@ -1027,56 +1011,29 @@ const createGooglePlaySubscriptionIntoDb = async (
         },
       });
 
-      return {
-        ...createdSubscription,
-        subscriptionOffer: subscriptionOffer,
-      };
+      return { ...createdSubscription, subscriptionOffer };
     },
-    {
-      timeout: 10000,
-    },
+    { timeout: 10000 },
   );
 
-  // 8. Send confirmation email
-  try {
-    // Email notification logic (similar to Apple IAP)
-    console.log(
-      `📧 Sending subscription confirmation email to ${userCheck.email}`,
-    );
-  } catch (emailError) {
-    console.error('Email sending failed:', emailError);
-    // Continue despite email error
-  }
-
-  // Send push notification to user about Google Play subscription activation
+  // 7 — Push notification (non-fatal)
   try {
     const subscriber = await prisma.user.findUnique({
       where: { id: userId },
       select: { fcmToken: true, fullName: true },
     });
-
     if (subscriber?.fcmToken) {
-      const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription is now active! Enjoy all premium features.`;
-
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
           'Subscription Activated',
-          message,
+          `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription is now active!`,
           userId,
         )
-        .catch(error =>
-          console.error(
-            'Error sending Google Play subscription activation notification:',
-            error,
-          ),
-        );
+        .catch(err => console.error('Push notification failed:', err));
     }
-  } catch (error) {
-    console.error(
-      'Error sending Google Play subscription activation notification:',
-      error,
-    );
+  } catch (err) {
+    console.error('Push notification error (non-fatal):', err);
   }
 
   return result;

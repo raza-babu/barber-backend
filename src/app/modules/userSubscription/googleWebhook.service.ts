@@ -846,124 +846,265 @@ const handleSubscriptionPaused = async (
   }
 };
 
+// /**
+//  * Main Google Play webhook handler
+//  * Verifies Pub/Sub message signature and routes to appropriate handler
+//  */
+// export const handleGooglePlayWebhook = async (
+//   pubsubMessage: any,
+//   projectId?: string,
+// ): Promise<any> => {
+//   try {
+//     // Decode the Pub/Sub message
+//     if (!pubsubMessage.data) {
+//       throw new Error('Invalid Pub/Sub message format: missing data field');
+//     }
+
+//     // Decode base64 message
+//     const decodedData = Buffer.from(pubsubMessage.data, 'base64').toString(
+//       'utf-8',
+//     );
+//     const notification = JSON.parse(decodedData) as GooglePlayNotification;
+
+//     console.log('🔔 Received Google Play webhook:', {
+//       packageName: notification.packageName,
+//       eventTime: new Date(parseInt(notification.eventTimeMillis)),
+//     });
+
+//     // Check for subscription notification
+//     if (!notification.subscriptionNotification) {
+//       console.warn('⚠️ No subscription notification in payload');
+//       return { success: false, message: 'No subscription data' };
+//     }
+
+//     const subNotif = notification.subscriptionNotification;
+//     const notificationType = getNotificationTypeName(subNotif.notificationType);
+
+//     console.log('📋 Notification Type:', notificationType);
+//     console.log('📦 Subscription:', {
+//       id: subNotif.subscriptionId,
+//       token: subNotif.purchaseToken.substring(0, 20) + '...',
+//     });
+
+//     // Parse subscription data from notification
+//     const subscriptionData: SubscriptionData = {
+//       orderId: '', // Will be populated from verification
+//       packageName: notification.packageName,
+//       subscriptionId: subNotif.subscriptionId,
+//       purchaseToken: subNotif.purchaseToken,
+//       purchaseState: 1, // Default to purchased
+//       paymentState: 1, // Default to received
+//       startTimeMillis: new Date().getTime().toString(),
+//       expiryTimeMillis: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+//         .getTime()
+//         .toString(),
+//       autoRenewing: true,
+//     };
+
+//     // Route to appropriate handler based on notification type
+//     let result;
+//     switch (subNotif.notificationType) {
+//       // 1 = SUBSCRIPTION_RECOVERED
+//       case 1:
+//         result = await handleSubscriptionRecovered(
+//           notification,
+//           subscriptionData,
+//         );
+//         break;
+
+//       // 2 = SUBSCRIPTION_RENEWED
+//       case 2:
+//         result = await handleSubscriptionRenewed(
+//           notification,
+//           subscriptionData,
+//         );
+//         break;
+
+//       // 3 = SUBSCRIPTION_CANCELED
+//       case 3:
+//         result = await handleSubscriptionCanceled(
+//           notification,
+//           subscriptionData,
+//         );
+//         break;
+
+//       // 4 = SUBSCRIPTION_PURCHASED
+//       case 4:
+//         result = await handleSubscriptionPurchased(
+//           notification,
+//           subscriptionData,
+//         );
+//         break;
+
+//       // 5 = SUBSCRIPTION_ON_HOLD
+//       case 5:
+//         result = await handleSubscriptionOnHold(notification, subscriptionData);
+//         break;
+
+//       // 6 = SUBSCRIPTION_IN_GRACE_PERIOD
+//       case 6:
+//         result = await handleSubscriptionInGracePeriod(
+//           notification,
+//           subscriptionData,
+//         );
+//         break;
+
+//       // 7 = SUBSCRIPTION_RESTARTED (treat like recovery)
+//       case 7:
+//         result = await handleSubscriptionRecovered(
+//           notification,
+//           subscriptionData,
+//         );
+//         break;
+
+//       // 10 = SUBSCRIPTION_PAUSED
+//       case 10:
+//         result = await handleSubscriptionPaused(notification, subscriptionData);
+//         break;
+
+//       // 13 = SUBSCRIPTION_EXPIRED
+//       case 13:
+//         result = await handleSubscriptionExpired(
+//           notification,
+//           subscriptionData,
+//         );
+//         break;
+
+//       default:
+//         console.log(
+//           'ℹ️ Unhandled Google Play notification type:',
+//           notificationType,
+//         );
+//         result = { message: 'Notification type not yet handled' };
+//     }
+
+//     return {
+//       success: true,
+//       message: 'Webhook processed successfully',
+//       notificationType,
+//       result,
+//     };
+//   } catch (error: any) {
+//     console.error('❌ Error processing Google Play webhook:', error);
+//     // Always return success to Pub/Sub to prevent message redelivery
+//     // The message will be logged and handled by error tracking
+//     throw new Error(`Google Play webhook error: ${error.message}`);
+//   }
+// };
+
+// googleWebhook.service.ts
+
 /**
- * Main Google Play webhook handler
- * Verifies Pub/Sub message signature and routes to appropriate handler
+ * Main Google Play webhook handler.
+ * Routes lifecycle notifications to appropriate handlers.
+ * IMPORTANT: SUBSCRIPTION_PURCHASED (type 4) is intentionally skipped here.
+ * The initial subscription record is always created by the /google/verify-purchase
+ * endpoint to avoid the race condition where the webhook fires before the DB record exists.
  */
 export const handleGooglePlayWebhook = async (
   pubsubMessage: any,
   projectId?: string,
-): Promise<any> => {
+): Promise<{
+  success: boolean;
+  message: string;
+  notificationType?: string;
+  result?: any;
+}> => {
   try {
-    // Decode the Pub/Sub message
     if (!pubsubMessage.data) {
-      throw new Error('Invalid Pub/Sub message format: missing data field');
+      return {
+        success: false,
+        message: 'Missing data field in Pub/Sub message',
+      };
     }
 
-    // Decode base64 message
     const decodedData = Buffer.from(pubsubMessage.data, 'base64').toString(
       'utf-8',
     );
     const notification = JSON.parse(decodedData) as GooglePlayNotification;
 
-    console.log('🔔 Received Google Play webhook:', {
-      packageName: notification.packageName,
-      eventTime: new Date(parseInt(notification.eventTimeMillis)),
-    });
-
-    // Check for subscription notification
     if (!notification.subscriptionNotification) {
-      console.warn('⚠️ No subscription notification in payload');
-      return { success: false, message: 'No subscription data' };
+      console.warn('⚠️ No subscriptionNotification in payload — ignoring');
+      return {
+        success: true,
+        message: 'No subscription notification, skipped',
+      };
     }
 
     const subNotif = notification.subscriptionNotification;
     const notificationType = getNotificationTypeName(subNotif.notificationType);
 
-    console.log('📋 Notification Type:', notificationType);
-    console.log('📦 Subscription:', {
-      id: subNotif.subscriptionId,
-      token: subNotif.purchaseToken.substring(0, 20) + '...',
-    });
+    console.log(
+      `🔔 Google Play webhook: ${notificationType} | token: ${subNotif.purchaseToken.slice(0, 20)}...`,
+    );
 
-    // Parse subscription data from notification
     const subscriptionData: SubscriptionData = {
-      orderId: '', // Will be populated from verification
+      orderId: '',
       packageName: notification.packageName,
       subscriptionId: subNotif.subscriptionId,
       purchaseToken: subNotif.purchaseToken,
-      purchaseState: 1, // Default to purchased
-      paymentState: 1, // Default to received
-      startTimeMillis: new Date().getTime().toString(),
-      expiryTimeMillis: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .getTime()
-        .toString(),
+      purchaseState: 1,
+      paymentState: 1,
+      startTimeMillis: Date.now().toString(),
+      expiryTimeMillis: (Date.now() + 30 * 24 * 60 * 60 * 1000).toString(),
       autoRenewing: true,
     };
 
-    // Route to appropriate handler based on notification type
-    let result;
+    let result: any;
+
     switch (subNotif.notificationType) {
-      // 1 = SUBSCRIPTION_RECOVERED
-      case 1:
+      // 4 = SUBSCRIPTION_PURCHASED
+      // Intentionally skipped: the verify-purchase endpoint creates the initial record.
+      // If the webhook arrives first (race condition), there's no record to update yet —
+      // which is fine because verify-purchase will create it correctly moments later.
+      case 4:
+        console.log(
+          'ℹ️ SUBSCRIPTION_PURCHASED webhook received — skipping (handled by verify-purchase endpoint)',
+        );
+        return {
+          success: true,
+          message: 'Initial purchase handled by verify-purchase endpoint',
+          notificationType,
+        };
+
+      case 1: // SUBSCRIPTION_RECOVERED
+      case 7: // SUBSCRIPTION_RESTARTED
         result = await handleSubscriptionRecovered(
           notification,
           subscriptionData,
         );
         break;
 
-      // 2 = SUBSCRIPTION_RENEWED
-      case 2:
+      case 2: // SUBSCRIPTION_RENEWED
         result = await handleSubscriptionRenewed(
           notification,
           subscriptionData,
         );
         break;
 
-      // 3 = SUBSCRIPTION_CANCELED
-      case 3:
+      case 3: // SUBSCRIPTION_CANCELED
         result = await handleSubscriptionCanceled(
           notification,
           subscriptionData,
         );
         break;
 
-      // 4 = SUBSCRIPTION_PURCHASED
-      case 4:
-        result = await handleSubscriptionPurchased(
-          notification,
-          subscriptionData,
-        );
-        break;
-
-      // 5 = SUBSCRIPTION_ON_HOLD
-      case 5:
+      case 5: // SUBSCRIPTION_ON_HOLD
         result = await handleSubscriptionOnHold(notification, subscriptionData);
         break;
 
-      // 6 = SUBSCRIPTION_IN_GRACE_PERIOD
-      case 6:
+      case 6: // SUBSCRIPTION_IN_GRACE_PERIOD
         result = await handleSubscriptionInGracePeriod(
           notification,
           subscriptionData,
         );
         break;
 
-      // 7 = SUBSCRIPTION_RESTARTED (treat like recovery)
-      case 7:
-        result = await handleSubscriptionRecovered(
-          notification,
-          subscriptionData,
-        );
-        break;
-
-      // 10 = SUBSCRIPTION_PAUSED
-      case 10:
+      case 10: // SUBSCRIPTION_PAUSED
         result = await handleSubscriptionPaused(notification, subscriptionData);
         break;
 
-      // 13 = SUBSCRIPTION_EXPIRED
-      case 13:
+      case 13: // SUBSCRIPTION_EXPIRED
         result = await handleSubscriptionExpired(
           notification,
           subscriptionData,
@@ -972,10 +1113,9 @@ export const handleGooglePlayWebhook = async (
 
       default:
         console.log(
-          'ℹ️ Unhandled Google Play notification type:',
-          notificationType,
+          `ℹ️ Unhandled Google Play notification type: ${notificationType}`,
         );
-        result = { message: 'Notification type not yet handled' };
+        result = { message: 'Notification type not handled' };
     }
 
     return {
@@ -985,10 +1125,12 @@ export const handleGooglePlayWebhook = async (
       result,
     };
   } catch (error: any) {
-    console.error('❌ Error processing Google Play webhook:', error);
-    // Always return success to Pub/Sub to prevent message redelivery
-    // The message will be logged and handled by error tracking
-    throw new Error(`Google Play webhook error: ${error.message}`);
+    // Log but don't throw — controller always returns 200 to Pub/Sub
+    console.error('❌ Error processing Google Play webhook:', error.message);
+    return {
+      success: false,
+      message: `Webhook processing error: ${error.message}`,
+    };
   }
 };
 
