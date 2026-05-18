@@ -23,6 +23,8 @@ const verifyGooglePlayPurchase = catchAsync(async (req, res) => {
   const { purchaseToken, productId, subscriptionOfferId, platform } =
     req.body as TVerifyAppReceiptPayloadType;
 
+  console.log('verifyGooglePlayPurchase', verifyGooglePlayPurchase);
+
   const packageName = config.google?.packageName;
   if (!packageName) {
     return sendResponse(res, {

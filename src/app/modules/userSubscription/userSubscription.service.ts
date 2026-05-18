@@ -880,6 +880,7 @@ const createGooglePlaySubscriptionIntoDb = async (
     platform: string;
   },
 ) => {
+  console.log('IN SIDE createGooglePlaySubscriptionIntoDb ', data);
   // 1 — Verify the user is an active saloon owner
   const userCheck = await prisma.user.findUnique({
     where: {
