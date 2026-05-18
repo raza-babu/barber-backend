@@ -52,6 +52,7 @@ const createUserSubscriptionIntoDb = async (
     receiptData?: string; // Optional: raw receipt for verification trail
   },
 ) => {
+  console.log(data, { depth: Infinity });
   // 1. Verify user exists and is active
   const userCheck = await prisma.user.findUnique({
     where: {
