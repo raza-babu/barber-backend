@@ -20,7 +20,7 @@ const registerUser = z.object({
         required_error: 'Role is required!',
       })
       .optional(),
-      phoneNumber: z
+    phoneNumber: z
       .string({
         required_error: 'Phone number is required!',
       })
@@ -212,12 +212,12 @@ const updateSaloonOwner = z.object({
         required_error: 'Shop name is required!',
       })
       .optional(),
-      shopImages: z
+    shopImages: z
       .array(z.string(), {
         invalid_type_error: 'Shop images must be an array of strings!',
       })
       .optional(),
-      shopVideo: z
+    shopVideo: z
       .array(z.string(), {
         invalid_type_error: 'Shop images must be an array of strings!',
       })
@@ -309,18 +309,28 @@ const deleteAccount = z.object({
   }),
 });
 
-const updateSaloonOwnerStatus = z.object({ 
-   params: z.object({ 
-     id: z.string({
-       required_error: `Saloon Owner Id is required!`
-     })
-   }),
-   body: z.object({ 
-     isVerified: z.boolean({ 
-       required_error: 'isVerified is required!', 
-     })
-   })
-})
+const deactivateAccount = z.object({
+  body: z.object({
+    reason: z.string().optional(),
+  }),
+});
+
+const reactivateAccount = z.object({
+  body: z.object({}).optional(),
+});
+
+const updateSaloonOwnerStatus = z.object({
+  params: z.object({
+    id: z.string({
+      required_error: `Saloon Owner Id is required!`,
+    }),
+  }),
+  body: z.object({
+    isVerified: z.boolean({
+      required_error: 'isVerified is required!',
+    }),
+  }),
+});
 
 export const UserValidations = {
   registerUser,
@@ -334,8 +344,11 @@ export const UserValidations = {
   createSaloonOwner,
   updateBarber,
   deleteAccount,
-  updateSaloonOwnerStatus
+  deactivateAccount,
+  reactivateAccount,
+  updateSaloonOwnerStatus,
 };
 
-
-export type TUpdateSaloonOwnerStatusTypePayload = z.infer<typeof updateSaloonOwnerStatus>['body']
+export type TUpdateSaloonOwnerStatusTypePayload = z.infer<
+  typeof updateSaloonOwnerStatus
+>['body'];

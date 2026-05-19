@@ -5,7 +5,7 @@ import config from '../../config';
 import AppError from '../errors/AppError';
 import prisma from '../utils/prisma';
 import { verifyToken } from '../utils/verifyToken';
-import { UserRoleEnum, UserStatus } from '@prisma/client'; 
+import { UserRoleEnum, UserStatus } from '@prisma/client';
 import { Admin, User } from '@prisma/client';
 
 // Define a type for the user with included relations
@@ -18,7 +18,6 @@ type UserWithAdmin = User & {
     }[];
   })[];
 };
-
 
 const auth = (...roles: string[]) => {
   return async (req: Request, _res: Response, next: NextFunction) => {
@@ -40,7 +39,7 @@ const auth = (...roles: string[]) => {
       }
 
       // Check user exists with admin relations
-      const user = await prisma.user.findUnique({
+      const user = (await prisma.user.findUnique({
         where: { id: verifyUserToken.id },
         include: {
           Admin: {
@@ -57,19 +56,35 @@ const auth = (...roles: string[]) => {
             },
           },
         },
-      }) as UserWithAdmin;
+      })) as UserWithAdmin;
 
       if (!user) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'You are not authorized!');
       }
       if (user.status !== UserStatus.ACTIVE) {
-        throw new AppError(httpStatus.UNAUTHORIZED, 'User is not active. Please contact support.');
+        throw new AppError(
+          httpStatus.UNAUTHORIZED,
+          'User is not active. Please contact support.',
+        );
       }
-      if(user.isVerified === false){
-        throw new AppError(httpStatus.FORBIDDEN, 'Please verify your account to proceed. Sign up with same email to resend OTP.');
+
+      if (user.isDeactivated && !req.path.includes('/reactivate-account')) {
+        throw new AppError(
+          httpStatus.UNAUTHORIZED,
+          'Your account is deactived. Please actiave your account first!',
+        );
+      }
+      if (user.isVerified === false) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          'Please verify your account to proceed. Sign up with same email to resend OTP.',
+        );
       }
       if (!user.isProfileComplete) {
-        throw new AppError(httpStatus.FORBIDDEN, 'Please complete your profile to proceed.');
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          'Please complete your profile to proceed.',
+        );
       }
 
       // Initialize permissions and super admin status
@@ -77,7 +92,10 @@ const auth = (...roles: string[]) => {
       let permissions: string[] = [];
 
       // Handle admin-specific checks
-      if (user.role === UserRoleEnum.ADMIN || user.role === UserRoleEnum.SUPER_ADMIN) {
+      if (
+        user.role === UserRoleEnum.ADMIN ||
+        user.role === UserRoleEnum.SUPER_ADMIN
+      ) {
         if (!user.Admin || user.Admin.length === 0) {
           throw new AppError(httpStatus.FORBIDDEN, 'Admin profile not found');
         }
@@ -86,14 +104,17 @@ const auth = (...roles: string[]) => {
         const admin = user.Admin[0];
         isSuperAdmin = admin.isSuperAdmin || false;
         permissions = admin.AdminAccessFunction.map(
-          af => af.accessFunction.function
+          af => af.accessFunction.function,
         );
 
         // Skip permission check for super admin
         if (!isSuperAdmin) {
           const requiredPermission = (req as any).permission;
           if (requiredPermission && !permissions.includes(requiredPermission)) {
-            throw new AppError(httpStatus.FORBIDDEN, 'Insufficient permissions');
+            throw new AppError(
+              httpStatus.FORBIDDEN,
+              'Insufficient permissions',
+            );
           }
         }
       }

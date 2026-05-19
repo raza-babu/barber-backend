@@ -32,6 +32,8 @@ model User {
   followingCount       Int                    @default(0)
   isDeleted            Boolean                @default(false)
   deleteReason         String?
+  isDeactivated        Boolean                @default(false)
+  deactivateReason     String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 

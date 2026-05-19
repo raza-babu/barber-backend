@@ -1551,6 +1551,95 @@ const deleteAccountFromDB = async (
   return { message: 'Account deleted successfully!' };
 };
 
+const deactivateAccountInDB = async (
+  id: string,
+  data: {
+    reason?: string;
+  },
+) => {
+  const userData = await prisma.user.findUnique({
+    where: { id },
+  });
+
+  if (!userData) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
+  }
+
+  if (userData.isDeactivated) {
+    throw new AppError(httpStatus.CONFLICT, 'Account is already deactivated!');
+  }
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      isDeactivated: true,
+      deactivateReason: data.reason || 'No reason provided',
+    },
+  });
+
+  // Send notification to user about account deactivation
+  try {
+    if (userData?.fcmToken) {
+      const message = `Your account has been deactivated. You can reactivate it anytime by logging in.`;
+
+      await notificationService
+        .sendNotification(userData.fcmToken, 'Account Deactivated', message, id)
+        .catch(error =>
+          console.error(
+            'Error sending account deactivation notification:',
+            error,
+          ),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending account deactivation notification:', error);
+  }
+
+  return { message: 'Account deactivated successfully!' };
+};
+
+const reactivateAccountInDB = async (id: string) => {
+  const userData = await prisma.user.findUnique({
+    where: { id },
+  });
+
+  if (!userData) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
+  }
+
+  if (!userData.isDeactivated) {
+    throw new AppError(httpStatus.CONFLICT, 'Account is not deactivated!');
+  }
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      isDeactivated: false,
+      deactivateReason: null,
+    },
+  });
+
+  // Send notification to user about account reactivation
+  try {
+    if (userData?.fcmToken) {
+      const message = `Your account has been successfully reactivated. Welcome back!`;
+
+      await notificationService
+        .sendNotification(userData.fcmToken, 'Account Reactivated', message, id)
+        .catch(error =>
+          console.error(
+            'Error sending account reactivation notification:',
+            error,
+          ),
+        );
+    }
+  } catch (error) {
+    console.error('Error sending account reactivation notification:', error);
+  }
+
+  return { message: 'Account reactivated successfully!' };
+};
+
 const updateProfileImageIntoDB = async (
   userId: string,
   profileImageUrl: string,
@@ -1663,6 +1752,8 @@ export const UserServices = {
   resendOtpIntoDB,
   resendUserVerificationEmail,
   deleteAccountFromDB,
+  deactivateAccountInDB,
+  reactivateAccountInDB,
   updateProfileImageIntoDB,
   updateSalonOwnerStatus,
 };

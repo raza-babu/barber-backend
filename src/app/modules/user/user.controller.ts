@@ -348,6 +348,30 @@ const deleteAccount = catchAsync(async (req, res) => {
   });
 });
 
+const deactivateAccount = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  await UserServices.deactivateAccountInDB(user.id, req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    data: null,
+    message: 'Account deactivated successfully',
+  });
+});
+
+const reactivateAccount = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  await UserServices.reactivateAccountInDB(user.id);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    data: null,
+    message: 'Account reactivated successfully',
+  });
+});
+
 const updateProfileImage = catchAsync(async (req, res) => {
   const user = req.user as { id: string };
   const file = req.file;
@@ -403,6 +427,8 @@ export const UserControllers = {
   resendUserVerificationEmail,
   resendOtp,
   deleteAccount,
+  deactivateAccount,
+  reactivateAccount,
   updateProfileImage,
   updateSaloonOwnerStatus,
 };

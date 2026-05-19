@@ -119,6 +119,15 @@ router.post(
   UserControllers.deleteAccount,
 );
 
+router.post(
+  '/deactivate-account',
+  auth(),
+  validateRequest(UserValidations.deactivateAccount),
+  UserControllers.deactivateAccount,
+);
+
+router.post('/reactivate-account', auth(), UserControllers.reactivateAccount);
+
 router.put(
   '/update-profile-image',
   multerUploadMultiple.single('profileImage'),
@@ -130,7 +139,7 @@ router.patch(
   '/:id/update-saloon-owner-status',
   auth(UserRoleEnum.ADMIN, UserRoleEnum.SUPER_ADMIN),
   validateRequest(UserValidations.updateSaloonOwnerStatus),
-  UserControllers.updateSaloonOwnerStatus, 
+  UserControllers.updateSaloonOwnerStatus,
 );
 
 export const UserRouters = router;
