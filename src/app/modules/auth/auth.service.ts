@@ -67,6 +67,9 @@ const loginUserFromDB = async (payload: {
     });
   }
 
+  // Note: Activated the account 
+  userData.isDeactivated = false;
+
   // track QR code presence for saloon owners without mutating the Prisma user object
   let hasQrCode = false;
 
@@ -158,7 +161,6 @@ const loginUserFromDB = async (payload: {
       throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User login failed');
     }
   }
-
 
   const accessToken = await generateToken(
     {

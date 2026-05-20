@@ -126,8 +126,6 @@ router.post(
   UserControllers.deactivateAccount,
 );
 
-router.post('/reactivate-account', auth(), UserControllers.reactivateAccount);
-
 router.put(
   '/update-profile-image',
   multerUploadMultiple.single('profileImage'),

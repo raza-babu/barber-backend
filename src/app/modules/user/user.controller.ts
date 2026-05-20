@@ -360,17 +360,7 @@ const deactivateAccount = catchAsync(async (req, res) => {
   });
 });
 
-const reactivateAccount = catchAsync(async (req, res) => {
-  const user = req.user as any;
-  await UserServices.reactivateAccountInDB(user.id);
 
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    data: null,
-    message: 'Account reactivated successfully',
-  });
-});
 
 const updateProfileImage = catchAsync(async (req, res) => {
   const user = req.user as { id: string };
@@ -428,7 +418,6 @@ export const UserControllers = {
   resendOtp,
   deleteAccount,
   deactivateAccount,
-  reactivateAccount,
   updateProfileImage,
   updateSaloonOwnerStatus,
 };
