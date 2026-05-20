@@ -19,6 +19,8 @@ const loginUserFromDB = async (payload: {
       email: payload.email,
     },
   });
+
+  console.log(userData, { depth: Infinity });
   if (!userData) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
