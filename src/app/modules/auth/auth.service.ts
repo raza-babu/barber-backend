@@ -67,9 +67,6 @@ const loginUserFromDB = async (payload: {
     });
   }
 
-  // Note: Activated the account 
-  userData.isDeactivated = false;
-
   // track QR code presence for saloon owners without mutating the Prisma user object
   let hasQrCode = false;
 
@@ -91,6 +88,7 @@ const loginUserFromDB = async (payload: {
         },
       },
     });
+
     userData.isSubscribed = saloon?.user.isSubscribed || false;
     userData.subscriptionEnd = saloon?.user.subscriptionEnd || null;
     userData.subscriptionPlan = saloon?.user.subscriptionPlan || 'FREE';
@@ -156,6 +154,16 @@ const loginUserFromDB = async (payload: {
     const updateUser = await prisma.user.update({
       where: { id: userData.id },
       data: { isLoggedIn: true },
+    });
+    if (!updateUser) {
+      throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User login failed');
+    }
+  }
+
+  if (userData.isDeactivated) {
+    const updateUser = await prisma.user.update({
+      where: { id: userData.id },
+      data: { isDeactivated: true, deactivateReason: null },
     });
     if (!updateUser) {
       throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User login failed');

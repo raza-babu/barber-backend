@@ -728,10 +728,19 @@ const getMyProfileFromDB = async (id: string) => {
       subscriptionEnd: true,
       isSubscribed: true,
       onBoarding: true,
+      isDeactivated: true,
       createdAt: true,
       updatedAt: true,
     },
   });
+
+  if (!Profile) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Profile not found!');
+  }
+
+  if (Profile.isDeactivated) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Your profile is deactiaved!');
+  }
 
   return Profile;
 };
@@ -1597,8 +1606,6 @@ const deactivateAccountInDB = async (
 
   return { message: 'Account deactivated successfully!' };
 };
-
-
 
 const updateProfileImageIntoDB = async (
   userId: string,
