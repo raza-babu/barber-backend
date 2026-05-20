@@ -165,7 +165,7 @@ const loginUserFromDB = async (payload: {
   if (userData.isDeactivated) {
     const updateUser = await prisma.user.update({
       where: { id: userData.id },
-      data: { isDeactivated: true, deactivateReason: null },
+      data: { isDeactivated: false, deactivateReason: null },
     });
     if (!updateUser) {
       throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'User login failed');
