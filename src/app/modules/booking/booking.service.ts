@@ -70,8 +70,13 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     remoteQueue,
   } = data;
 
+  // Note: Handle account deactivation : exclude deactivated salons when creating a queue booking
   const saloonStatus = await prisma.saloonOwner.findUnique({
-    where: { userId: saloonOwnerId, isVerified: true },
+    where: {
+      userId: saloonOwnerId,
+      isVerified: true,
+      user: { isDeactivated: false },
+    },
   });
   if (!saloonStatus) {
     throw new AppError(
@@ -81,8 +86,12 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   }
 
   // 1. Fetch saloonOwner to check queue status
+  // Note: Handle account deactivation : ensure only active salon owners can create queue bookings
   const saloonOwner = await prisma.saloonOwner.findUnique({
-    where: { userId: saloonOwnerId },
+    where: {
+      userId: saloonOwnerId,
+      user: { isDeactivated: false },
+    },
     select: { isQueueEnabled: true },
   });
   if (!saloonOwner) {
@@ -380,7 +389,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         }
       }
 
-      // 8b. Check if barber exists
+      // 8b. Check if barber exists and is not deactivated
+      // Note: Handle account deactivation : exclude deactivated barbers from queue booking creation
       const barber = await tx.barber.findUnique({
         where: { userId: barberId },
         select: {
@@ -390,11 +400,12 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
               id: true,
               fullName: true,
               image: true,
+              isDeactivated: true,
             },
           },
         },
       });
-      if (!barber) {
+      if (!barber || barber.user?.isDeactivated) {
         throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
       }
 
@@ -1863,8 +1874,13 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   } = data;
 
   // 1. Validate saloon exists & verified
+  // Note: Handle account deactivation : exclude deactivated salons when creating an appointment booking
   const saloonStatus = await prisma.saloonOwner.findUnique({
-    where: { userId: saloonOwnerId, isVerified: true },
+    where: {
+      userId: saloonOwnerId,
+      isVerified: true,
+      user: { isDeactivated: false },
+    },
   });
   if (!saloonStatus) {
     throw new AppError(
@@ -1923,16 +1939,22 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   const result = await prisma.$transaction(
     async tx => {
       // 4a. Check barber existence
+      // Note: Handle account deactivation : exclude deactivated barbers from appointment booking creation
       const barber = await tx.barber.findUnique({
         where: { userId: barberId },
         select: {
           id: true,
           user: {
-            select: { id: true, fullName: true, image: true },
+            select: {
+              id: true,
+              fullName: true,
+              image: true,
+              isDeactivated: true,
+            },
           },
         },
       });
-      if (!barber) {
+      if (!barber || barber.user?.isDeactivated) {
         throw new AppError(httpStatus.NOT_FOUND, 'Barber not found');
       }
 
@@ -2633,8 +2655,12 @@ const getAllBarbersForQueueFromDb = async (
   }
 
   // Check if salon is closed
+  // Note: Handle account deactivation : exclude deactivated salons from queue barber lookup
   const salon = await prisma.saloonOwner.findUnique({
-    where: { userId: saloonOwnerId },
+    where: {
+      userId: saloonOwnerId,
+      user: { isDeactivated: false },
+    },
     select: {
       userId: true,
       isQueueEnabled: true,
@@ -2647,7 +2673,8 @@ const getAllBarbersForQueueFromDb = async (
       longitude: true,
     },
   });
-  if (!salon) throw new AppError(httpStatus.NOT_FOUND, 'Salon not found');
+  if (!salon)
+    throw new AppError(httpStatus.NOT_FOUND, 'Salon not found or deactivated');
 
   if (
     role === UserRoleEnum.CUSTOMER &&
@@ -2669,7 +2696,12 @@ const getAllBarbersForQueueFromDb = async (
   // if (holiday) return { message: 'Salon is closed on this date' };
 
   let barbers = await prisma.barber.findMany({
-    where: { saloonOwnerId: saloonOwnerId },
+    where: {
+      saloonOwnerId: saloonOwnerId,
+      user: {
+        isDeactivated: false,
+      },
+    },
     include: {
       user: { select: { id: true, fullName: true, image: true, status: true } },
     },
@@ -2784,8 +2816,12 @@ const getAvailableBarbersForWalkingInFromDb = async (
   const endOfDay = date.endOf('day').toJSDate();
 
   // Check if salon is closed
+  // Note: Handle account deactivation : exclude deactivated salons from walk-in availability lookup
   const salon = await prisma.saloonOwner.findUnique({
-    where: { userId: saloonOwnerId },
+    where: {
+      userId: saloonOwnerId,
+      user: { isDeactivated: false },
+    },
     select: {
       userId: true,
       isQueueEnabled: true,
@@ -2797,10 +2833,14 @@ const getAvailableBarbersForWalkingInFromDb = async (
       },
     },
   });
-  if (!salon) throw new AppError(httpStatus.NOT_FOUND, 'Salon not found');
+  if (!salon)
+    throw new AppError(httpStatus.NOT_FOUND, 'Salon not found or deactivated');
 
   let barbers = await prisma.barber.findMany({
-    where: { saloonOwnerId: saloonOwnerId },
+    where: {
+      saloonOwnerId: saloonOwnerId,
+      user: { isDeactivated: false },
+    },
     include: {
       user: { select: { id: true, fullName: true, image: true, status: true } },
       Queue: { select: { id: true } },
@@ -3110,8 +3150,12 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
   const endOfDay = date.endOf('day').toJSDate();
 
   // Check if salon is closed
+  // Note: Handle account deactivation : exclude deactivated salons from walk-in availability lookup
   const salon = await prisma.saloonOwner.findUnique({
-    where: { userId: saloonOwnerId },
+    where: {
+      userId: saloonOwnerId,
+      user: { isDeactivated: false },
+    },
     select: {
       userId: true,
       isQueueEnabled: true,
@@ -3123,10 +3167,14 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
       },
     },
   });
-  if (!salon) throw new AppError(httpStatus.NOT_FOUND, 'Salon not found');
+  if (!salon)
+    throw new AppError(httpStatus.NOT_FOUND, 'Salon not found or deactivated');
 
   let barbers = await prisma.barber.findMany({
-    where: { saloonOwnerId: saloonOwnerId },
+    where: {
+      saloonOwnerId: saloonOwnerId,
+      user: { isDeactivated: false },
+    },
     include: {
       user: { select: { id: true, fullName: true, image: true, status: true } },
       Queue: { select: { id: true } },
@@ -3577,7 +3625,12 @@ const getAvailableBarbersFromDb = async (
 
   // 1. Check salon & holiday using local-day
   const salon = await prisma.saloonOwner.findUnique({
-    where: { userId: data.saloonOwnerId },
+    where: {
+      userId: data.saloonOwnerId,
+      user: {
+        isDeactivated: false,
+      },
+    },
     select: { userId: true },
   });
   if (!salon || !salon.userId) {
@@ -3603,7 +3656,12 @@ const getAvailableBarbersFromDb = async (
 
   // 2. Get barbers for salon and only those with a schedule for BOOKING (or provided type)
   let barbers = await prisma.barber.findMany({
-    where: { saloonOwnerId: data.saloonOwnerId },
+    where: {
+      saloonOwnerId: data.saloonOwnerId,
+      user: {
+        isDeactivated: false,
+      },
+    },
     include: {
       user: { select: { id: true, fullName: true, status: true } },
     },
@@ -3764,7 +3822,12 @@ const getAvailableBarbersForQueueFromDb = async (
 
   // 1. Check salon & holiday using local-day
   const salon = await prisma.saloonOwner.findUnique({
-    where: { userId: data.saloonOwnerId },
+    where: {
+      userId: data.saloonOwnerId,
+      user: {
+        isDeactivated: false,
+      },
+    },
     select: { userId: true },
   });
   if (!salon || !salon.userId) {
@@ -3790,7 +3853,12 @@ const getAvailableBarbersForQueueFromDb = async (
 
   // 2. Get barbers for salon and only those with a schedule for QUEUE
   let barbers = await prisma.barber.findMany({
-    where: { saloonOwnerId: data.saloonOwnerId },
+    where: {
+      saloonOwnerId: data.saloonOwnerId,
+      user: {
+        isDeactivated: false,
+      },
+    },
     include: {
       user: { select: { id: true, fullName: true, status: true, image: true } },
     },
@@ -3798,7 +3866,12 @@ const getAvailableBarbersForQueueFromDb = async (
 
   const barberIdsWithSchedule = await prisma.barberSchedule.findMany({
     where: {
-      barber: { saloonOwnerId: data.saloonOwnerId },
+      barber: {
+        saloonOwnerId: data.saloonOwnerId,
+        user: {
+          isDeactivated: false,
+        },
+      },
       type: BookingType.QUEUE,
     },
     select: { barberId: true },
@@ -3836,6 +3909,7 @@ const getAvailableBarbersForQueueFromDb = async (
       const schedule = await prisma.barberSchedule.findFirst({
         where: {
           barberId: barber.userId,
+
           dayName,
           type: BookingType.QUEUE,
           isActive: false,
@@ -5402,9 +5476,11 @@ const getLoyaltySchemesForCustomerFromDb = async (
     where: { userId: userId },
     _sum: { totalPoints: true },
   });
+  // Note: Handle account deactivation : exclude loyalty schemes for deactivated salons
   const schemes = await prisma.loyaltyScheme.findMany({
     where: {
       userId: saloonOwnerId,
+      user: { isDeactivated: false },
     },
     orderBy: { pointThreshold: 'asc' },
   });

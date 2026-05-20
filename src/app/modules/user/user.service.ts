@@ -833,6 +833,7 @@ const getBarberProfileFromDB = async (userId: string) => {
           followerCount: true,
           followingCount: true,
           image: true,
+          isDeactivated: true,
         },
       },
     },
@@ -840,6 +841,11 @@ const getBarberProfileFromDB = async (userId: string) => {
 
   if (!profile) {
     throw new AppError(httpStatus.NOT_FOUND, `Barber profile not found!`);
+  }
+
+  // ! Note : Handle deactiavted account:
+  if (profile.user.isDeactivated) {
+    throw new AppError(httpStatus.NOT_FOUND, `Barber profile is deactiaved!`);
   }
 
   const { user, ...restProfile } = profile!;

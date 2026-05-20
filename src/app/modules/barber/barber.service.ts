@@ -134,8 +134,7 @@ const getMyBookingsFromDb = async (
 
   const totalPages = Math.ceil(totalCount / limit);
   const hasNextPage = page < totalPages;
-  const hasPrevPage = page > 1; 
-
+  const hasPrevPage = page > 1;
 
   if (bookings.length === 0) {
     return {
@@ -254,14 +253,21 @@ const getMyBookingsFromDb = async (
       limit,
       total: totalCount,
       totalPages: Math.ceil(totalCount / limit),
-      hasNextPage,  
+      hasNextPage,
       hasPrevPage,
     },
   };
 };
 
 const getBarberListFromDb = async (userId: string) => {
-  const result = await prisma.barber.findMany();
+  const result = await prisma.barber.findMany({
+    where: {
+      user: {
+        // Note: Handle account deactivations also:
+        isDeactivated: false,
+      },
+    },
+  });
   if (result.length === 0) {
     return { message: 'No barber found' };
   }
@@ -282,10 +288,16 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
           image: true,
           followerCount: true,
           followingCount: true,
+          isDeactivated: true,
         },
       },
     },
   });
+
+  //  Note: Handle account deactivation :
+  if (result?.user?.isDeactivated) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Barber profile is deactiaved!');
+  }
 
   // check following or not
   const isFollowing = await prisma.follow.findFirst({
@@ -317,16 +329,13 @@ const updateBookingStatusIntoDb = async (
   data: { status: BookingStatus },
 ) => {
   // Perform all database operations within a transaction
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async tx => {
     const existingBooking = await tx.booking.findUnique({
       where: {
         id: bookingId,
         barberId: userId,
         status: {
-          in: [
-            BookingStatus.CONFIRMED,
-            BookingStatus.STARTED,
-          ],
+          in: [BookingStatus.CONFIRMED, BookingStatus.STARTED],
         },
       },
       include: {
@@ -353,12 +362,12 @@ const updateBookingStatusIntoDb = async (
     }
 
     const now = new Date();
-    
+
     // Time validation for STARTED status
     if (data.status === BookingStatus.STARTED) {
       const startTime = new Date();
       const twentyMinsBeforeStart = new Date(startTime.getTime() - 20 * 60000);
-      
+
       if (now < twentyMinsBeforeStart) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
@@ -378,7 +387,7 @@ const updateBookingStatusIntoDb = async (
 
       const endTime = new Date(existingBooking.endDateTime!);
       const twentyMinsBeforeEnd = new Date(endTime.getTime() - 20 * 60000);
-      
+
       if (now < twentyMinsBeforeEnd) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
@@ -417,14 +426,12 @@ const updateBookingStatusIntoDb = async (
     // Calculate and save queue time when booking ends
     if (updatedBooking.status === BookingStatus.ENDED) {
       // 🔥 Get the ACTUAL start time from the existing booking (before update)
-      const actualStartTime = updatedBooking.startDateTime 
+      const actualStartTime = updatedBooking.startDateTime
         ? new Date(updatedBooking.startDateTime)
         : null;
-      
+
       // 🔥 Get the ACTUAL end time from the just-updated result
-      const actualEndTime = updatedBooking.endDateTime 
-        ? new Date()
-        : null;
+      const actualEndTime = updatedBooking.endDateTime ? new Date() : null;
 
       console.log('=== Queue Time Calculation ===');
       console.log('actualStartTime:', actualStartTime?.toISOString());
@@ -433,33 +440,41 @@ const updateBookingStatusIntoDb = async (
       if (!actualStartTime || !actualEndTime) {
         console.warn(
           `⚠️ Booking ${bookingId} ended but missing actual times:`,
-          `startTime=${actualStartTime}, endTime=${actualEndTime}`
+          `startTime=${actualStartTime}, endTime=${actualEndTime}`,
         );
         return updatedBooking;
       }
-      
+
       // Calculate actual service duration in minutes (end time - start time)
       const actualDurationMinutes = Math.round(
         (actualEndTime.getTime() - actualStartTime.getTime()) / 60000,
       );
 
       console.log(`⏱️ Actual duration: ${actualDurationMinutes} minutes`);
-      console.log(`📅 Scheduled duration: ${existingBooking.startDateTime && existingBooking.endDateTime 
-        ? Math.round((new Date(existingBooking.endDateTime).getTime() - new Date(existingBooking.startDateTime).getTime()) / 60000)
-        : 'unknown'} minutes`);
+      console.log(
+        `📅 Scheduled duration: ${
+          existingBooking.startDateTime && existingBooking.endDateTime
+            ? Math.round(
+                (new Date(existingBooking.endDateTime).getTime() -
+                  new Date(existingBooking.startDateTime).getTime()) /
+                  60000,
+              )
+            : 'unknown'
+        } minutes`,
+      );
 
       // Validate actual duration is reasonable (at least 1 minute)
       if (actualDurationMinutes < 1) {
         console.warn(
-          `⚠️ Booking ${bookingId} has invalid duration: ${actualDurationMinutes}min. Skipping queue time update.`
+          `⚠️ Booking ${bookingId} has invalid duration: ${actualDurationMinutes}min. Skipping queue time update.`,
         );
         return updatedBooking;
       }
 
       // Get sorted service IDs for consistent matching
-      const serviceIds = existingBooking.BookedServices
-        .map(bs => bs.serviceId)
-        .sort();
+      const serviceIds = existingBooking.BookedServices.map(
+        bs => bs.serviceId,
+      ).sort();
 
       console.log('Service IDs:', serviceIds);
 
@@ -476,8 +491,10 @@ const updateBookingStatusIntoDb = async (
       });
 
       if (existingQueueTime) {
-        console.log(`📊 Found existing queue time: ${existingQueueTime.averageMin}min`);
-        
+        console.log(
+          `📊 Found existing queue time: ${existingQueueTime.averageMin}min`,
+        );
+
         // Only update if new time is LESS than existing time
         if (actualDurationMinutes < existingQueueTime.averageMin) {
           await tx.queueTime.update({
@@ -499,7 +516,7 @@ const updateBookingStatusIntoDb = async (
       } else {
         // First time - Create new queue time record with actual duration
         console.log('📝 No existing queue time found, creating new record');
-        
+
         await tx.queueTime.create({
           data: {
             saloonId: updatedBooking.saloonOwnerId,
@@ -540,8 +557,9 @@ const updateBookingStatusIntoDb = async (
             break;
           case BookingStatus.ENDED:
             notificationTitle = 'Service Completed';
-            notificationBody = 'Your service has been completed. Please leave a review!';
-            break;      
+            notificationBody =
+              'Your service has been completed. Please leave a review!';
+            break;
         }
 
         if (notificationBody) {

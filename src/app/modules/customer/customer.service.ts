@@ -1,7 +1,13 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { BookingStatus, BookingType, Prisma, RedemptionStatus, User } from '@prisma/client';
+import {
+  BookingStatus,
+  BookingType,
+  Prisma,
+  RedemptionStatus,
+  User,
+} from '@prisma/client';
 import { TipStatus } from '@prisma/client';
 import FormData from 'form-data';
 import fs from 'fs';
@@ -265,7 +271,7 @@ const analyzeSaloonFromImageInDb = async (
       const allSimilaritiesZero = matches.every(
         (m: any) => (m.similarity || 0) === 0,
       );
-      
+
       if (allSimilaritiesZero) {
         return {
           success: true,
@@ -563,9 +569,9 @@ const getAllSaloonListFromDb = async (
           },
           Service: {
             select: {
-              serviceName: true
-            }
-          }
+              serviceName: true,
+            },
+          },
         },
       },
       FavoriteShop: { select: { id: true, userId: true } },
@@ -663,7 +669,7 @@ const getAllSaloonListFromDb = async (
 
         // User specific
         isFavorite,
-        isServiceAvailable: saloon.user.Service.length > 0
+        isServiceAvailable: saloon.user.Service.length > 0,
       };
     }),
   );
@@ -932,6 +938,11 @@ const getMyNearestSaloonListFromDb = async (
     isVerified: true,
     latitude: { not: null },
     longitude: { not: null },
+
+    // Note: Handle account deactivation :
+    user: {
+      isDeactivated: false,
+    },
   };
 
   if (searchTerm) {
@@ -982,8 +993,8 @@ const getMyNearestSaloonListFromDb = async (
           email: true,
           Service: {
             select: {
-              serviceName: true
-            }
+              serviceName: true,
+            },
           },
 
           HiredBarber: {
@@ -1141,8 +1152,7 @@ const getMyNearestSaloonListFromDb = async (
 
         // User specific
         isFavorite,
-        isServiceAvailable: saloon.user.Service.length > 0
-
+        isServiceAvailable: saloon.user.Service.length > 0,
       };
     }),
   );
@@ -1186,6 +1196,10 @@ const getTopRatedSaloonsFromDb = async (
   // Build where clause
   const where: any = {
     isVerified: true,
+    // Note: Handle account deactivation :
+    user: {
+      isDeactivated: false,
+    },
   };
 
   if (searchTerm) {
@@ -1234,6 +1248,7 @@ const getTopRatedSaloonsFromDb = async (
         select: {
           phoneNumber: true,
           email: true,
+
           HiredBarber: {
             select: {
               barberId: true,
@@ -1268,9 +1283,9 @@ const getTopRatedSaloonsFromDb = async (
           },
           Service: {
             select: {
-              serviceName: true
-            }
-          }
+              serviceName: true,
+            },
+          },
         },
       },
       FavoriteShop: { select: { id: true, userId: true } },
@@ -1370,7 +1385,7 @@ const getTopRatedSaloonsFromDb = async (
 
         // User specific
         isFavorite,
-        isServiceAvailable: saloon.user.Service.length > 0
+        isServiceAvailable: saloon.user.Service.length > 0,
       };
     }),
   );
@@ -1408,6 +1423,10 @@ const addSaloonToFavoritesInDb = async (
   const saloon = await prisma.saloonOwner.findUnique({
     where: {
       userId: saloonOwnerId,
+      // Note: Handle account deactivation :
+      user: {
+        isDeactivated: false,
+      },
     },
   });
   if (!saloon) {
@@ -1480,6 +1499,11 @@ const getFavoriteSaloonsFromDb = async (
   const result = await prisma.favoriteShop.findMany({
     where: {
       userId: userId,
+      saloonOwner: {
+        user: {
+          isDeactivated: false,
+        },
+      },
     },
     include: {
       saloonOwner: {
@@ -1551,6 +1575,23 @@ const removeSaloonFromFavoritesInDb = async (
 };
 
 const getSaloonAllServicesListFromDb = async (saloonOwnerId: string) => {
+  const saloonOwner = await prisma.saloonOwner.findUnique({
+    where: {
+      userId: saloonOwnerId,
+    },
+    select: {
+      user: {
+        select: {
+          isDeactivated: true,
+        },
+      },
+    },
+  });
+  if (!saloonOwner || saloonOwner.user?.isDeactivated) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
+  }
+
+  // Note: Handle account deactivation :
   const result = await prisma.service.findMany({
     where: {
       saloonOwnerId: saloonOwnerId,
@@ -1615,7 +1656,14 @@ const getVisitedSaloonListFromDb = async (
   /* ---------------------------------------------------- */
 
   const distinctVisits = await prisma.customerVisit.findMany({
-    where: { customerId: userId },
+    where: {
+      customerId: userId,
+      saloon: {
+        user: {
+          isDeactivated: false,
+        },
+      },
+    },
     distinct: ['saloonOwnerId'],
     select: {
       saloonOwnerId: true,
@@ -1950,6 +1998,14 @@ const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'customer not found');
   }
 
+  // Note: Handle account deactivation :
+  if (result.isDeactivated) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'customer account is deactivated!',
+    );
+  }
+
   // check following or not
   const isFollowing = await prisma.follow.findFirst({
     where: {
@@ -1989,10 +2045,19 @@ const updateCustomerIntoDb = async (
   return result;
 };
 
-const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilterOptions) => {
+const getPendingTipsListFromDb = async (
+  userId: string,
+  options?: ISearchAndFilterOptions,
+) => {
   const { page = 1, limit = 10 } = options || {};
-  const pageNum = Number.isFinite(Number(page)) && Number(page) > 0 ? Math.floor(Number(page)) : 1;
-  const limitNum = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.floor(Number(limit)) : 10;
+  const pageNum =
+    Number.isFinite(Number(page)) && Number(page) > 0
+      ? Math.floor(Number(page))
+      : 1;
+  const limitNum =
+    Number.isFinite(Number(limit)) && Number(limit) > 0
+      ? Math.floor(Number(limit))
+      : 10;
   const skip = (pageNum - 1) * limitNum;
 
   try {
@@ -2087,150 +2152,160 @@ const getPendingTipsListFromDb = async (userId: string, options?: ISearchAndFilt
       `Failed to fetch pending tips: ${error.message}`,
     );
   }
-}
-
+};
 
 const checkInToSaloonInDb = async (
-  userId: string, 
+  userId: string,
   bookingId: string,
   latitude: number,
-  longitude: number
+  longitude: number,
 ) => {
-    // Find the booking
-    const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: {
-        saloonOwner: {
-          select: {
-            latitude: true,
-            longitude: true,
-          },
+  // Find the booking
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      saloonOwner: {
+        select: {
+          latitude: true,
+          longitude: true,
         },
       },
-    });
+    },
+  });
 
-    if (!booking) {
-      throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
-    }
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+  }
 
-    if (booking.userId !== userId) {
-      throw new AppError(httpStatus.FORBIDDEN, 'You are not authorized to check in for this booking');
-    }
+  if (booking.userId !== userId) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are not authorized to check in for this booking',
+    );
+  }
 
-    if (booking.checkIn) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Already checked in');
-    }
+  if (booking.checkIn) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Already checked in');
+  }
 
-    /* ---------------------------------------------------- */
-    /* Check Appointment Date & Time                      */
-    /* ---------------------------------------------------- */
+  /* ---------------------------------------------------- */
+  /* Check Appointment Date & Time                      */
+  /* ---------------------------------------------------- */
 
-    const now = new Date();
-    const appointmentDate = new Date(booking.appointmentAt);
-    
-    // Check if today's date matches the booking date
-    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const bookingDate = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-    
-    if (todayDate.getTime() !== bookingDate.getTime()) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Check-in date mismatch. Booking is scheduled for ${bookingDate.toDateString()}, but today is ${todayDate.toDateString()}`,
-      );
-    }
+  const now = new Date();
+  const appointmentDate = new Date(booking.appointmentAt);
 
-    // Check if current time is within 30 minutes before the appointment time
-    const thirtyMinutesBefore = new Date(appointmentDate.getTime() - 30 * 60 * 1000);
-    
-    if (now < thirtyMinutesBefore) {
-      const minutesAway = Math.ceil((thirtyMinutesBefore.getTime() - now.getTime()) / (60 * 1000));
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `Too early to check in. You can check in ${minutesAway} minutes before your appointment scheduled at ${appointmentDate.toLocaleTimeString()}`,
-      );
-    }
+  // Check if today's date matches the booking date
+  const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const bookingDate = new Date(
+    appointmentDate.getFullYear(),
+    appointmentDate.getMonth(),
+    appointmentDate.getDate(),
+  );
 
-    const saloonLat = booking.saloonOwner?.latitude;
-    const saloonLon = booking.saloonOwner?.longitude;
+  if (todayDate.getTime() !== bookingDate.getTime()) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Check-in date mismatch. Booking is scheduled for ${bookingDate.toDateString()}, but today is ${todayDate.toDateString()}`,
+    );
+  }
 
-    if (!saloonLat || !saloonLon) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Saloon location not available');
-    }
+  // Check if current time is within 30 minutes before the appointment time
+  const thirtyMinutesBefore = new Date(
+    appointmentDate.getTime() - 30 * 60 * 1000,
+  );
 
-    // Haversine formula to calculate distance in meters
-    const R = 6371000; // Earth radius in meters
-    const lat1 = latitude;
-    const lon1 = longitude;
-    const lat2 = Number(saloonLat);
-    const lon2 = Number(saloonLon);
+  if (now < thirtyMinutesBefore) {
+    const minutesAway = Math.ceil(
+      (thirtyMinutesBefore.getTime() - now.getTime()) / (60 * 1000),
+    );
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Too early to check in. You can check in ${minutesAway} minutes before your appointment scheduled at ${appointmentDate.toLocaleTimeString()}`,
+    );
+  }
 
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distanceInMeters = R * c;
+  const saloonLat = booking.saloonOwner?.latitude;
+  const saloonLon = booking.saloonOwner?.longitude;
 
-    if (distanceInMeters > 50) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        `You are too far from the saloon. Distance: ${Math.round(distanceInMeters)} meters. Must be within 50 meters to check in.`,
-      );
-    }
+  if (!saloonLat || !saloonLon) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Saloon location not available');
+  }
 
-    const updatedBooking = await prisma.booking.update({
-      where: { id: bookingId },
-      data: { checkIn: true },
-    });
+  // Haversine formula to calculate distance in meters
+  const R = 6371000; // Earth radius in meters
+  const lat1 = latitude;
+  const lon1 = longitude;
+  const lat2 = Number(saloonLat);
+  const lon2 = Number(saloonLon);
 
-    // Send check-in notification to barber and saloon owner
-    try {
-      // Notify barber
-      if (updatedBooking.barberId) {
-        const barber = await prisma.user.findUnique({
-          where: { id: updatedBooking.barberId },
-          select: { fcmToken: true },
-        });
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distanceInMeters = R * c;
 
-        if (barber) {
-          await notificationService.sendNotification(
-            barber.fcmToken,
-            'Customer Checked In',
-            'A customer has checked in for their appointment.',
-            updatedBooking.barberId,
-          );
-        }
+  if (distanceInMeters > 50) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `You are too far from the saloon. Distance: ${Math.round(distanceInMeters)} meters. Must be within 50 meters to check in.`,
+    );
+  }
+
+  const updatedBooking = await prisma.booking.update({
+    where: { id: bookingId },
+    data: { checkIn: true },
+  });
+
+  // Send check-in notification to barber and saloon owner
+  try {
+    // Notify barber
+    if (updatedBooking.barberId) {
+      const barber = await prisma.user.findUnique({
+        where: { id: updatedBooking.barberId },
+        select: { fcmToken: true },
+      });
+
+      if (barber) {
+        await notificationService.sendNotification(
+          barber.fcmToken,
+          'Customer Checked In',
+          'A customer has checked in for their appointment.',
+          updatedBooking.barberId,
+        );
       }
-
-      // Notify saloon owner
-      if (updatedBooking.saloonOwnerId) {
-        const saloonOwner = await prisma.user.findUnique({
-          where: { id: updatedBooking.saloonOwnerId },
-          select: { fcmToken: true },
-        });
-
-        if (saloonOwner) {
-          await notificationService.sendNotification(
-            saloonOwner.fcmToken,
-            'Customer Checked In',
-            'A customer has checked in for their appointment.',
-            updatedBooking.saloonOwnerId,
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Error sending check-in notification:', error);
     }
 
-    return {
-      message: 'Check-in successful',
-      distanceInMeters: Math.round(distanceInMeters),
-      checkIn: updatedBooking.checkIn,
-    };
+    // Notify saloon owner
+    if (updatedBooking.saloonOwnerId) {
+      const saloonOwner = await prisma.user.findUnique({
+        where: { id: updatedBooking.saloonOwnerId },
+        select: { fcmToken: true },
+      });
+
+      if (saloonOwner) {
+        await notificationService.sendNotification(
+          saloonOwner.fcmToken,
+          'Customer Checked In',
+          'A customer has checked in for their appointment.',
+          updatedBooking.saloonOwnerId,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error sending check-in notification:', error);
+  }
+
+  return {
+    message: 'Check-in successful',
+    distanceInMeters: Math.round(distanceInMeters),
+    checkIn: updatedBooking.checkIn,
+  };
 };
 
 const deleteCustomerItemFromDb = async (userId: string, customerId: string) => {

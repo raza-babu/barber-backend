@@ -82,9 +82,16 @@ const getFeedListFromDb = async (
   const pageNum = Math.max(1, Number(page) || 1);
   const skip = (pageNum - 1) * take;
 
+  // Note: Handle account deactivation :
   // fetch page + total in a transaction
   const [result, total] = await prisma.$transaction([
     prisma.feed.findMany({
+      where: {
+        user: {
+          status: UserStatus.ACTIVE,
+          isDeactivated: false,
+        },
+      },
       skip,
       take,
       select: {
@@ -117,7 +124,14 @@ const getFeedListFromDb = async (
         createdAt: 'desc',
       },
     }),
-    prisma.feed.count(),
+    prisma.feed.count({
+      where: {
+        user: {
+          status: UserStatus.ACTIVE,
+          isDeactivated: false,
+        },
+      },
+    }),
   ]);
 
   if (result.length === 0) {
@@ -267,6 +281,7 @@ const getFeedByIdFromDb = async (feedId: string) => {
           id: true,
           fullName: true,
           image: true,
+          isDeactivated: true,
           SaloonOwner: {
             select: {
               userId: true,
@@ -283,7 +298,7 @@ const getFeedByIdFromDb = async (feedId: string) => {
       },
     },
   });
-  if (!result) {
+  if (!result || result.user.isDeactivated) {
     throw new AppError(httpStatus.NOT_FOUND, 'feed not found');
   }
   return {

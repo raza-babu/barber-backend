@@ -51,7 +51,7 @@ const manageBookingsIntoDb = async (
   /* ---------------------------------------------------- */
   /* Status Transition Validation                       */
   /* ---------------------------------------------------- */
-  
+
   switch (targetStatus) {
     case BookingStatus.PENDING:
       throw new AppError(
@@ -82,7 +82,10 @@ const manageBookingsIntoDb = async (
           'No-show bookings cannot be marked as completed',
         );
       }
-      if (currentStatus !== BookingStatus.CONFIRMED && currentStatus !== BookingStatus.ENDED) {
+      if (
+        currentStatus !== BookingStatus.CONFIRMED &&
+        currentStatus !== BookingStatus.ENDED
+      ) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
           'Only confirmed and ended bookings can be marked as completed',
@@ -178,10 +181,16 @@ const manageBookingsIntoDb = async (
     const payment = booking.Payment[0];
 
     // COMPLETED or NO_SHOW: Capture the payment
-    if (targetStatus === BookingStatus.COMPLETED || targetStatus === BookingStatus.NO_SHOW) {
+    if (
+      targetStatus === BookingStatus.COMPLETED ||
+      targetStatus === BookingStatus.NO_SHOW
+    ) {
       try {
         // Only capture if payment is in REQUIRES_CAPTURE status
-        if (payment.status === PaymentStatus.REQUIRES_CAPTURE && payment.paymentIntentId) {
+        if (
+          payment.status === PaymentStatus.REQUIRES_CAPTURE &&
+          payment.paymentIntentId
+        ) {
           const paymentIntent = await stripe.paymentIntents.retrieve(
             payment.paymentIntentId,
           );
@@ -189,7 +198,10 @@ const manageBookingsIntoDb = async (
           if (paymentIntent.status === 'requires_capture') {
             // Capture the payment - triggers transfer_data to shop owner
             await stripe.paymentIntents.capture(payment.paymentIntentId);
-            console.log('Payment captured for booking:', { bookingId: booking.id, paymentId: payment.id });
+            console.log('Payment captured for booking:', {
+              bookingId: booking.id,
+              paymentId: payment.id,
+            });
           }
         }
 
@@ -211,7 +223,10 @@ const manageBookingsIntoDb = async (
     if (targetStatus === BookingStatus.CANCELLED) {
       try {
         // Check if payment is uncaptured (REQUIRES_CAPTURE)
-        if (payment.status === PaymentStatus.REQUIRES_CAPTURE && payment.paymentIntentId) {
+        if (
+          payment.status === PaymentStatus.REQUIRES_CAPTURE &&
+          payment.paymentIntentId
+        ) {
           const paymentIntent = await stripe.paymentIntents.retrieve(
             payment.paymentIntentId,
           );
@@ -219,16 +234,25 @@ const manageBookingsIntoDb = async (
           if (paymentIntent.status === 'requires_capture') {
             // Cancel the uncaptured payment intent
             await stripe.paymentIntents.cancel(payment.paymentIntentId);
-            console.log('Uncaptured payment cancelled (full refund):', { bookingId: booking.id, paymentId: payment.id });
+            console.log('Uncaptured payment cancelled (full refund):', {
+              bookingId: booking.id,
+              paymentId: payment.id,
+            });
           } else if (paymentIntent.status === 'succeeded') {
             // If already captured, create full refund (entire amount)
             await stripe.refunds.create({
               payment_intent: payment.paymentIntentId,
               amount: paymentIntent.amount, // Full refund without deducting service fee
             });
-            console.log('Full refund issued for captured payment:', { bookingId: booking.id, paymentId: payment.id });
+            console.log('Full refund issued for captured payment:', {
+              bookingId: booking.id,
+              paymentId: payment.id,
+            });
           }
-        } else if (payment.status === PaymentStatus.COMPLETED && payment.paymentIntentId) {
+        } else if (
+          payment.status === PaymentStatus.COMPLETED &&
+          payment.paymentIntentId
+        ) {
           // Already captured, issue full refund
           const paymentIntent = await stripe.paymentIntents.retrieve(
             payment.paymentIntentId,
@@ -238,7 +262,10 @@ const manageBookingsIntoDb = async (
             payment_intent: payment.paymentIntentId,
             amount: paymentIntent.amount, // Full refund
           });
-          console.log('Full refund issued for completed payment:', { bookingId: booking.id, paymentId: payment.id });
+          console.log('Full refund issued for completed payment:', {
+            bookingId: booking.id,
+            paymentId: payment.id,
+          });
         }
 
         // Update payment to REFUNDED
@@ -275,7 +302,7 @@ const manageBookingsIntoDb = async (
     try {
       const customer = await prisma.user.findUnique({
         where: { id: booking.userId },
-        select: { fcmToken: true  },
+        select: { fcmToken: true },
       });
 
       let notificationTitle = 'Booking Updated';
@@ -283,7 +310,8 @@ const manageBookingsIntoDb = async (
 
       if (targetStatus === BookingStatus.COMPLETED) {
         notificationTitle = 'Booking Completed';
-        notificationMessage = 'Your booking has been completed. Thank you for visiting!';
+        notificationMessage =
+          'Your booking has been completed. Thank you for visiting!';
       } else if (targetStatus === BookingStatus.NO_SHOW) {
         notificationTitle = 'Booking Marked as No-Show';
         notificationMessage = 'Your booking was marked as no-show.';
@@ -293,19 +321,26 @@ const manageBookingsIntoDb = async (
       }
 
       if (customer?.fcmToken) {
-        await notificationService.sendNotification(
-          customer.fcmToken,
-          notificationTitle,
-          notificationMessage,
-          booking.userId,
-        ).catch(error => console.error('Error sending booking notification:', error));
+        await notificationService
+          .sendNotification(
+            customer.fcmToken,
+            notificationTitle,
+            notificationMessage,
+            booking.userId,
+          )
+          .catch(error =>
+            console.error('Error sending booking notification:', error),
+          );
       }
     } catch (error) {
       console.error('Error sending booking status notification:', error);
     }
 
     // ---------- Handle Post-Completion/NO_SHOW Tasks ----------
-    if (targetStatus === BookingStatus.COMPLETED || targetStatus === BookingStatus.NO_SHOW) {
+    if (
+      targetStatus === BookingStatus.COMPLETED ||
+      targetStatus === BookingStatus.NO_SHOW
+    ) {
       // Delete barber real-time availability
       if (updatedBooking.startDateTime && updatedBooking.endDateTime) {
         const barberRealTimeStatus = await tx.barberRealTimeStatus.findFirst({
@@ -359,7 +394,10 @@ const manageBookingsIntoDb = async (
               bookingId: updatedBooking.id,
             },
             data: {
-              status: targetStatus === BookingStatus.COMPLETED ? QueueStatus.COMPLETED : QueueStatus.CANCELLED,
+              status:
+                targetStatus === BookingStatus.COMPLETED
+                  ? QueueStatus.COMPLETED
+                  : QueueStatus.CANCELLED,
               position: 0,
             },
           });
@@ -514,26 +552,26 @@ const getBarberDashboardFromDb = async (userId: string) => {
     where: {
       saloonOwnerId: userId,
       status: BookingStatus.PENDING,
-      bookingType: BookingType.BOOKING
+      bookingType: BookingType.BOOKING,
     },
   });
 
   const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const queueBooking = await prisma.booking.count({
-      where: {
-        saloonOwnerId: userId,
-        bookingType: BookingType.QUEUE,
-        status: BookingStatus.PENDING,
-        date: {
-          gte: today,
-          lt: tomorrow,
-        },
+  const queueBooking = await prisma.booking.count({
+    where: {
+      saloonOwnerId: userId,
+      bookingType: BookingType.QUEUE,
+      status: BookingStatus.PENDING,
+      date: {
+        gte: today,
+        lt: tomorrow,
       },
-    });
+    },
+  });
 
   const jobPostCount = await prisma.jobPost.count({
     where: {
@@ -549,7 +587,7 @@ const getBarberDashboardFromDb = async (userId: string) => {
 
   // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
   const startDate = new Date();
-startDate.setUTCHours(0, 0, 0, 0);
+  startDate.setUTCHours(0, 0, 0, 0);
 
   const customerGrowthRaw = await prisma.booking.findMany({
     where: {
@@ -907,6 +945,12 @@ const getRemainingBarbersToScheduleFromDb = async (
   const hiredBarbers = await prisma.hiredBarber.findMany({
     where: {
       userId: userId,
+      // Note: Handle account deactivation :
+      barber: {
+        user: {
+          isDeactivated: false,
+        },
+      },
       ...(Object.keys(searchQuery).length > 0 && searchQuery),
     },
     select: {
@@ -970,7 +1014,7 @@ const getRemainingBarbersToScheduleFromDb = async (
   const sortedBarbers = allRemainingBarbers.sort((a, b) => {
     const aValue = a[sortBy as keyof typeof a] ?? '';
     const bValue = b[sortBy as keyof typeof b] ?? '';
-    
+
     if (sortOrder === 'asc') {
       return aValue > bValue ? 1 : -1;
     } else {
@@ -1002,6 +1046,13 @@ const getFreeBarbersOnADateFromDb = async (
   const hiredBarbers = await prisma.hiredBarber.findMany({
     where: {
       userId: userId,
+
+      // Note: Handle account deactivation :
+      barber: {
+        user: {
+          isDeactivated: false,
+        },
+      },
     },
     select: {
       barberId: true,
@@ -1199,7 +1250,14 @@ const getTransactionsFromDb = async (
 
   // Main where clause (payments that belong to bookings for this salon owner)
   const whereClause: any = {
-    status: { in: [PaymentStatus.COMPLETED, PaymentStatus.CASH, PaymentStatus.REFUNDED, PaymentStatus.CANCELLED] },
+    status: {
+      in: [
+        PaymentStatus.COMPLETED,
+        PaymentStatus.CASH,
+        PaymentStatus.REFUNDED,
+        PaymentStatus.CANCELLED,
+      ],
+    },
     booking: {
       saloonOwnerId: userId,
       ...(bookingSearchOr.length ? { AND: [{ OR: bookingSearchOr }] } : {}),
@@ -1431,6 +1489,12 @@ const getAllBarbersFromDb = async (
 
   const whereClause = {
     userId: userId,
+    // Note: Handle account deactivation :
+    barber: {
+      user: {
+        isDeactivated: false,
+      },
+    },
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
 
@@ -1477,15 +1541,16 @@ const getAllBarbersFromDb = async (
   return formatPaginationResponse(barbers, total, page, limit);
 };
 
-const getAllBarbersAllFromDb = async (
-  userId: string,
-) => {
- 
-
-
+const getAllBarbersAllFromDb = async (userId: string) => {
   const result = await prisma.hiredBarber.findMany({
     where: {
       userId: userId,
+      // Note: Handle account deactivation :
+      barber: {
+        user: {
+          isDeactivated: false,
+        },
+      },
     },
     select: {
       barberId: true,
@@ -1505,7 +1570,6 @@ const getAllBarbersAllFromDb = async (
       },
     },
   });
-
 
   const barbers = result.map(barber => ({
     barberId: barber.barberId,
@@ -1616,13 +1680,17 @@ const terminateBarberIntoDb = async (
         const terminationDateStr = data.date.toFormat('MMM dd, yyyy');
         const reasonText = data.reason ? ` Reason: ${data.reason}` : '';
         const message = `Your employment has been terminated effective ${terminationDateStr}.${reasonText}`;
-        
-        await notificationService.sendNotification(
-          terminatedBarber.user.fcmToken,
-          'Employment Terminated',
-          message,
-          data.barberId,
-        ).catch(error => console.error('Error sending termination notification:', error));
+
+        await notificationService
+          .sendNotification(
+            terminatedBarber.user.fcmToken,
+            'Employment Terminated',
+            message,
+            data.barberId,
+          )
+          .catch(error =>
+            console.error('Error sending termination notification:', error),
+          );
       }
     } catch (error) {
       console.error('Error sending barber termination notification:', error);
@@ -1664,6 +1732,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
           dateOfBirth: true,
           followerCount: true,
           followingCount: true,
+          isDeactivated: true,
           Service: {
             select: {
               id: true,
@@ -1696,6 +1765,14 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
   });
   if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
+  }
+
+  // Note: Handle account deactivation :
+  if (result?.user.isDeactivated) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Saloon owner account is deactiaved!',
+    );
   }
 
   // check following or not

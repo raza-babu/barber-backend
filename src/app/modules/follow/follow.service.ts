@@ -18,6 +18,7 @@ const createFollowIntoDb = async (
     where: {
       id: data.followingId,
       status: UserStatus.ACTIVE,
+      isDeactivated: false,
     },
   });
   if (!followingUser) {
@@ -97,6 +98,10 @@ const getFollowingListFromDb = async (userId: string) => {
   const result = await prisma.follow.findMany({
     where: {
       userId: userId,
+      following: {
+        status: UserStatus.ACTIVE,
+        isDeactivated: false,
+      },
     },
     select: {
       id: true,
@@ -142,6 +147,10 @@ const getFollowListFromDb = async (userId: string) => {
   const result = await prisma.follow.findMany({
     where: {
       followingId: userId,
+      follower: {
+        status: UserStatus.ACTIVE,
+        isDeactivated: false,
+      },
     },
     select: {
       id: true,
@@ -186,10 +195,11 @@ const getFollowByIdFromDb = async (userId: string, followId: string) => {
   const result = await prisma.follow.findUnique({
     where: {
       id: followId,
-      OR: [
-        { userId: userId },
-        { followingId: userId },
-      ]
+      OR: [{ userId: userId }, { followingId: userId }],
+      following: {
+        status: UserStatus.ACTIVE,
+        isDeactivated: false,
+      },
     },
     select: {
       id: true,
@@ -205,7 +215,7 @@ const getFollowByIdFromDb = async (userId: string, followId: string) => {
       },
     },
   });
-  if (!result || result.following.status !== UserStatus.ACTIVE) {
+  if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'follow not found');
   }
   return {
