@@ -871,6 +871,14 @@ const getAdminDashboardFromDb = async (userId: string) => {
     orderBy: { createdAt: 'asc' },
   });
 
+  const userNow = new Date();
+
+  // First day of same month last year
+  const startDate = new Date(userNow.getFullYear() - 1, userNow.getMonth(), 1);
+
+  // Last day of current month
+  const endDate = new Date(userNow.getFullYear(), userNow.getMonth() + 1, 0);
+
   const userGrowth = await prisma.user.groupBy({
     by: ['createdAt', 'role'],
     _count: {
@@ -886,11 +894,14 @@ const getAdminDashboardFromDb = async (userId: string) => {
       },
       status: UserStatus.ACTIVE,
       createdAt: {
-        gte: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Last month
+        gte: startDate, // Last month
+        lte: endDate,
       },
     },
     orderBy: [{ createdAt: 'asc' }, { role: 'asc' }],
   });
+
+  console.log(userGrowth);
 
   // Prepare last 12 months labels
   interface MonthEarning {
@@ -922,25 +933,35 @@ const getAdminDashboardFromDb = async (userId: string) => {
     }
   });
 
+  console.log(userGrowth);
+
   // Prepare user growth per month with month name
-  const userGrowthByMonth: { month: string; role: string; count: number }[] =
-    [];
-  months.forEach(month => {
-    ['SALOON_OWNER', 'BARBER', 'CUSTOMER'].forEach(role => {
-      const count = userGrowth
-        .filter(
-          item =>
-            item.role === role &&
-            item.createdAt.getFullYear() === month.year &&
-            item.createdAt.getMonth() === month.month,
-        )
-        .reduce((sum, item) => sum + item._count.id, 0);
-      userGrowthByMonth.push({
-        month: month.label,
-        role,
-        count,
-      });
+  const userGrowthByMonth = months.map(month => {
+    const monthData = {
+      date: month.label,
+      SALOON_OWNER: 0,
+      BARBER: 0,
+      CUSTOMER: 0,
+      total: 0,
+    };
+
+    userGrowth.forEach(item => {
+      if (
+        item.createdAt.getFullYear() === month.year &&
+        item.createdAt.getMonth() === month.month
+      ) {
+        if (
+          item.role === 'SALOON_OWNER' ||
+          item.role === 'BARBER' ||
+          item.role === 'CUSTOMER'
+        ) {
+          monthData[item.role] += item._count.id;
+          monthData['total'] += item._count.id;
+        }
+      }
     });
+
+    return monthData;
   });
 
   return {
@@ -952,11 +973,7 @@ const getAdminDashboardFromDb = async (userId: string) => {
       month: m.label,
       total: m.total,
     })),
-    userGrowth: userGrowthByMonth.map(item => ({
-      date: item.month, // Use the month label as the date
-      role: item.role,
-      count: item.count,
-    })),
+    userGrowth: userGrowthByMonth,
   };
 };
 
