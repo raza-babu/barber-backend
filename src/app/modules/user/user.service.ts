@@ -250,6 +250,8 @@ const resendUserVerificationEmail = async (email: string) => {
 
 const registerSaloonOwnerIntoDB = async (payload: any) => {
   const { email } = payload;
+
+  console.log(payload)
   let userId;
 
   if (email) {
@@ -276,6 +278,7 @@ const registerSaloonOwnerIntoDB = async (payload: any) => {
     const result = await prisma.$transaction(async tx => {
       // Exclude 'email' from payload before creating saloon owner
       const { email, ...saloonOwnerData } = payload;
+
       const createdSaloonOwner = await tx.saloonOwner.create({
         data: {
           ...saloonOwnerData,
@@ -283,7 +286,7 @@ const registerSaloonOwnerIntoDB = async (payload: any) => {
         },
       });
       const updatedUser = await tx.user.update({
-        where: { email, intendedRole: UserRoleEnum.SALOON_OWNER },
+        where: { email },
         data: {
           role: UserRoleEnum.SALOON_OWNER,
           intendedRole: null,

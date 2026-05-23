@@ -28,6 +28,8 @@ const resendUserVerificationEmail = catchAsync(async (req, res) => {
 const registerSaloonOwner = catchAsync(async (req, res) => {
   const { files, body } = req;
 
+  console.log(files, body)
+
   const uploads: {
     shopLogo?: string;
     shopImages: string[];
