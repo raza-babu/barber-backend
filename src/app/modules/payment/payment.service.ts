@@ -2824,7 +2824,7 @@ const getAllPayments = async (query: Record<string, unknown>) => {
   } = query;
 
   // Page and limit calculation:
-  const pageNum = Math.max(1, parseInt(String(page), 1) || 1);
+  const pageNum = Number(page) || 1;
   const limitNum = Math.max(1, parseInt(String(limit), 10) || 10);
 
   const whereClause: Prisma.PaymentWhereInput = {};
