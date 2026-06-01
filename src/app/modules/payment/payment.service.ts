@@ -1272,6 +1272,14 @@ const createAccountIntoStripe = async (userId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
 
+  // ? If already had an account connected:
+  if (userData.stripeAccountId && userData?.stripeAccountId?.length > 1) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'You have already a connected account!',
+    );
+  }
+
   if (userData.stripeAccountUrl && userData.stripeCustomerId) {
     const stripeAccountId = userData.stripeCustomerId;
     const accountLink = await stripe.accountLinks.create({
