@@ -1273,7 +1273,11 @@ const createAccountIntoStripe = async (userId: string) => {
   }
 
   // ? If already had an account connected:
-  if (userData.stripeAccountId && userData?.stripeAccountId?.length > 1) {
+  if (
+    userData.stripeAccountId &&
+    userData?.stripeAccountId?.length > 1 &&
+    userData.onBoarding
+  ) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'You have already a connected account!',
