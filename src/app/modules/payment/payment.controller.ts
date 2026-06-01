@@ -342,6 +342,8 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
     return res.status(400).send('Webhook Error');
   }
 
+  console.log(event);
+
   // Handle the event types
   switch (event.type) {
     case 'account.updated':
