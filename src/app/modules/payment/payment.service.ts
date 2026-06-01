@@ -2794,6 +2794,8 @@ const checkAvailableBalanceService = async (userId: string) => {
     const balance = await stripe.balance.retrieve({
       stripeAccount: user.stripeAccountId!,
     });
+
+    console.log('Stripe Account Balance', balance);
     const availableBalance = balance.available[0]?.amount || 0; // in pence
     const pendingBalance = balance.pending[0]?.amount || 0; // in pence
     return {
