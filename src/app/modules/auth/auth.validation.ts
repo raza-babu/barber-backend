@@ -1,19 +1,19 @@
-import { fcm } from "googleapis/build/src/apis/fcm";
-import z from "zod";
+import { fcm } from 'googleapis/build/src/apis/fcm';
+import z from 'zod';
 const loginUser = z.object({
   body: z.object({
     email: z
       .string({
-        required_error: "Email is required!",
+        required_error: 'Email is required!',
       })
       .email({
-        message: "Invalid email format!",
-      }),
+        message: 'Invalid email format!',
+      })
+      .toLowerCase(),
     password: z.string({
-      required_error: "Password is required!",
+      required_error: 'Password is required!',
     }),
     fcmToken: z.string().optional(),
-  
   }),
 });
 
