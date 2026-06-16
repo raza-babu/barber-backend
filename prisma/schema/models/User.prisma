@@ -30,6 +30,8 @@ model User {
   subscriptionEnd      DateTime?
   followerCount        Int                    @default(0)
   followingCount       Int                    @default(0)
+  blockCount           Int                    @default(0)
+  blockedByCount       Int                    @default(0)
   isDeleted            Boolean                @default(false)
   deleteReason         String?
   isDeactivated        Boolean                @default(false)
@@ -45,6 +47,8 @@ model User {
   chatsReceived       Chat[]                @relation("ReceiverRelation")
   following           Follow[]              @relation("FollowingRelation") // Users this user is following
   followers           Follow[]              @relation("FollowerRelation") // Users following this user
+  blockList           Block[]               @relation("Blocks") // Users I've blocked
+  blockedByList       Block[]               @relation("BlockedBy") // Users who blocked me
   notifications       Notification[]
   createdRooms        Room[]                @relation("CreatorRelation")
   SaloonOwner         SaloonOwner[]

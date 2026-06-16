@@ -15,6 +15,7 @@ import path from 'path';
 import axios from 'axios';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { notificationService } from '../notification/notification.service';
+import { blockService } from '../block/block.service';
 
 const createCustomerIntoDb = async (userId: string, data: any) => {
   const result = await prisma.saloonOwner.create({
@@ -471,9 +472,19 @@ const getAllSaloonListFromDb = async (
     minRating,
   } = query;
 
+  // Get blocked user IDs
+  const blockedUserIds = userId
+    ? await blockService.getBlockedUserIdsFromDb(userId)
+    : [];
+  const blockedByUserIds = userId
+    ? await blockService.getBlockedByUserIdsFromDb(userId)
+    : [];
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   // Build where clause
   const where: any = {
     isVerified: true,
+    userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
   };
 
   if (searchTerm) {
@@ -1193,6 +1204,15 @@ const getTopRatedSaloonsFromDb = async (
 ) => {
   const { searchTerm = '', page = 1, limit = 10, minRating } = query;
 
+  // Get blocked user IDs
+  const blockedUserIds = userId
+    ? await blockService.getBlockedUserIdsFromDb(userId)
+    : [];
+  const blockedByUserIds = userId
+    ? await blockService.getBlockedByUserIdsFromDb(userId)
+    : [];
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   // Build where clause
   const where: any = {
     isVerified: true,
@@ -1200,6 +1220,7 @@ const getTopRatedSaloonsFromDb = async (
     user: {
       isDeactivated: false,
     },
+    userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
   };
 
   if (searchTerm) {

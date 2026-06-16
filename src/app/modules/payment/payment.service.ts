@@ -18,6 +18,7 @@ import { TStripeSaveWithCustomerInfoPayload } from './payment.interface';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { DateTime } from 'luxon';
 import paymentTransfer from '../../utils/paymentTransfer';
+import { blockService } from '../block/block.service';
 // import { notificationService } from '../Notification/Notification.service';
 
 // Initialize Stripe with your secret API key
@@ -1533,6 +1534,33 @@ const tipPaymentToBarberService = async (
   if (!booking) throw new AppError(httpStatus.BAD_REQUEST, 'Booking not found');
   if (!booking.user?.stripeCustomerId)
     throw new AppError(httpStatus.BAD_REQUEST, 'Customer has no Stripe ID');
+
+  // Check if customer is blocked from tipping
+  if (barberAmount > 0 && booking.barber) {
+    const isBlockedByBarber = await blockService.checkIfBlockedFromDb(
+      userId,
+      booking.barberId!,
+    );
+    if (isBlockedByBarber) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'You are blocked by this barber',
+      );
+    }
+  }
+
+  if (saloonOwnerAmount > 0) {
+    const isBlockedBySaloon = await blockService.checkIfBlockedFromDb(
+      userId,
+      booking.saloonOwnerId,
+    );
+    if (isBlockedBySaloon) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'You are blocked by this saloon owner',
+      );
+    }
+  }
 
   // Only validate account IDs for the recipients being tipped
   if (saloonOwnerAmount > 0 && !booking.saloonOwner.user?.stripeAccountId)

@@ -7,6 +7,7 @@ import {
 } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { notificationService } from '../notification/notification.service';
+import { blockService } from '../block/block.service';
 
 const createFavoriteFeedIntoDb = async (
   userId: string,
@@ -77,6 +78,11 @@ const getFavoriteFeedListFromDb = async (
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
+  // Get blocked user IDs
+  const blockedUserIds = await blockService.getBlockedUserIdsFromDb(userId);
+  const blockedByUserIds = await blockService.getBlockedByUserIdsFromDb(userId);
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   // Build search query
   const searchQuery = options.searchTerm
     ? {
@@ -94,6 +100,11 @@ const getFavoriteFeedListFromDb = async (
   // Combine all queries
   const whereClause = {
     userId: userId,
+    feed: {
+      is: {
+        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
+      },
+    },
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
 

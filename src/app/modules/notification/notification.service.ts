@@ -9,17 +9,34 @@ import {
   formatPaginationResponse,
 } from '../../utils/pagination';
 import admin from '../../utils/firebase';
+import { blockService } from '../block/block.service';
 
 const sendNotification = async (
   deviceToken: string | null | undefined,
   title: string,
   body: string,
   userId: string,
+  senderId?: string,
 ) => {
   if (!title || !body || !userId) {
     throw new Error(
       'Title, body, and user ID are required to send a notification',
     );
+  }
+
+  // Check if recipient is blocked by sender or has blocked sender
+  if (senderId && senderId !== userId) {
+    const isBlocked = await blockService.checkIfBlockedFromDb(senderId, userId);
+    if (isBlocked) {
+      // Silently skip notification to blocked users
+      return {
+        title,
+        body,
+        userId,
+        delivery: 'blocked-user',
+        badge: 0,
+      };
+    }
   }
 
   try {

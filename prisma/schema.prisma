@@ -384,6 +384,25 @@ model BarberSchedule {
 }
 
 
+model Block {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  blockerId String   @db.ObjectId
+  blockedId String   @db.ObjectId
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  blocker User @relation("BlockedBy", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocks", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+
 model BookedServices {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   bookingId  String?  @db.ObjectId
@@ -1302,6 +1321,8 @@ model User {
   subscriptionEnd      DateTime?
   followerCount        Int                    @default(0)
   followingCount       Int                    @default(0)
+  blockCount           Int                    @default(0)
+  blockedByCount       Int                    @default(0)
   isDeleted            Boolean                @default(false)
   deleteReason         String?
   isDeactivated        Boolean                @default(false)
@@ -1317,6 +1338,8 @@ model User {
   chatsReceived       Chat[]                @relation("ReceiverRelation")
   following           Follow[]              @relation("FollowingRelation") // Users this user is following
   followers           Follow[]              @relation("FollowerRelation") // Users following this user
+  blockList           Block[]               @relation("Blocks") // Users I've blocked
+  blockedByList       Block[]               @relation("BlockedBy") // Users who blocked me
   notifications       Notification[]
   createdRooms        Room[]                @relation("CreatorRelation")
   SaloonOwner         SaloonOwner[]

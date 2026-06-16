@@ -18,6 +18,7 @@ import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { customerService } from '../customer/customer.service';
 import config from '../../../config';
 import { notificationService } from '../notification/notification.service';
+import { blockService } from '../block/block.service';
 
 // Initialize Stripe
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -82,6 +83,30 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     throw new AppError(
       httpStatus.NOT_FOUND,
       'Saloon not found or not verified',
+    );
+  }
+
+  // Check if customer is blocked by saloon owner
+  const isBlockedBySaloon = await blockService.checkIfBlockedFromDb(
+    userId,
+    saloonOwnerId,
+  );
+  if (isBlockedBySaloon) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are blocked by this salon owner',
+    );
+  }
+
+  // Check if customer blocked the saloon owner
+  const hasBlockedSaloon = await blockService.checkIfBlockedFromDb(
+    saloonOwnerId,
+    userId,
+  );
+  if (hasBlockedSaloon) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'This salon owner is blocked',
     );
   }
 
@@ -2835,6 +2860,25 @@ const getAvailableBarbersForWalkingInFromDb = async (
   });
   if (!salon)
     throw new AppError(httpStatus.NOT_FOUND, 'Salon not found or deactivated');
+
+  // Check if customer is blocked by saloon owner
+  if (userId) {
+    const isBlockedBySaloon = await blockService.checkIfBlockedFromDb(
+      userId,
+      saloonOwnerId,
+    );
+    if (isBlockedBySaloon) {
+      return { message: 'You are blocked by this salon owner' };
+    }
+
+    const hasBlockedSaloon = await blockService.checkIfBlockedFromDb(
+      saloonOwnerId,
+      userId,
+    );
+    if (hasBlockedSaloon) {
+      return { message: 'This salon owner is blocked' };
+    }
+  }
 
   let barbers = await prisma.barber.findMany({
     where: {

@@ -4,6 +4,7 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { notificationService } from '../notification/notification.service';
 import { deleteFileFromSpace } from '../../utils/deleteImage';
+import { blockService } from '../block/block.service';
 
 const createFeedIntoDb = async (userId: string, data: any) => {
   let saloonOwner;
@@ -60,6 +61,7 @@ const createFeedIntoDb = async (userId: string, data: any) => {
             'New Feed Posted',
             `${creator.fullName} posted new content!`,
             follower.id,
+            userId,
           );
         }
       }
@@ -82,6 +84,15 @@ const getFeedListFromDb = async (
   const pageNum = Math.max(1, Number(page) || 1);
   const skip = (pageNum - 1) * take;
 
+  // Get blocked user IDs to exclude from feed
+  const blockedUserIds = userId
+    ? await blockService.getBlockedUserIdsFromDb(userId)
+    : [];
+  const blockedByUserIds = userId
+    ? await blockService.getBlockedByUserIdsFromDb(userId)
+    : [];
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   // Note: Handle account deactivation :
   // fetch page + total in a transaction
   const [result, total] = await prisma.$transaction([
@@ -90,6 +101,7 @@ const getFeedListFromDb = async (
         user: {
           status: UserStatus.ACTIVE,
           isDeactivated: false,
+          id: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
         },
       },
       skip,
@@ -129,6 +141,7 @@ const getFeedListFromDb = async (
         user: {
           status: UserStatus.ACTIVE,
           isDeactivated: false,
+          id: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
         },
       },
     }),

@@ -3,6 +3,7 @@ import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { notificationService } from '../notification/notification.service';
+import { blockService } from '../block/block.service';
 
 const createFollowIntoDb = async (
   userId: string,
@@ -23,6 +24,18 @@ const createFollowIntoDb = async (
   });
   if (!followingUser) {
     throw new AppError(httpStatus.NOT_FOUND, 'Following user not found');
+  }
+
+  // Check if users are blocked
+  const isBlocked = await blockService.checkIfBlockedFromDb(
+    userId,
+    data.followingId,
+  );
+  if (isBlocked) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Cannot follow a blocked user or a user who blocked you',
+    );
   }
 
   const existingFollow = await prisma.follow.findFirst({
@@ -82,6 +95,7 @@ const createFollowIntoDb = async (
           'New Follower',
           `${follower.fullName} started following you!`,
           data.followingId,
+          userId,
         );
       }
     } catch (error) {
@@ -95,12 +109,18 @@ const createFollowIntoDb = async (
 };
 
 const getFollowingListFromDb = async (userId: string) => {
+  // Get blocked user IDs
+  const blockedUserIds = await blockService.getBlockedUserIdsFromDb(userId);
+  const blockedByUserIds = await blockService.getBlockedByUserIdsFromDb(userId);
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   const result = await prisma.follow.findMany({
     where: {
       userId: userId,
       following: {
         status: UserStatus.ACTIVE,
         isDeactivated: false,
+        id: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
     },
     select: {
@@ -144,12 +164,18 @@ const getFollowingListFromDb = async (userId: string) => {
 };
 
 const getFollowListFromDb = async (userId: string) => {
+  // Get blocked user IDs
+  const blockedUserIds = await blockService.getBlockedUserIdsFromDb(userId);
+  const blockedByUserIds = await blockService.getBlockedByUserIdsFromDb(userId);
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   const result = await prisma.follow.findMany({
     where: {
       followingId: userId,
       follower: {
         status: UserStatus.ACTIVE,
         isDeactivated: false,
+        id: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
     },
     select: {

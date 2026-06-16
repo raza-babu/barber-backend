@@ -17,6 +17,7 @@ import {
 import prisma from '../../utils/prisma';
 import config from '../../../config';
 import { notificationService } from '../notification/notification.service';
+import { blockService } from '../block/block.service';
 
 // Initialize Stripe
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -1701,6 +1702,17 @@ const terminateBarberIntoDb = async (
 };
 
 const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
+  // Check if saloon owner is blocked
+  if (userId) {
+    const isBlocked = await blockService.checkIfBlockedFromDb(
+      userId,
+      saloonOwnerId,
+    );
+    if (isBlocked) {
+      throw new AppError(httpStatus.FORBIDDEN, 'This saloon is blocked');
+    }
+  }
+
   const result = await prisma.saloonOwner.findUnique({
     where: {
       userId: saloonOwnerId,

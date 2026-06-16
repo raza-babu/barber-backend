@@ -4,8 +4,57 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { notificationService } from '../notification/notification.service';
+import { blockService } from '../block/block.service';
 
 const createReviewIntoDb = async (userId: string, data: any) => {
+  // Check if customer is blocked by saloon owner
+  const isBlockedBySaloon = await blockService.checkIfBlockedFromDb(
+    userId,
+    data.saloonOwnerId,
+  );
+  if (isBlockedBySaloon) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You are blocked by this salon owner',
+    );
+  }
+
+  const hasBlockedSaloon = await blockService.checkIfBlockedFromDb(
+    data.saloonOwnerId,
+    userId,
+  );
+  if (hasBlockedSaloon) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'This salon owner is blocked',
+    );
+  }
+
+  // Check if customer is blocked by barber
+  if (data.barberId) {
+    const isBlockedByBarber = await blockService.checkIfBlockedFromDb(
+      userId,
+      data.barberId,
+    );
+    if (isBlockedByBarber) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'You are blocked by this barber',
+      );
+    }
+
+    const hasBlockedBarber = await blockService.checkIfBlockedFromDb(
+      data.barberId,
+      userId,
+    );
+    if (hasBlockedBarber) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'This barber is blocked',
+      );
+    }
+  }
+
   return await prisma.$transaction(async tx => {
     const BookingStatusCheck = await tx.booking.findUnique({
       where: {
@@ -160,10 +209,20 @@ const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: strin
   const skip = (pageNum - 1) * limitNum;
   const take = limitNum;
 
+  // Get blocked user IDs (if userId is the saloon owner or viewer)
+  const blockedUserIds = userId
+    ? await blockService.getBlockedUserIdsFromDb(userId)
+    : [];
+  const blockedByUserIds = userId
+    ? await blockService.getBlockedByUserIdsFromDb(userId)
+    : [];
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   const [result, total] = await Promise.all([
     prisma.review.findMany({
       where: {
         saloonOwnerId,
+        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
       select: {
         id: true,
@@ -218,6 +277,7 @@ const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: strin
     prisma.review.count({
       where: {
         saloonOwnerId,
+        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
     }),
   ]);
@@ -388,10 +448,16 @@ const getReviewListForBarberFromDb = async (
   const skip = (pageNum - 1) * limitNum;
   const take = limitNum;
 
+  // Get blocked user IDs
+  const blockedUserIds = await blockService.getBlockedUserIdsFromDb(userId);
+  const blockedByUserIds = await blockService.getBlockedByUserIdsFromDb(userId);
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   const [result, total] = await Promise.all([
     prisma.review.findMany({
       where: {
         OR: [{ barberId: userId }, { saloonOwnerId: userId }],
+        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
       select: {
         id: true,
@@ -446,6 +512,7 @@ const getReviewListForBarberFromDb = async (
     prisma.review.count({
       where: {
         OR: [{ barberId: userId }, { saloonOwnerId: userId }],
+        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
     }),
   ]);

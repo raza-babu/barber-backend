@@ -3,6 +3,7 @@ import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { BookingStatus } from '@prisma/client';
 import { notificationService } from '../notification/notification.service';
+import { blockService } from '../block/block.service';
 
 const createBarberIntoDb = async (userId: string, data: any) => {
   const result = await prisma.barber.create({
@@ -260,11 +261,21 @@ const getMyBookingsFromDb = async (
 };
 
 const getBarberListFromDb = async (userId: string) => {
+  // Get blocked user IDs
+  const blockedUserIds = userId
+    ? await blockService.getBlockedUserIdsFromDb(userId)
+    : [];
+  const blockedByUserIds = userId
+    ? await blockService.getBlockedByUserIdsFromDb(userId)
+    : [];
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
   const result = await prisma.barber.findMany({
     where: {
       user: {
         // Note: Handle account deactivations also:
         isDeactivated: false,
+        id: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
     },
   });
@@ -275,6 +286,14 @@ const getBarberListFromDb = async (userId: string) => {
 };
 
 const getBarberByIdFromDb = async (userId: string, barberId: string) => {
+  // Check if barber is blocked
+  if (userId) {
+    const isBlocked = await blockService.checkIfBlockedFromDb(userId, barberId);
+    if (isBlocked) {
+      throw new AppError(httpStatus.FORBIDDEN, 'This barber is blocked');
+    }
+  }
+
   const result = await prisma.barber.findUnique({
     where: {
       userId: barberId,
