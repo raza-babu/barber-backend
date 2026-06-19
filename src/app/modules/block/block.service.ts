@@ -3,7 +3,11 @@ import { UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 
-const blockUserIntoDb = async (userId: string, blockedId: string, reason?: string) => {
+const blockUserIntoDb = async (
+  userId: string,
+  blockedId: string,
+  reason?: string,
+) => {
   // Validate that user is not blocking themselves
   if (userId === blockedId) {
     throw new AppError(httpStatus.BAD_REQUEST, 'You cannot block yourself');

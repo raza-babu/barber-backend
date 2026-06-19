@@ -1,9 +1,9 @@
-import dotenv from "dotenv";
-import fs from "fs";
-import { firebase } from "googleapis/build/src/apis/firebase";
-import path from "path";
+import dotenv from 'dotenv';
+import fs from 'fs';
+import { firebase } from 'googleapis/build/src/apis/firebase';
+import path from 'path';
 
-dotenv.config({ path: path.join(process.cwd(), ".env") });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const loadApplePrivateKey = () => {
   const keyPath = 'AuthKey_ZCH3L987YV.p8';
@@ -12,7 +12,7 @@ const loadApplePrivateKey = () => {
     : path.join(process.cwd(), keyPath);
 
   try {
-    return fs.readFileSync(resolvedPath, "utf8");
+    return fs.readFileSync(resolvedPath, 'utf8');
   } catch (error) {
     throw new Error(`Failed to read Apple private key file at ${resolvedPath}`);
   }
@@ -22,14 +22,18 @@ const loadFirebaseConfig = () => {
   const firebaseConfigPath = path.join(process.cwd(), 'firebase.config.json');
 
   if (!fs.existsSync(firebaseConfigPath)) {
-    throw new Error(`Firebase config file not found at ${firebaseConfigPath}. Please create it from firebase.config.example.json or set up environment variables.`);
+    throw new Error(
+      `Firebase config file not found at ${firebaseConfigPath}. Please create it from firebase.config.example.json or set up environment variables.`,
+    );
   }
 
   try {
     const firebaseContent = fs.readFileSync(firebaseConfigPath, 'utf-8');
     return JSON.parse(firebaseContent);
   } catch (error) {
-    throw new Error(`Failed to parse Firebase config file at ${firebaseConfigPath}: ${error}`);
+    throw new Error(
+      `Failed to parse Firebase config file at ${firebaseConfigPath}: ${error}`,
+    );
   }
 };
 
@@ -42,7 +46,9 @@ const loadGoogleCredentials = () => {
   try {
     if (!fs.existsSync(resolvedPath)) {
       console.warn(`⚠️ Google credentials file not found at ${resolvedPath}`);
-      console.warn('   Create google-credentials.json or set GOOGLE_IAP_CREDENTIALS in .env');
+      console.warn(
+        '   Create google-credentials.json or set GOOGLE_IAP_CREDENTIALS in .env',
+      );
       return null;
     }
 
@@ -50,7 +56,9 @@ const loadGoogleCredentials = () => {
     const parsed = JSON.parse(credentialsContent);
     return JSON.stringify(parsed); // Return as JSON string for consistency with .env approach
   } catch (error) {
-    throw new Error(`Failed to load Google credentials from ${resolvedPath}: ${error}`);
+    throw new Error(
+      `Failed to load Google credentials from ${resolvedPath}: ${error}`,
+    );
   }
 };
 
@@ -104,5 +112,4 @@ export default {
   },
   backend_base_url: process.env.BACKEND_BASE_URL,
   frontend_base_url: process.env.FRONTEND_BASE_URL,
-
 };
