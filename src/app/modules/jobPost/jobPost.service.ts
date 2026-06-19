@@ -117,6 +117,7 @@ const createJobPostIntoDb = async (
             'New Job Opening',
             `${owner.fullName} posted a new job opening!`,
             userId,
+            userId,
           ).catch(error => console.error('Error sending follower notification:', error))
         );
         await Promise.all(notificationPromises);
@@ -463,6 +464,7 @@ const updateJobPostIntoDb = async (
           'Job Update',
           `Job details have been updated by ${owner.fullName}!`,
           userId,
+          userId,
         ).catch(error => console.error('Error sending applicant notification:', error))
       );
       await Promise.all(notificationPromises);
@@ -521,6 +523,7 @@ const toggleJobPostActiveIntoDb = async (userId: string, jobPostId: string) => {
           'Job Status Changed',
           `The job posting has been ${statusMessage} by ${owner.fullName}.`,
           userId,
+          userId,
         ).catch(error => console.error('Error sending status notification:', error))
       );
       await Promise.all(notificationPromises);
@@ -577,6 +580,7 @@ const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
           applicant.barber?.user?.fcmToken,
           'Job Deleted',
           `The job posting has been deleted by ${owner.fullName}.`,
+          userId,
           userId,
         ).catch(error => console.error('Error sending deletion notification:', error))
       );

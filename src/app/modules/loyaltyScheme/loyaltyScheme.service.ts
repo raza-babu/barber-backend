@@ -59,6 +59,7 @@ const createLoyaltySchemeIntoDb = async (
           'New Loyalty Scheme',
           `${owner.fullName} introduced a new loyalty scheme with ${data.percentage}% discount!`,
           userId,
+          userId,
         ).catch(error => console.error('Error sending loyalty scheme notification:', error))
       );
       await Promise.all(notificationPromises);
@@ -243,6 +244,7 @@ const updateLoyaltySchemeIntoDb = async (
           'Loyalty Scheme Updated',
           `${owner.fullName} updated the loyalty scheme to ${finalPercentage}% discount!`,
           userId,
+          userId,
         ).catch(error => console.error('Error sending update notification:', error))
       );
       await Promise.all(notificationPromises);
@@ -297,6 +299,7 @@ const deleteLoyaltySchemeItemFromDb = async (
           follower.follower.fcmToken,
           'Loyalty Scheme Deleted',
           `The loyalty scheme by ${owner.fullName} has been deleted.`,
+          userId,
           userId,
         ).catch(error => console.error('Error sending deletion notification:', error))
       );

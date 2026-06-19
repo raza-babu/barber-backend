@@ -39,6 +39,20 @@ const sendNotification = async (
     }
   }
 
+  // Lookup sender info for push notification payload
+  let senderName: string | undefined;
+  let senderImage: string | undefined;
+  if (senderId) {
+    const sender = await prisma.user.findUnique({
+      where: { id: senderId },
+      select: { fullName: true, image: true },
+    });
+    if (sender) {
+      senderName = sender.fullName ?? undefined;
+      senderImage = sender.image ?? undefined;
+    }
+  }
+
   try {
     let pushSent = false;
 
@@ -54,9 +68,18 @@ const sendNotification = async (
       const message = {
         notification: { title, body },
         token: deviceToken,
+        data: {
+          badge: (badgeCount + 1).toString(),
+          ...(senderId && { senderId }),
+          ...(senderName && { senderName }),
+          ...(senderImage && { senderImage }),
+        },
         webpush: {
           data: {
             badge: (badgeCount + 1).toString(),
+            ...(senderId && { senderId }),
+            ...(senderName && { senderName }),
+            ...(senderImage && { senderImage }),
           },
         },
         apns: {
@@ -81,6 +104,7 @@ const sendNotification = async (
         title,
         body,
         userId,
+        ...(senderId && { senderId }),
       },
     });
 
@@ -179,7 +203,25 @@ const getAllNotifications = async (userId: string, options: ISearchAndFilterOpti
       }),
     ]);
 
-    return formatPaginationResponse(notifications, total, page, limit);
+    // Enrich notifications with sender info
+    type NotificationWithSender = (typeof notifications)[number] & { senderId?: string | null };
+    const typedNotifications = notifications as NotificationWithSender[];
+    const senderIds = [...new Set(typedNotifications.map(n => n.senderId).filter(Boolean))] as string[];
+    const senders = senderIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: senderIds } },
+          select: { id: true, fullName: true, image: true },
+        })
+      : [];
+    const senderMap = Object.fromEntries(senders.map(s => [s.id, s]));
+
+    const enriched = typedNotifications.map(n => ({
+      ...n,
+      senderName: n.senderId ? (senderMap[n.senderId]?.fullName ?? null) : null,
+      senderImage: n.senderId ? (senderMap[n.senderId]?.image ?? null) : null,
+    }));
+
+    return formatPaginationResponse(enriched, total, page, limit);
   } catch (error) {
     console.error('Error fetching notifications:', error);
     throw error;
@@ -190,8 +232,26 @@ const getNotificationByUserId = async (userId: string) => {
   try {
     const notifications = await prisma.notification.findMany({
       where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
-    return notifications;
+
+    // Enrich with sender info
+    type NotificationWithSender = (typeof notifications)[number] & { senderId?: string | null };
+    const typedNotifications = notifications as NotificationWithSender[];
+    const senderIds = [...new Set(typedNotifications.map(n => n.senderId).filter(Boolean))] as string[];
+    const senders = senderIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: senderIds } },
+          select: { id: true, fullName: true, image: true },
+        })
+      : [];
+    const senderMap = Object.fromEntries(senders.map(s => [s.id, s]));
+
+    return typedNotifications.map(n => ({
+      ...n,
+      senderName: n.senderId ? (senderMap[n.senderId]?.fullName ?? null) : null,
+      senderImage: n.senderId ? (senderMap[n.senderId]?.image ?? null) : null,
+    }));
   } catch (error) {
     console.error('Error fetching notifications by user ID:', error);
     throw error;
@@ -229,9 +289,24 @@ const sendNotificationToGroupIntoDb = async (
     title: string;
     body: string;
     users: string[];
+    senderId?: string;
   },
 ) => {
-  const { title, body, users } = notificationData;
+  const { title, body, users, senderId } = notificationData;
+
+  // Lookup sender info once for all recipients
+  let senderName: string | undefined;
+  let senderImage: string | undefined;
+  if (senderId) {
+    const sender = await prisma.user.findUnique({
+      where: { id: senderId },
+      select: { fullName: true, image: true },
+    });
+    if (sender) {
+      senderName = sender.fullName ?? undefined;
+      senderImage = sender.image ?? undefined;
+    }
+  }
 
   const notifications = users.map(async user => {
     // Get current unread count before creating the notification
@@ -251,9 +326,18 @@ const sendNotificationToGroupIntoDb = async (
       const message = {
         notification: { title, body },
         token: fcmToken.fcmToken,
+        data: {
+          badge: (currentBadgeCount + 1).toString(),
+          ...(senderId && { senderId }),
+          ...(senderName && { senderName }),
+          ...(senderImage && { senderImage }),
+        },
         webpush: {
           data: {
             badge: (currentBadgeCount + 1).toString(),
+            ...(senderId && { senderId }),
+            ...(senderName && { senderName }),
+            ...(senderImage && { senderImage }),
           },
         },
         apns: {
@@ -277,6 +361,7 @@ const sendNotificationToGroupIntoDb = async (
         title,
         body,
         userId: user,
+        ...(senderId && { senderId }),
       },
     });
 

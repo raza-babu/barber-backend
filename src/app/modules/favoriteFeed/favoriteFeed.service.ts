@@ -62,6 +62,7 @@ const createFavoriteFeedIntoDb = async (
           'Feed Liked',
           `${customer.fullName} liked your feed!`,
           feed.userId,
+          userId,
         );
       }
     }

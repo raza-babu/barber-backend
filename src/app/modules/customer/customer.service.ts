@@ -1489,6 +1489,7 @@ const addSaloonToFavoritesInDb = async (
         'New Favorite',
         'A customer has added your salon to their favorites!',
         saloonOwnerId,
+        userId,
       );
     }
   } catch (error) {
@@ -2298,6 +2299,7 @@ const checkInToSaloonInDb = async (
           'Customer Checked In',
           'A customer has checked in for their appointment.',
           updatedBooking.barberId,
+          userId,
         );
       }
     }
@@ -2315,6 +2317,7 @@ const checkInToSaloonInDb = async (
           'Customer Checked In',
           'A customer has checked in for their appointment.',
           updatedBooking.saloonOwnerId,
+          userId,
         );
       }
     }

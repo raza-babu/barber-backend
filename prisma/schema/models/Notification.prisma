@@ -4,6 +4,7 @@ model Notification {
   title     String
   body      String
   data      String?
+  senderId  String?
   isRead    Boolean  @default(false)
   isClicked Boolean  @default(false)
   createdAt DateTime @default(now())

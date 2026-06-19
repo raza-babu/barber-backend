@@ -66,6 +66,7 @@ const createLoyaltyProgramIntoDb = async (
           'New Loyalty Program',
           `${owner.fullName} launched a new loyalty program for ${findService.serviceName}!`,
           userId,
+          userId,
         ).catch(error => console.error('Error sending loyalty program notification:', error))
       );
       await Promise.all(notificationPromises);
@@ -196,6 +197,7 @@ const updateLoyaltyProgramIntoDb = async (
           'Loyalty Program Updated',
           `${owner.fullName} updated the loyalty program for ${findService.serviceName}!`,
           userId,
+          userId,
         ).catch(error => console.error('Error sending update notification:', error))
       );
       await Promise.all(notificationPromises);
@@ -250,6 +252,7 @@ const deleteLoyaltyProgramItemFromDb = async (
           follower.follower.fcmToken,
           'Loyalty Program Deleted',
           `The loyalty program for ${loyaltyProgram.serviceName} by ${owner.fullName} has been deleted.`,
+          userId,
           userId,
         ).catch(error => console.error('Error sending deletion notification:', error))
       );

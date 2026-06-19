@@ -181,6 +181,7 @@ export function setupSocketIO(server: HTTPServer) {
                 'New Message',
                 message,
                 payload.receiverId,
+                id,
               )
               .catch(error =>
                 console.error('Error sending message notification:', error),

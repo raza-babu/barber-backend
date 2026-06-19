@@ -370,6 +370,7 @@ const deleteFollowingFromDb = async (userId: string, followId: string) => {
           'Unfollowed',
           `${unfollower.fullName} unfollowed you!`,
           follow.followingId,
+          userId,
         );
       }
     } catch (error) {
