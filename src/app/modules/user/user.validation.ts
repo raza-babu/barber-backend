@@ -332,6 +332,14 @@ const updateSaloonOwnerStatus = z.object({
   }),
 });
 
+const setNewPasswordSchema = z.object({
+  body: z.object({
+    newPassword: z
+      .string({ required_error: 'New password is required!' })
+      .min(6, { message: 'Password must be at least 6 characters!' }),
+  }),
+});
+
 export const UserValidations = {
   registerUser,
   updateProfileSchema,
@@ -346,6 +354,7 @@ export const UserValidations = {
   deleteAccount,
   deactivateAccount,
   reactivateAccount,
+  setNewPasswordSchema,
   updateSaloonOwnerStatus,
 };
 

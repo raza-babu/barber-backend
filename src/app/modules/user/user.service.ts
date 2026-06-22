@@ -1519,6 +1519,33 @@ const updatePasswordIntoDb = async (payload: any) => {
   };
 };
 
+const setNewPasswordForSocialUser = async (
+  userId: string,
+  newPassword: string,
+) => {
+  const userData = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!userData) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
+  }
+
+  if (userData.password !== null) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      'Password is already set. Use change-password instead.',
+    );
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  });
+
+  return { message: 'Password set successfully!' };
+};
+
 const deleteAccountFromDB = async (
   id: string,
   data: {
@@ -1725,6 +1752,7 @@ export const UserServices = {
   verifyOtpForgotPasswordInDB,
   socialLoginIntoDB,
   updatePasswordIntoDb,
+  setNewPasswordForSocialUser,
   resendOtpIntoDB,
   resendUserVerificationEmail,
   deleteAccountFromDB,

@@ -83,6 +83,13 @@ router.post(
 router.put('/change-password', auth(), UserControllers.changePassword);
 
 router.post(
+  '/set-password',
+  auth(),
+  validateRequest(UserValidations.setNewPasswordSchema),
+  UserControllers.setNewPassword,
+);
+
+router.post(
   '/forgot-password',
   validateRequest(UserValidations.forgetPasswordSchema),
   UserControllers.forgotPassword,

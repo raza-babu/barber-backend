@@ -274,6 +274,19 @@ const changePassword = catchAsync(async (req, res) => {
   });
 });
 
+const setNewPassword = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await UserServices.setNewPasswordForSocialUser(
+    user.id,
+    req.body.newPassword,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'Password set successfully',
+    data: result,
+  });
+});
+
 const forgotPassword = catchAsync(async (req, res) => {
   const result = await UserServices.forgotPassword(req.body);
 
@@ -411,6 +424,7 @@ export const UserControllers = {
   getBarberProfile,
   updateMyProfile,
   changePassword,
+  setNewPassword,
   verifyOtpForgotPassword,
   forgotPassword,
   verifyOtp,
