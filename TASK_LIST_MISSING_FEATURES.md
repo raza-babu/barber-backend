@@ -1741,7 +1741,7 @@
 4. Database backup before migrations
 5. Customer communication on new features
 
-### Performance Considerations
+### Performance Considerations :-
 1. Index deposit and payment fields in Booking/Payment models
 2. Cache active promotions
 3. Optimize blocking checks (use Redis cache)
