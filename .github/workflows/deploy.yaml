@@ -2,9 +2,9 @@ name: Deployed to EC2
 
 on:
   push:
-    branches: ['main']
+    branches: ['dev-mostafiz']
   pull_request:
-    branches: ['main']
+    branches: ['dev-mostafiz']
 
 jobs:
   build:
