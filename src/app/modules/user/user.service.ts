@@ -734,6 +734,7 @@ const getMyProfileFromDB = async (id: string) => {
       isDeactivated: true,
       createdAt: true,
       updatedAt: true,
+      password: true
     },
   });
 
@@ -745,7 +746,12 @@ const getMyProfileFromDB = async (id: string) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Your profile is deactiaved!');
   }
 
-  return Profile;
+  const {password, ...rest} = Profile
+
+  return { 
+    ...rest, 
+    isSetPasswordRequired: !password?.trim()
+  };
 };
 
 const getSaloonOwnerProfileFromDB = async (userId: string) => {
