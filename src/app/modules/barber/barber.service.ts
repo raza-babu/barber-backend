@@ -1,9 +1,12 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus, UserRoleEnum } from '@prisma/client';
 import { notificationService } from '../notification/notification.service';
 import { blockService } from '../block/block.service';
+import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import { buildCompleteQuery } from '../../utils/searchFilter';
+import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 
 const createBarberIntoDb = async (userId: string, data: any) => {
   const result = await prisma.barber.create({
@@ -632,6 +635,97 @@ const deleteBarberItemFromDb = async (userId: string, barberId: string) => {
   return deletedItem;
 };
 
+const getSaloonFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
+  const whereClause = buildCompleteQuery(
+    {
+      searchTerm: options.searchTerm,
+      searchFields: ['fullName', 'email', 'phoneNumber'],
+    },
+    {
+      role: UserRoleEnum.SALOON_OWNER,
+      isProfileComplete: true,
+      // ...(options.status
+      //   ? { status: options.status }
+      //   : { status: { not: UserStatus.PENDING } }),
+      ...(options?.status && { status: options.status }),
+    },
+    {
+      startDate: options.startDate,
+      endDate: options.endDate,
+      dateField: 'createdAt',
+    },
+  );
+
+  // Handle SaloonOwner specific filters
+  // if (options.isVerified !== undefined) {
+  //   whereClause.SaloonOwner = {
+  //     isVerified: options.isVerified === true,
+  //   };
+  // }
+
+  const [saloons, total] = await Promise.all([
+    prisma.user.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        status: true,
+        createdAt: true,
+        SaloonOwner: {
+          select: {
+            userId: true,
+            isVerified: true,
+            shopAddress: true,
+            shopName: true,
+            registrationNumber: true,
+            shopLogo: true,
+            shopImages: true,
+            shopVideo: true,
+            ratingCount: true,
+            avgRating: true,
+          },
+        },
+      },
+    }),
+    prisma.user.count({
+      where: whereClause,
+    }),
+  ]);
+
+  // Flatten the response so that SaloonOwner fields are at the top level
+  const flattenedSaloons = saloons.map(saloon => {
+    const { SaloonOwner, ...userFields } = saloon;
+    const owner = Array.isArray(SaloonOwner) ? SaloonOwner[0] : SaloonOwner;
+    return {
+      ...userFields,
+      userId: owner?.userId,
+      isVerified: owner?.isVerified,
+      shopPhoneNumber: userFields.phoneNumber,
+      shopAddress: owner?.shopAddress,
+      shopName: owner?.shopName,
+      registrationNumber: owner?.registrationNumber,
+      shopLogo: owner?.shopLogo,
+      shopImages: owner?.shopImages,
+      shopVideo: owner?.shopVideo,
+      ratingCount: owner?.ratingCount || 0,
+      avgRating: owner?.avgRating || 0,
+    };
+  });
+
+  return formatPaginationResponse(flattenedSaloons, total, page, limit);
+};
 export const barberService = {
   createBarberIntoDb,
   getMyScheduleFromDb,
@@ -641,4 +735,5 @@ export const barberService = {
   updateBookingStatusIntoDb,
   updateBarberIntoDb,
   deleteBarberItemFromDb,
+  getSaloonFromDb
 };

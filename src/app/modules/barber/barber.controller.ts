@@ -2,6 +2,7 @@ import httpStatus from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { barberService } from './barber.service';
+import { pickValidFields } from '../../utils/pickValidFields';
 
 const createBarber = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -107,6 +108,32 @@ const deleteBarber = catchAsync(async (req, res) => {
   });
 });
 
+const getSaloonList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const filters = pickValidFields(req.query, [
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+    'searchTerm',
+    'status',
+    'isVerified',
+    'startDate',
+    'endDate',
+  ]);
+  
+  const result = await barberService.getSaloonFromDb(user.id, filters);
+  
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Saloon list retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
+
 export const barberController = {
   createBarber,
   getMySchedule,
@@ -116,4 +143,5 @@ export const barberController = {
   updateBookingStatus,
   updateBarber,
   deleteBarber,
+  getSaloonList
 };

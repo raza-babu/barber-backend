@@ -4,6 +4,8 @@ import validateRequest from '../../middlewares/validateRequest';
 import { barberController } from './barber.controller';
 import { barberValidation } from './barber.validation';
 import { UserRoleEnum } from '@prisma/client';
+import { UserAccessFunctionName } from '../../utils/access';
+import { checkPermissions } from '../../middlewares/checkPermissions';
 
 const router = express.Router();
 
@@ -28,6 +30,15 @@ router.get(
   barberController.getMyBookings,
 );
 
+router.get(
+  '/saloons',
+  auth(UserRoleEnum.BARBER),
+  // checkPermissions(
+  //   UserAccessFunctionName.ALL || UserAccessFunctionName.SALOON_OWNER,
+  // ),
+  barberController.getSaloonList,
+);
+
 router.get('/:id', auth(), barberController.getBarberById);
 
 router.patch(
@@ -45,5 +56,7 @@ router.put(
 );
 
 router.delete('/:id', auth(), barberController.deleteBarber);
+
+
 
 export const barberRoutes = router;
