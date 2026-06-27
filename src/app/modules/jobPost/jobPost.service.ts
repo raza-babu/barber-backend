@@ -137,6 +137,8 @@ const getJobPostListFromDb = async (
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
+
+
   // Build search query
   const searchQuery = options.searchTerm
     ? {
@@ -163,11 +165,14 @@ const getJobPostListFromDb = async (
       }
     : {};
 
+
+
   // Build filter query
   const filterQuery: any = {
     isActive:
       options.isActive !== undefined ? options.isActive === 'true' : true,
   };
+  
 
   // Add experience filter if provided
   if (options.experienceRequired !== undefined) {
@@ -175,6 +180,7 @@ const getJobPostListFromDb = async (
       gte: Number(options.experienceRequired),
     };
   }
+
 
   // Build salary range filter
   const salaryRangeQuery = buildNumericRangeQuery(
@@ -194,6 +200,8 @@ const getJobPostListFromDb = async (
         }
       : {};
 
+      console.log("dateRangeQuery", dateRangeQuery)
+
     // find current owner
     const barber = await prisma.barber.findUnique({
       where: {
@@ -201,11 +209,11 @@ const getJobPostListFromDb = async (
       },
     });
 
+    
+
   // Combine all queries
   const whereClause: any = {
     isActive: true,
-    startDate: { lte: new Date() },
-    endDate: { gte: new Date() },
     // saloonOwnerId: {not: barber?.saloonOwnerId},
     saloonOwner: {
       Barber: {
@@ -220,6 +228,8 @@ const getJobPostListFromDb = async (
     ...dateRangeQuery,
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
+
+  
 
   // Exclude job posts the barber already applied to (if barberId provided)
   // Assumes a relation field "JobApplication" on jobPost and that each application has a "userId" field.
