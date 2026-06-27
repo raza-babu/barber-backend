@@ -200,7 +200,7 @@ const getJobPostListFromDb = async (
         }
       : {};
 
-      console.log("dateRangeQuery", dateRangeQuery)
+      
 
     // find current owner
     const barber = await prisma.barber.findUnique({
@@ -215,19 +215,23 @@ const getJobPostListFromDb = async (
   const whereClause: any = {
     isActive: true,
     // saloonOwnerId: {not: barber?.saloonOwnerId},
-    saloonOwner: {
-      Barber: {
-        some: {
-          // status: UserStatus.ACTIVE,
-          userId: barber?.userId
-        },
-      },
-    },
+    // saloonOwner: {
+    //   Barber: {
+    //     some: {
+    //       // status: UserStatus.ACTIVE,
+    //       userId: barber?.userId
+    //     },
+    //   },
+    // },
     ...filterQuery,
     ...salaryRangeQuery,
     ...dateRangeQuery,
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
+
+
+   console.log(whereClause, {depth: Infinity})
+
 
   
 
@@ -280,6 +284,7 @@ const getJobPostListFromDb = async (
       where: whereClause,
     }),
   ]);
+  
 
   // flatten saloonOwner details into main object
   const jobPostsWithSaloonDetails = jobPosts.map(jobPost => {
