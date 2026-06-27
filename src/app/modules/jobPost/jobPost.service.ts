@@ -263,6 +263,7 @@ const getJobPostListFromDb = async (
         // experienceRequired: true,
         isActive: true,
         datePosted: true,
+        hourlyRate: true, 
         startDate: true,
         endDate: true,
         shopName: true,
