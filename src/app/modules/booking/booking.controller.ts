@@ -62,7 +62,7 @@ const createBooking = catchAsync(async (req, res) => {
 
 const getBookingList = catchAsync(async (req, res) => {
   const user = req.user as any;
-  
+
   // Extract query parameters
   const filters = pickValidFields(req.query, [
     'searchTerm',
@@ -78,7 +78,7 @@ const getBookingList = catchAsync(async (req, res) => {
   ]);
 
   const result = await bookingService.getBookingListFromDb(user.id, filters);
-  
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -101,7 +101,7 @@ const getBookingListForSalonOwner = catchAsync(async (req, res) => {
     'status',
     'appointmentAt',
     'date',
-    'type'
+    'type',
   ]);
 
   if (user.role === UserRoleEnum.SALOON_OWNER) {
@@ -168,6 +168,11 @@ const getAvailableBarbersForWalkingIn = catchAsync(async (req, res) => {
   const user = req.user as any;
   const saloonId = req.params.saloonId;
   const type = req.params.type as ScheduleType;
+  console.log({
+    user,
+    saloonId,
+    type,
+  });
   if (type !== ScheduleType.BOOKING && type !== ScheduleType.QUEUE) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -241,7 +246,11 @@ const getBookingById = catchAsync(async (req, res) => {
 
 const updateBooking = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await bookingService.updateBookingIntoDb(user.id, req.body, req.params.id);
+  const result = await bookingService.updateBookingIntoDb(
+    user.id,
+    req.body,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

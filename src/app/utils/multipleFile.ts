@@ -55,7 +55,10 @@ export const aws = new S3Client({
   },
 });
 
-export const uploadFileToS3 = async (file: Express.Multer.File, folder: string) => {
+export const uploadFileToS3 = async (
+  file: Express.Multer.File,
+  folder: string,
+) => {
   if (!process.env.AWS_S3_BUCKET) {
     throw new Error('AWS_S3_BUCKET is not defined in environment variables.');
   }
@@ -81,7 +84,7 @@ export const uploadFileToS3 = async (file: Express.Multer.File, folder: string) 
 const multerUploadMultiple = multer({
   storage: multer.memoryStorage(), // Store file in memory (buffer)
   limits: {
-    fileSize: 5 * 1024 * 1024, // Optional: limit file size (5MB in this example)
+    fileSize: 20 * 1024 * 1024, // Optional: limit file size (5MB in this example)
   },
 });
 

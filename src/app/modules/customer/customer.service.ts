@@ -2104,6 +2104,7 @@ const getPendingTipsListFromDb = async (
           select: {
             userId: true,
             portfolio: true,
+            portfolioVideo: true,
             user: {
               select: {
                 id: true,

@@ -41,7 +41,10 @@ router.patch(
 
 router.patch(
   '/update/barber',
-  multerUploadMultiple.fields([{ name: 'portfolioImages', maxCount: 5 }]),
+  multerUploadMultiple.fields([
+    { name: 'portfolioImages', maxCount: 5 },
+    { name: 'portfolioVideos', maxCount: 5 },
+  ]),
   parseBody,
   auth(),
   validateRequest(UserValidations.updateBarber),

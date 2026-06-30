@@ -210,6 +210,7 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
             select: {
               userId: true,
               portfolio: true,
+              portfolioVideo: true,
               experienceYears: true,
               skills: true,
               bio: true,
@@ -329,6 +330,7 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
         phoneNumber: barber.user?.phoneNumber || '',
         status: barber.user?.status || 'INACTIVE',
         portfolio: barber.portfolio || [],
+        portfolioVideo: barber.portfolioVideo,
         experienceYears: barber.experienceYears || 0,
         skills: barber.skills || [],
         bio: barber.bio || '',
@@ -454,6 +456,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
           select: {
             userId: true,
             portfolio: true,
+            portfolioVideo: true,
             experienceYears: true,
             skills: true,
             bio: true,
@@ -488,6 +491,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
       ...userFields,
       userId: Barber?.userId || userFields.id,
       portfolio: Barber?.portfolio,
+      portfolioVideo: Barber?.portfolioVideo,
       experienceYears: Barber?.experienceYears,
       skills: Barber?.skills,
       bio: Barber?.bio,
@@ -520,6 +524,7 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
         select: {
           userId: true,
           portfolio: true,
+          portfolioVideo: true,
           experienceYears: true,
           skills: true,
           bio: true,
@@ -597,6 +602,7 @@ const getBarberByIdFromDb = async (userId: string, barberId: string) => {
     phoneNumber: result.phoneNumber,
     status: result.status,
     portfolio: result.Barber?.portfolio || [],
+    portfolioVideo: result.Barber?.portfolioVideo || [],
     experienceYears: result.Barber?.experienceYears || 0,
     skills: result.Barber?.skills || [],
     bio: result.Barber?.bio || '',
@@ -642,6 +648,7 @@ const blockBarberByIdIntoDb = async (
         select: {
           userId: true,
           portfolio: true,
+          portfolioVideo: true,
           experienceYears: true,
           skills: true,
           bio: true,

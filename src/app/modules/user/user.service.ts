@@ -251,7 +251,7 @@ const resendUserVerificationEmail = async (email: string) => {
 const registerSaloonOwnerIntoDB = async (payload: any) => {
   const { email } = payload;
 
-  console.log(payload)
+  console.log(payload);
   let userId;
 
   if (email) {
@@ -409,17 +409,24 @@ const updateBarberIntoDB = async (userId: string, payload: any) => {
   // delete removed reference images from aws s3 space
   const currentBarber = await prisma.barber.findUnique({
     where: { userId: existingUser!.id },
-    select: { portfolio: true },
+    select: { portfolio: true, portfolioVideo: true },
   });
   const currentImages = currentBarber?.portfolio || [];
+  const currentVideos = currentBarber?.portfolioVideo || [];
   const newImages = payload.portfolio || [];
+  const newVideos = payload.portfolioVideo || [];
   const removedImages = currentImages.filter(
     (img: string) => !newImages.includes(img),
   );
+  const removedVideos = currentVideos.filter(
+    (video: string) => !newVideos.includes(video),
+  );
 
-  // Delete removed images from S3
-  for (const img of removedImages) {
-    await deleteFileFromSpace(img).catch(error =>
+  const allRemovedFiles = [...removedVideos, ...removedImages];
+
+  // Delete removed images/videos from S3
+  for (const file of allRemovedFiles) {
+    await deleteFileFromSpace(file).catch(error =>
       console.error('Error deleting old reference image from S3:', error),
     );
   }
@@ -734,7 +741,7 @@ const getMyProfileFromDB = async (id: string) => {
       isDeactivated: true,
       createdAt: true,
       updatedAt: true,
-      password: true
+      password: true,
     },
   });
 
@@ -746,11 +753,11 @@ const getMyProfileFromDB = async (id: string) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Your profile is deactiaved!');
   }
 
-  const {password, ...rest} = Profile
+  const { password, ...rest } = Profile;
 
-  return { 
-    ...rest, 
-    isSetPasswordRequired: !password?.trim()
+  return {
+    ...rest,
+    isSetPasswordRequired: !password?.trim(),
   };
 };
 

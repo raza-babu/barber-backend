@@ -1771,6 +1771,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
           experienceYears: true,
           bio: true,
           portfolio: true,
+          portfolioVideo: true,
         },
       },
     },
@@ -1836,6 +1837,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       experienceYears: barber.experienceYears,
       bio: barber.bio,
       portfolio: barber.portfolio,
+      portfolioVideo: barber.portfolioVideo,
     })),
     isFollowing: isFollowing ? true : false,
   };

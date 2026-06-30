@@ -5,6 +5,7 @@ export const parseBody = (req: Request, res: Response, next: NextFunction) => {
     try {
       req.body = JSON.parse(req.body.bodyData);
     } catch (error) {
+      console.log(error);
       return res.status(400).json({
         success: false,
         message: 'Invalid JSON format in bodyData',

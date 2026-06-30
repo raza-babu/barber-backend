@@ -2,7 +2,10 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { buildCompleteQuery } from '../../utils/searchFilter';
-import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { UserRoleEnum } from '@prisma/client';
 import config from '../../../config';
@@ -200,6 +203,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
           select: {
             userId: true,
             portfolio: true,
+            portfolioVideo: true,
             experienceYears: true,
             skills: true,
             bio: true,
@@ -217,7 +221,7 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
                 id: true,
                 hourlyRate: true,
               },
-            },        
+            },
           },
         },
       },
@@ -229,11 +233,12 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
 
   // Flatten the response so that Barber fields are at the top level
   const flattenedBarbers = barbers.map(barber => {
-    const {Barber, ...userFields } = barber;
+    const { Barber, ...userFields } = barber;
     return {
       ...userFields,
       userId: Barber?.userId || userFields.id,
       portfolio: Barber?.portfolio,
+      portfolioVideo: Barber?.portfolioVideo,
       experienceYears: Barber?.experienceYears,
       skills: Barber?.skills,
       bio: Barber?.bio,
@@ -246,7 +251,6 @@ const getBarbersListFromDb = async (options: ISearchAndFilterOptions) => {
 
   return formatPaginationResponse(flattenedBarbers, total, page, limit);
 };
-
 
 export const groupService = {
   createGroupIntoDb,

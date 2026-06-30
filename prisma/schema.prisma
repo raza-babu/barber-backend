@@ -253,6 +253,7 @@ model Barber {
   currentWorkDes  String?
   bio             String?
   portfolio       String[]
+  portfolioVideo  String[]
   isAvailable     Boolean  @default(false)
   experienceYears String?
   skills          String[]
@@ -797,6 +798,7 @@ model Notification {
   title     String
   body      String
   data      String?
+  senderId  String?
   isRead    Boolean  @default(false)
   isClicked Boolean  @default(false)
   createdAt DateTime @default(now())

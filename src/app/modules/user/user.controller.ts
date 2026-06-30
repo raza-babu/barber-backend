@@ -28,7 +28,7 @@ const resendUserVerificationEmail = catchAsync(async (req, res) => {
 const registerSaloonOwner = catchAsync(async (req, res) => {
   const { files, body } = req;
 
-  console.log(files, body)
+  console.log(files, body);
 
   const uploads: {
     shopLogo?: string;
@@ -159,12 +159,15 @@ const updateBarber = catchAsync(async (req, res) => {
 
   const uploads: {
     portfolioImages: string[];
+    portfolioVideos: string[];
   } = {
     portfolioImages: [],
+    portfolioVideos: [],
   };
 
   const fileGroups: {
     portfolioImages?: Express.Multer.File[];
+    portfolioVideos?: Express.Multer.File[];
   } = (files as any) || {};
 
   // Upload portfolio images (optional)
@@ -183,10 +186,27 @@ const updateBarber = catchAsync(async (req, res) => {
       ...uploads.portfolioImages,
     ];
   }
+  // Upload portfolio videos (optional)
+  if (fileGroups?.portfolioVideos?.length) {
+    const uploadedImages = await Promise.all(
+      fileGroups.portfolioVideos.map(file =>
+        uploadFileToS3(file, 'barber-portfolio'),
+      ),
+    );
+    uploads.portfolioVideos.push(...uploadedImages);
+  }
+
+  if (uploads.portfolioVideos.length) {
+    body.portfolioVideo = [
+      ...(Array.isArray(body.portfolioVideo) ? body.portfolioVideo : []),
+      ...uploads.portfolioVideos,
+    ];
+  }
 
   const payload = {
     ...body,
   };
+  console.log("payload", payload);
 
   // Update DB
   const result = await UserServices.updateBarberIntoDB(user.id, payload);
@@ -374,8 +394,6 @@ const deactivateAccount = catchAsync(async (req, res) => {
     message: 'Account deactivated successfully',
   });
 });
-
-
 
 const updateProfileImage = catchAsync(async (req, res) => {
   const user = req.user as { id: string };

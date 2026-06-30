@@ -289,6 +289,12 @@ const updateBarber = z.object({
         invalid_type_error: 'Portfolio images must be an array of strings!',
       })
       .optional(),
+    portfolioVideo: z
+      .array(z.string(), {
+        invalid_type_error:
+          'Portfolio Video images must be an array of strings!',
+      })
+      .optional(),
 
     isAvailable: z.boolean().optional(),
 
