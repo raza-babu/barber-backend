@@ -104,10 +104,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     userId,
   );
   if (hasBlockedSaloon) {
-    throw new AppError(
-      httpStatus.FORBIDDEN,
-      'This salon owner is blocked',
-    );
+    throw new AppError(httpStatus.FORBIDDEN, 'This salon owner is blocked');
   }
 
   // 1. Fetch saloonOwner to check queue status
@@ -3550,6 +3547,7 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
             (sum, bs) => sum + (bs.service?.duration || 0),
             0,
           ),
+          status: b.status,
         })),
         freeSlots: freeSlots
           .map(slot => {
