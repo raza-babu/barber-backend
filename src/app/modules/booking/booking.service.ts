@@ -3528,6 +3528,7 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
           ? { start: schedule.openingTime, end: schedule.closingTime }
           : null,
         bookings: bookings.map(b => ({
+          bookingId: b.id,
           customerId: b.userId,
           customerName: (b as any).user?.fullName || null,
           customerImage: (b as any).user?.image || null,
