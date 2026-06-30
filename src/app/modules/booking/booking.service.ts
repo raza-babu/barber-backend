@@ -2502,6 +2502,8 @@ const getBookingListFromDb = async (
       customerContact: b.user?.phoneNumber || null,
       date: b.date,
       appointmentAt: b.appointmentAt,
+      startDateTime: b.startDateTime,
+      endDateTime: b.endDateTime,
       startTime: b.startTime,
       endTime: b.endTime,
       bookingType: b.bookingType,
