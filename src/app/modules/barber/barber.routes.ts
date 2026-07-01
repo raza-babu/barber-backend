@@ -17,7 +17,11 @@ router.post(
 );
 
 router.get('/', auth(), barberController.getBarberList);
-router.get('/owner-list', auth(), barberController.getSaloonOwnerList);
+router.get(
+  '/owner-list',
+  auth(UserRoleEnum.BARBER),
+  barberController.getSaloonOwnerList,
+);
 
 router.get(
   '/my-schedule',
