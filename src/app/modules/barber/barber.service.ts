@@ -4,9 +4,13 @@ import httpStatus from 'http-status';
 import { BookingStatus, UserRoleEnum } from '@prisma/client';
 import { notificationService } from '../notification/notification.service';
 import { blockService } from '../block/block.service';
-import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
+import {
+  calculatePagination,
+  formatPaginationResponse,
+} from '../../utils/pagination';
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import { TGetAllSaloonsType } from './barber.validation';
 
 const createBarberIntoDb = async (userId: string, data: any) => {
   const result = await prisma.barber.create({
@@ -286,6 +290,125 @@ const getBarberListFromDb = async (userId: string) => {
     return { message: 'No barber found' };
   }
   return result;
+};
+
+const getSaloonOwnerList = async (
+  userId: string,
+  query: TGetAllSaloonsType,
+) => {
+  const { page, limit, searchTerm } = query;
+
+  const pageNum = Number(page) || 1;
+  const limitNum = Number(limit) || 10;
+  const skip = (pageNum - 1) * limitNum;
+
+  // 1. Get blocked user IDs to handle exclusions
+  const blockedUserIds = userId
+    ? await blockService.getBlockedUserIdsFromDb(userId)
+    : [];
+  const blockedByUserIds = userId
+    ? await blockService.getBlockedByUserIdsFromDb(userId)
+    : [];
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
+  // 2. Build the structural filters
+  const whereClause: any = {
+    id: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
+    role: UserRoleEnum.SALOON_OWNER,
+    status: 'ACTIVE',
+    isDeactivated: false,
+    isProfileComplete: true,
+  };
+
+  // 3. Inject Search Term conditions
+  if (searchTerm) {
+    whereClause.OR = [
+      { fullName: { contains: searchTerm, mode: 'insensitive' } },
+      { email: { contains: searchTerm, mode: 'insensitive' } },
+      {
+        SaloonOwner: {
+          some: {
+            OR: [
+              { shopName: { contains: searchTerm, mode: 'insensitive' } },
+              { shopBio: { contains: searchTerm, mode: 'insensitive' } },
+              { shopAddress: { contains: searchTerm, mode: 'insensitive' } },
+            ],
+          },
+        },
+      },
+    ];
+  }
+
+  // 4. Run total count and data extraction concurrently via Promise.all
+  const [total, result] = await prisma.$transaction([
+    prisma.user.count({ where: whereClause }),
+    prisma.user.findMany({
+      where: whereClause,
+      skip: skip,
+      take: limitNum,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        image: true,
+        SaloonOwner: {
+          select: {
+            id: true,
+            shopAddress: true,
+            shopBio: true,
+            shopImages: true,
+            shopLogo: true,
+            shopName: true,
+            followerCount: true,
+            followingCount: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  // 5. Total pages calculation
+  const totalPage = Math.ceil(total / limitNum);
+
+  if (result.length === 0) {
+    return {
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total: 0,
+        totalPage: 0,
+      },
+      data: [],
+    };
+  }
+
+  // 6. Format the flattened dataset
+  const formattedValue = result.map(({ SaloonOwner, ...user }) => {
+    const ownerDetails = SaloonOwner?.[0]; // Access first element of relation array
+
+    return {
+      ...user,
+      saloonOwnerId: ownerDetails?.id,
+      shopAddress: ownerDetails?.shopAddress,
+      shopBio: ownerDetails?.shopBio,
+      shopImages: ownerDetails?.shopImages,
+      shopLogo: ownerDetails?.shopLogo,
+      shopName: ownerDetails?.shopName,
+      followerCount: ownerDetails?.followerCount,
+      followingCount: ownerDetails?.followingCount,
+    };
+  });
+
+  // 7. Standard API paginated format output
+  return {
+    meta: {
+      page: pageNum,
+      limit: limitNum,
+      total: total,
+      totalPage: totalPage,
+    },
+    data: formattedValue,
+  };
 };
 
 const getBarberByIdFromDb = async (userId: string, barberId: string) => {
@@ -735,5 +858,6 @@ export const barberService = {
   updateBookingStatusIntoDb,
   updateBarberIntoDb,
   deleteBarberItemFromDb,
-  getSaloonFromDb
+  getSaloonFromDb,
+  getSaloonOwnerList,
 };

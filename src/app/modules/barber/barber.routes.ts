@@ -17,6 +17,7 @@ router.post(
 );
 
 router.get('/', auth(), barberController.getBarberList);
+router.get('/owner-list', auth(), barberController.getSaloonOwnerList);
 
 router.get(
   '/my-schedule',
@@ -56,7 +57,5 @@ router.put(
 );
 
 router.delete('/:id', auth(), barberController.deleteBarber);
-
-
 
 export const barberRoutes = router;

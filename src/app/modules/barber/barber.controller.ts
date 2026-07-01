@@ -3,6 +3,7 @@ import sendResponse from '../../utils/sendResponse';
 import catchAsync from '../../utils/catchAsync';
 import { barberService } from './barber.service';
 import { pickValidFields } from '../../utils/pickValidFields';
+import { TGetAllSaloonsType } from './barber.validation';
 
 const createBarber = catchAsync(async (req, res) => {
   const user = req.user as any;
@@ -17,7 +18,10 @@ const createBarber = catchAsync(async (req, res) => {
 
 const getMySchedule = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberService.getMyScheduleFromDb(user.id, req.params.dayName);
+  const result = await barberService.getMyScheduleFromDb(
+    user.id,
+    req.params.dayName,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -29,7 +33,7 @@ const getMySchedule = catchAsync(async (req, res) => {
 const getMyBookings = catchAsync(async (req, res) => {
   const user = req.user as any;
   const { search, status, startDate, endDate, page, limit } = req.query;
-  
+
   const result = await barberService.getMyBookingsFromDb(user.id, {
     search: search as string,
     status: status as any,
@@ -38,7 +42,7 @@ const getMyBookings = catchAsync(async (req, res) => {
     page: page ? Number(page) : undefined,
     limit: limit ? Number(limit) : undefined,
   });
-  
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -58,10 +62,25 @@ const getBarberList = catchAsync(async (req, res) => {
     data: result,
   });
 });
+const getSaloonOwnerList = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const query = req.query as unknown as TGetAllSaloonsType;
+  const result = await barberService.getSaloonOwnerList(user.id, query);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Saloon owner  list retrieved successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
 
 const getBarberById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberService.getBarberByIdFromDb(user.id, req.params.id);
+  const result = await barberService.getBarberByIdFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -85,10 +104,13 @@ const updateBookingStatus = catchAsync(async (req, res) => {
   });
 });
 
-
 const updateBarber = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberService.updateBarberIntoDb(user.id, req.params.id, req.body);
+  const result = await barberService.updateBarberIntoDb(
+    user.id,
+    req.params.id,
+    req.body,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -99,7 +121,10 @@ const updateBarber = catchAsync(async (req, res) => {
 
 const deleteBarber = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await barberService.deleteBarberItemFromDb(user.id, req.params.id);
+  const result = await barberService.deleteBarberItemFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -121,9 +146,9 @@ const getSaloonList = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
   ]);
-  
+
   const result = await barberService.getSaloonFromDb(user.id, filters);
-  
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -132,7 +157,6 @@ const getSaloonList = catchAsync(async (req, res) => {
     meta: result.meta,
   });
 });
-
 
 export const barberController = {
   createBarber,
@@ -143,5 +167,6 @@ export const barberController = {
   updateBookingStatus,
   updateBarber,
   deleteBarber,
-  getSaloonList
+  getSaloonList,
+  getSaloonOwnerList,
 };
