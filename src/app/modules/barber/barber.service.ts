@@ -388,7 +388,7 @@ const getSaloonOwnerList = async (
 
     return {
       ...user,
-      saloonOwnerId: ownerDetails?.id,
+      shopId: ownerDetails?.id,
       shopAddress: ownerDetails?.shopAddress,
       shopBio: ownerDetails?.shopBio,
       shopImages: ownerDetails?.shopImages,

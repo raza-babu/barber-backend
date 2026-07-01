@@ -5564,10 +5564,3 @@ export const bookingService = {
   deleteBookingItemFromDb,
   getLoyaltySchemesForCustomerFromDb,
 };
-
-
-// watashi (ami) + watashitachi (amra) + anata (you) + ano hito (tini/ sei bakti) + ano kata (Oi bakti) + minasan (Sobar, Sudibrindo) 
-// ~ san (Karo namer sese bose saheb bujate) + ~ chan (cotoder khetre bose sommanito bujate) + ~ Kun ( Cheleder namer pore bose) + ~ Jin  (kono desher nagorik bujate use kora hoy)
-//  Sensei (sikkok, professor, doctor) + Kyoushi (Teacher) + Gakusei (Student) + GinKouin (Banker)
-// Kaisha (Company), Kaishain (Companyr kormi), ~ Shain ( ~ companyr kormi), Injinia (Engineer), Isha (Doctor), Kenkyuusha (Researcher)
-// Amerika (America) + England (Igirisu) + Indo (India) + Indoneshia (Indonesia) + South Korea (Kan koku) + Tai (Thailand) + Germany (doitsu) + chine (Chuugoku) + Japan (Nihon) + Furancu (France) + Burajiru 
