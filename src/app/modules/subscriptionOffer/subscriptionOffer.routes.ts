@@ -19,7 +19,7 @@ router.post(
   subscriptionOfferController.createSubscriptionOffer,
 );
 
-router.get('/', auth(), subscriptionOfferController.getSubscriptionOfferList);
+router.get('/', subscriptionOfferController.getSubscriptionOfferList);
 
 router.get(
   '/:id',
