@@ -4,7 +4,10 @@ import {
   BookingStatus,
   BookingType,
   PaymentStatus,
+  Prisma,
   QueueStatus,
+  UserRoleEnum,
+  UserStatus,
 } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
@@ -2069,6 +2072,173 @@ const deleteSaloonItemFromDb = async (userId: string, saloonId: string) => {
   return deletedItem;
 };
 
+const getUnemployedBarbersFromDb = async (
+  saloonOwnerUserId: string,
+  options: any,
+) => {
+  const { page, limit, skip } = calculatePagination(options);
+  const { searchTerm } = options;
+
+  // 1. Gather mutual block list IDs to exclude
+  const blockedUserIds =
+    await blockService.getBlockedUserIdsFromDb(saloonOwnerUserId);
+  const blockedByUserIds =
+    await blockService.getBlockedByUserIdsFromDb(saloonOwnerUserId);
+  const excludeUserIds = [...blockedUserIds, ...blockedByUserIds];
+
+  // 2. Build where clause
+  const whereClause: Prisma.UserWhereInput = {
+    role: UserRoleEnum.BARBER,
+    status: UserStatus.ACTIVE,
+    isDeactivated: false,
+    isProfileComplete: true,
+    id: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
+    Barber: {
+      HiredBarber: {
+        none: {},
+      },
+    },
+  };
+
+  if (searchTerm) {
+    whereClause.OR = [
+      { fullName: { contains: searchTerm, mode: 'insensitive' } },
+      { email: { contains: searchTerm, mode: 'insensitive' } },
+    ];
+  }
+
+  // 3. Query DB
+  const [barbers, total] = await Promise.all([
+    prisma.user.findMany({
+      where: whereClause,
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        image: true,
+        phoneNumber: true,
+        address: true,
+        Barber: {
+          select: {
+            saloonOwnerId: true,
+            bio: true,
+            experienceYears: true,
+            skills: true,
+            portfolio: true,
+            portfolioVideo: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    }),
+    prisma.user.count({ where: whereClause }),
+  ]);
+
+  // Format response for UI mapping
+  const formattedBarbers = barbers.map(b => ({
+    barberId: b.id,
+    fullName: b.fullName,
+    email: b.email,
+    image: b.image,
+    phoneNumber: b.phoneNumber,
+    address: b.address,
+    saloonOwnerId: b.Barber?.saloonOwnerId,
+    bio: b.Barber?.bio || null,
+    experienceYears: b.Barber?.experienceYears || null,
+    skills: b.Barber?.skills || [],
+    portfolio: b.Barber?.portfolio || [],
+    portfolioVideo: b.Barber?.portfolioVideo || [],
+  }));
+
+  return formatPaginationResponse(formattedBarbers, total, page, limit);
+};
+
+const directHireBarberIntoDb = async (
+  saloonOwnerId: string, // User ID of the Saloon Owner
+  payload: { barberId: string; hourlyRate: number },
+) => {
+  const { barberId, hourlyRate } = payload;
+
+  // 1. Confirm Saloon Profile exists
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId: saloonOwnerId },
+  });
+  if (!saloon) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon owner profile not found');
+  }
+
+  // 2. Perform Transaction to avoid race conditions
+  return await prisma.$transaction(async tx => {
+    const barber = await tx.barber.findUnique({
+      where: { userId: barberId },
+      include: { user: true },
+    });
+
+    if (
+      !barber ||
+      barber.user.isDeactivated ||
+      barber.user.status !== UserStatus.ACTIVE
+    ) {
+      throw new AppError(
+        httpStatus.NOT_FOUND,
+        'Active barber profile not found',
+      );
+    }
+
+    if (!barber.user.isProfileComplete) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Barber profile not found!');
+    }
+
+    // 3. Double-check that they aren't already hired by another salon
+    if (barber.saloonOwnerId) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'This barber has already been hired by another salon.',
+      );
+    }
+
+    // 4. Create the HiredBarber record (links saloon owner and barber)
+    const hiredRecord = await tx.hiredBarber.create({
+      data: {
+        userId: saloonOwnerId,
+        barberId: barberId,
+        hourlyRate: hourlyRate,
+        startDate: new Date(),
+      },
+    });
+
+    // 5. Update Barber record with saloon owner association
+    await tx.barber.update({
+      where: { userId: barberId },
+      data: {
+        saloonOwnerId: saloonOwnerId,
+      },
+    });
+
+    // Send push notification to barber (non-blocking)
+    try {
+      if (barber.user.fcmToken) {
+        const message = `Congratulations! You have been hired by ${saloon.shopName}!`;
+        await notificationService.sendNotification(
+          barber.user.fcmToken,
+          'Employment Offer Accepted 🤝',
+          message,
+          barberId,
+          saloonOwnerId,
+        );
+      }
+    } catch (notifErr) {
+      console.warn('⚠️ Failed to send hire notification:', notifErr);
+    }
+
+    return hiredRecord;
+  });
+};
+
 export const saloonService = {
   manageBookingsIntoDb,
   getBarberDashboardFromDb,
@@ -2084,4 +2254,6 @@ export const saloonService = {
   getScheduledBarbersFromDb,
   updateSaloonQueueControlIntoDb,
   deleteSaloonItemFromDb,
+  getUnemployedBarbersFromDb,
+  directHireBarberIntoDb,
 };

@@ -15,6 +15,24 @@ const router = express.Router();
 // saloonController.createSaloon,
 // );
 
+// GET: View all active, unhired barbers
+router.get(
+  '/unemployed-barbers',
+  auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
+  validateRequest(saloonValidation.getUnemployedBarbersSchema),
+  saloonController.getUnemployedBarbers,
+);
+
+// POST: Choose a barber and hire them directly
+router.post(
+  '/hire-barber',
+  auth(UserRoleEnum.SALOON_OWNER),
+  checkSubscriptionForSalonOwners(),
+  validateRequest(saloonValidation.directHireSchema),
+  saloonController.hireBarber,
+);
+
 router.patch(
   '/manage-bookings',
   auth(UserRoleEnum.SALOON_OWNER),

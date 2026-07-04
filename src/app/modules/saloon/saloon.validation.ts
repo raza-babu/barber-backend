@@ -43,28 +43,58 @@ function convertToUTC(date: string, time: string): string {
 }
 
 const availableBarbersSchema = z.object({
- query: z.object({
-  date: z.string({
-    required_error: 'Date is required!',
-  }),
-  time: z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
-    message: 'Time must be in hh:mm AM/PM format',
-  }),
-  // totalServiceTime: z.coerce.number().int().positive(),
-
-  }).transform(({  date, time }) => ({
-    // salonId,
-    utcDateTime: convertToUTC(date, time),
-    // totalServiceTime,
-  })),
+  query: z
+    .object({
+      date: z.string({
+        required_error: 'Date is required!',
+      }),
+      time: z.string().regex(/^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i, {
+        message: 'Time must be in hh:mm AM/PM format',
+      }),
+      // totalServiceTime: z.coerce.number().int().positive(),
+    })
+    .transform(({ date, time }) => ({
+      // salonId,
+      utcDateTime: convertToUTC(date, time),
+      // totalServiceTime,
+    })),
 });
 
 const availableFreeBarbersSchema = z.object({
+  query: z
+    .object({
+      date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    })
+    .transform(({ date }) => ({
+      utcDateTime: new Date(date).toISOString(),
+    })),
+});
+
+const getUnemployedBarbersSchema = z.object({
   query: z.object({
-    date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  }).transform(({ date }) => ({
-    utcDateTime: new Date(date).toISOString(),
-  })),
+    page: z
+      .string()
+      .optional()
+      .transform(val => (val ? Number(val) : 1)),
+    limit: z
+      .string()
+      .optional()
+      .transform(val => (val ? Number(val) : 10)),
+    searchTerm: z.string().optional(),
+  }),
+});
+
+const directHireSchema = z.object({
+  body: z.object({
+    barberId: z.string({
+      required_error: 'Barber ID is required!',
+    }),
+    hourlyRate: z
+      .number({
+        required_error: 'Hourly rate is required!',
+      })
+      .min(0, 'Hourly rate cannot be negative'),
+  }),
 });
 
 export const saloonValidation = {
@@ -72,5 +102,14 @@ export const saloonValidation = {
   updateSchema,
   updateQueueSchema,
   availableBarbersSchema,
-  availableFreeBarbersSchema
+  availableFreeBarbersSchema,
+  getUnemployedBarbersSchema,
+  directHireSchema,
 };
+
+export type TGetUnEmployeedBarbersQueryType = z.infer<
+  typeof getUnemployedBarbersSchema.shape.query
+>;
+export type TGetDirectHirePayloadType = z.infer<
+  typeof directHireSchema.shape.body
+>;

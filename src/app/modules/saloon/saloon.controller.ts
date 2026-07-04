@@ -100,7 +100,6 @@ const getAllBarbers = catchAsync(async (req, res) => {
   });
 });
 
-
 const getAllBarbersAll = catchAsync(async (req, res) => {
   const user = req.user as any;
 
@@ -109,7 +108,7 @@ const getAllBarbersAll = catchAsync(async (req, res) => {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Barber list retrieved successfully',
-    data: result
+    data: result,
   });
 });
 
@@ -200,7 +199,10 @@ const getFreeBarbersOnADate = catchAsync(async (req, res) => {
 
 const getASaloonById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await saloonService.getASaloonByIdFromDb(user.id, req.params.id);
+  const result = await saloonService.getASaloonByIdFromDb(
+    user.id,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -255,6 +257,34 @@ const deleteSaloon = catchAsync(async (req, res) => {
   });
 });
 
+const getUnemployedBarbers = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await saloonService.getUnemployedBarbersFromDb(
+    user.id,
+    req.query,
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Unemployed barbers list retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
+const hireBarber = catchAsync(async (req, res) => {
+  const user = req.user as any;
+  const result = await saloonService.directHireBarberIntoDb(user.id, req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    success: true,
+    message: 'Barber successfully hired and linked to your salon',
+    data: result,
+  });
+});
+
 export const saloonController = {
   manageBookings,
   getBarberDashboard,
@@ -269,4 +299,6 @@ export const saloonController = {
   getScheduledBarbers,
   updateSaloonQueueControl,
   deleteSaloon,
+  getUnemployedBarbers,
+  hireBarber,
 };
