@@ -27,7 +27,7 @@ const getBarberHolidayListFromDb = async (userId: string) => {
     },
   });
   if (result.length === 0) {
-    return {};
+    return [];
   }
   return result;
 };
@@ -64,7 +64,7 @@ const updateBarberHolidayIntoDb = async (
     where: {
       id: barberHolidayId,
       saloonOwnerId: userId,
-    }, 
+    },
     data: {
       ...data,
     },

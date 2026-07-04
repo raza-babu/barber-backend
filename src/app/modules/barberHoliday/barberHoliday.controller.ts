@@ -7,6 +7,9 @@ import { SubscriptionPlanStatus } from '@prisma/client';
 const createBarberHoliday = catchAsync(async (req, res) => {
   const user = req.user as any;
   const subscriptionPlanName = user.subscriptionPlan;
+  console.log({ 
+    
+  })
   if (
     subscriptionPlanName === SubscriptionPlanStatus.FREE ||
     subscriptionPlanName === SubscriptionPlanStatus.ADVANCED_PREMIUM
