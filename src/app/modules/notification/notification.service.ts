@@ -207,6 +207,7 @@ const getAllNotifications = async (userId: string, options: ISearchAndFilterOpti
     type NotificationWithSender = (typeof notifications)[number] & { senderId?: string | null };
     const typedNotifications = notifications as NotificationWithSender[];
     const senderIds = [...new Set(typedNotifications.map(n => n.senderId).filter(Boolean))] as string[];
+    console.log(senderIds)
     const senders = senderIds.length
       ? await prisma.user.findMany({
           where: { id: { in: senderIds } },

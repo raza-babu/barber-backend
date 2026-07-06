@@ -58,6 +58,7 @@ const createBarberScheduleIntoDb = async (saloonOwnerId: string, data: any) => {
           'Schedule Created',
           message,
           barberId,
+          saloonOwnerId,
         )
         .catch(error =>
           console.error('Error sending schedule creation notification:', error),

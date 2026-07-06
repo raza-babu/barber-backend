@@ -16,6 +16,7 @@ import {
 } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { notificationService } from '../notification/notification.service';
+import { getAllBlockedUserIds } from '../../utils/get-all-blocked-user-ids';
 
 const createJobPostIntoDb = async (
   userId: string,
@@ -112,13 +113,17 @@ const createJobPostIntoDb = async (
 
       if (owner && followers.length > 0) {
         const notificationPromises = followers.map(follower =>
-          notificationService.sendNotification(
-            follower.follower.fcmToken,
-            'New Job Opening',
-            `${owner.fullName} posted a new job opening!`,
-            userId,
-            userId,
-          ).catch(error => console.error('Error sending follower notification:', error))
+          notificationService
+            .sendNotification(
+              follower.follower.fcmToken,
+              'New Job Opening',
+              `${owner.fullName} posted a new job opening!`,
+              userId,
+              userId,
+            )
+            .catch(error =>
+              console.error('Error sending follower notification:', error),
+            ),
         );
         await Promise.all(notificationPromises);
       }
@@ -130,14 +135,14 @@ const createJobPostIntoDb = async (
   });
 };
 
-
 const getJobPostListFromDb = async (
   options: ISearchAndFilterOptions,
   barberId?: string, // optional barber/user id to exclude already-applied jobs
 ) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
-
+  // Get the blockedUser and blockedByUser Ids:
+  const blockedUsersIds = await getAllBlockedUserIds(barberId as string);
 
   // Build search query
   const searchQuery = options.searchTerm
@@ -165,14 +170,17 @@ const getJobPostListFromDb = async (
       }
     : {};
 
-
-
   // Build filter query
   const filterQuery: any = {
     isActive:
       options.isActive !== undefined ? options.isActive === 'true' : true,
   };
-  
+
+  if (blockedUsersIds?.length > 0) {
+    filterQuery.saloonOwnerId = {
+      $notIn: blockedUsersIds,
+    };
+  }
 
   // Add experience filter if provided
   if (options.experienceRequired !== undefined) {
@@ -180,7 +188,6 @@ const getJobPostListFromDb = async (
       gte: Number(options.experienceRequired),
     };
   }
-
 
   // Build salary range filter
   const salaryRangeQuery = buildNumericRangeQuery(
@@ -200,21 +207,18 @@ const getJobPostListFromDb = async (
         }
       : {};
 
-      
-
-    // find current owner
-    const barber = await prisma.barber.findUnique({
-      where: {
-        userId: barberId,
-      },
-    });
-
-    
+  // find current owner
+  const barber = await prisma.barber.findUnique({
+    where: {
+      userId: barberId,
+    },
+  });
 
   // Combine all queries
   const whereClause: any = {
     isActive: true,
     // saloonOwnerId: {not: barber?.saloonOwnerId},
+
     // saloonOwner: {
     //   Barber: {
     //     some: {
@@ -229,11 +233,7 @@ const getJobPostListFromDb = async (
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
 
-
-   console.log(whereClause, {depth: Infinity})
-
-
-  
+  console.log(whereClause, { depth: Infinity });
 
   // Exclude job posts the barber already applied to (if barberId provided)
   // Assumes a relation field "JobApplication" on jobPost and that each application has a "userId" field.
@@ -263,7 +263,7 @@ const getJobPostListFromDb = async (
         // experienceRequired: true,
         isActive: true,
         datePosted: true,
-        hourlyRate: true, 
+        hourlyRate: true,
         startDate: true,
         endDate: true,
         shopName: true,
@@ -273,8 +273,8 @@ const getJobPostListFromDb = async (
         saloonOwner: {
           select: {
             shopAddress: true,
-            ratingCount : true,
-            avgRating : true,
+            ratingCount: true,
+            avgRating: true,
           },
         },
         createdAt: true,
@@ -285,7 +285,6 @@ const getJobPostListFromDb = async (
       where: whereClause,
     }),
   ]);
-  
 
   // flatten saloonOwner details into main object
   const jobPostsWithSaloonDetails = jobPosts.map(jobPost => {
@@ -298,11 +297,18 @@ const getJobPostListFromDb = async (
     };
   });
 
-
-  return formatPaginationResponse(jobPostsWithSaloonDetails, total, page, limit);
+  return formatPaginationResponse(
+    jobPostsWithSaloonDetails,
+    total,
+    page,
+    limit,
+  );
 };
 
-const getMyJobPostsListFromDb = async (userId: string, options: ISearchAndFilterOptions) => {
+const getMyJobPostsListFromDb = async (
+  userId: string,
+  options: ISearchAndFilterOptions,
+) => {
   const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
 
   // Build search query
@@ -410,8 +416,7 @@ const getMyJobPostsListFromDb = async (userId: string, options: ISearchAndFilter
   ]);
 
   return formatPaginationResponse(jobPosts, total, page, limit);
-}
-
+};
 
 const getJobPostByIdFromDb = async (userId: string, jobPostId: string) => {
   const result = await prisma.jobPost.findUnique({
@@ -475,13 +480,17 @@ const updateJobPostIntoDb = async (
 
     if (owner && applicants.length > 0) {
       const notificationPromises = applicants.map(applicant =>
-        notificationService.sendNotification(
-          applicant.barber?.user?.fcmToken,
-          'Job Update',
-          `Job details have been updated by ${owner.fullName}!`,
-          userId,
-          userId,
-        ).catch(error => console.error('Error sending applicant notification:', error))
+        notificationService
+          .sendNotification(
+            applicant.barber?.user?.fcmToken,
+            'Job Update',
+            `Job details have been updated by ${owner.fullName}!`,
+            userId,
+            userId,
+          )
+          .catch(error =>
+            console.error('Error sending applicant notification:', error),
+          ),
       );
       await Promise.all(notificationPromises);
     }
@@ -532,15 +541,21 @@ const toggleJobPostActiveIntoDb = async (userId: string, jobPostId: string) => {
     });
 
     if (owner && applicants.length > 0) {
-      const statusMessage = updatedJobPost.isActive ? 'activated' : 'deactivated';
+      const statusMessage = updatedJobPost.isActive
+        ? 'activated'
+        : 'deactivated';
       const notificationPromises = applicants.map(applicant =>
-        notificationService.sendNotification(
-          applicant.barber?.user?.fcmToken,
-          'Job Status Changed',
-          `The job posting has been ${statusMessage} by ${owner.fullName}.`,
-          userId,
-          userId,
-        ).catch(error => console.error('Error sending status notification:', error))
+        notificationService
+          .sendNotification(
+            applicant.barber?.user?.fcmToken,
+            'Job Status Changed',
+            `The job posting has been ${statusMessage} by ${owner.fullName}.`,
+            userId,
+            userId,
+          )
+          .catch(error =>
+            console.error('Error sending status notification:', error),
+          ),
       );
       await Promise.all(notificationPromises);
     }
@@ -552,7 +567,6 @@ const toggleJobPostActiveIntoDb = async (userId: string, jobPostId: string) => {
 };
 
 const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
-
   // check if job post exists
   const jobPost = await prisma.jobPost.findUnique({
     where: {
@@ -592,13 +606,17 @@ const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
 
     if (owner && applicants.length > 0) {
       const notificationPromises = applicants.map(applicant =>
-        notificationService.sendNotification(
-          applicant.barber?.user?.fcmToken,
-          'Job Deleted',
-          `The job posting has been deleted by ${owner.fullName}.`,
-          userId,
-          userId,
-        ).catch(error => console.error('Error sending deletion notification:', error))
+        notificationService
+          .sendNotification(
+            applicant.barber?.user?.fcmToken,
+            'Job Deleted',
+            `The job posting has been deleted by ${owner.fullName}.`,
+            userId,
+            userId,
+          )
+          .catch(error =>
+            console.error('Error sending deletion notification:', error),
+          ),
       );
       await Promise.all(notificationPromises);
     }

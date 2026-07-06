@@ -24,6 +24,13 @@ const getBarberHolidayListFromDb = async (userId: string) => {
       date: true,
       reason: true,
       isAllDay: true,
+      user: {
+        select: {
+          fullName: true,
+          email: true,
+          address: true,
+        },
+      },
     },
   });
   if (result.length === 0) {
