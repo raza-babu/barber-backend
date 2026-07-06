@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import {
+  Prisma,
   SubscriptionPlanStatus,
   UserRoleEnum,
   UserStatus,
@@ -176,12 +177,6 @@ const getJobPostListFromDb = async (
       options.isActive !== undefined ? options.isActive === 'true' : true,
   };
 
-  if (blockedUsersIds?.length > 0) {
-    filterQuery.saloonOwnerId = {
-      $notIn: blockedUsersIds,
-    };
-  }
-
   // Add experience filter if provided
   if (options.experienceRequired !== undefined) {
     filterQuery.experienceRequired = {
@@ -215,7 +210,7 @@ const getJobPostListFromDb = async (
   });
 
   // Combine all queries
-  const whereClause: any = {
+  const whereClause: Prisma.JobPostWhereInput = {
     isActive: true,
     // saloonOwnerId: {not: barber?.saloonOwnerId},
 
@@ -225,6 +220,11 @@ const getJobPostListFromDb = async (
     //       // status: UserStatus.ACTIVE,
     //       userId: barber?.userId
     //     },
+    //   },
+    // },
+    // saloonOwner: {
+    //   userId: {
+    //     notIn: blockedUsersIds?.length > 0 ? blockedUsersIds : undefined,
     //   },
     // },
     ...filterQuery,
