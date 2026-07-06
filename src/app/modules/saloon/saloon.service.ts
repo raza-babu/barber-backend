@@ -1,3 +1,4 @@
+import { customerService } from './../customer/customer.service';
 import { customerRoutes } from './../customer/customer.routes';
 import Stripe from 'stripe';
 import {
@@ -1799,6 +1800,38 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     },
   });
 
+  const barbersWithAvailability = await Promise.all(
+    result.Barber.map(async barber => {
+      const barberId = barber.user.id; // বারবারের ইউজার আইডি
+
+      // Check barber availability
+      const availability =
+        await customerService.checkBarberAvailability(barberId);
+
+      return {
+        id: barberId,
+        fullName: barber.user.fullName,
+        email: barber.user.email,
+        phoneNumber: barber.user.phoneNumber,
+        image: barber.user.image,
+        experienceYears: barber.experienceYears,
+        bio: barber.bio,
+        portfolio: barber.portfolio,
+        portfolioVideo: barber.portfolioVideo,
+
+        // Add
+        isAvailableToday: availability.isAvailableToday,
+        availableForQueue: availability.availableForQueue,
+        availableForBooking: availability.availableForBooking,
+        serviceType: availability.type,
+        workingHours: {
+          openingTime: availability.openingTime || null,
+          closingTime: availability.closingTime || null,
+        },
+      };
+    }),
+  );
+
   //flatten the salon information
   return {
     isMe: userId === saloonOwnerId,
@@ -1831,17 +1864,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       duration: service.duration,
       isActive: service.isActive,
     })),
-    barbers: result.Barber.map(barber => ({
-      id: barber.user.id,
-      fullName: barber.user.fullName,
-      email: barber.user.email,
-      phoneNumber: barber.user.phoneNumber,
-      image: barber.user.image,
-      experienceYears: barber.experienceYears,
-      bio: barber.bio,
-      portfolio: barber.portfolio,
-      portfolioVideo: barber.portfolioVideo,
-    })),
+    barbers: barbersWithAvailability,
     isFollowing: isFollowing ? true : false,
   };
 };

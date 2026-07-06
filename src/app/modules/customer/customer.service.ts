@@ -2364,4 +2364,5 @@ export const customerService = {
   checkInToSaloonInDb,
   getPendingTipsListFromDb,
   deleteCustomerItemFromDb,
+  checkBarberAvailability,
 };
