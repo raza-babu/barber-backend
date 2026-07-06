@@ -222,18 +222,18 @@ const getJobPostListFromDb = async (
     //     },
     //   },
     // },
-    // saloonOwner: {
-    //   userId: {
-    //     notIn: blockedUsersIds?.length > 0 ? blockedUsersIds : undefined,
-    //   },
-    // },
+    saloonOwner: {
+      userId: {
+        notIn: blockedUsersIds?.length > 0 ? blockedUsersIds : undefined,
+      },
+    },
     ...filterQuery,
     ...salaryRangeQuery,
     ...dateRangeQuery,
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
 
-  console.log(whereClause, { depth: Infinity });
+
 
   // Exclude job posts the barber already applied to (if barberId provided)
   // Assumes a relation field "JobApplication" on jobPost and that each application has a "userId" field.

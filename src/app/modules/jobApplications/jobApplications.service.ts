@@ -19,9 +19,11 @@ const createJobApplicationsIntoDb = async (userId: string, data: any) => {
       saloonOwnerId: true,
     },
   });
+
   if (!saloonDetails) {
     throw new AppError(httpStatus.NOT_FOUND, 'Saloon not found');
   }
+
   // Check if barber exists and is active
   const barber = await prisma.barber.findUnique({
     where: {
