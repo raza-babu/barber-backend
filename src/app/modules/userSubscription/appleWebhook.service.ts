@@ -98,7 +98,7 @@ const handleSubscribedNotification = async (
     });
 
     console.log('✅ User subscribed:', updatedData.id);
-    
+
     // Send push notification to user about subscription
     try {
       const user = await prisma.user.findUnique({
@@ -108,22 +108,43 @@ const handleSubscribedNotification = async (
 
       if (user?.fcmToken && subscription.subscriptionOffer) {
         const message = `${user.fullName}, your ${subscription.subscriptionOffer.planType} subscription has been activated successfully!`;
-        
+
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await notificationService
           .sendNotification(
             user.fcmToken,
             'Subscription Activated',
             message,
             subscription.userId,
+            superAdmin?.id,
           )
           .catch(error =>
-            console.error('Error sending subscription activation webhook notification:', error),
+            console.error(
+              'Error sending subscription activation webhook notification:',
+              error,
+            ),
           );
       }
     } catch (error) {
-      console.error('Error sending subscription activation webhook notification:', error);
+      console.error(
+        'Error sending subscription activation webhook notification:',
+        error,
+      );
     }
-    
+
     return updatedData;
   } catch (error) {
     console.error('Error handling subscription notification:', error);
@@ -202,7 +223,7 @@ const handleRenewalNotification = async (
     });
 
     console.log('✅ Subscription renewed:', updatedSubscription.id);
-    
+
     // Send push notification to user about subscription renewal
     try {
       const user = await prisma.user.findUnique({
@@ -212,22 +233,43 @@ const handleRenewalNotification = async (
 
       if (user?.fcmToken && subscription.subscriptionOffer) {
         const message = `${user.fullName}, your ${subscription.subscriptionOffer.planType} subscription has been renewed automatically!`;
-        
+
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await notificationService
           .sendNotification(
             user.fcmToken,
             'Subscription Renewed',
             message,
             subscription.userId,
+            superAdmin?.id,
           )
           .catch(error =>
-            console.error('Error sending subscription renewal webhook notification:', error),
+            console.error(
+              'Error sending subscription renewal webhook notification:',
+              error,
+            ),
           );
       }
     } catch (error) {
-      console.error('Error sending subscription renewal webhook notification:', error);
+      console.error(
+        'Error sending subscription renewal webhook notification:',
+        error,
+      );
     }
-    
+
     return updatedSubscription;
   } catch (error) {
     console.error('Error handling renewal notification:', error);
@@ -302,7 +344,7 @@ const handleCancellationNotification = async (
     });
 
     console.log('❌ Subscription cancelled:', cancelledSubscription.id);
-    
+
     // Send push notification to user about subscription cancellation
     try {
       const user = await prisma.user.findUnique({
@@ -312,22 +354,42 @@ const handleCancellationNotification = async (
 
       if (user?.fcmToken) {
         const message = `${user.fullName}, your subscription has been cancelled. You will no longer have access to premium features.`;
-        
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await notificationService
           .sendNotification(
             user.fcmToken,
             'Subscription Cancelled',
             message,
             subscription.userId,
+            superAdmin?.id,
           )
           .catch(error =>
-            console.error('Error sending subscription cancellation webhook notification:', error),
+            console.error(
+              'Error sending subscription cancellation webhook notification:',
+              error,
+            ),
           );
       }
     } catch (error) {
-      console.error('Error sending subscription cancellation webhook notification:', error);
+      console.error(
+        'Error sending subscription cancellation webhook notification:',
+        error,
+      );
     }
-    
+
     return cancelledSubscription;
   } catch (error) {
     console.error('Error handling cancellation notification:', error);
@@ -402,7 +464,7 @@ const handleExpirationNotification = async (
     });
 
     console.log('⏰ Subscription expired:', expiredSubscription.id);
-    
+
     // Send push notification to user about subscription expiration
     try {
       const user = await prisma.user.findUnique({
@@ -412,22 +474,43 @@ const handleExpirationNotification = async (
 
       if (user?.fcmToken) {
         const message = `${user.fullName}, your subscription has expired. Renew now to continue enjoying premium features!`;
-        
+
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await notificationService
           .sendNotification(
             user.fcmToken,
             'Subscription Expired',
             message,
             subscription.userId,
+            superAdmin?.id,
           )
           .catch(error =>
-            console.error('Error sending subscription expiration webhook notification:', error),
+            console.error(
+              'Error sending subscription expiration webhook notification:',
+              error,
+            ),
           );
       }
     } catch (error) {
-      console.error('Error sending subscription expiration webhook notification:', error);
+      console.error(
+        'Error sending subscription expiration webhook notification:',
+        error,
+      );
     }
-    
+
     return expiredSubscription;
   } catch (error) {
     console.error('Error handling expiration notification:', error);
@@ -508,7 +591,7 @@ const handleFailedRenewalNotification = async (
       '⚠️ Subscription renewal failed (will retry):',
       failedSubscription.id,
     );
-    
+
     // Send push notification to user about failed renewal
     try {
       const user = await prisma.user.findUnique({
@@ -518,22 +601,43 @@ const handleFailedRenewalNotification = async (
 
       if (user?.fcmToken) {
         const message = `${user.fullName}, your subscription renewal failed. Please update your payment method to continue service.`;
-        
+
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await notificationService
           .sendNotification(
             user.fcmToken,
             'Renewal Failed - Action Required',
             message,
             subscription.userId,
+            superAdmin?.id,
           )
           .catch(error =>
-            console.error('Error sending failed renewal webhook notification:', error),
+            console.error(
+              'Error sending failed renewal webhook notification:',
+              error,
+            ),
           );
       }
     } catch (error) {
-      console.error('Error sending failed renewal webhook notification:', error);
+      console.error(
+        'Error sending failed renewal webhook notification:',
+        error,
+      );
     }
-    
+
     return failedSubscription;
   } catch (error) {
     console.error('Error handling failed renewal notification:', error);
@@ -643,7 +747,7 @@ const handleRefundNotification = async (
       refundResult.refundedPayments.length,
       'payments',
     );
-    
+
     // Send push notification to user about refund
     if (subscription) {
       try {
@@ -654,23 +758,41 @@ const handleRefundNotification = async (
 
         if (user?.fcmToken) {
           const message = `${user.fullName}, a refund of $${subscription.subscriptionOffer?.price || 'N/A'} has been processed for your subscription.`;
-          
+
+          // ** Retrived the super admin of the app:
+          const superAdmin = await prisma.user.findFirst({
+            where: {
+              role: 'SUPER_ADMIN',
+              isDeactivated: false,
+              isDeleted: false,
+              isVerified: true,
+              status: 'ACTIVE',
+            },
+            select: {
+              id: true,
+            },
+          });
+
           await notificationService
             .sendNotification(
               user.fcmToken,
               'Refund Processed',
               message,
               subscription.userId,
+              superAdmin?.id,
             )
             .catch(error =>
-              console.error('Error sending refund webhook notification:', error),
+              console.error(
+                'Error sending refund webhook notification:',
+                error,
+              ),
             );
         }
       } catch (error) {
         console.error('Error sending refund webhook notification:', error);
       }
     }
-    
+
     return refundResult;
   } catch (error) {
     console.error('Error handling refund notification:', error);

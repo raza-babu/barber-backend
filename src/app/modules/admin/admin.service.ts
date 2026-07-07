@@ -348,7 +348,11 @@ const getSaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
   };
 };
 
-const blockSaloonByIdIntoDb = async (saloonOwnerId: string, data: any) => {
+const blockSaloonByIdIntoDb = async (
+  userId: string,
+  saloonOwnerId: string,
+  data: any,
+) => {
   const { status } = data;
   const result = await prisma.saloonOwner.update({
     where: {
@@ -402,6 +406,7 @@ const blockSaloonByIdIntoDb = async (saloonOwnerId: string, data: any) => {
       'Saloon Status Updated',
       `Your salon has been ${statusText} by the admin.`,
       saloonOwnerId,
+      userId,
     );
   } catch (error) {
     console.error('Error sending notification to saloon owner:', error);
@@ -676,6 +681,7 @@ const blockBarberByIdIntoDb = async (
       'Account Status Updated',
       `Your account has been ${statusText} by the admin.`,
       barberId,
+      userId,
     );
   } catch (error) {
     console.error('Error sending notification to barber:', error);
@@ -777,6 +783,7 @@ const blockCustomerByIdIntoDb = async (
       'Account Status Updated',
       `Your account has been ${statusText} by the admin.`,
       customerId,
+      userId,
     );
   } catch (error) {
     console.error('Error sending notification to customer:', error);
@@ -823,6 +830,7 @@ const updateSaloonOwnerByIdIntoDb = async (
       'Salon Verification Status Updated',
       message,
       saloonOwnerId,
+      userId,
     );
   } catch (error) {
     console.error(

@@ -179,12 +179,26 @@ const handleSubscriptionPurchased = async (
       if (user?.fcmToken) {
         const planName = subscription.subscriptionOffer?.planType || 'Premium';
         const message = `${user.fullName}, welcome to ${planName}! Your subscription is now active.`;
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
 
         await notificationService.sendNotification(
           user.fcmToken,
           'Subscription Activated 🎉',
           message,
           subscription.userId,
+          superAdmin?.id,
         );
       }
     } catch (error) {
@@ -286,11 +300,26 @@ const handleSubscriptionRenewed = async (
       if (user?.fcmToken && subscription.subscriptionOffer) {
         const message = `${user.fullName}, your ${subscription.subscriptionOffer.planType} subscription renewed! Valid until ${expiryDate.toDateString()}.`;
 
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await notificationService.sendNotification(
           user.fcmToken,
           'Subscription Renewed ✨',
           message,
           subscription.userId,
+          superAdmin?.id,
         );
       }
     } catch (error) {
@@ -391,12 +420,26 @@ const handleSubscriptionCanceled = async (
       const user = subscription.user;
       if (user?.fcmToken) {
         const message = `${user.fullName}, your subscription has been cancelled. ${cancellationReason}`;
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
 
         await notificationService.sendNotification(
           user.fcmToken,
           'Subscription Cancelled',
           message,
           subscription.userId,
+          superAdmin?.id,
         );
       }
     } catch (error) {
@@ -485,11 +528,26 @@ const handleSubscriptionExpired = async (
       if (user?.fcmToken) {
         const message = `${user.fullName}, your subscription has expired. Renew now to continue enjoying premium features!`;
 
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await notificationService.sendNotification(
           user.fcmToken,
           'Subscription Expired ⏰',
           message,
           subscription.userId,
+          superAdmin?.id,
         );
       }
     } catch (error) {
@@ -558,6 +616,20 @@ const handleSubscriptionInGracePeriod = async (
       gracePeriodExpiry,
     });
 
+    // ** Retrived the super admin of the app:
+    const superAdmin = await prisma.user.findFirst({
+      where: {
+        role: 'SUPER_ADMIN',
+        isDeactivated: false,
+        isDeleted: false,
+        isVerified: true,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+      },
+    });
+
     // Send push notification
     try {
       const user = subscription.user;
@@ -569,6 +641,7 @@ const handleSubscriptionInGracePeriod = async (
           'Payment Failed - Grace Period Active ⚠️',
           message,
           subscription.userId,
+          superAdmin?.id,
         );
       }
     } catch (error) {
@@ -644,11 +717,26 @@ const handleSubscriptionOnHold = async (
       if (user?.fcmToken) {
         const message = `${user.fullName}, your account is on hold due to a billing issue. Please verify your payment method immediately to restore access.`;
 
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await notificationService.sendNotification(
           user.fcmToken,
           '🔒 Account Hold - Action Required',
           message,
           subscription.userId,
+          superAdmin?.id,
         );
       }
     } catch (error) {
@@ -747,12 +835,25 @@ const handleSubscriptionRecovered = async (
       const user = subscription.user;
       if (user?.fcmToken && subscription.subscriptionOffer) {
         const message = `${user.fullName}, welcome back! Your ${subscription.subscriptionOffer.planType} subscription has been restored. Enjoy!`;
-
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
         await notificationService.sendNotification(
           user.fcmToken,
           'Subscription Restored 🎉',
           message,
           subscription.userId,
+          superAdmin?.id,
         );
       }
     } catch (error) {
@@ -827,12 +928,25 @@ const handleSubscriptionPaused = async (
       const user = subscription.user;
       if (user?.fcmToken) {
         const message = `${user.fullName}, your subscription has been paused. You can resume it anytime.`;
-
+        // ** Retrived the super admin of the app:
+        const superAdmin = await prisma.user.findFirst({
+          where: {
+            role: 'SUPER_ADMIN',
+            isDeactivated: false,
+            isDeleted: false,
+            isVerified: true,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+          },
+        });
         await notificationService.sendNotification(
           user.fcmToken,
           'Subscription Paused ⏸️',
           message,
           subscription.userId,
+          superAdmin?.id,
         );
       }
     } catch (error) {

@@ -50,18 +50,36 @@ const createSupportRepliesIntoDb = async (userId: string, data: any) => {
         select: { fcmToken: true },
       });
 
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
+
       if (userRecord?.fcmToken) {
         const message = `Your support ticket has been received: ${data.message?.substring(0, 50)}...`;
-        
+
         await notificationService
           .sendNotification(
             userRecord.fcmToken,
             'Support Ticket Created',
             message,
             user.id,
+            superAdmin?.id,
           )
           .catch(error =>
-            console.error('Error sending support creation notification:', error),
+            console.error(
+              'Error sending support creation notification:',
+              error,
+            ),
           );
       }
     }
@@ -329,13 +347,14 @@ const updateSupportByIdFromDb = async (
     try {
       if (userData?.fcmToken) {
         const message = `Your support ticket has been updated: ${data.message.substring(0, 50)}...`;
-        
+
         await notificationService
           .sendNotification(
             userData.fcmToken,
             'Support Reply Received',
             message,
             data.userId,
+            userId,
           )
           .catch(error =>
             console.error('Error sending support reply notification:', error),
@@ -349,8 +368,6 @@ const updateSupportByIdFromDb = async (
   });
 };
 
-
-
 const updateSupportRepliesIntoDb = async (
   userId: string,
   supportRepliesId: string,
@@ -359,18 +376,16 @@ const updateSupportRepliesIntoDb = async (
     message: string;
   },
 ) => {
-
   const userData = await prisma.user.findUnique({
-      where: {
-        id: data.userId
-      },
-    });
-    if (!userData) {
-      throw new AppError(httpStatus.NOT_FOUND, 'User not found');
-    }
+    where: {
+      id: data.userId,
+    },
+  });
+  if (!userData) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
 
   return await prisma.$transaction(async tx => {
-    
     const supportData = await tx.support.findUnique({
       where: {
         id: supportRepliesId,
@@ -402,7 +417,7 @@ const updateSupportRepliesIntoDb = async (
           <p style="font-size: 16px; margin: 0;">Hello <strong>${
             userData.fullName
           }</strong>,</p>
-          <p style="font-size: 16px;">${supportData.message }.</p>
+          <p style="font-size: 16px;">${supportData.message}.</p>
           <div style="text-align: center; margin: 20px 0;">
             <p style="font-size: 18px;" >${data.message!}</p>
           </div>
@@ -448,13 +463,14 @@ const updateSupportRepliesIntoDb = async (
     try {
       if (userData?.fcmToken) {
         const message = `Your support issue has been updated: ${data.message.substring(0, 50)}...`;
-        
+
         await notificationService
           .sendNotification(
             userData.fcmToken,
             'Support Status Updated',
             message,
             data.userId,
+            userId,
           )
           .catch(error =>
             console.error('Error sending support update notification:', error),
@@ -562,16 +578,20 @@ const deleteSupportRepliesItemFromDb = async (
 
       if (userRecord?.fcmToken) {
         const message = `Your support ticket has been deleted`;
-        
+
         await notificationService
           .sendNotification(
             userRecord.fcmToken,
             'Support Ticket Deleted',
             message,
             supportItem.userId,
+            userId,
           )
           .catch(error =>
-            console.error('Error sending support deletion notification:', error),
+            console.error(
+              'Error sending support deletion notification:',
+              error,
+            ),
           );
       }
     }

@@ -17,9 +17,9 @@ const getSaloonList = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
   ]);
-  
+
   const result = await adminService.getSaloonFromDb(user.id, filters);
-  
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -42,9 +42,9 @@ const getNewSaloonList = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
   ]);
-  
+
   const result = await adminService.getNewSaloonFromDb(user.id, filters);
-  
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -67,7 +67,11 @@ const getSaloonById = catchAsync(async (req, res) => {
 
 const blockSaloonById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await adminService.blockSaloonByIdIntoDb(req.params.id, req.body);
+  const result = await adminService.blockSaloonByIdIntoDb(
+    user?.id,
+    req.params.id,
+    req.body,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -89,9 +93,9 @@ const getBarbersList = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
   ]);
-  
+
   const result = await adminService.getBarbersListFromDb(filters);
-  
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -114,7 +118,11 @@ const getBarberById = catchAsync(async (req, res) => {
 
 const blockBarberById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await adminService.blockBarberByIdIntoDb(user.id, req.params.id, req.body);
+  const result = await adminService.blockBarberByIdIntoDb(
+    user.id,
+    req.params.id,
+    req.body,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -135,9 +143,9 @@ const getCustomersList = catchAsync(async (req, res) => {
     'startDate',
     'endDate',
   ]);
-  
+
   const result = await adminService.getCustomersListFromDb(user.id, filters);
-  
+
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -149,7 +157,11 @@ const getCustomersList = catchAsync(async (req, res) => {
 
 const blockCustomerById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await adminService.blockCustomerByIdIntoDb(user.id, req.params.id, req.body);
+  const result = await adminService.blockCustomerByIdIntoDb(
+    user.id,
+    req.params.id,
+    req.body,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -160,7 +172,11 @@ const blockCustomerById = catchAsync(async (req, res) => {
 
 const updateSaloonOwnerById = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await adminService.updateSaloonOwnerByIdIntoDb(user.id, req.params.id, req.body);
+  const result = await adminService.updateSaloonOwnerByIdIntoDb(
+    user.id,
+    req.params.id,
+    req.body,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -185,23 +201,21 @@ const getSubscribersList = catchAsync(async (req, res) => {
   const filters = pickValidFields(req.query, [
     'page',
     'limit',
-    'sortBy', 
+    'sortBy',
     'sortOrder',
     'searchTerm',
     'startDate',
     'endDate',
-  ]); 
+  ]);
   const result = await adminService.getSubscribersListFromDb(user.id, filters);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Subscribers list retrieved successfully',
-    data: result.data,  
+    data: result.data,
     meta: result.meta,
-  }); 
+  });
 });
-
-
 
 export const adminController = {
   getSaloonList,

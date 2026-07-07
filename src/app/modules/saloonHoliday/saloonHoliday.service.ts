@@ -55,67 +55,73 @@ const createSaloonHolidayIntoDb = async (
     throw new AppError(httpStatus.CONFLICT, 'Holiday already exists');
   }
 
-  return await prisma.saloonHoliday.create({
-    data: {
-      ...data,
-      userId,
-      // saloonId
-    },
-    select: {
-      id: true,
-      userId: true,
-      date: true,
-      holidayName: true,
-      description: true,
-      isRecurring: true,
-    },
-  }).then(async (createdHoliday) => {
-    // Send notification to followers about holiday
-    try {
-      const saloon = await prisma.saloonOwner.findUnique({
-        where: { userId },
-        select: { user: { select: { fullName: true } } },
-      });
-
-      const followers = await prisma.follow.findMany({
-        where: { followingId: userId },
-        select: { userId: true },
-      });
-
-      if (followers.length > 0) {
-        const followerIds = followers.map(f => f.userId);
-        const followerTokens = await prisma.user.findMany({
-          where: { id: { in: followerIds } },
-          select: { id: true, fcmToken: true },
+  return await prisma.saloonHoliday
+    .create({
+      data: {
+        ...data,
+        userId,
+        // saloonId
+      },
+      select: {
+        id: true,
+        userId: true,
+        date: true,
+        holidayName: true,
+        description: true,
+        isRecurring: true,
+      },
+    })
+    .then(async createdHoliday => {
+      // Send notification to followers about holiday
+      try {
+        const saloon = await prisma.saloonOwner.findUnique({
+          where: { userId },
+          select: { user: { select: { fullName: true } } },
         });
 
-        const saloonName = saloon?.user?.fullName || 'Salon';
-        const dateStr = new Date(data.date).toLocaleDateString('en-US');
-        const message = `${saloonName} is closed on ${dateStr}: ${data.holidayName}`;
+        const followers = await prisma.follow.findMany({
+          where: { followingId: userId },
+          select: { userId: true },
+        });
 
-        await Promise.all(
-          followerTokens
-            .filter(f => f.fcmToken)
-            .map(f =>
-              notificationService
-                .sendNotification(
-                  f.fcmToken!,
-                  'Salon Holiday',
-                  message,
-                  f.id,
-                )
-                .catch(error =>
-                  console.error('Error sending holiday creation notification:', error),
-                ),
-            ),
-        );
+        if (followers.length > 0) {
+          const followerIds = followers.map(f => f.userId);
+          const followerTokens = await prisma.user.findMany({
+            where: { id: { in: followerIds } },
+            select: { id: true, fcmToken: true },
+          });
+
+          const saloonName = saloon?.user?.fullName || 'Salon';
+          const dateStr = new Date(data.date).toLocaleDateString('en-US');
+          const message = `${saloonName} is closed on ${dateStr}: ${data.holidayName}`;
+
+          await Promise.all(
+            followerTokens
+              .filter(f => f.fcmToken)
+              .map(f =>
+                notificationService
+                  .sendNotification(
+                    f.fcmToken!,
+                    'Salon Holiday',
+                    message,
+                    f.id,
+                    userId,
+                  )
+                  .catch(error =>
+                    console.error(
+                      'Error sending holiday creation notification:',
+                      error,
+                    ),
+                  ),
+              ),
+          );
+        }
+      } catch (error) {
+        console.error('Error sending holiday creation notifications:', error);
       }
-    } catch (error) {
-      console.error('Error sending holiday creation notifications:', error);
-    }
 
-    return createdHoliday;
-  });
+      return createdHoliday;
+    });
 };
 
 const getSaloonHolidayListFromDb = async (
@@ -140,7 +146,7 @@ const getSaloonHolidayListFromDb = async (
   // }
 
   return await prisma.saloonHoliday.findMany({
-    where:{
+    where: {
       userId: saloonId,
     },
     select: {
@@ -160,7 +166,7 @@ const getSaloonHolidayByIdFromDb = async (
   holidayId: string,
 ) => {
   console.log(`Fetching holiday with ID: ${holidayId} for user: ${userId}`);
-  
+
   const result = await prisma.saloonHoliday.findUnique({
     where: {
       id: holidayId,
@@ -197,64 +203,72 @@ const updateSaloonHolidayIntoDb = async (
     );
   }
 
-  return await prisma.saloonHoliday.update({
-    where: { id: holidayId },
-    data,
-    select: {
-      id: true,
-      userId: true,
-      date: true,
-      holidayName: true,
-      description: true,
-      isRecurring: true,
-    },
-  }).then(async (updatedHoliday) => {
-    // Send notification to followers about holiday update
-    try {
-      const saloon = await prisma.saloonOwner.findUnique({
-        where: { userId },
-        select: { user: { select: { fullName: true } } },
-      });
-
-      const followers = await prisma.follow.findMany({
-        where: { followingId: userId },
-        select: { userId: true },
-      });
-
-      if (followers.length > 0) {
-        const followerIds = followers.map(f => f.userId);
-        const followerTokens = await prisma.user.findMany({
-          where: { id: { in: followerIds } },
-          select: { id: true, fcmToken: true },
+  return await prisma.saloonHoliday
+    .update({
+      where: { id: holidayId },
+      data,
+      select: {
+        id: true,
+        userId: true,
+        date: true,
+        holidayName: true,
+        description: true,
+        isRecurring: true,
+      },
+    })
+    .then(async updatedHoliday => {
+      // Send notification to followers about holiday update
+      try {
+        const saloon = await prisma.saloonOwner.findUnique({
+          where: { userId },
+          select: { user: { select: { fullName: true, id: true } } },
         });
 
-        const saloonName = saloon?.user?.fullName || 'Salon';
-        const dateStr = new Date(updatedHoliday.date).toLocaleDateString('en-US');
-        const message = `${saloonName} holiday updated for ${dateStr}: ${updatedHoliday.holidayName}`;
+        const followers = await prisma.follow.findMany({
+          where: { followingId: userId },
+          select: { userId: true },
+        });
 
-        await Promise.all(
-          followerTokens
-            .filter(f => f.fcmToken)
-            .map(f =>
-              notificationService
-                .sendNotification(
-                  f.fcmToken!,
-                  'Salon Holiday Updated',
-                  message,
-                  f.id,
-                )
-                .catch(error =>
-                  console.error('Error sending holiday update notification:', error),
-                ),
-            ),
-        );
+        if (followers.length > 0) {
+          const followerIds = followers.map(f => f.userId);
+          const followerTokens = await prisma.user.findMany({
+            where: { id: { in: followerIds } },
+            select: { id: true, fcmToken: true },
+          });
+
+          const saloonName = saloon?.user?.fullName || 'Salon';
+          const dateStr = new Date(updatedHoliday.date).toLocaleDateString(
+            'en-US',
+          );
+          const message = `${saloonName} holiday updated for ${dateStr}: ${updatedHoliday.holidayName}`;
+
+          await Promise.all(
+            followerTokens
+              .filter(f => f.fcmToken)
+              .map(f =>
+                notificationService
+                  .sendNotification(
+                    f.fcmToken!,
+                    'Salon Holiday Updated',
+                    message,
+                    f.id,
+                    saloon?.user?.id,
+                  )
+                  .catch(error =>
+                    console.error(
+                      'Error sending holiday update notification:',
+                      error,
+                    ),
+                  ),
+              ),
+          );
+        }
+      } catch (error) {
+        console.error('Error sending holiday update notifications:', error);
       }
-    } catch (error) {
-      console.error('Error sending holiday update notifications:', error);
-    }
 
-    return updatedHoliday;
-  });
+      return updatedHoliday;
+    });
 };
 
 const deleteSaloonHolidayItemFromDb = async (
@@ -278,62 +292,68 @@ const deleteSaloonHolidayItemFromDb = async (
     );
   }
 
-  return await prisma.saloonHoliday.delete({
-    where: { id: holidayId },
-    select: {
-      id: true,
-      userId: true,
-      date: true,
-      holidayName: true,
-      description: true,
-      isRecurring: true,
-    },
-  }).then(async (deletedHoliday) => {
-    // Send notification to followers about holiday deletion
-    try {
-      const saloon = await prisma.saloonOwner.findUnique({
-        where: { userId },
-        select: { user: { select: { fullName: true } } },
-      });
-
-      const followers = await prisma.follow.findMany({
-        where: { followingId: userId },
-        select: { userId: true },
-      });
-
-      if (followers.length > 0) {
-        const followerIds = followers.map(f => f.userId);
-        const followerTokens = await prisma.user.findMany({
-          where: { id: { in: followerIds } },
-          select: { id: true, fcmToken: true },
+  return await prisma.saloonHoliday
+    .delete({
+      where: { id: holidayId },
+      select: {
+        id: true,
+        userId: true,
+        date: true,
+        holidayName: true,
+        description: true,
+        isRecurring: true,
+      },
+    })
+    .then(async deletedHoliday => {
+      // Send notification to followers about holiday deletion
+      try {
+        const saloon = await prisma.saloonOwner.findUnique({
+          where: { userId },
+          select: { user: { select: { fullName: true, id: true } } },
         });
 
-        const saloonName = saloon?.user?.fullName || 'Salon';
-        const message = `${saloonName} removed holiday: ${deletedHoliday.holidayName}`;
+        const followers = await prisma.follow.findMany({
+          where: { followingId: userId },
+          select: { userId: true },
+        });
 
-        await Promise.all(
-          followerTokens
-            .filter(f => f.fcmToken)
-            .map(f =>
-              notificationService
-                .sendNotification(
-                  f.fcmToken!,
-                  'Salon Holiday Removed',
-                  message,
-                  f.id,
-                )
-                .catch(error =>
-                  console.error('Error sending holiday deletion notification:', error),
-                ),
-            ),
-        );
+        if (followers.length > 0) {
+          const followerIds = followers.map(f => f.userId);
+          const followerTokens = await prisma.user.findMany({
+            where: { id: { in: followerIds } },
+            select: { id: true, fcmToken: true },
+          });
+
+          const saloonName = saloon?.user?.fullName || 'Salon';
+          const message = `${saloonName} removed holiday: ${deletedHoliday.holidayName}`;
+
+          await Promise.all(
+            followerTokens
+              .filter(f => f.fcmToken)
+              .map(f =>
+                notificationService
+                  .sendNotification(
+                    f.fcmToken!,
+                    'Salon Holiday Removed',
+                    message,
+                    f.id,
+                    saloon?.user?.id,
+                  )
+                  .catch(error =>
+                    console.error(
+                      'Error sending holiday deletion notification:',
+                      error,
+                    ),
+                  ),
+              ),
+          );
+        }
+      } catch (error) {
+        console.error('Error sending holiday deletion notifications:', error);
       }
-    } catch (error) {
-      console.error('Error sending holiday deletion notifications:', error);
-    }
 
-    return deletedHoliday;
-  });
+      return deletedHoliday;
+    });
 };
 
 // Additional utility function

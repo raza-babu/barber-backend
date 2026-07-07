@@ -109,7 +109,7 @@ const createJobPostIntoDb = async (
       // Get all followers of this saloon owner
       const followers = await prisma.follow.findMany({
         where: { followingId: userId },
-        select: { follower: { select: { fcmToken: true } } },
+        select: { follower: { select: { fcmToken: true } }, userId: true },
       });
 
       if (owner && followers.length > 0) {
@@ -119,7 +119,7 @@ const createJobPostIntoDb = async (
               follower.follower.fcmToken,
               'New Job Opening',
               `${owner.fullName} posted a new job opening!`,
-              userId,
+              follower.userId,
               userId,
             )
             .catch(error =>
@@ -232,8 +232,6 @@ const getJobPostListFromDb = async (
     ...dateRangeQuery,
     ...(Object.keys(searchQuery).length > 0 && searchQuery),
   };
-
-
 
   // Exclude job posts the barber already applied to (if barberId provided)
   // Assumes a relation field "JobApplication" on jobPost and that each application has a "userId" field.
@@ -475,7 +473,9 @@ const updateJobPostIntoDb = async (
     // Get all applicants for this job post
     const applicants = await prisma.jobApplication.findMany({
       where: { jobPostId: jobPostId },
-      select: { barber: { select: { user: { select: { fcmToken: true } } } } },
+      select: {
+        barber: { select: { user: { select: { fcmToken: true, id: true } } } },
+      },
     });
 
     if (owner && applicants.length > 0) {
@@ -485,7 +485,7 @@ const updateJobPostIntoDb = async (
             applicant.barber?.user?.fcmToken,
             'Job Update',
             `Job details have been updated by ${owner.fullName}!`,
-            userId,
+            applicant.barber?.user?.id,
             userId,
           )
           .catch(error =>
@@ -537,7 +537,9 @@ const toggleJobPostActiveIntoDb = async (userId: string, jobPostId: string) => {
     // Get all applicants for this job post
     const applicants = await prisma.jobApplication.findMany({
       where: { jobPostId: jobPostId },
-      select: { barber: { select: { user: { select: { fcmToken: true } } } } },
+      select: {
+        barber: { select: { user: { select: { fcmToken: true, id: true } } } },
+      },
     });
 
     if (owner && applicants.length > 0) {
@@ -550,7 +552,7 @@ const toggleJobPostActiveIntoDb = async (userId: string, jobPostId: string) => {
             applicant.barber?.user?.fcmToken,
             'Job Status Changed',
             `The job posting has been ${statusMessage} by ${owner.fullName}.`,
-            userId,
+            applicant.barber?.user?.id,
             userId,
           )
           .catch(error =>
@@ -601,7 +603,9 @@ const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
     // Get all applicants for this job post
     const applicants = await prisma.jobApplication.findMany({
       where: { jobPostId: jobPostId },
-      select: { barber: { select: { user: { select: { fcmToken: true } } } } },
+      select: {
+        barber: { select: { user: { select: { fcmToken: true, id: true } } } },
+      },
     });
 
     if (owner && applicants.length > 0) {
@@ -611,7 +615,7 @@ const deleteJobPostItemFromDb = async (userId: string, jobPostId: string) => {
             applicant.barber?.user?.fcmToken,
             'Job Deleted',
             `The job posting has been deleted by ${owner.fullName}.`,
-            userId,
+            applicant.barber?.user?.id,
             userId,
           )
           .catch(error =>

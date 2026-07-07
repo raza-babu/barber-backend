@@ -332,6 +332,7 @@ const manageBookingsIntoDb = async (
             notificationTitle,
             notificationMessage,
             booking.userId,
+            userId,
           )
           .catch(error =>
             console.error('Error sending booking notification:', error),
@@ -1692,6 +1693,7 @@ const terminateBarberIntoDb = async (
             'Employment Terminated',
             message,
             data.barberId,
+            userId,
           )
           .catch(error =>
             console.error('Error sending termination notification:', error),

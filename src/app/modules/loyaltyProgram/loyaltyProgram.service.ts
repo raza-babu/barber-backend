@@ -56,23 +56,30 @@ const createLoyaltyProgramIntoDb = async (
     // Get all followers of this salon owner
     const followers = await prisma.follow.findMany({
       where: { followingId: userId },
-      select: { follower: { select: { fcmToken: true } } },
+      select: { follower: { select: { fcmToken: true, id: true } } },
     });
 
     if (owner && followers.length > 0) {
       const notificationPromises = followers.map(follower =>
-        notificationService.sendNotification(
-          follower.follower.fcmToken,
-          'New Loyalty Program',
-          `${owner.fullName} launched a new loyalty program for ${findService.serviceName}!`,
-          userId,
-          userId,
-        ).catch(error => console.error('Error sending loyalty program notification:', error))
+        notificationService
+          .sendNotification(
+            follower.follower.fcmToken,
+            'New Loyalty Program',
+            `${owner.fullName} launched a new loyalty program for ${findService.serviceName}!`,
+            follower.follower.id,
+            userId,
+          )
+          .catch(error =>
+            console.error('Error sending loyalty program notification:', error),
+          ),
       );
       await Promise.all(notificationPromises);
     }
   } catch (error) {
-    console.error('Error sending loyalty program creation notification:', error);
+    console.error(
+      'Error sending loyalty program creation notification:',
+      error,
+    );
   }
 
   return result;
@@ -82,8 +89,8 @@ const getLoyaltyProgramListFromDb = async (
   userId: string,
   options: ISearchAndFilterOptions,
 ) => {
-    const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
-  
+  const { page, limit, skip, sortBy, sortOrder } = calculatePagination(options);
+
   const searchTerm = options.searchTerm || '';
 
   const whereCondition = {
@@ -170,7 +177,6 @@ const updateLoyaltyProgramIntoDb = async (
     data: {
       ...data,
       serviceName: findService.serviceName,
-
     },
   });
   if (!result) {
@@ -187,18 +193,22 @@ const updateLoyaltyProgramIntoDb = async (
     // Get all followers of this salon owner
     const followers = await prisma.follow.findMany({
       where: { followingId: userId },
-      select: { follower: { select: { fcmToken: true } } },
+      select: { follower: { select: { fcmToken: true, id: true } } },
     });
 
     if (owner && followers.length > 0) {
       const notificationPromises = followers.map(follower =>
-        notificationService.sendNotification(
-          follower.follower.fcmToken,
-          'Loyalty Program Updated',
-          `${owner.fullName} updated the loyalty program for ${findService.serviceName}!`,
-          userId,
-          userId,
-        ).catch(error => console.error('Error sending update notification:', error))
+        notificationService
+          .sendNotification(
+            follower.follower.fcmToken,
+            'Loyalty Program Updated',
+            `${owner.fullName} updated the loyalty program for ${findService.serviceName}!`,
+            follower.follower.id,
+            userId,
+          )
+          .catch(error =>
+            console.error('Error sending update notification:', error),
+          ),
       );
       await Promise.all(notificationPromises);
     }
@@ -243,23 +253,30 @@ const deleteLoyaltyProgramItemFromDb = async (
     // Get all followers of this salon owner
     const followers = await prisma.follow.findMany({
       where: { followingId: userId },
-      select: { follower: { select: { fcmToken: true } } },
+      select: { follower: { select: { fcmToken: true, id: true } } },
     });
 
     if (owner && followers.length > 0) {
       const notificationPromises = followers.map(follower =>
-        notificationService.sendNotification(
-          follower.follower.fcmToken,
-          'Loyalty Program Deleted',
-          `The loyalty program for ${loyaltyProgram.serviceName} by ${owner.fullName} has been deleted.`,
-          userId,
-          userId,
-        ).catch(error => console.error('Error sending deletion notification:', error))
+        notificationService
+          .sendNotification(
+            follower.follower.fcmToken,
+            'Loyalty Program Deleted',
+            `The loyalty program for ${loyaltyProgram.serviceName} by ${owner.fullName} has been deleted.`,
+            follower.follower.id,
+            userId,
+          )
+          .catch(error =>
+            console.error('Error sending deletion notification:', error),
+          ),
       );
       await Promise.all(notificationPromises);
     }
   } catch (error) {
-    console.error('Error sending loyalty program deletion notification:', error);
+    console.error(
+      'Error sending loyalty program deletion notification:',
+      error,
+    );
   }
 
   return deletedItem;

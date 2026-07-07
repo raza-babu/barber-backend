@@ -69,6 +69,7 @@ const createJobApplicationsIntoDb = async (userId: string, data: any) => {
         'New Job Application',
         `${barberUser.fullName} applied for your job opening!`,
         saloonDetails.saloonOwnerId,
+        userId,
       );
     }
   } catch (error) {
@@ -493,6 +494,7 @@ const updateJobApplicationsIntoDb = async (
           'Job Application Update',
           notificationMessage,
           result.userId,
+          userId,
         );
       }
     }

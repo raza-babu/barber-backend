@@ -713,6 +713,7 @@ const updateBookingStatusIntoDb = async (
             notificationTitle,
             notificationBody,
             result.userId,
+            userId,
           );
         }
       }

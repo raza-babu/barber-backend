@@ -367,12 +367,27 @@ const createUserSubscriptionIntoDb = async (
     if (subscriber?.fcmToken) {
       const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription is now active! Enjoy all premium features.`;
 
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
           'Subscription Activated',
           message,
           userId,
+          superAdmin?.id,
         )
         .catch(error =>
           console.error(
@@ -594,12 +609,27 @@ const updateUserSubscriptionIntoDb = async (
     if (subscriber?.fcmToken) {
       const message = `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription has been renewed successfully!`;
 
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
           'Subscription Renewed',
           message,
           userId,
+          superAdmin?.id,
         )
         .catch(error =>
           console.error(
@@ -663,12 +693,27 @@ const cancelAutomaticRenewalIntoDb = async (
       const expireDate = result.subscription.endDate.toLocaleDateString();
       const message = `${subscriber.fullName}, automatic renewal is now disabled. Your subscription will expire on ${expireDate}.`;
 
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
           'Automatic Renewal Cancelled',
           message,
           userId,
+          superAdmin?.id,
         )
         .catch(error =>
           console.error(
@@ -754,6 +799,7 @@ const deleteCustomerSubscriptionItemFromDb = async (
           'Subscription Cancelled',
           message,
           saloonOwnerId,
+          adminUserId,
         )
         .catch(error =>
           console.error(
@@ -846,12 +892,27 @@ const deleteUserSubscriptionItemFromDb = async (
     if (subscriber?.fcmToken) {
       const message = `${subscriber.fullName}, your subscription has been cancelled. You will lose access to premium features.`;
 
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
+
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
           'Subscription Cancelled',
           message,
           userId,
+          superAdmin?.id,
         )
         .catch(error =>
           console.error('Error sending user cancellation notification:', error),
@@ -1025,12 +1086,26 @@ const createGooglePlaySubscriptionIntoDb = async (
       select: { fcmToken: true, fullName: true },
     });
     if (subscriber?.fcmToken) {
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
       await notificationService
         .sendNotification(
           subscriber.fcmToken,
           'Subscription Activated',
           `${subscriber.fullName}, your ${subscriptionOffer.planType} subscription is now active!`,
           userId,
+          superAdmin?.id,
         )
         .catch(err => console.error('Push notification failed:', err));
     }

@@ -43,7 +43,7 @@ type CreateSaloonScheduleParamsWithDayName = {
 
 const createSaloonScheduleIntoDb = async (
   userId: string,
-  data: CreateSaloonScheduleParamsWithDayName
+  data: CreateSaloonScheduleParamsWithDayName,
 ) => {
   if (!data || !Array.isArray(data) || data.length === 0) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Schedule data is required');
@@ -57,11 +57,26 @@ const createSaloonScheduleIntoDb = async (
       !schedule.closingTime ||
       typeof schedule.isActive !== 'boolean'
     ) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid schedule data format');
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Invalid schedule data format',
+      );
     }
 
-    const openingDateTime = DateTime.fromFormat(schedule.openingTime, 'hh:mm a', { zone: config.timezone }).toUTC().toJSDate();
-    const closingDateTime = DateTime.fromFormat(schedule.closingTime, 'hh:mm a', { zone: config.timezone }).toUTC().toJSDate();
+    const openingDateTime = DateTime.fromFormat(
+      schedule.openingTime,
+      'hh:mm a',
+      { zone: config.timezone },
+    )
+      .toUTC()
+      .toJSDate();
+    const closingDateTime = DateTime.fromFormat(
+      schedule.closingTime,
+      'hh:mm a',
+      { zone: config.timezone },
+    )
+      .toUTC()
+      .toJSDate();
 
     return {
       saloonOwnerId: userId,
@@ -75,67 +90,77 @@ const createSaloonScheduleIntoDb = async (
     };
   });
 
-  return prisma.$transaction(async transactionClient => {
-    await transactionClient.saloonSchedule.deleteMany({
-      where: { saloonOwnerId: userId },
-    });
-
-    const createdSchedules = await transactionClient.saloonSchedule.createMany({
-      data: mappedSchedules,
-    });
-
-    if (createdSchedules.count !== mappedSchedules.length) {
-      throw new AppError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create all schedule entries');
-    }
-
-    return createdSchedules;
-  }).then(async (result) => {
-    // Send notification to followers about schedule creation
-    try {
-      const saloon = await prisma.saloonOwner.findUnique({
-        where: { userId },
-        select: { user: { select: { fullName: true } } },
+  return prisma
+    .$transaction(async transactionClient => {
+      await transactionClient.saloonSchedule.deleteMany({
+        where: { saloonOwnerId: userId },
       });
 
-      const followers = await prisma.follow.findMany({
-        where: { followingId: userId },
-        select: { userId: true },
-      });
-
-      if (followers.length > 0) {
-        const followerIds = followers.map(f => f.userId);
-        const followerTokens = await prisma.user.findMany({
-          where: { id: { in: followerIds } },
-          select: { id: true, fcmToken: true },
+      const createdSchedules =
+        await transactionClient.saloonSchedule.createMany({
+          data: mappedSchedules,
         });
 
-        const saloonName = saloon?.user?.fullName || 'Salon';
-        const daysCount = mappedSchedules.length;
-        const message = `${saloonName} updated its schedule for ${daysCount} days`;
-
-        await Promise.all(
-          followerTokens
-            .filter(f => f.fcmToken)
-            .map(f =>
-              notificationService
-                .sendNotification(
-                  f.fcmToken!,
-                  'Salon Schedule Updated',
-                  message,
-                  f.id,
-                )
-                .catch(error =>
-                  console.error('Error sending schedule creation notification:', error),
-                ),
-            ),
+      if (createdSchedules.count !== mappedSchedules.length) {
+        throw new AppError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          'Failed to create all schedule entries',
         );
       }
-    } catch (error) {
-      console.error('Error sending schedule creation notifications:', error);
-    }
 
-    return result;
-  });
+      return createdSchedules;
+    })
+    .then(async result => {
+      // Send notification to followers about schedule creation
+      try {
+        const saloon = await prisma.saloonOwner.findUnique({
+          where: { userId },
+          select: { user: { select: { fullName: true, id: true } } },
+        });
+
+        const followers = await prisma.follow.findMany({
+          where: { followingId: userId },
+          select: { userId: true },
+        });
+
+        if (followers.length > 0) {
+          const followerIds = followers.map(f => f.userId);
+          const followerTokens = await prisma.user.findMany({
+            where: { id: { in: followerIds } },
+            select: { id: true, fcmToken: true },
+          });
+
+          const saloonName = saloon?.user?.fullName || 'Salon';
+          const daysCount = mappedSchedules.length;
+          const message = `${saloonName} updated its schedule for ${daysCount} days`;
+
+          await Promise.all(
+            followerTokens
+              .filter(f => f.fcmToken)
+              .map(f =>
+                notificationService
+                  .sendNotification(
+                    f.fcmToken!,
+                    'Salon Schedule Updated',
+                    message,
+                    f.id,
+                    saloon?.user?.id,
+                  )
+                  .catch(error =>
+                    console.error(
+                      'Error sending schedule creation notification:',
+                      error,
+                    ),
+                  ),
+              ),
+          );
+        }
+      } catch (error) {
+        console.error('Error sending schedule creation notifications:', error);
+      }
+
+      return result;
+    });
 };
 
 const getSaloonScheduleListFromDb = async (userId: string) => {
@@ -144,7 +169,7 @@ const getSaloonScheduleListFromDb = async (userId: string) => {
     where: {
       saloonOwnerId: userId,
     },
-    select: { 
+    select: {
       id: true,
       saloonOwnerId: true,
       dayName: true,
@@ -180,8 +205,8 @@ const getSaloonScheduleListFromDb = async (userId: string) => {
     time: `${schedule.openingTime} - ${schedule.closingTime}`,
     isActive: schedule.isActive,
     // openingDateTime: schedule.openingDateTime,
-    // closingDateTime: schedule.closingDateTime, 
-    }));
+    // closingDateTime: schedule.closingDateTime,
+  }));
 };
 
 const getSaloonScheduleByIdFromDb = async (
@@ -245,7 +270,7 @@ const updateSaloonScheduleIntoDb = async (
   try {
     const saloon = await prisma.saloonOwner.findUnique({
       where: { userId },
-      select: { user: { select: { fullName: true } } },
+      select: { user: { select: { fullName: true, id: true } } },
     });
 
     const followers = await prisma.follow.findMany({
@@ -274,9 +299,13 @@ const updateSaloonScheduleIntoDb = async (
                 'Salon Schedule Updated',
                 message,
                 f.id,
+                saloon?.user?.id,
               )
               .catch(error =>
-                console.error('Error sending schedule update notification:', error),
+                console.error(
+                  'Error sending schedule update notification:',
+                  error,
+                ),
               ),
           ),
       );
@@ -302,7 +331,7 @@ const deleteSaloonScheduleItemFromDb = async (userId: string) => {
   try {
     const saloon = await prisma.saloonOwner.findUnique({
       where: { userId },
-      select: { user: { select: { fullName: true } } },
+      select: { user: { select: { fullName: true, id: true } } },
     });
 
     const followers = await prisma.follow.findMany({
@@ -330,9 +359,13 @@ const deleteSaloonScheduleItemFromDb = async (userId: string) => {
                 'Salon Schedule Cleared',
                 message,
                 f.id,
+                saloon?.user?.id,
               )
               .catch(error =>
-                console.error('Error sending schedule deletion notification:', error),
+                console.error(
+                  'Error sending schedule deletion notification:',
+                  error,
+                ),
               ),
           ),
       );

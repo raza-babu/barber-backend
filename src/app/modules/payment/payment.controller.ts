@@ -38,6 +38,20 @@ const createNewAccount = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
   const result = await StripeServices.createNewAccountIntoStripe(user.id);
 
+  // ** Retrived the super admin of the app:
+  const superAdmin = await prisma.user.findFirst({
+    where: {
+      role: 'SUPER_ADMIN',
+      isDeactivated: false,
+      isDeleted: false,
+      isVerified: true,
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+    },
+  });
+
   // Send notification about account creation
   try {
     await notificationService.sendNotification(
@@ -45,6 +59,7 @@ const createNewAccount = catchAsync(async (req: Request, res: Response) => {
       'Account Created',
       'Your Stripe account has been created successfully!',
       user.id,
+      superAdmin?.id,
     );
   } catch (error) {
     console.error('Error sending account creation notification:', error);
@@ -84,6 +99,20 @@ const authorizedPaymentWithSaveCard = catchAsync(async (req: any, res: any) => {
     req.body,
   );
 
+  // ** Retrived the super admin of the app:
+  const superAdmin = await prisma.user.findFirst({
+    where: {
+      role: 'SUPER_ADMIN',
+      isDeactivated: false,
+      isDeleted: false,
+      isVerified: true,
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+    },
+  });
+
   // Send notification about payment authorization
   try {
     await notificationService.sendNotification(
@@ -91,6 +120,7 @@ const authorizedPaymentWithSaveCard = catchAsync(async (req: any, res: any) => {
       'Payment Authorized',
       'Payment has been authorized. Please confirm to complete the transaction.',
       user.id,
+      superAdmin?.id,
     );
   } catch (error) {
     console.error('Error sending authorization notification:', error);
@@ -131,6 +161,7 @@ const capturePaymentRequest = catchAsync(async (req: any, res: any) => {
           'Payment Captured',
           'Your payment has been captured successfully!',
           booking.userId,
+          user.id,
         );
       }
     }
@@ -157,7 +188,7 @@ const cancelPaymentRequest = catchAsync(async (req: any, res: any) => {
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: req.body.bookingId },
-      select: { userId: true },
+      select: { userId: true, saloonOwnerId: true },
     });
 
     if (booking) {
@@ -172,6 +203,7 @@ const cancelPaymentRequest = catchAsync(async (req: any, res: any) => {
           'Payment Cancelled',
           'Your payment request has been cancelled.',
           booking.userId,
+          booking.saloonOwnerId,
         );
       }
     }
@@ -254,6 +286,20 @@ const refundPaymentToCustomer = catchAsync(async (req: any, res: any) => {
       select: { userId: true },
     });
 
+    // ** Retrived the super admin of the app:
+    const superAdmin = await prisma.user.findFirst({
+      where: {
+        role: 'SUPER_ADMIN',
+        isDeactivated: false,
+        isDeleted: false,
+        isVerified: true,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+      },
+    });
+
     if (payment) {
       const customer = await prisma.user.findUnique({
         where: { id: payment.userId },
@@ -266,6 +312,7 @@ const refundPaymentToCustomer = catchAsync(async (req: any, res: any) => {
           'Refund Processed',
           'Your refund has been processed successfully!',
           payment.userId,
+          superAdmin?.id,
         );
       }
     }
@@ -586,6 +633,18 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
         try {
           const customer = await prisma.user.findUnique({
             where: { id: booking.userId },
+            select: { fcmToken: true, id: true },
+          });
+
+          // Send notification to saloon owner about new confirmed booking
+          const saloonOwner = await prisma.user.findUnique({
+            where: { id: booking.saloonOwnerId },
+            select: { fcmToken: true, id: true },
+          });
+
+          // Send notification to barber about new confirmed booking
+          const barber = await prisma.user.findUnique({
+            where: { id: booking.barberId },
             select: { fcmToken: true },
           });
 
@@ -595,33 +654,27 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
               'Payment Successful',
               'Your payment has been processed successfully! Your booking is confirmed.',
               booking.userId,
+              saloonOwner?.id,
             );
           }
-          // Send notification to barber about new confirmed booking
-          const barber = await prisma.user.findUnique({
-            where: { id: booking.barberId },
-            select: { fcmToken: true },
-          });
+
           if (barber?.fcmToken) {
             await notificationService.sendNotification(
               barber.fcmToken,
               'New Booking Confirmed',
               `A new booking has been confirmed for ${booking.appointmentAt?.toLocaleString()}.`,
               booking.barberId,
+              saloonOwner?.id,
             );
           }
 
-          // Send notification to saloon owner about new confirmed booking
-          const saloonOwner = await prisma.user.findUnique({
-            where: { id: booking.saloonOwnerId },
-            select: { fcmToken: true },
-          });
           if (saloonOwner?.fcmToken) {
             await notificationService.sendNotification(
               saloonOwner.fcmToken,
               'New Booking Confirmed',
               `A new booking has been confirmed for ${booking.appointmentAt?.toLocaleString()}.`,
               booking.saloonOwnerId,
+              customer?.id,
             );
           }
         } catch (error) {
@@ -658,12 +711,27 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
             select: { fcmToken: true },
           });
 
+          // ** Retrived the super admin of the app:
+          const superAdmin = await prisma.user.findFirst({
+            where: {
+              role: 'SUPER_ADMIN',
+              isDeactivated: false,
+              isDeleted: false,
+              isVerified: true,
+              status: 'ACTIVE',
+            },
+            select: {
+              id: true,
+            },
+          });
+
           if (customer?.fcmToken) {
             await notificationService.sendNotification(
               customer.fcmToken,
               'Payment Failed',
               'Your payment has failed. Please try again with another payment method.',
               booking.userId,
+              superAdmin?.id,
             );
           }
         } catch (notificationError) {
@@ -758,12 +826,27 @@ const handleWebHook = catchAsync(async (req: any, res: any) => {
             select: { fcmToken: true },
           });
 
+          // ** Retrived the super admin of the app:
+          const superAdmin = await prisma.user.findFirst({
+            where: {
+              role: 'SUPER_ADMIN',
+              isDeactivated: false,
+              isDeleted: false,
+              isVerified: true,
+              status: 'ACTIVE',
+            },
+            select: {
+              id: true,
+            },
+          });
+
           if (customer?.fcmToken) {
             await notificationService.sendNotification(
               customer.fcmToken,
               'Charge Failed',
               'Your charge has failed. Please try again with another payment method.',
               booking.userId,
+              superAdmin?.id,
             );
           }
         } catch (notificationError) {
@@ -1398,7 +1481,7 @@ const tipPaymentToBarber = catchAsync(async (req: any, res: any) => {
 
       const customer = await prisma.user.findUnique({
         where: { id: user.id },
-        select: { fullName: true },
+        select: { fullName: true, id: true },
       });
 
       if (barber?.user?.fcmToken) {
@@ -1408,6 +1491,7 @@ const tipPaymentToBarber = catchAsync(async (req: any, res: any) => {
           'Tip Received',
           `${customer?.fullName || 'A customer'} sent you a tip of $${tipAmount}!`,
           barber.user.id,
+          customer?.id,
         );
       }
     }
@@ -1440,6 +1524,7 @@ const payoutToBarber = catchAsync(async (req: any, res: any) => {
         'Payout Processed',
         `A payout of $${req.body.amount} has been transferred to your account!`,
         req.body.barberId,
+        user?.id,
       );
     }
   } catch (error) {
@@ -1561,6 +1646,7 @@ const settleBarberPayout = catchAsync(async (req: Request, res: Response) => {
           'Payout Settled',
           `Your payout of $${payoutRequest.amount} has been settled and transferred to your account!`,
           payoutRequest.barberId,
+          user?.id,
         );
       }
     }
@@ -1618,6 +1704,7 @@ const rejectBarberPayout = catchAsync(async (req: Request, res: Response) => {
           'Payout Rejected',
           message,
           payoutRequest.barberId,
+          user?.id
         );
       }
     }

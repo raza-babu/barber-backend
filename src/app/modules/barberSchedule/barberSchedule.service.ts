@@ -196,6 +196,7 @@ const updateBarberScheduleIntoDb = async (
           'Schedule Updated',
           message,
           result.barberId,
+          userId,
         )
         .catch(error =>
           console.error('Error sending schedule update notification:', error),
@@ -248,6 +249,7 @@ const deleteBarberScheduleItemFromDb = async (
           'Schedule Deleted',
           message,
           barberId,
+          userId,
         )
         .catch(error =>
           console.error('Error sending schedule deletion notification:', error),

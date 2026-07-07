@@ -52,6 +52,7 @@ const sendBookingConfirmationNotification = async (
         title,
         body,
         userId,
+        barberId,
       );
     }
   } catch (error) {
@@ -1228,7 +1229,11 @@ const createQueueBookingForSalonOwnerIntoDb = async (
 
   // Send booking confirmation notification to customer if available
   if (result.booking?.userId) {
-    await sendBookingConfirmationNotification(result.booking.userId, 'queue');
+    await sendBookingConfirmationNotification(
+      result.booking.userId,
+      'queue',
+      saloonOwnerId,
+    );
   }
 
   return result;
@@ -5200,6 +5205,7 @@ const updateBookingStatusIntoDb = async (
             notificationTitle,
             notificationBody,
             result.userId,
+            userId,
           );
         }
       }

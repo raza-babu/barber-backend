@@ -49,7 +49,7 @@ const createLoyaltySchemeIntoDb = async (
     // Get all followers of this salon owner
     const followers = await prisma.follow.findMany({
       where: { followingId: userId },
-      select: { follower: { select: { fcmToken: true } } },
+      select: { follower: { select: { fcmToken: true, id: true } } },
     });
 
     if (owner && followers.length > 0) {
@@ -58,7 +58,7 @@ const createLoyaltySchemeIntoDb = async (
           follower.follower.fcmToken,
           'New Loyalty Scheme',
           `${owner.fullName} introduced a new loyalty scheme with ${data.percentage}% discount!`,
-          userId,
+          follower.follower.id,
           userId,
         ).catch(error => console.error('Error sending loyalty scheme notification:', error))
       );
@@ -234,7 +234,7 @@ const updateLoyaltySchemeIntoDb = async (
     // Get all followers of this salon owner
     const followers = await prisma.follow.findMany({
       where: { followingId: userId },
-      select: { follower: { select: { fcmToken: true } } },
+      select: { follower: { select: { fcmToken: true , id: true} } },
     });
 
     if (owner && followers.length > 0) {
@@ -243,7 +243,7 @@ const updateLoyaltySchemeIntoDb = async (
           follower.follower.fcmToken,
           'Loyalty Scheme Updated',
           `${owner.fullName} updated the loyalty scheme to ${finalPercentage}% discount!`,
-          userId,
+          follower.follower.id,
           userId,
         ).catch(error => console.error('Error sending update notification:', error))
       );
@@ -290,7 +290,7 @@ const deleteLoyaltySchemeItemFromDb = async (
     // Get all followers of this salon owner
     const followers = await prisma.follow.findMany({
       where: { followingId: userId },
-      select: { follower: { select: { fcmToken: true } } },
+      select: { follower: { select: { fcmToken: true, id: true } } },
     });
 
     if (owner && followers.length > 0) {
@@ -299,7 +299,7 @@ const deleteLoyaltySchemeItemFromDb = async (
           follower.follower.fcmToken,
           'Loyalty Scheme Deleted',
           `The loyalty scheme by ${owner.fullName} has been deleted.`,
-          userId,
+          follower.follower.id,
           userId,
         ).catch(error => console.error('Error sending deletion notification:', error))
       );

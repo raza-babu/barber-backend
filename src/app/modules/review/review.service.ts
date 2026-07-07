@@ -1,5 +1,10 @@
 import prisma from '../../utils/prisma';
-import { UserRoleEnum, UserStatus, BookingStatus, PaymentStatus } from '@prisma/client';
+import {
+  UserRoleEnum,
+  UserStatus,
+  BookingStatus,
+  PaymentStatus,
+} from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
@@ -24,10 +29,7 @@ const createReviewIntoDb = async (userId: string, data: any) => {
     userId,
   );
   if (hasBlockedSaloon) {
-    throw new AppError(
-      httpStatus.FORBIDDEN,
-      'This salon owner is blocked',
-    );
+    throw new AppError(httpStatus.FORBIDDEN, 'This salon owner is blocked');
   }
 
   // Check if customer is blocked by barber
@@ -48,10 +50,7 @@ const createReviewIntoDb = async (userId: string, data: any) => {
       userId,
     );
     if (hasBlockedBarber) {
-      throw new AppError(
-        httpStatus.FORBIDDEN,
-        'This barber is blocked',
-      );
+      throw new AppError(httpStatus.FORBIDDEN, 'This barber is blocked');
     }
   }
 
@@ -155,7 +154,7 @@ const createReviewIntoDb = async (userId: string, data: any) => {
     if (!updateBarber) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Barber not updated');
     }
-    
+
     // Send notification to barber and salon owner about new review
     try {
       const customer = await prisma.user.findUnique({
@@ -176,33 +175,47 @@ const createReviewIntoDb = async (userId: string, data: any) => {
       if (customer) {
         // Notify barber
         if (barber?.user?.fcmToken) {
-          await notificationService.sendNotification(
-            barber.user.fcmToken,
-            'New Review',
-            `${customer.fullName} left you a ${data.rating}-star review!`,
-            data.barberId,
-          ).catch(error => console.error('Error sending barber review notification:', error));
+          await notificationService
+            .sendNotification(
+              barber.user.fcmToken,
+              'New Review',
+              `${customer.fullName} left you a ${data.rating}-star review!`,
+              data.barberId,
+              userId,
+            )
+            .catch(error =>
+              console.error('Error sending barber review notification:', error),
+            );
         }
 
         // Notify salon owner
         if (saloonOwner?.user?.fcmToken) {
-          await notificationService.sendNotification(
-            saloonOwner.user.fcmToken,
-            'New Salon Review',
-            `${customer.fullName} left your salon a ${data.rating}-star review!`,
-            data.saloonOwnerId,
-          ).catch(error => console.error('Error sending salon review notification:', error));
+          await notificationService
+            .sendNotification(
+              saloonOwner.user.fcmToken,
+              'New Salon Review',
+              `${customer.fullName} left your salon a ${data.rating}-star review!`,
+              data.saloonOwnerId,
+              userId,
+            )
+            .catch(error =>
+              console.error('Error sending salon review notification:', error),
+            );
         }
       }
     } catch (error) {
       console.error('Error sending review creation notification:', error);
     }
-    
+
     return result;
   });
 };
 
-const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: string, options: ISearchAndFilterOptions) => {
+const getReviewListForSaloonFromDb = async (
+  userId: string,
+  saloonOwnerId: string,
+  options: ISearchAndFilterOptions,
+) => {
   const { page = 1, limit = 10 } = options;
   const pageNum = Number(page);
   const limitNum = Number(limit);
@@ -222,7 +235,8 @@ const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: strin
     prisma.review.findMany({
       where: {
         saloonOwnerId,
-        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
+        userId:
+          excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
       select: {
         id: true,
@@ -277,7 +291,8 @@ const getReviewListForSaloonFromDb = async (userId: string, saloonOwnerId: strin
     prisma.review.count({
       where: {
         saloonOwnerId,
-        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
+        userId:
+          excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
     }),
   ]);
@@ -457,7 +472,8 @@ const getReviewListForBarberFromDb = async (
     prisma.review.findMany({
       where: {
         OR: [{ barberId: userId }, { saloonOwnerId: userId }],
-        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
+        userId:
+          excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
       select: {
         id: true,
@@ -512,7 +528,8 @@ const getReviewListForBarberFromDb = async (
     prisma.review.count({
       where: {
         OR: [{ barberId: userId }, { saloonOwnerId: userId }],
-        userId: excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
+        userId:
+          excludeUserIds.length > 0 ? { notIn: excludeUserIds } : undefined,
       },
     }),
   ]);
@@ -654,7 +671,7 @@ const updateReviewIntoDb = async (
     try {
       const customer = await prisma.user.findUnique({
         where: { id: result.userId },
-        select: { fullName: true },
+        select: { fullName: true, id: true },
       });
 
       const barber = await prisma.barber.findUnique({
@@ -670,22 +687,32 @@ const updateReviewIntoDb = async (
       if (customer) {
         // Notify barber
         if (barber?.user?.fcmToken) {
-          await notificationService.sendNotification(
-            barber.user.fcmToken,
-            'Review Updated',
-            `${customer.fullName} updated their review to ${result.rating} stars!`,
-            result.barberId,
-          ).catch(error => console.error('Error sending barber update notification:', error));
+          await notificationService
+            .sendNotification(
+              barber.user.fcmToken,
+              'Review Updated',
+              `${customer.fullName} updated their review to ${result.rating} stars!`,
+              result.barberId,
+              customer?.id,
+            )
+            .catch(error =>
+              console.error('Error sending barber update notification:', error),
+            );
         }
 
         // Notify salon owner
         if (saloonOwner?.user?.fcmToken) {
-          await notificationService.sendNotification(
-            saloonOwner.user.fcmToken,
-            'Salon Review Updated',
-            `${customer.fullName} updated their salon review to ${result.rating} stars!`,
-            result.saloonOwnerId,
-          ).catch(error => console.error('Error sending salon update notification:', error));
+          await notificationService
+            .sendNotification(
+              saloonOwner.user.fcmToken,
+              'Salon Review Updated',
+              `${customer.fullName} updated their salon review to ${result.rating} stars!`,
+              result.saloonOwnerId,
+              customer?.id,
+            )
+            .catch(error =>
+              console.error('Error sending salon update notification:', error),
+            );
         }
       }
     } catch (error) {
@@ -769,7 +796,7 @@ const deleteReviewItemFromDb = async (userId: string, reviewId: string) => {
     try {
       const customer = await prisma.user.findUnique({
         where: { id: deletedItem.userId },
-        select: { fullName: true },
+        select: { fullName: true, id: true },
       });
 
       const barber = await prisma.barber.findUnique({
@@ -785,22 +812,38 @@ const deleteReviewItemFromDb = async (userId: string, reviewId: string) => {
       if (customer) {
         // Notify barber
         if (barber?.user?.fcmToken) {
-          await notificationService.sendNotification(
-            barber.user.fcmToken,
-            'Review Deleted',
-            `${customer.fullName} deleted their review.`,
-            deletedItem.barberId,
-          ).catch(error => console.error('Error sending barber deletion notification:', error));
+          await notificationService
+            .sendNotification(
+              barber.user.fcmToken,
+              'Review Deleted',
+              `${customer.fullName} deleted their review.`,
+              deletedItem.barberId,
+              customer?.id,
+            )
+            .catch(error =>
+              console.error(
+                'Error sending barber deletion notification:',
+                error,
+              ),
+            );
         }
 
         // Notify salon owner
         if (saloonOwner?.user?.fcmToken) {
-          await notificationService.sendNotification(
-            saloonOwner.user.fcmToken,
-            'Salon Review Deleted',
-            `${customer.fullName} deleted their salon review.`,
-            deletedItem.saloonOwnerId,
-          ).catch(error => console.error('Error sending salon deletion notification:', error));
+          await notificationService
+            .sendNotification(
+              saloonOwner.user.fcmToken,
+              'Salon Review Deleted',
+              `${customer.fullName} deleted their salon review.`,
+              deletedItem.saloonOwnerId,
+              customer?.id,
+            )
+            .catch(error =>
+              console.error(
+                'Error sending salon deletion notification:',
+                error,
+              ),
+            );
         }
       }
     } catch (error) {

@@ -167,12 +167,27 @@ const registerUserIntoDB = async (payload: any) => {
     if (registeredUser?.fcmToken) {
       const message = `Welcome to Barbers Time, ${registeredUser.fullName}! Please verify your email with the OTP sent.`;
 
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
+
       await notificationService
         .sendNotification(
           registeredUser.fcmToken,
           'Verify Your Email',
           message,
           registeredUser.id,
+          superAdmin?.id,
         )
         .catch(error =>
           console.error('Error sending registration notification:', error),
@@ -1197,6 +1212,19 @@ const verifyOtpInDB = async (bodyData: {
   // Send notification to user about OTP verification
   try {
     if (userData?.fcmToken) {
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
       const message = `Welcome ${userData.fullName}! Your email has been verified successfully.`;
 
       await notificationService
@@ -1205,6 +1233,7 @@ const verifyOtpInDB = async (bodyData: {
           'Email Verified',
           message,
           userData.id,
+          superAdmin?.id,
         )
         .catch(error =>
           console.error('Error sending OTP verification notification:', error),
@@ -1470,6 +1499,19 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
   try {
     if (userRecord.id && payload.fcmToken) {
       const message = `Welcome back to Barbers Time, ${userRecord.fullName}!`;
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
 
       await notificationService
         .sendNotification(
@@ -1477,6 +1519,7 @@ const socialLoginIntoDB = async (payload: SocialLoginPayload) => {
           'Login Successful',
           message,
           userRecord.id,
+          superAdmin?.id,
         )
         .catch(error =>
           console.error('Error sending social login notification:', error),
@@ -1512,12 +1555,27 @@ const updatePasswordIntoDb = async (payload: any) => {
     if (userData?.fcmToken) {
       const message = `Your password has been successfully updated.`;
 
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
+
       await notificationService
         .sendNotification(
           userData.fcmToken,
           'Password Updated',
           message,
           userData.id,
+          superAdmin?.id,
         )
         .catch(error =>
           console.error('Error sending password update notification:', error),
@@ -1596,8 +1654,28 @@ const deleteAccountFromDB = async (
     if (userData?.fcmToken) {
       const message = `Your account has been successfully deleted. If this was a mistake, please contact support.`;
 
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
+
       await notificationService
-        .sendNotification(userData.fcmToken, 'Account Deleted', message, id)
+        .sendNotification(
+          userData.fcmToken,
+          'Account Deleted',
+          message,
+          id,
+          superAdmin?.id,
+        )
         .catch(error =>
           console.error('Error sending account deletion notification:', error),
         );
@@ -1639,9 +1717,27 @@ const deactivateAccountInDB = async (
   try {
     if (userData?.fcmToken) {
       const message = `Your account has been deactivated. You can reactivate it anytime by logging in.`;
-
+      // ** Retrived the super admin of the app:
+      const superAdmin = await prisma.user.findFirst({
+        where: {
+          role: 'SUPER_ADMIN',
+          isDeactivated: false,
+          isDeleted: false,
+          isVerified: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+        },
+      });
       await notificationService
-        .sendNotification(userData.fcmToken, 'Account Deactivated', message, id)
+        .sendNotification(
+          userData.fcmToken,
+          'Account Deactivated',
+          message,
+          id,
+          superAdmin?.id,
+        )
         .catch(error =>
           console.error(
             'Error sending account deactivation notification:',
