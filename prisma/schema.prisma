@@ -424,32 +424,36 @@ model BookedServices {
 
 
 model Booking {
-  id              String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String        @db.ObjectId
-  barberId        String        @db.ObjectId
+  id                       String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId                   String        @db.ObjectId
+  barberId                 String        @db.ObjectId
   //  serviceId     String        @db.ObjectId
-  saloonOwnerId   String        @db.ObjectId
-  queueSlotId     String?       @db.ObjectId
-  appointmentAt   DateTime
-  status          BookingStatus @default(PENDING)
-  bookingType     BookingType   @default(BOOKING)
-  totalPrice      Float
-  date            DateTime
-  startDateTime   DateTime?
-  endDateTime     DateTime?
-  startTime       String?
-  endTime         String?
-  notes           String?
-  isInQueue       Boolean       @default(false)
-  barberName      String?
-  barberImage     String?
-  loyaltyUsed     Boolean       @default(false)
-  loyaltySchemeId String?       @db.ObjectId
-  checkIn         Boolean       @default(false)
-  remoteQueue     Boolean       @default(false)
-  tipStatus       TipStatus     @default(NONE)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  saloonOwnerId            String        @db.ObjectId
+  queueSlotId              String?       @db.ObjectId
+  appointmentAt            DateTime
+  status                   BookingStatus @default(PENDING)
+  bookingType              BookingType   @default(BOOKING)
+  totalPrice               Float
+  date                     DateTime
+  startDateTime            DateTime?
+  endDateTime              DateTime?
+  startTime                String?
+  endTime                  String?
+  estimatedDurationMinutes Int?
+  actualStartedAt          DateTime?
+  actualEndedAt            DateTime?
+  actualDurationMinutes    Int?
+  notes                    String?
+  isInQueue                Boolean       @default(false)
+  barberName               String?
+  barberImage              String?
+  loyaltyUsed              Boolean       @default(false)
+  loyaltySchemeId          String?       @db.ObjectId
+  checkIn                  Boolean       @default(false)
+  remoteQueue              Boolean       @default(false)
+  tipStatus                TipStatus     @default(NONE)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
 
   // Relationships
   user              User                @relation(fields: [userId], references: [id])

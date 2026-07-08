@@ -25,6 +25,73 @@ const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
   apiVersion: '2025-08-27.basil',
 });
 
+const getPersonalizedEstimatedDurationMinutes = async (
+  db: any,
+  customerId: string,
+  barberId: string,
+  serviceIds: string[],
+  defaultDurationMinutes: number,
+) => {
+  const sortedServiceIds = [...serviceIds].sort();
+
+  const historicalBookings = await db.booking.findMany({
+    where: {
+      userId: customerId,
+      barberId,
+      status: BookingStatus.COMPLETED,
+      actualDurationMinutes: { not: null },
+      BookedServices: {
+        some: {
+          serviceId: { in: sortedServiceIds },
+        },
+      },
+    },
+    select: {
+      actualDurationMinutes: true,
+      BookedServices: {
+        select: {
+          serviceId: true,
+        },
+      },
+    },
+    orderBy: { actualEndedAt: 'desc' },
+    take: 10,
+  });
+
+  const matchingDurations = historicalBookings
+    .filter((booking: any) => {
+      const bookedServiceIds = booking.BookedServices.map(
+        (service: any) => service.serviceId,
+      ).sort();
+
+      return (
+        bookedServiceIds.length === sortedServiceIds.length &&
+        bookedServiceIds.every(
+          (serviceId: string, index: number) =>
+            serviceId === sortedServiceIds[index],
+        )
+      );
+    })
+    .slice(0, 5)
+    .map((booking: any) => booking.actualDurationMinutes)
+    .filter(
+      (duration: number | null): duration is number =>
+        typeof duration === 'number' && duration > 0,
+    );
+
+  if (matchingDurations.length === 0) {
+    return defaultDurationMinutes;
+  }
+
+  const averageDuration =
+    matchingDurations.reduce(
+      (sum: number, duration: number) => sum + duration,
+      0,
+    ) / matchingDurations.length;
+
+  return Math.round(averageDuration);
+};
+
 // Helper function to send booking confirmation notification
 const sendBookingConfirmationNotification = async (
   userId: string,
@@ -1950,16 +2017,24 @@ const createBookingIntoDb = async (userId: string, data: any) => {
   if (serviceRecords.length !== services.length) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Some services not found');
   }
-  const totalDuration = serviceRecords.reduce(
+  const defaultDuration = serviceRecords.reduce(
     (sum, s) => sum + (s.duration || 0),
     0,
   );
-  if (totalDuration <= 0) {
+  if (defaultDuration <= 0) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Total service duration must be greater than zero',
     );
   }
+  const serviceIds = serviceRecords.map(service => service.id).sort();
+  const totalDuration = await getPersonalizedEstimatedDurationMinutes(
+    prisma,
+    userId,
+    barberId,
+    serviceIds,
+    defaultDuration,
+  );
   let totalPrice = serviceRecords.reduce((sum, s) => sum + Number(s.price), 0);
 
   // 4. Run DB operations in a transaction (booking + booked services + real-time status + loyalty handling)
@@ -2161,6 +2236,7 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           endDateTime: bookingEnd,
           startTime: localDateTime.toFormat('hh:mm a'),
           endTime: DateTime.fromJSDate(bookingEnd).toFormat('hh:mm a'),
+          estimatedDurationMinutes: totalDuration,
           loyaltySchemeId: loyaltySchemeId ?? null,
           loyaltyUsed: !!loyaltyUsed,
           status: BookingStatus.PENDING,
@@ -3555,6 +3631,10 @@ const getAvailableBarbersForWalkingInFromDb1 = async (
             (sum, bs) => sum + (bs.service?.duration || 0),
             0,
           ),
+          estimatedDurationMinutes: b.estimatedDurationMinutes,
+          actualStartTime: b.actualStartedAt,
+          actualEndTime: b.actualEndedAt,
+          actualDurationMinutes: b.actualDurationMinutes,
           status: b.status,
         })),
         freeSlots: freeSlots
@@ -4690,10 +4770,20 @@ const updateBookingIntoDb = async (
     throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
   }
 
+  const targetBarberId = barberId || existingBooking.barberId;
+  const serviceIds = existingBooking.BookedServices.map(bs => bs.serviceId);
+
   // Calculate totalDuration from booked services
-  const totalDuration = existingBooking.BookedServices.reduce(
+  const defaultDuration = existingBooking.BookedServices.reduce(
     (sum, bs) => sum + (bs.service?.duration || 0),
     0,
+  );
+  const totalDuration = await getPersonalizedEstimatedDurationMinutes(
+    prisma,
+    userId,
+    targetBarberId,
+    serviceIds,
+    defaultDuration,
   );
 
   // Combine date and appointmentAt to get new startDateTime
@@ -4715,7 +4805,7 @@ const updateBookingIntoDb = async (
   // Check for overlapping bookings for this barber
   const overlappingBooking = await prisma.booking.findFirst({
     where: {
-      barberId: existingBooking.barberId,
+      barberId: targetBarberId,
       status: {
         in: [
           BookingStatus.PENDING,
@@ -4746,13 +4836,14 @@ const updateBookingIntoDb = async (
         userId: userId,
       },
       data: {
-        barberId: barberId || existingBooking.barberId,
+        barberId: targetBarberId,
         date: new Date(date),
         appointmentAt: utcDateTime,
         startDateTime: utcDateTime,
         endDateTime: endDateTime,
         startTime: localDateTime.toFormat('hh:mm a'),
         endTime: DateTime.fromJSDate(endDateTime).toFormat('hh:mm a'),
+        estimatedDurationMinutes: totalDuration,
       },
     });
 
@@ -4795,7 +4886,7 @@ const updateBookingIntoDb = async (
 
     await tx.barberRealTimeStatus.create({
       data: {
-        barberId: existingBooking.barberId,
+        barberId: targetBarberId,
         startDateTime: utcDateTime,
         endDateTime: endDateTime,
         isAvailable: false,

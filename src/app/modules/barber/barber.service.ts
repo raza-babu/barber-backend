@@ -510,10 +510,14 @@ const updateBookingStatusIntoDb = async (
 
     // Time validation for STARTED status
     if (data.status === BookingStatus.STARTED) {
-      const startTime = new Date();
-      const twentyMinsBeforeStart = new Date(startTime.getTime() - 20 * 60000);
+      const scheduledStartTime = existingBooking.startDateTime
+        ? new Date(existingBooking.startDateTime)
+        : null;
+      const twentyMinsBeforeStart = scheduledStartTime
+        ? new Date(scheduledStartTime.getTime() - 20 * 60000)
+        : null;
 
-      if (now < twentyMinsBeforeStart) {
+      if (twentyMinsBeforeStart && now < twentyMinsBeforeStart) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
           'Cannot start booking before 20 minutes of scheduled time',
@@ -523,7 +527,7 @@ const updateBookingStatusIntoDb = async (
 
     // Time validation for ENDED status
     if (data.status === BookingStatus.ENDED) {
-      if (!existingBooking.startDateTime) {
+      if (!existingBooking.actualStartedAt && !existingBooking.startDateTime) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
           'Booking must have an actual start time before ending. Please ensure the booking was started first.',
@@ -545,16 +549,35 @@ const updateBookingStatusIntoDb = async (
     const updateData: any = {
       status: data.status,
     };
+    let actualDurationMinutes: number | null = null;
 
     // Track actual start time
     if (data.status === BookingStatus.STARTED) {
-      updateData.startDateTime = now;
+      updateData.actualStartedAt = now;
       console.log(`📍 Booking ${bookingId} STARTED at ${now.toISOString()}`);
     }
 
     // Track actual end time
     if (data.status === BookingStatus.ENDED) {
-      updateData.endDateTime = now;
+      const actualStartTime = existingBooking.actualStartedAt
+        ? new Date(existingBooking.actualStartedAt)
+        : existingBooking.startDateTime
+          ? new Date(existingBooking.startDateTime)
+          : null;
+
+      if (!actualStartTime) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          'Booking must have an actual start time before ending. Please ensure the booking was started first.',
+        );
+      }
+
+      actualDurationMinutes = Math.round(
+        (now.getTime() - actualStartTime.getTime()) / 60000,
+      );
+
+      updateData.actualEndedAt = now;
+      updateData.actualDurationMinutes = actualDurationMinutes;
       console.log(`📍 Booking ${bookingId} ENDED at ${now.toISOString()}`);
     }
 
@@ -570,13 +593,17 @@ const updateBookingStatusIntoDb = async (
 
     // Calculate and save queue time when booking ends
     if (updatedBooking.status === BookingStatus.ENDED) {
-      // 🔥 Get the ACTUAL start time from the existing booking (before update)
-      const actualStartTime = updatedBooking.startDateTime
-        ? new Date(updatedBooking.startDateTime)
-        : null;
+      // Get the ACTUAL start time from the booking lifecycle.
+      const actualStartTime = updatedBooking.actualStartedAt
+        ? new Date(updatedBooking.actualStartedAt)
+        : existingBooking.startDateTime
+          ? new Date(existingBooking.startDateTime)
+          : null;
 
-      // 🔥 Get the ACTUAL end time from the just-updated result
-      const actualEndTime = updatedBooking.endDateTime ? new Date() : null;
+      // Get the ACTUAL end time from the just-updated result.
+      const actualEndTime = updatedBooking.actualEndedAt
+        ? new Date(updatedBooking.actualEndedAt)
+        : null;
 
       console.log('=== Queue Time Calculation ===');
       console.log('actualStartTime:', actualStartTime?.toISOString());
@@ -591,9 +618,9 @@ const updateBookingStatusIntoDb = async (
       }
 
       // Calculate actual service duration in minutes (end time - start time)
-      const actualDurationMinutes = Math.round(
-        (actualEndTime.getTime() - actualStartTime.getTime()) / 60000,
-      );
+      actualDurationMinutes =
+        actualDurationMinutes ??
+        Math.round((actualEndTime.getTime() - actualStartTime.getTime()) / 60000);
 
       console.log(`⏱️ Actual duration: ${actualDurationMinutes} minutes`);
       console.log(
