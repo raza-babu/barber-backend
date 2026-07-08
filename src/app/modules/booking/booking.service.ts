@@ -245,6 +245,14 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     );
   }
 
+  totalDuration = await getPersonalizedEstimatedDurationMinutes(
+    prisma,
+    userId,
+    barberId,
+    serviceIds,
+    totalDuration,
+  );
+
   if (totalDuration <= 0) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -688,6 +696,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
           endTime: DateTime.fromJSDate(utcDateTime)
             .plus({ minutes: totalDuration })
             .toFormat('hh:mm a'),
+          estimatedDurationMinutes: totalDuration,
           loyaltySchemeId: loyaltySchemeId || null,
           loyaltyUsed: !!loyaltyUsed,
           remoteQueue: remoteQueue ?? false,
@@ -1656,7 +1665,7 @@ const createQueueBookingForCustomerIntoDb = async (
     );
 
   console.log(
-    `Final selection: Barber ${barberId} at ${chosenAppointmentAt} with duration ${totalDuration}min`,
+    `Final selection: Barber ${barberId} at ${chosenAppointmentAt} with duration ${estimatedDurationMinutes}min`,
   );
 
   // 5. Calculate total price
@@ -1683,7 +1692,7 @@ const createQueueBookingForCustomerIntoDb = async (
   }
 
   const nowLocal = DateTime.now().setZone(config.timezone);
-  const endLocal = localDateTime.plus({ minutes: totalDuration });
+  const endLocal = localDateTime.plus({ minutes: estimatedDurationMinutes });
 
   // Allow bookings that end in the future
   if (endLocal < nowLocal) {
@@ -2606,6 +2615,10 @@ const getBookingListFromDb = async (
       endDateTime: b.endDateTime,
       startTime: b.startTime,
       endTime: b.endTime,
+      estimatedDurationMinutes: b.estimatedDurationMinutes,
+      actualStartedAt: b.actualStartedAt,
+      actualEndedAt: b.actualEndedAt,
+      actualDurationMinutes: b.actualDurationMinutes,
       bookingType: b.bookingType,
       status: b.status,
       createdAt: b.createdAt,
@@ -2679,6 +2692,10 @@ const getBookingByIdFromDb = async (userId: string, bookingId: string) => {
       totalPrice: true,
       startTime: true,
       endTime: true,
+      estimatedDurationMinutes: true,
+      actualStartedAt: true,
+      actualEndedAt: true,
+      actualDurationMinutes: true,
       status: true,
       queueSlot: {
         select: {
@@ -4290,6 +4307,10 @@ const getBookingListForSalonOwnerFromDb = async (
       totalPrice: true,
       startTime: true,
       endTime: true,
+      estimatedDurationMinutes: true,
+      actualStartedAt: true,
+      actualEndedAt: true,
+      actualDurationMinutes: true,
       status: true,
       bookingType: true,
       remoteQueue: true,
@@ -4401,6 +4422,10 @@ const getBookingListForSalonOwnerFromDb = async (
       bookingDate: b.date,
       startTime: b.startTime,
       endTime: b.endTime,
+      estimatedDurationMinutes: b.estimatedDurationMinutes,
+      actualStartedAt: b.actualStartedAt,
+      actualEndedAt: b.actualEndedAt,
+      actualDurationMinutes: b.actualDurationMinutes,
       bookingType: b.bookingType,
       remoteQueue: b.remoteQueue,
       services: b.BookedServices.map(s => ({
@@ -4516,6 +4541,10 @@ const getBookingListForBarberFromDb = async (
         totalPrice: true,
         startTime: true,
         endTime: true,
+        estimatedDurationMinutes: true,
+        actualStartedAt: true,
+        actualEndedAt: true,
+        actualDurationMinutes: true,
         status: true,
         remoteQueue: true,
         BookedServices: {
@@ -4621,6 +4650,10 @@ const getBookingListForBarberFromDb = async (
       bookingDate: b.date,
       startTime: b.startTime,
       endTime: b.endTime,
+      estimatedDurationMinutes: b.estimatedDurationMinutes,
+      actualStartedAt: b.actualStartedAt,
+      actualEndedAt: b.actualEndedAt,
+      actualDurationMinutes: b.actualDurationMinutes,
       services: b.BookedServices.map(s => ({
         serviceId: s.service.id,
         serviceName: s.service.serviceName,
@@ -4665,7 +4698,12 @@ const getBookingByIdFromDbForSalon = async (
       totalPrice: true,
       startTime: true,
       endTime: true,
+      estimatedDurationMinutes: true,
+      actualStartedAt: true,
+      actualEndedAt: true,
+      actualDurationMinutes: true,
       status: true,
+      
       queueSlot: {
         select: {
           id: true,
@@ -4740,6 +4778,10 @@ const getBookingByIdFromDbForSalon = async (
     customerContact: result.user?.phoneNumber || null,
     date: result.date,
     time: result.startTime,
+    estimatedDurationMinutes: result.estimatedDurationMinutes,
+    actualStartedAt: result.actualStartedAt,
+    actualEndedAt: result.actualEndedAt,
+    actualDurationMinutes: result.actualDurationMinutes,
     serviceNames:
       result.BookedServices?.map(bs => bs.service?.serviceName) || [],
     barberName: result.barber?.user?.fullName || null,
