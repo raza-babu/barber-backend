@@ -509,41 +509,41 @@ const updateBookingStatusIntoDb = async (
     const now = new Date();
 
     // Time validation for STARTED status
-    if (data.status === BookingStatus.STARTED) {
-      const scheduledStartTime = existingBooking.startDateTime
-        ? new Date(existingBooking.startDateTime)
-        : null;
-      const twentyMinsBeforeStart = scheduledStartTime
-        ? new Date(scheduledStartTime.getTime() - 20 * 60000)
-        : null;
+    // if (data.status === BookingStatus.STARTED) {
+    //   const scheduledStartTime = existingBooking.startDateTime
+    //     ? new Date(existingBooking.startDateTime)
+    //     : null;
+    //   const twentyMinsBeforeStart = scheduledStartTime
+    //     ? new Date(scheduledStartTime.getTime() - 20 * 60000)
+    //     : null;
 
-      if (twentyMinsBeforeStart && now < twentyMinsBeforeStart) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Cannot start booking before 20 minutes of scheduled time',
-        );
-      }
-    }
+    //   if (twentyMinsBeforeStart && now < twentyMinsBeforeStart) {
+    //     throw new AppError(
+    //       httpStatus.BAD_REQUEST,
+    //       'Cannot start booking before 20 minutes of scheduled time',
+    //     );
+    //   }
+    // }
 
-    // Time validation for ENDED status
-    if (data.status === BookingStatus.ENDED) {
-      if (!existingBooking.actualStartedAt && !existingBooking.startDateTime) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Booking must have an actual start time before ending. Please ensure the booking was started first.',
-        );
-      }
+    // // Time validation for ENDED status
+    // if (data.status === BookingStatus.ENDED) {
+    //   if (!existingBooking.actualStartedAt && !existingBooking.startDateTime) {
+    //     throw new AppError(
+    //       httpStatus.BAD_REQUEST,
+    //       'Booking must have an actual start time before ending. Please ensure the booking was started first.',
+    //     );
+    //   }
 
-      const endTime = new Date(existingBooking.endDateTime!);
-      const twentyMinsBeforeEnd = new Date(endTime.getTime() - 20 * 60000);
+    //   const endTime = new Date(existingBooking.endDateTime!);
+    //   const twentyMinsBeforeEnd = new Date(endTime.getTime() - 20 * 60000);
 
-      if (now < twentyMinsBeforeEnd) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Cannot end booking before 20 minutes of scheduled end time',
-        );
-      }
-    }
+    //   if (now < twentyMinsBeforeEnd) {
+    //     throw new AppError(
+    //       httpStatus.BAD_REQUEST,
+    //       'Cannot end booking before 20 minutes of scheduled end time',
+    //     );
+    //   }
+    // }
 
     // Prepare update data
     const updateData: any = {
