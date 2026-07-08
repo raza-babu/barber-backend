@@ -97,18 +97,18 @@ const manageBookingsIntoDb = async (
         );
       }
       // Check 15 minutes before end time
-      if (booking.endDateTime) {
-        const currentTime = new Date();
-        const fifteenMinutesBeforeEnd = new Date(
-          booking.endDateTime.getTime() - 15 * 60 * 1000,
-        );
-        if (currentTime < fifteenMinutesBeforeEnd) {
-          throw new AppError(
-            httpStatus.BAD_REQUEST,
-            'Cannot complete booking before 15 minutes prior to end time',
-          );
-        }
-      }
+      // if (booking.endDateTime) {
+      //   const currentTime = new Date();
+      //   const fifteenMinutesBeforeEnd = new Date(
+      //     booking.endDateTime.getTime() - 15 * 60 * 1000,
+      //   );
+      //   if (currentTime < fifteenMinutesBeforeEnd) {
+      //     throw new AppError(
+      //       httpStatus.BAD_REQUEST,
+      //       'Cannot complete booking before 15 minutes prior to end time',
+      //     );
+      //   }
+      // }
       break;
 
     case BookingStatus.NO_SHOW:
