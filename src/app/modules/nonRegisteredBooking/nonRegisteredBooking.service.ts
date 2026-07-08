@@ -12,6 +12,71 @@ import httpStatus from 'http-status';
 import { DateTime } from 'luxon';
 import config from '../../../config';
 
+const getEstimatedDurationMinutes = async (
+  db: any,
+  customerId: string,
+  barberId: string,
+  serviceIds: string[],
+  defaultDurationMinutes: number,
+) => {
+  const sortedServiceIds = [...serviceIds].sort();
+
+  const historicalBookings = await db.booking.findMany({
+    where: {
+      userId: customerId,
+      barberId,
+      status: BookingStatus.COMPLETED,
+      actualDurationMinutes: { not: null },
+      BookedServices: {
+        some: {
+          serviceId: { in: sortedServiceIds },
+        },
+      },
+    },
+    select: {
+      actualDurationMinutes: true,
+      BookedServices: {
+        select: { serviceId: true },
+      },
+    },
+    orderBy: { actualEndedAt: 'desc' },
+    take: 10,
+  });
+
+  const matchingDurations = historicalBookings
+    .filter((booking: any) => {
+      const bookedServiceIds = booking.BookedServices.map(
+        (service: any) => service.serviceId,
+      ).sort();
+
+      return (
+        bookedServiceIds.length === sortedServiceIds.length &&
+        bookedServiceIds.every(
+          (serviceId: string, index: number) =>
+            serviceId === sortedServiceIds[index],
+        )
+      );
+    })
+    .slice(0, 5)
+    .map((booking: any) => booking.actualDurationMinutes)
+    .filter(
+      (duration: number | null): duration is number =>
+        typeof duration === 'number' && duration > 0,
+    );
+
+  if (matchingDurations.length === 0) {
+    return defaultDurationMinutes;
+  }
+
+  const averageDuration =
+    matchingDurations.reduce(
+      (sum: number, duration: number) => sum + duration,
+      0,
+    ) / matchingDurations.length;
+
+  return Math.round(averageDuration);
+};
+
 const createNonRegisteredBookingIntoDb = async (
   userId: string, // this is the saloonOwnerId in your codebase
   data: any,
@@ -63,7 +128,8 @@ const createNonRegisteredBookingIntoDb = async (
   if (serviceRecords.length !== services.length) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Some services not found');
   }
-  const totalDuration = serviceRecords.reduce(
+  const serviceIds = serviceRecords.map(service => service.id).sort();
+  let totalDuration = serviceRecords.reduce(
     (sum, s) => sum + (s.duration || 0),
     0,
   );
@@ -131,10 +197,18 @@ const createNonRegisteredBookingIntoDb = async (
     }
     // check the barber is for queue or appointment type
     const barberForQueue = await tx.barberSchedule.findFirst({
-      where: { barberId, saloonOwnerId: userId, isActive: true, type: ScheduleType.BOOKING },
+      where: {
+        barberId,
+        saloonOwnerId: userId,
+        isActive: true,
+        type: ScheduleType.BOOKING,
+      },
     });
     if (!barberForQueue) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Barber not available for queue bookings');
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Barber not available for queue bookings',
+      );
     }
 
     // Check barber day off
@@ -149,6 +223,14 @@ const createNonRegisteredBookingIntoDb = async (
     if (barberDayOff) {
       throw new AppError(httpStatus.BAD_REQUEST, 'Barber is on holiday');
     }
+
+    totalDuration = await getEstimatedDurationMinutes(
+      tx,
+      nonRegisteredCustomer.id,
+      barber.userId,
+      serviceIds,
+      totalDuration,
+    );
 
     // 4) Check salon-level lunch/break (time-only overlap)
     const barberBreak = await tx.lunch.findFirst({
@@ -265,8 +347,6 @@ const createNonRegisteredBookingIntoDb = async (
     //   });
     // }
 
-    
-    
     // 6) Create booking (userId points to nonRegisteredCustomer id here)
     const booking = await tx.booking.create({
       data: {
@@ -287,6 +367,7 @@ const createNonRegisteredBookingIntoDb = async (
         endTime: DateTime.fromJSDate(utcDateTime)
           .plus({ minutes: totalDuration })
           .toFormat('hh:mm a'),
+        estimatedDurationMinutes: totalDuration,
       },
     });
     if (!booking) {

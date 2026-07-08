@@ -949,6 +949,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
   if (serviceRecords.length !== services.length) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Some services not found');
   }
+  const serviceIds = serviceRecords.map(s => s.id).sort();
   const totalDuration = serviceRecords.reduce(
     (sum, s) => sum + (s.duration || 0),
     0,
@@ -1090,6 +1091,14 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     }
 
     const barberId = chosen.barberId;
+    const estimatedDurationMinutes =
+      await getPersonalizedEstimatedDurationMinutes(
+        prisma,
+        nonRegisteredUser.id,
+        barberId,
+        serviceIds,
+        totalDuration,
+      );
 
     // 6. Determine appointment time
     const useAppointmentAt =
@@ -1109,7 +1118,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     }
 
     const nowLocal = DateTime.now().setZone(config.timezone);
-    const endLocal = localDateTime.plus({ minutes: totalDuration });
+    const endLocal = localDateTime.plus({ minutes: estimatedDurationMinutes });
     if (endLocal < nowLocal.minus({ minutes: 1 })) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
@@ -1175,7 +1184,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     }
 
     const endDateTimeForCheck = DateTime.fromJSDate(utcDateTime)
-      .plus({ minutes: totalDuration })
+      .plus({ minutes: estimatedDurationMinutes })
       .toJSDate();
 
     const overlappingStatus = await tx.barberRealTimeStatus.findFirst({
@@ -1238,12 +1247,13 @@ const createQueueBookingForSalonOwnerIntoDb = async (
         totalPrice,
         startDateTime: utcDateTime,
         endDateTime: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
+          .plus({ minutes: estimatedDurationMinutes })
           .toJSDate(),
         startTime: localDateTime.toFormat('hh:mm a'),
         endTime: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
+          .plus({ minutes: estimatedDurationMinutes })
           .toFormat('hh:mm a'),
+        estimatedDurationMinutes,
         loyaltySchemeId: null,
         loyaltyUsed: false,
       },
@@ -1254,7 +1264,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       data: {
         bookingId: booking.id,
         completedAt: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
+          .plus({ minutes: estimatedDurationMinutes })
           .toJSDate(),
       },
     });
@@ -1273,7 +1283,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     );
 
     const endDateTime = DateTime.fromJSDate(utcDateTime)
-      .plus({ minutes: totalDuration })
+      .plus({ minutes: estimatedDurationMinutes })
       .toJSDate();
 
     await tx.barberRealTimeStatus.create({
@@ -1636,6 +1646,14 @@ const createQueueBookingForCustomerIntoDb = async (
   }
 
   const barberId = chosen.barberId;
+  const estimatedDurationMinutes =
+    await getPersonalizedEstimatedDurationMinutes(
+      prisma,
+      userId,
+      barberId,
+      serviceIds,
+      totalDuration,
+    );
 
   console.log(
     `Final selection: Barber ${barberId} at ${chosenAppointmentAt} with duration ${totalDuration}min`,
@@ -1785,7 +1803,7 @@ const createQueueBookingForCustomerIntoDb = async (
       }
 
       const endDateTimeForCheck = DateTime.fromJSDate(utcDateTime)
-        .plus({ minutes: totalDuration })
+        .plus({ minutes: estimatedDurationMinutes })
         .toJSDate();
 
       const overlappingStatus = await tx.barberRealTimeStatus.findFirst({
@@ -1862,12 +1880,13 @@ const createQueueBookingForCustomerIntoDb = async (
           totalPrice,
           startDateTime: utcDateTime,
           endDateTime: DateTime.fromJSDate(utcDateTime)
-            .plus({ minutes: totalDuration })
+            .plus({ minutes: estimatedDurationMinutes })
             .toJSDate(),
           startTime: localDateTime.toFormat('hh:mm a'),
           endTime: DateTime.fromJSDate(utcDateTime)
-            .plus({ minutes: totalDuration })
+            .plus({ minutes: estimatedDurationMinutes })
             .toFormat('hh:mm a'),
+          estimatedDurationMinutes,
           loyaltySchemeId: null,
           loyaltyUsed: false,
           remoteQueue: remoteQueue ?? false,
@@ -1880,7 +1899,7 @@ const createQueueBookingForCustomerIntoDb = async (
         data: {
           bookingId: booking.id,
           completedAt: DateTime.fromJSDate(utcDateTime)
-            .plus({ minutes: totalDuration })
+            .plus({ minutes: estimatedDurationMinutes })
             .toJSDate(),
         },
       });
@@ -1899,7 +1918,7 @@ const createQueueBookingForCustomerIntoDb = async (
       );
 
       const endDateTime = DateTime.fromJSDate(utcDateTime)
-        .plus({ minutes: totalDuration })
+        .plus({ minutes: estimatedDurationMinutes })
         .toJSDate();
 
       await tx.barberRealTimeStatus.create({
