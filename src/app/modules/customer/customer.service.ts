@@ -2041,6 +2041,8 @@ const getCustomerByIdFromDb = async (userId: string, customerId: string) => {
     fullName: result.fullName,
     email: result.email,
     phoneNumber: result.phoneNumber,
+    portfolioImages: result.portfolioImages,
+    portfolioVideos: result.portfolioVideos,
     image: result.image,
     address: result.address,
     isFollowing: isFollowing ? true : false,
