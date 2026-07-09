@@ -758,6 +758,8 @@ const getMyProfileFromDB = async (id: string) => {
       createdAt: true,
       updatedAt: true,
       password: true,
+      portfolioImages: true,
+      portfolioVideos: true,
     },
   });
 
@@ -785,6 +787,8 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
     include: {
       user: {
         select: {
+          portfolioImages: true,
+          portfolioVideos: true,
           id: true,
           followerCount: true,
           followingCount: true,
@@ -838,6 +842,8 @@ const getSaloonOwnerProfileFromDB = async (userId: string) => {
   return {
     ...restProfile,
     isMe: profile?.userId === userId,
+    portfolioImages: profile.user.portfolioImages,
+    portfolioVideos: profile.user.portfolioVideos,
     followingCount: profile.user?.followingCount ?? 0,
     followerCount: profile.user?.followerCount ?? 0,
     Barbers: hiredBarbers.map(barber => ({
@@ -1919,6 +1925,8 @@ const updateSalonOwnerStatus = async (
     where: { userId: user.id },
   });
 };
+
+
 
 export const UserServices = {
   registerUserIntoDB,
