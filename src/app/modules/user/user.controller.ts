@@ -206,7 +206,7 @@ const updateBarber = catchAsync(async (req, res) => {
   const payload = {
     ...body,
   };
-  console.log("payload", payload);
+  console.log('payload', payload);
 
   // Update DB
   const result = await UserServices.updateBarberIntoDB(user.id, payload);
@@ -274,7 +274,26 @@ const getBarberProfile = catchAsync(async (req, res) => {
 
 const updateMyProfile = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const result = await UserServices.updateMyProfileIntoDB(user.id, req.body);
+  const files = req.files as {
+    portfolioImages: Express.Multer.File[];
+    portfolioVideos: Express.Multer.File[];
+  };
+  console.log(
+    {
+      files,
+      body: req.body,
+      user,
+    },
+    {
+      depth: Infinity,
+    },
+  );
+
+  const result = await UserServices.updateMyProfileIntoDB(
+    user.id,
+    req.body,
+    files,
+  );
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

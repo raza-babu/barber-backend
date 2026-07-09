@@ -56,6 +56,24 @@ const updateProfileSchema = z.object({
         required_error: 'Address is required!',
       })
       .optional(),
+    portfolioImages: z
+      .array(
+        z
+          .string({
+            required_error: 'Portfolio images should be string!',
+          })
+          .optional(),
+      )
+      .optional(),
+    portfolioVideos: z
+      .array(
+        z
+          .string({
+            required_error: 'Portfolio videos should be string!',
+          })
+          .optional(),
+      )
+      .optional(),
   }),
 });
 

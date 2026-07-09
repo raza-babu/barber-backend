@@ -1296,102 +1296,104 @@ model Tip {
 
 
 model User {
-  id                   String                 @id @default(auto()) @map("_id") @db.ObjectId
-  fullName             String
-  email                String                 @unique
-  password             String?
-  role                 UserRoleEnum           @default(CUSTOMER)
-  status               UserStatus             @default(PENDING)
-  isVerified           Boolean                @default(false)
-  intendedRole         UserRoleEnum?
-  isProfileComplete    Boolean                @default(false)
-  address              String?
-  isLoggedIn           Boolean                @default(false)
-  image                String?
-  phoneNumber          String?
-  dateOfBirth          String?
-  gender               String?
-  otp                  Int?
-  otpExpiry            DateTime?
-  plateForm            PlatFormType?
-  fcmToken             String?
-  fcmTokenEx           String?
-  stripeCustomerId     String?
-  stripeAccountUrl     String?
-  stripeAccountId      String?
-  stripeSubscriptionId String?
-  onBoarding           Boolean                @default(false)
+  id                     String                 @id @default(auto()) @map("_id") @db.ObjectId
+  fullName               String
+  email                  String                 @unique
+  password               String?
+  role                   UserRoleEnum           @default(CUSTOMER)
+  status                 UserStatus             @default(PENDING)
+  isVerified             Boolean                @default(false)
+  intendedRole           UserRoleEnum?
+  isProfileComplete      Boolean                @default(false)
+  address                String?
+  isLoggedIn             Boolean                @default(false)
+  image                  String?
+  portfolioImages        String[]
+  portfolioVideos        String[]
+  phoneNumber            String?
+  dateOfBirth            String?
+  gender                 String?
+  otp                    Int?
+  otpExpiry              DateTime?
+  plateForm              PlatFormType?
+  fcmToken               String?
+  fcmTokenEx             String?
+  stripeCustomerId       String?
+  stripeAccountUrl       String?
+  stripeAccountId        String?
+  stripeSubscriptionId   String?
+  onBoarding             Boolean                @default(false)
   stripeAccountIdPending String?
-  subscriptionPlan     SubscriptionPlanStatus @default(FREE)
-  isSubscribed         Boolean                @default(false)
-  subscriptionEnd      DateTime?
-  followerCount        Int                    @default(0)
-  followingCount       Int                    @default(0)
-  blockCount           Int                    @default(0)
-  blockedByCount       Int                    @default(0)
-  isDeleted            Boolean                @default(false)
-  deleteReason         String?
-  isDeactivated        Boolean                @default(false)
-  deactivateReason     String?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  subscriptionPlan       SubscriptionPlanStatus @default(FREE)
+  isSubscribed           Boolean                @default(false)
+  subscriptionEnd        DateTime?
+  followerCount          Int                    @default(0)
+  followingCount         Int                    @default(0)
+  blockCount             Int                    @default(0)
+  blockedByCount         Int                    @default(0)
+  isDeleted              Boolean                @default(false)
+  deleteReason           String?
+  isDeactivated          Boolean                @default(false)
+  deactivateReason       String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 
   // Relationships
-  roomsSent           Room[]                @relation("SenderRelation")
-  roomsReceived       Room[]                @relation("ReceiverRelation")
-  roomParticipants    RoomUser[]
-  chatsSent           Chat[]                @relation("SenderRelation")
-  chatsReceived       Chat[]                @relation("ReceiverRelation")
-  following           Follow[]              @relation("FollowingRelation") // Users this user is following
-  followers           Follow[]              @relation("FollowerRelation") // Users following this user
-  blockList           Block[]               @relation("Blocks") // Users I've blocked
-  blockedByList       Block[]               @relation("BlockedBy") // Users who blocked me
-  notifications       Notification[]
-  createdRooms        Room[]                @relation("CreatorRelation")
-  SaloonOwner         SaloonOwner[]
-  Booking             Booking[]
-  Review              Review[]
-  Feedback            Feed[]
-  FavoriteFeed        FavoriteFeed[]
-  JobPost             JobPost[]
-  Barber              Barber?
-  Service             Service[]
-  Faq                 Faq[]
-  TermAndCondition    TermAndCondition[]
-  PrivacyPolicy       PrivacyPolicy[]
-  Admin               Admin[]
-  AccessFunction      AccessFunction[]
-  Ads                 Ads[]
-  SubscriptionOffer   SubscriptionOffer[]
-  UserSubscription    UserSubscription[]
-  Support             Support[]
-  Reply               Reply[]
-  SaloonReport        SaloonReport[]
-  SaloonSchedule      SaloonSchedule[]
-  BarberSchedule      BarberSchedule[]
-  SaloonHoliday       SaloonHoliday[]
-  BarberDayOff        BarberDayOff[]
-  LoyaltyProgram      LoyaltyProgram[]
-  CustomerLoyalty     CustomerLoyalty[]
-  CustomerVisit       CustomerVisit[]
-  LoyaltyPointLog     LoyaltyPointLog[]
-  LoyaltyRedemption   LoyaltyRedemption[]
-  QueueSlots          QueueSlot[]           @relation("QueueSlotCustomerUser")
-  FavoriteShop        FavoriteShop[]
-  HiredBarber         HiredBarber[]
-  adminAccessFunction AdminAccessFunction[]
-  QueueCapacity       QueueCapacity[]
-  BookedServices      BookedServices[]
-  Queue               Queue[]
-  BarberLunch         BarberLunch[]
-  Lunch               Lunch[]
-  TerminateBarber     TerminateBarber[]
-  Payment             Payment[]
-  LoyaltyScheme       LoyaltyScheme[]
-  QueueTime          QueueTime[]
-  TipsGiven           Tip[]                 @relation("TipFromCustomer")
-  TipsReceivedAsBarber Tip[]               @relation("TipToBarber")
-  TipsReceivedAsSaloonOwner Tip[]          @relation("TipToSaloonOwner")
+  roomsSent                 Room[]                @relation("SenderRelation")
+  roomsReceived             Room[]                @relation("ReceiverRelation")
+  roomParticipants          RoomUser[]
+  chatsSent                 Chat[]                @relation("SenderRelation")
+  chatsReceived             Chat[]                @relation("ReceiverRelation")
+  following                 Follow[]              @relation("FollowingRelation") // Users this user is following
+  followers                 Follow[]              @relation("FollowerRelation") // Users following this user
+  blockList                 Block[]               @relation("Blocks") // Users I've blocked
+  blockedByList             Block[]               @relation("BlockedBy") // Users who blocked me
+  notifications             Notification[]
+  createdRooms              Room[]                @relation("CreatorRelation")
+  SaloonOwner               SaloonOwner[]
+  Booking                   Booking[]
+  Review                    Review[]
+  Feedback                  Feed[]
+  FavoriteFeed              FavoriteFeed[]
+  JobPost                   JobPost[]
+  Barber                    Barber?
+  Service                   Service[]
+  Faq                       Faq[]
+  TermAndCondition          TermAndCondition[]
+  PrivacyPolicy             PrivacyPolicy[]
+  Admin                     Admin[]
+  AccessFunction            AccessFunction[]
+  Ads                       Ads[]
+  SubscriptionOffer         SubscriptionOffer[]
+  UserSubscription          UserSubscription[]
+  Support                   Support[]
+  Reply                     Reply[]
+  SaloonReport              SaloonReport[]
+  SaloonSchedule            SaloonSchedule[]
+  BarberSchedule            BarberSchedule[]
+  SaloonHoliday             SaloonHoliday[]
+  BarberDayOff              BarberDayOff[]
+  LoyaltyProgram            LoyaltyProgram[]
+  CustomerLoyalty           CustomerLoyalty[]
+  CustomerVisit             CustomerVisit[]
+  LoyaltyPointLog           LoyaltyPointLog[]
+  LoyaltyRedemption         LoyaltyRedemption[]
+  QueueSlots                QueueSlot[]           @relation("QueueSlotCustomerUser")
+  FavoriteShop              FavoriteShop[]
+  HiredBarber               HiredBarber[]
+  adminAccessFunction       AdminAccessFunction[]
+  QueueCapacity             QueueCapacity[]
+  BookedServices            BookedServices[]
+  Queue                     Queue[]
+  BarberLunch               BarberLunch[]
+  Lunch                     Lunch[]
+  TerminateBarber           TerminateBarber[]
+  Payment                   Payment[]
+  LoyaltyScheme             LoyaltyScheme[]
+  QueueTime                 QueueTime[]
+  TipsGiven                 Tip[]                 @relation("TipFromCustomer")
+  TipsReceivedAsBarber      Tip[]                 @relation("TipToBarber")
+  TipsReceivedAsSaloonOwner Tip[]                 @relation("TipToSaloonOwner")
 
   @@map("users")
 }

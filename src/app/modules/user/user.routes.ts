@@ -72,6 +72,11 @@ router.get(
 
 router.patch(
   '/update-profile',
+  multerUploadMultiple.fields([
+    { name: 'portfolioImages', maxCount: 5 },
+    { name: 'portfolioVideos', maxCount: 5 },
+  ]),
+  parseBody,
   auth(),
   validateRequest(UserValidations.updateProfileSchema),
   UserControllers.updateMyProfile,

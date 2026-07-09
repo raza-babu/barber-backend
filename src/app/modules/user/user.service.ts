@@ -1,3 +1,4 @@
+import { uploadFileToS3 } from './../../utils/multipleFile';
 import { User, UserStatus, UserRoleEnum } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import httpStatus from 'http-status';
@@ -889,9 +890,22 @@ const getBarberProfileFromDB = async (userId: string) => {
   };
 };
 
-const updateMyProfileIntoDB = async (id: string, payload: any) => {
-  const userData = payload;
+const updateMyProfileIntoDB = async (
+  id: string,
+  payload: any,
+  files: {
+    portfolioImages?: Express.Multer.File[];
+    portfolioVideos?: Express.Multer.File[];
+  },
+) => {
+  // 1. Destructure the payload
+  const {
+    portfolioImages: remainingImages = [], //
+    portfolioVideos: remainingVideos = [],
+    ...userData
+  } = payload;
 
+  // 2. Guard clause for premium feature
   if (userData.isQueueEnabled) {
     return {
       message:
@@ -899,18 +913,65 @@ const updateMyProfileIntoDB = async (id: string, payload: any) => {
     };
   }
 
-  // update user data
-  await prisma.$transaction(async (transactionClient: any) => {
-    // Update user data
-    const updatedUser = await transactionClient.user.update({
-      where: { id },
-      data: userData,
-    });
-
-    return { updatedUser };
+  // 3. Fetch existing user portfolio to handle deletions later
+  const existingUser = await prisma.user.findUnique({
+    where: { id },
+    select: { portfolioImages: true, portfolioVideos: true },
   });
 
-  // Fetch and return the updated user
+  if (!existingUser) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
+  }
+
+  // 4. File Limit Validation
+  const newImagesCount = files?.portfolioImages?.length || 0;
+  const newVideosCount = files?.portfolioVideos?.length || 0;
+
+  const totalImagesCount = remainingImages.length + newImagesCount;
+  const totalVideosCount = remainingVideos.length + newVideosCount;
+
+  if (totalImagesCount > 5) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `You can only have a maximum of 5 portfolio images. (Current total would be ${totalImagesCount})`,
+    );
+  }
+
+  if (totalVideosCount > 5) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `You can only have a maximum of 5 portfolio videos. (Current total would be ${totalVideosCount})`,
+    );
+  }
+
+  // 5. Upload New Files to AWS S3 first
+  const newImageUploadPromises = (files?.portfolioImages || []).map(file =>
+    uploadFileToS3(file, 'portfolios/images'),
+  );
+  const newVideoUploadPromises = (files?.portfolioVideos || []).map(file =>
+    uploadFileToS3(file, 'portfolios/videos'),
+  );
+
+  const newImageUrls = await Promise.all(newImageUploadPromises);
+  const newVideoUrls = await Promise.all(newVideoUploadPromises);
+
+  // 6. Merge Remaining URLs with New Uploaded URLs
+  const finalPortfolioImages = [...remainingImages, ...newImageUrls];
+  const finalPortfolioVideos = [...remainingVideos, ...newVideoUrls];
+
+  // 7. Update User Data inside a Transaction
+  await prisma.$transaction(async (transactionClient: any) => {
+    await transactionClient.user.update({
+      where: { id },
+      data: {
+        ...userData,
+        portfolioImages: finalPortfolioImages,
+        portfolioVideos: finalPortfolioVideos,
+      },
+    });
+  });
+
+  // 8. Fetch and return the updated user profile
   const updatedUser = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -920,14 +981,29 @@ const updateMyProfileIntoDB = async (id: string, payload: any) => {
       dateOfBirth: true,
       phoneNumber: true,
       gender: true,
+      portfolioImages: true,
+      portfolioVideos: true,
     },
   });
+
   if (!updatedUser) {
     throw new AppError(httpStatus.BAD_REQUEST, 'User not updated!');
   }
 
-  // const userWithOptionalPassword = updatedUser as UserWithOptionalPassword;
-  // delete userWithOptionalPassword.password;
+  // Filter out all the deleable resources
+  const imagesToDelete = (existingUser.portfolioImages || []).filter(
+    (imgUrl: string) => !remainingImages.includes(imgUrl),
+  );
+  const videosToDelete = (existingUser.portfolioVideos || []).filter(
+    (vidUrl: string) => !remainingVideos.includes(vidUrl),
+  );
+
+  Promise.all([
+    ...imagesToDelete.map((url: string) => deleteFileFromSpace(url)),
+    ...videosToDelete.map((url: string) => deleteFileFromSpace(url)),
+  ]).catch(err => {
+    console.error('Background S3 cleanup failed:', err);
+  });
 
   return updatedUser;
 };
