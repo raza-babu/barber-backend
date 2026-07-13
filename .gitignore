@@ -128,7 +128,6 @@ out
 .tern-port
 
 # Stores VSCode versions used for testing VSCode extensions
-.vscode-test
 
 # yarn v3
 .pnp.*
@@ -143,3 +142,7 @@ out
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vercel
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
