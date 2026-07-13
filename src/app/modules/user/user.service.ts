@@ -360,10 +360,12 @@ const updateSaloonOwnerIntoDB = async (userId: string, payload: any) => {
         (img: string) => !newImages.includes(img),
       );
       const currentVideos = currentSaloonOwner?.shopVideo || [];
-      const newVideos = payload.shopVideos || [];
+      const newVideos = payload.shopVideo || [];
       const removedVideos = currentVideos.filter(
         (vid: string) => !newVideos.includes(vid),
       );
+
+      
       for (const img of removedImages) {
         await deleteFileFromSpace(img).catch(error =>
           console.error('Error deleting old shop image from S3:', error),
@@ -374,6 +376,8 @@ const updateSaloonOwnerIntoDB = async (userId: string, payload: any) => {
           console.error('Error deleting old shop video from S3:', error),
         );
       }
+
+      
 
       const updatedSaloonOwner = await tx.saloonOwner.update({
         where: { userId: existingUser.id },
