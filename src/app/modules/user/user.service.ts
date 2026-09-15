@@ -575,7 +575,7 @@ const sendReferenceImagesToAI = async (
 
     // Delete previous images from AI service before uploading new ones
     try {
-      const deleteUrl = `http://13.48.206.147:8000/delete_barber/${userId}`;
+      const deleteUrl = `http://13.48.206.147:8083/delete_barber/${userId}`;
       console.log('=== Deleting Previous Images ===');
       console.log('Delete URL:', deleteUrl);
 
@@ -604,7 +604,7 @@ const sendReferenceImagesToAI = async (
       console.log('Proceeding with upload despite deletion error.');
     }
 
-    const url = 'http://13.48.206.147:8000/upload_reference';
+    const url = 'http://13.48.206.147:8083/upload_reference';
 
     // Get form-data headers (includes Content-Type with boundary)
     const headers = {
@@ -671,7 +671,7 @@ const sendReferenceImagesToAI = async (
       // Optional: Verify the upload by calling the GET API
       try {
         const verifyResp = await axios.get(
-          'http://13.48.206.147:8000/get_barbers',
+          'http://13.48.206.147:8083/get_barbers',
           {
             timeout: 10000,
           },

@@ -121,7 +121,7 @@ const analyzeSaloonFromImageInDb = async (
   let aiBarbers: any[] = [];
   try {
     const getBarberResp = await axios.get(
-      'http://13.48.206.147:8000/get_barbers',
+      'http://13.48.206.147:8083/get_barbers',
       {
         timeout: 30000,
       },
@@ -215,7 +215,7 @@ const analyzeSaloonFromImageInDb = async (
   console.log(`Form data headers: ${JSON.stringify(form.getHeaders())}`);
 
   try {
-    const analyzeUrl = 'http://13.48.206.147:8000/analyze';
+    const analyzeUrl = 'http://13.48.206.147:8083/analyze';
     const headers = form.getHeaders();
 
     // console.log('Sending to AI analysis with barber codes:', matchedBarberIds);
