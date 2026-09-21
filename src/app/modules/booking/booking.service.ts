@@ -996,27 +996,41 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
       });
 
       // Create payment only if remoteQueue is true
-      let payment;
+      let payment = null;
       if (remoteQueue) {
-        try {
-          payment = await StripeServices.authorizeAndSplitPayment(userId, {
-            bookingId: booking.id as string,
-            booking: booking,
-            tx: tx,
-          });
-          if (!payment) {
+        if (price > 0) {
+          try {
+            payment = await StripeServices.authorizeAndSplitPayment(userId, {
+              bookingId: booking.id as string,
+              booking: booking,
+              tx: tx,
+            });
+            if (!payment) {
+              throw new AppError(
+                httpStatus.BAD_REQUEST,
+                'Unable to create checkout session. Booking cancelled.',
+              );
+            }
+          } catch (paymentError: any) {
+            console.error(
+              'Payment initialization error (queue booking):',
+              paymentError,
+            );
             throw new AppError(
               httpStatus.BAD_REQUEST,
-              'Unable to create checkout session. Booking cancelled.',
+              paymentError instanceof AppError
+                ? paymentError.message
+                : paymentError?.message ||
+                  'Payment initialization failed. Booking cancelled.',
             );
           }
-        } catch (paymentError) {
-          throw new AppError(
-            httpStatus.BAD_REQUEST,
-            paymentError instanceof AppError
-              ? paymentError.message
-              : 'Payment initialization failed. Booking cancelled.',
-          );
+        } else {
+          // Free queue booking - confirm directly
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: { status: BookingStatus.CONFIRMED },
+          });
+          booking.status = BookingStatus.CONFIRMED;
         }
       }
 
@@ -2153,27 +2167,41 @@ const createQueueBookingForCustomerIntoDb = async (
       });
 
       // Create payment only if remoteQueue is true
-      let payment;
+      let payment = null;
       if (remoteQueue) {
-        try {
-          payment = await StripeServices.authorizeAndSplitPayment(userId, {
-            bookingId: booking.id as string,
-            booking: booking,
-            tx: tx,
-          });
-          if (!payment) {
+        if (discountResult.finalPrice > 0) {
+          try {
+            payment = await StripeServices.authorizeAndSplitPayment(userId, {
+              bookingId: booking.id as string,
+              booking: booking,
+              tx: tx,
+            });
+            if (!payment) {
+              throw new AppError(
+                httpStatus.BAD_REQUEST,
+                'Unable to create checkout session. Booking cancelled.',
+              );
+            }
+          } catch (paymentError: any) {
+            console.error(
+              'Payment initialization error (remote queue):',
+              paymentError,
+            );
             throw new AppError(
               httpStatus.BAD_REQUEST,
-              'Unable to create checkout session. Booking cancelled.',
+              paymentError instanceof AppError
+                ? paymentError.message
+                : paymentError?.message ||
+                  'Payment initialization failed. Booking cancelled.',
             );
           }
-        } catch (paymentError) {
-          throw new AppError(
-            httpStatus.BAD_REQUEST,
-            paymentError instanceof AppError
-              ? paymentError.message
-              : 'Payment initialization failed. Booking cancelled.',
-          );
+        } else {
+          // Free queue booking - confirm directly
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: { status: BookingStatus.CONFIRMED },
+          });
+          booking.status = BookingStatus.CONFIRMED;
         }
       }
 
@@ -2542,28 +2570,42 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         },
       });
 
-      // 4j. Create Stripe Checkout Session (payment still pending)
-      let payment;
-      try {
-        payment = await StripeServices.authorizeAndSplitPayment(userId, {
-          bookingId: booking.id as string,
-          booking: booking,
-          tx: tx,
-        });
-        if (!payment) {
+      // 4j. Create Stripe Checkout Session (payment still pending if totalPrice > 0)
+      let payment = null;
+      if (totalPrice > 0) {
+        try {
+          payment = await StripeServices.authorizeAndSplitPayment(userId, {
+            bookingId: booking.id as string,
+            booking: booking,
+            tx: tx,
+          });
+          if (!payment) {
+            throw new AppError(
+              httpStatus.BAD_REQUEST,
+              'Unable to create checkout session. Booking cancelled.',
+            );
+          }
+        } catch (paymentError: any) {
+          console.error(
+            'Payment initialization error (appointment booking):',
+            paymentError,
+          );
+          // Transaction will automatically rollback on error
           throw new AppError(
             httpStatus.BAD_REQUEST,
-            'Unable to create checkout session. Booking cancelled.',
+            paymentError instanceof AppError
+              ? paymentError.message
+              : paymentError?.message ||
+                'Payment initialization failed. Booking cancelled.',
           );
         }
-      } catch (paymentError) {
-        // Transaction will automatically rollback on error
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          paymentError instanceof AppError
-            ? paymentError.message
-            : 'Payment initialization failed. Booking cancelled.',
-        );
+      } else {
+        // Free booking (100% discount / loyalty) - mark as CONFIRMED directly
+        await tx.booking.update({
+          where: { id: booking.id },
+          data: { status: BookingStatus.CONFIRMED },
+        });
+        booking.status = BookingStatus.CONFIRMED;
       }
 
       // Return PENDING booking with checkout session
