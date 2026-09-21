@@ -288,9 +288,9 @@ const authorizeAndSplitPayment = async (
       }
     }
 
-    let adminFeeAmount = 0.5 * 100; // £0.50 in pence
-    let transferAmount = findBooking.totalPrice * 100; // Amount in pence
-    const totalAmount = transferAmount + adminFeeAmount;
+    const adminFeeAmount = Math.round(0.5 * 100); // £0.50 in pence (50)
+    const transferAmount = Math.round(findBooking.totalPrice * 100); // Amount in pence
+    const totalAmount = Math.round(transferAmount + adminFeeAmount);
 
     // Validate that the saloon owner's Stripe connected account exists
     let destinationAccountId = findBooking.saloonOwner.user?.stripeAccountId;
