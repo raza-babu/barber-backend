@@ -4,6 +4,7 @@ import prisma from '../../utils/prisma';
 import {
   BookingStatus,
   BookingType,
+  DiscountType,
   PaymentStatus,
   QueueStatus,
   RedemptionStatus,
@@ -92,6 +93,137 @@ const getPersonalizedEstimatedDurationMinutes = async (
   return Math.round(averageDuration);
 };
 
+interface IApplyDiscountParams {
+  tx: any;
+  customerId: string;
+  saloonOwnerId: string;
+  discountOfferId?: string;
+  discountCode?: string;
+  subtotal: number;
+}
+
+interface IApplyDiscountResult {
+  discountOffer: any | null;
+  discountAmount: number;
+  finalPrice: number;
+}
+
+const applyDiscountOfferInTransaction = async ({
+  tx,
+  customerId,
+  saloonOwnerId,
+  discountOfferId,
+  discountCode,
+  subtotal,
+}: IApplyDiscountParams): Promise<IApplyDiscountResult> => {
+  if (!discountOfferId && !discountCode) {
+    return {
+      discountOffer: null,
+      discountAmount: 0,
+      finalPrice: subtotal,
+    };
+  }
+
+  const whereClause: any = {
+    saloonOwnerId,
+  };
+
+  if (discountOfferId) {
+    whereClause.id = discountOfferId;
+  } else if (discountCode) {
+    whereClause.code = discountCode.trim().toUpperCase();
+  }
+
+  const offer = await tx.salonDiscountOffer.findFirst({
+    where: whereClause,
+  });
+
+  if (!offer) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Discount offer or promo code not found for this salon',
+    );
+  }
+
+  if (!offer.isActive) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This discount offer is currently inactive',
+    );
+  }
+
+  const now = new Date();
+  if (now < offer.startDate) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This discount offer has not started yet',
+    );
+  }
+
+  if (now > offer.endDate) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This discount offer has expired',
+    );
+  }
+
+  if (offer.usageLimit !== null && offer.usageCount >= offer.usageLimit) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This discount offer has reached its maximum total usage limit',
+    );
+  }
+
+  if (offer.perUserLimit) {
+    const userUsagesCount = await tx.booking.count({
+      where: {
+        userId: customerId,
+        discountOfferId: offer.id,
+        status: { not: BookingStatus.CANCELLED },
+      },
+    });
+
+    if (userUsagesCount >= offer.perUserLimit) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `You have already reached the maximum limit (${offer.perUserLimit}) for this discount offer`,
+      );
+    }
+  }
+
+  if (offer.minBookingAmount && subtotal < offer.minBookingAmount) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Minimum booking amount to use this offer is £${offer.minBookingAmount}`,
+    );
+  }
+
+  let discountAmount = 0;
+  if (offer.discountType === DiscountType.PERCENTAGE) {
+    discountAmount = (subtotal * offer.discountValue) / 100;
+    if (offer.maxDiscountAmount && discountAmount > offer.maxDiscountAmount) {
+      discountAmount = offer.maxDiscountAmount;
+    }
+  } else if (offer.discountType === DiscountType.FIXED) {
+    discountAmount = Math.min(offer.discountValue, subtotal);
+  }
+
+  discountAmount = Math.round(discountAmount * 100) / 100;
+  const finalPrice = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+
+  // Increment usage count inside transaction
+  await tx.salonDiscountOffer.update({
+    where: { id: offer.id },
+    data: { usageCount: { increment: 1 } },
+  });
+
+  return {
+    discountOffer: offer,
+    discountAmount,
+    finalPrice,
+  };
+};
+
 // Helper function to send booking confirmation notification
 const sendBookingConfirmationNotification = async (
   userId: string,
@@ -136,6 +268,8 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
     notes,
     isInQueue,
     loyaltySchemeId,
+    discountOfferId,
+    discountCode,
     remoteQueue,
   } = data;
 
@@ -466,6 +600,14 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
           // Delete stale unpaid bookings and cleanup related records
           for (const staleBooking of stalePendingBookings) {
             if (payments.length > 0) {
+              if (staleBooking.discountOfferId && staleBooking.discountUsed) {
+                await tx.salonDiscountOffer
+                  .update({
+                    where: { id: staleBooking.discountOfferId },
+                    data: { usageCount: { decrement: 1 } },
+                  })
+                  .catch(() => {});
+              }
               await tx.bookedServices.deleteMany({
                 where: { bookingId: staleBooking.id },
               });
@@ -632,8 +774,18 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
         },
       });
 
+      // Apply discount offer if provided
+      const discountResult = await applyDiscountOfferInTransaction({
+        tx,
+        customerId: userId,
+        saloonOwnerId,
+        discountOfferId,
+        discountCode,
+        subtotal: totalPrice,
+      });
+
       // Handle loyalty
-      let price = totalPrice;
+      let price = discountResult.finalPrice;
       let loyaltyUsed = null;
 
       if (loyaltySchemeId) {
@@ -672,7 +824,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
           },
         });
 
-        price = totalPrice - totalPrice * (loyaltyScheme.percentage / 100);
+        price = price - price * (loyaltyScheme.percentage / 100);
         if (price < 0) price = 0;
       }
 
@@ -687,6 +839,10 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
           notes,
           bookingType: BookingType.QUEUE,
           isInQueue: !!(saloonOwner.isQueueEnabled && isInQueue),
+          originalPrice: totalPrice,
+          discountAmount: discountResult.discountAmount,
+          discountOfferId: discountResult.discountOffer?.id ?? null,
+          discountUsed: !!discountResult.discountOffer,
           totalPrice: price,
           startDateTime: utcDateTime,
           endDateTime: DateTime.fromJSDate(utcDateTime)
@@ -888,7 +1044,17 @@ const createQueueBookingForSalonOwnerIntoDb = async (
   saloonOwnerId: string,
   data: any,
 ) => {
-  const { fullName, email, phone, date, services, notes, type } = data;
+  const {
+    fullName,
+    email,
+    phone,
+    date,
+    services,
+    notes,
+    type,
+    discountOfferId,
+    discountCode,
+  } = data;
 
   // appointmentAt may be omitted — we'll choose it based on barber free slots later.
   let appointmentAt: string | undefined = data.appointmentAt;
@@ -1243,6 +1409,16 @@ const createQueueBookingForSalonOwnerIntoDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Error creating queue slot');
     }
 
+    // Apply discount offer if provided
+    const discountResult = await applyDiscountOfferInTransaction({
+      tx,
+      customerId: nonRegisteredUser.id,
+      saloonOwnerId,
+      discountOfferId,
+      discountCode,
+      subtotal: totalPrice,
+    });
+
     const booking = await tx.booking.create({
       data: {
         userId: nonRegisteredUser.id,
@@ -1253,7 +1429,11 @@ const createQueueBookingForSalonOwnerIntoDb = async (
         notes: notes ?? null,
         bookingType: BookingType.QUEUE,
         isInQueue: true,
-        totalPrice,
+        originalPrice: totalPrice,
+        discountAmount: discountResult.discountAmount,
+        discountOfferId: discountResult.discountOffer?.id ?? null,
+        discountUsed: !!discountResult.discountOffer,
+        totalPrice: discountResult.finalPrice,
         startDateTime: utcDateTime,
         endDateTime: DateTime.fromJSDate(utcDateTime)
           .plus({ minutes: estimatedDurationMinutes })
@@ -1330,7 +1510,16 @@ const createQueueBookingForCustomerIntoDb = async (
   saloonOwnerId: string,
   data: any,
 ) => {
-  const { date, services, notes, type, remoteQueue } = data;
+  const {
+    date,
+    services,
+    notes,
+    type,
+    remoteQueue,
+    loyaltySchemeId,
+    discountOfferId,
+    discountCode,
+  } = data;
   let appointmentAt: string | undefined = data.appointmentAt;
 
   // Helper: pick the earliest free slot start that can accommodate totalDuration (minutes).
@@ -1734,6 +1923,14 @@ const createQueueBookingForCustomerIntoDb = async (
           // Delete stale unpaid bookings and cleanup related records
           for (const staleBooking of stalePendingBookings) {
             if (payments.length > 0) {
+              if (staleBooking.discountOfferId && staleBooking.discountUsed) {
+                await tx.salonDiscountOffer
+                  .update({
+                    where: { id: staleBooking.discountOfferId },
+                    data: { usageCount: { decrement: 1 } },
+                  })
+                  .catch(() => {});
+              }
               await tx.bookedServices.deleteMany({
                 where: { bookingId: staleBooking.id },
               });
@@ -1876,6 +2073,16 @@ const createQueueBookingForCustomerIntoDb = async (
         ? BookingStatus.PENDING
         : BookingStatus.CONFIRMED;
 
+      // Apply discount offer if provided
+      const discountResult = await applyDiscountOfferInTransaction({
+        tx,
+        customerId: userId,
+        saloonOwnerId,
+        discountOfferId,
+        discountCode,
+        subtotal: totalPrice,
+      });
+
       const booking = await tx.booking.create({
         data: {
           userId: userId,
@@ -1886,7 +2093,11 @@ const createQueueBookingForCustomerIntoDb = async (
           notes: notes ?? null,
           bookingType: BookingType.QUEUE,
           isInQueue: true,
-          totalPrice,
+          originalPrice: totalPrice,
+          discountAmount: discountResult.discountAmount,
+          discountOfferId: discountResult.discountOffer?.id ?? null,
+          discountUsed: !!discountResult.discountOffer,
+          totalPrice: discountResult.finalPrice,
           startDateTime: utcDateTime,
           endDateTime: DateTime.fromJSDate(utcDateTime)
             .plus({ minutes: estimatedDurationMinutes })
@@ -1993,6 +2204,8 @@ const createBookingIntoDb = async (userId: string, data: any) => {
     services,
     notes,
     loyaltySchemeId,
+    discountOfferId,
+    discountCode,
   } = data;
 
   // 1. Validate saloon exists & verified
@@ -2139,6 +2352,14 @@ const createBookingIntoDb = async (userId: string, data: any) => {
         // Delete stale unpaid bookings and cleanup related records
         for (const staleBooking of stalePendingBookings) {
           if (payments.length > 0) {
+            if (staleBooking.discountOfferId && staleBooking.discountUsed) {
+              await tx.salonDiscountOffer
+                .update({
+                  where: { id: staleBooking.discountOfferId },
+                  data: { usageCount: { decrement: 1 } },
+                })
+                .catch(() => {});
+            }
             // Has unpaid payments - cleanup
             await tx.bookedServices.deleteMany({
               where: { bookingId: staleBooking.id },
@@ -2203,7 +2424,19 @@ const createBookingIntoDb = async (userId: string, data: any) => {
       //   );
       // }
 
-      // 4e. Loyalty handling (deduct points, compute discounted price)
+      // 4e-1. Apply salon discount offer if provided
+      const discountResult = await applyDiscountOfferInTransaction({
+        tx,
+        customerId: userId,
+        saloonOwnerId,
+        discountOfferId,
+        discountCode,
+        subtotal: totalPrice,
+      });
+
+      totalPrice = discountResult.finalPrice;
+
+      // 4e-2. Loyalty handling (deduct points, compute discounted price)
       let loyaltyUsed = null;
       if (loyaltySchemeId) {
         const loyaltyScheme = await tx.loyaltyScheme.findUnique({
@@ -2259,6 +2492,10 @@ const createBookingIntoDb = async (userId: string, data: any) => {
           notes: notes ?? null,
           bookingType: BookingType.BOOKING,
           isInQueue: false,
+          originalPrice: serviceRecords.reduce((sum, s) => sum + Number(s.price), 0),
+          discountAmount: discountResult.discountAmount,
+          discountOfferId: discountResult.discountOffer?.id ?? null,
+          discountUsed: !!discountResult.discountOffer,
           totalPrice: totalPrice,
           startDateTime: bookingStart,
           endDateTime: bookingEnd,
@@ -2562,6 +2799,15 @@ const getBookingListFromDb = async (
           position: true,
         },
       },
+      discountOffer: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          discountType: true,
+          discountValue: true,
+        },
+      },
     },
   });
 
@@ -2604,6 +2850,10 @@ const getBookingListFromDb = async (
       saloonAddress: b.saloonOwner?.shopAddress || null,
       saloonLogo: b.saloonOwner?.shopLogo || null,
       totalPrice: b.totalPrice,
+      originalPrice: b.originalPrice ?? b.totalPrice,
+      discountAmount: b.discountAmount ?? 0,
+      discountUsed: b.discountUsed ?? false,
+      discountOffer: b.discountOffer || null,
       notes: b.notes,
       customerImage: b.user?.image || null,
       customerName: b.user?.fullName || null,
@@ -2690,6 +2940,19 @@ const getBookingByIdFromDb = async (userId: string, bookingId: string) => {
       notes: true,
       isInQueue: true,
       totalPrice: true,
+      originalPrice: true,
+      discountAmount: true,
+      discountOfferId: true,
+      discountUsed: true,
+      discountOffer: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          discountType: true,
+          discountValue: true,
+        },
+      },
       startTime: true,
       endTime: true,
       estimatedDurationMinutes: true,
@@ -2765,6 +3028,10 @@ const getBookingByIdFromDb = async (userId: string, bookingId: string) => {
     barberId: result.barberId,
     saloonOwnerId: result.saloonOwnerId,
     totalPrice: result.totalPrice,
+    originalPrice: result.originalPrice ?? result.totalPrice,
+    discountAmount: result.discountAmount ?? 0,
+    discountUsed: result.discountUsed ?? false,
+    discountOffer: result.discountOffer || null,
     notes: result.notes,
     customerName: result.user?.fullName || null,
     customerEmail: result.user?.email || null,
@@ -4305,6 +4572,19 @@ const getBookingListForSalonOwnerFromDb = async (
       notes: true,
       isInQueue: true,
       totalPrice: true,
+      originalPrice: true,
+      discountAmount: true,
+      discountOfferId: true,
+      discountUsed: true,
+      discountOffer: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          discountType: true,
+          discountValue: true,
+        },
+      },
       startTime: true,
       endTime: true,
       estimatedDurationMinutes: true,
@@ -4413,6 +4693,10 @@ const getBookingListForSalonOwnerFromDb = async (
       barberId: b.barberId,
       saloonOwnerId: b.saloonOwnerId,
       totalPrice: b.totalPrice,
+      originalPrice: b.originalPrice ?? b.totalPrice,
+      discountAmount: b.discountAmount ?? 0,
+      discountUsed: b.discountUsed ?? false,
+      discountOffer: b.discountOffer || null,
       notes: b.notes,
       customerImage: userInfo.image,
       customerName: userInfo.fullName,
@@ -4539,6 +4823,19 @@ const getBookingListForBarberFromDb = async (
         notes: true,
         isInQueue: true,
         totalPrice: true,
+        originalPrice: true,
+        discountAmount: true,
+        discountOfferId: true,
+        discountUsed: true,
+        discountOffer: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            discountType: true,
+            discountValue: true,
+          },
+        },
         startTime: true,
         endTime: true,
         estimatedDurationMinutes: true,
@@ -4641,6 +4938,10 @@ const getBookingListForBarberFromDb = async (
       barberId: b.barberId,
       saloonOwnerId: b.saloonOwnerId,
       totalPrice: b.totalPrice,
+      originalPrice: b.originalPrice ?? b.totalPrice,
+      discountAmount: b.discountAmount ?? 0,
+      discountUsed: b.discountUsed ?? false,
+      discountOffer: b.discountOffer || null,
       notes: b.notes,
       customerImage: userInfo.image,
       customerName: userInfo.fullName,
@@ -4696,6 +4997,19 @@ const getBookingByIdFromDbForSalon = async (
       notes: true,
       isInQueue: true,
       totalPrice: true,
+      originalPrice: true,
+      discountAmount: true,
+      discountOfferId: true,
+      discountUsed: true,
+      discountOffer: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          discountType: true,
+          discountValue: true,
+        },
+      },
       startTime: true,
       endTime: true,
       estimatedDurationMinutes: true,
@@ -4772,6 +5086,10 @@ const getBookingByIdFromDbForSalon = async (
     barberId: result.barberId,
     saloonOwnerId: result.saloonOwnerId,
     totalPrice: result.totalPrice,
+    originalPrice: result.originalPrice ?? result.totalPrice,
+    discountAmount: result.discountAmount ?? 0,
+    discountUsed: result.discountUsed ?? false,
+    discountOffer: result.discountOffer || null,
     notes: result.notes,
     customerName: result.user?.fullName || null,
     customerEmail: result.user?.email || null,
@@ -5160,7 +5478,7 @@ const updateBookingStatusIntoDb = async (
             customerId: bookingWithServices.userId,
             saloonOwnerId: userId,
             visitDate: new Date(),
-            amountSpent: totalAmount,
+            amountSpent: bookingWithServices.totalPrice ?? totalAmount,
             serviceId: serviceIds,
           },
         });
@@ -5375,7 +5693,6 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
     where: {
       id: bookingId,
       userId: userId,
-      bookingType: BookingType.BOOKING,
       status: {
         in: [
           BookingStatus.PENDING,
@@ -5572,6 +5889,14 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
       throw new AppError(httpStatus.BAD_REQUEST, 'Booking not canceled');
     }
 
+    // Restore discount offer usage count if discount was applied
+    if (booking.discountOfferId && booking.discountUsed) {
+      await tx.salonDiscountOffer.update({
+        where: { id: booking.discountOfferId },
+        data: { usageCount: { decrement: 1 } },
+      });
+    }
+
     // 2. Delete associated queueSlot if exists
     if (booking.queueSlot && booking.queueSlot.length > 0) {
       const slot = await tx.queueSlot.findUnique({
@@ -5658,6 +5983,16 @@ const cancelBookingIntoDb = async (userId: string, bookingId: string) => {
 };
 
 const deleteBookingItemFromDb = async (userId: string, bookingId: string) => {
+  const booking = await prisma.booking.findUnique({
+    where: {
+      id: bookingId,
+      saloonOwnerId: userId,
+    },
+  });
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Booking not found');
+  }
+
   const deletedItem = await prisma.booking.delete({
     where: {
       id: bookingId,
@@ -5666,6 +6001,21 @@ const deleteBookingItemFromDb = async (userId: string, bookingId: string) => {
   });
   if (!deletedItem) {
     throw new AppError(httpStatus.BAD_REQUEST, 'bookingId, not deleted');
+  }
+
+  if (
+    deletedItem.discountOfferId &&
+    deletedItem.discountUsed &&
+    deletedItem.status !== BookingStatus.COMPLETED
+  ) {
+    await prisma.salonDiscountOffer
+      .update({
+        where: { id: deletedItem.discountOfferId },
+        data: { usageCount: { decrement: 1 } },
+      })
+      .catch(err => {
+        console.error('Failed to restore discount offer usage on deletion:', err);
+      });
   }
 
   return deletedItem;

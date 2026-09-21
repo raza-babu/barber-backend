@@ -586,6 +586,24 @@ const getAllSaloonListFromDb = async (
         },
       },
       FavoriteShop: { select: { id: true, userId: true } },
+      discountOffers: {
+        where: {
+          isActive: true,
+          startDate: { lte: new Date() },
+          endDate: { gte: new Date() },
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          discountType: true,
+          discountValue: true,
+          minBookingAmount: true,
+          maxDiscountAmount: true,
+          usageLimit: true,
+          usageCount: true,
+        },
+      },
     },
     orderBy,
   });
@@ -677,6 +695,14 @@ const getAllSaloonListFromDb = async (
         // Barbers
         availableBarbers: filteredBarbers,
         totalAvailableBarbers: filteredBarbers.length,
+
+        // Discounts
+        discountOffers: (saloon.discountOffers || []).filter(
+          (o: any) => o.usageLimit === null || o.usageCount < o.usageLimit,
+        ),
+        hasDiscountOffers: (saloon.discountOffers || []).some(
+          (o: any) => o.usageLimit === null || o.usageCount < o.usageLimit,
+        ),
 
         // User specific
         isFavorite,
@@ -1043,6 +1069,24 @@ const getMyNearestSaloonListFromDb = async (
         },
       },
       FavoriteShop: { select: { id: true, userId: true } },
+      discountOffers: {
+        where: {
+          isActive: true,
+          startDate: { lte: new Date() },
+          endDate: { gte: new Date() },
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          discountType: true,
+          discountValue: true,
+          minBookingAmount: true,
+          maxDiscountAmount: true,
+          usageLimit: true,
+          usageCount: true,
+        },
+      },
     },
   });
 
@@ -1160,6 +1204,14 @@ const getMyNearestSaloonListFromDb = async (
         // Barbers
         availableBarbers: filteredBarbers,
         totalAvailableBarbers: filteredBarbers.length,
+
+        // Discounts
+        discountOffers: (saloon.discountOffers || []).filter(
+          (o: any) => o.usageLimit === null || o.usageCount < o.usageLimit,
+        ),
+        hasDiscountOffers: (saloon.discountOffers || []).some(
+          (o: any) => o.usageLimit === null || o.usageCount < o.usageLimit,
+        ),
 
         // User specific
         isFavorite,
@@ -1310,6 +1362,24 @@ const getTopRatedSaloonsFromDb = async (
         },
       },
       FavoriteShop: { select: { id: true, userId: true } },
+      discountOffers: {
+        where: {
+          isActive: true,
+          startDate: { lte: new Date() },
+          endDate: { gte: new Date() },
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          discountType: true,
+          discountValue: true,
+          minBookingAmount: true,
+          maxDiscountAmount: true,
+          usageLimit: true,
+          usageCount: true,
+        },
+      },
     },
     orderBy: {
       avgRating: 'desc', // Sort by rating descending
@@ -1403,6 +1473,14 @@ const getTopRatedSaloonsFromDb = async (
         // Barbers
         availableBarbers: filteredBarbers,
         totalAvailableBarbers: filteredBarbers.length,
+
+        // Discounts
+        discountOffers: (saloon.discountOffers || []).filter(
+          (o: any) => o.usageLimit === null || o.usageCount < o.usageLimit,
+        ),
+        hasDiscountOffers: (saloon.discountOffers || []).some(
+          (o: any) => o.usageLimit === null || o.usageCount < o.usageLimit,
+        ),
 
         // User specific
         isFavorite,

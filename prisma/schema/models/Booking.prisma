@@ -22,13 +22,17 @@ model Booking {
   isInQueue                Boolean       @default(false)
   barberName               String?
   barberImage              String?
-  loyaltyUsed              Boolean       @default(false)
-  loyaltySchemeId          String?       @db.ObjectId
-  checkIn                  Boolean       @default(false)
-  remoteQueue              Boolean       @default(false)
-  tipStatus                TipStatus     @default(NONE)
-  createdAt                DateTime      @default(now())
-  updatedAt                DateTime      @updatedAt
+  loyaltyUsed              Boolean             @default(false)
+  loyaltySchemeId          String?             @db.ObjectId
+  originalPrice            Float?
+  discountAmount           Float?              @default(0)
+  discountOfferId          String?             @db.ObjectId
+  discountUsed             Boolean             @default(false)
+  checkIn                  Boolean             @default(false)
+  remoteQueue              Boolean             @default(false)
+  tipStatus                TipStatus           @default(NONE)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
 
   // Relationships
   user              User                @relation(fields: [userId], references: [id])
@@ -36,6 +40,7 @@ model Booking {
   // service     Service     @relation(fields: [serviceId], references: [id])
   saloonOwner       SaloonOwner         @relation(fields: [saloonOwnerId], references: [userId])
   loyaltyScheme     LoyaltyScheme?      @relation(fields: [loyaltySchemeId], references: [id])
+  discountOffer     SalonDiscountOffer? @relation(fields: [discountOfferId], references: [id])
   queueSlot         QueueSlot[]
   LoyaltyRedemption LoyaltyRedemption[]
   BookedServices    BookedServices[]

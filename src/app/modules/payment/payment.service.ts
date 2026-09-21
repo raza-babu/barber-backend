@@ -353,10 +353,14 @@ const authorizeAndSplitPayment = async (
       },
       payment_intent_data: {
         capture_method: 'manual',
-        transfer_data: {
-          destination: destinationAccountId,
-          amount: transferAmount,
-        },
+        ...(transferAmount > 0
+          ? {
+              transfer_data: {
+                destination: destinationAccountId,
+                amount: transferAmount,
+              },
+            }
+          : {}),
       },
     });
 

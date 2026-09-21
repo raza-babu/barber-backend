@@ -37,6 +37,7 @@ import { nonRegisteredBookingRoutes } from '../modules/nonRegisteredBooking/nonR
 import { barberRoutes } from '../modules/barber/barber.routes';
 import { NotificationRoutes } from '../modules/notification/notification.routes';
 import { blockRoutes } from '../modules/block/block.routes';
+import { salonDiscountOfferRoutes } from '../modules/salonDiscountOffer/salonDiscountOffer.routes';
 const router = express.Router();
 
 const moduleRoutes = [
@@ -195,6 +196,10 @@ const moduleRoutes = [
   {
     path: '/blocks',
     route: blockRoutes,
+  },
+  {
+    path: '/discount-offers',
+    route: salonDiscountOfferRoutes,
   },
 ];
 

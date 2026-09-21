@@ -13,6 +13,8 @@ const createBookingSchema = z.object({
     // totalPrice: z.number({ required_error: 'Total price is required' }),
     notes: z.string().optional(),
     loyaltySchemeId: z.string().optional(),
+    discountOfferId: z.string().optional(),
+    discountCode: z.string().optional(),
     isInQueue: z.boolean().optional(),
     type: z.enum(['BOOKING', 'QUEUE'], {
       required_error: 'Booking type is required',

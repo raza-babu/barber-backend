@@ -27,6 +27,12 @@ enum BookingType {
   QUEUE
 }
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+
 enum JobApplicationStatus {
   PENDING
   ONGOING
@@ -447,13 +453,17 @@ model Booking {
   isInQueue                Boolean       @default(false)
   barberName               String?
   barberImage              String?
-  loyaltyUsed              Boolean       @default(false)
-  loyaltySchemeId          String?       @db.ObjectId
-  checkIn                  Boolean       @default(false)
-  remoteQueue              Boolean       @default(false)
-  tipStatus                TipStatus     @default(NONE)
-  createdAt                DateTime      @default(now())
-  updatedAt                DateTime      @updatedAt
+  loyaltyUsed              Boolean             @default(false)
+  loyaltySchemeId          String?             @db.ObjectId
+  originalPrice            Float?
+  discountAmount           Float?              @default(0)
+  discountOfferId          String?             @db.ObjectId
+  discountUsed             Boolean             @default(false)
+  checkIn                  Boolean             @default(false)
+  remoteQueue              Boolean             @default(false)
+  tipStatus                TipStatus           @default(NONE)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
 
   // Relationships
   user              User                @relation(fields: [userId], references: [id])
@@ -461,6 +471,7 @@ model Booking {
   // service     Service     @relation(fields: [serviceId], references: [id])
   saloonOwner       SaloonOwner         @relation(fields: [saloonOwnerId], references: [userId])
   loyaltyScheme     LoyaltyScheme?      @relation(fields: [loyaltySchemeId], references: [id])
+  discountOffer     SalonDiscountOffer? @relation(fields: [discountOfferId], references: [id])
   queueSlot         QueueSlot[]
   LoyaltyRedemption LoyaltyRedemption[]
   BookedServices    BookedServices[]
@@ -1043,6 +1054,34 @@ model RoomUser {
 }
 
 
+model SalonDiscountOffer {
+  id                String       @id @default(auto()) @map("_id") @db.ObjectId
+  saloonOwnerId     String       @db.ObjectId
+  name              String
+  description       String?
+  code              String?
+  discountType      DiscountType @default(PERCENTAGE)
+  discountValue     Float
+  maxDiscountAmount Float?
+  minBookingAmount  Float?       @default(0)
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean      @default(true)
+  usageLimit        Int?
+  usageCount        Int          @default(0)
+  perUserLimit      Int?         @default(1)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // Relationships
+  saloonOwner SaloonOwner @relation(fields: [saloonOwnerId], references: [userId])
+  bookings    Booking[]
+
+  @@index([saloonOwnerId, isActive])
+  @@map("salon_discount_offers")
+}
+
+
 model SaloonHoliday {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   userId      String   @db.ObjectId
@@ -1105,6 +1144,7 @@ model SaloonOwner {
   LoyaltyPointLog            LoyaltyPointLog[]
   QueueTime                  QueueTime[]
   BarberPayoutRequest        BarberPayoutRequest[]
+  discountOffers             SalonDiscountOffer[]
   @@map("saloon_owners")
 }
 

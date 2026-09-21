@@ -41,5 +41,6 @@ model SaloonOwner {
   LoyaltyPointLog            LoyaltyPointLog[]
   QueueTime                  QueueTime[]
   BarberPayoutRequest        BarberPayoutRequest[]
+  discountOffers             SalonDiscountOffer[]
   @@map("saloon_owners")
 }

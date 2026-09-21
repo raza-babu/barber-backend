@@ -22,6 +22,7 @@ import prisma from '../../utils/prisma';
 import config from '../../../config';
 import { notificationService } from '../notification/notification.service';
 import { blockService } from '../block/block.service';
+import { salonDiscountOfferService } from '../salonDiscountOffer/salonDiscountOffer.service';
 
 // Initialize Stripe
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -1834,6 +1835,12 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     }),
   );
 
+  const activeDiscountOffers =
+    await salonDiscountOfferService.getActiveOffersForCustomerFromDb(
+      saloonOwnerId,
+      userId,
+    );
+
   //flatten the salon information
   return {
     isMe: userId === saloonOwnerId,
@@ -1867,6 +1874,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       isActive: service.isActive,
     })),
     barbers: barbersWithAvailability,
+    discountOffers: activeDiscountOffers,
     isFollowing: isFollowing ? true : false,
   };
 };
