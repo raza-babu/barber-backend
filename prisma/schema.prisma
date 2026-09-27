@@ -1116,6 +1116,7 @@ model SaloonOwner {
   qrCode             String?
   isQueueEnabled     Boolean  @default(false) // If queue system is enabled
   isVerified         Boolean  @default(false)
+  timezone           String   @default("Europe/London")
   followerCount      Int      @default(0)
   followingCount     Int      @default(0)
   ratingCount        Int      @default(0)

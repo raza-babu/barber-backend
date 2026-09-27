@@ -2,6 +2,8 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import moment from 'moment-timezone';
+import { getSalonTimezone } from '../../utils/timezone.helper';
 
 const createLunchIntoDb = async (
   userId: string,
@@ -13,27 +15,45 @@ const createLunchIntoDb = async (
 ) => {
   const { startTime, endTime, status = true } = data;
 
-  // Parse "hh:mm AM/PM" → 24-hour
-  function parseTimeTo24Hour(timeStr: string) {
-    const [time, modifier] = timeStr.split(' ');
-    let [hours, minutes] = time.split(':').map(Number);
-    if (modifier === 'PM' && hours < 12) hours += 12;
-    if (modifier === 'AM' && hours === 12) hours = 0;
-    return { hours, minutes };
+  const salon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(salon);
+
+  const today = moment.tz(salonZone).format('YYYY-MM-DD');
+  const startM = moment.tz(
+    `${today} ${startTime.trim()}`,
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+      'YYYY-MM-DD HH:mm',
+    ],
+    salonZone,
+  );
+  const endM = moment.tz(
+    `${today} ${endTime.trim()}`,
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+      'YYYY-MM-DD HH:mm',
+    ],
+    salonZone,
+  );
+
+  if (!startM.isValid() || !endM.isValid() || !startM.isBefore(endM)) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Invalid lunch times or start time must be before end time',
+    );
   }
 
-  const { hours: startHours, minutes: startMinutes } =
-    parseTimeTo24Hour(startTime);
-  const { hours: endHours, minutes: endMinutes } = parseTimeTo24Hour(endTime);
-
-  // Force into ISO format to avoid "Invalid Date"
-  const isoDate = new Date().toISOString(); // e.g., "2025-08-20"
-
-  const startedAt = new Date(isoDate);
-  startedAt.setUTCHours(startHours, startMinutes, 0, 0);
-
-  const completedAt = new Date(isoDate);
-  completedAt.setUTCHours(endHours, endMinutes, 0, 0);
+  const startedAt = startM.toDate();
+  const completedAt = endM.toDate();
 
   const result = await prisma.lunch.create({
     data: {
@@ -91,27 +111,45 @@ const updateLunchIntoDb = async (
 ) => {
   const { startTime, endTime, status = true } = data;
 
-  // Parse "hh:mm AM/PM" → 24-hour
-  function parseTimeTo24Hour(timeStr: string) {
-    const [time, modifier] = timeStr.split(' ');
-    let [hours, minutes] = time.split(':').map(Number);
-    if (modifier === 'PM' && hours < 12) hours += 12;
-    if (modifier === 'AM' && hours === 12) hours = 0;
-    return { hours, minutes };
+  const salon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(salon);
+
+  const today = moment.tz(salonZone).format('YYYY-MM-DD');
+  const startM = moment.tz(
+    `${today} ${startTime.trim()}`,
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+      'YYYY-MM-DD HH:mm',
+    ],
+    salonZone,
+  );
+  const endM = moment.tz(
+    `${today} ${endTime.trim()}`,
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+      'YYYY-MM-DD HH:mm',
+    ],
+    salonZone,
+  );
+
+  if (!startM.isValid() || !endM.isValid() || !startM.isBefore(endM)) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Invalid lunch times or start time must be before end time',
+    );
   }
 
-  const { hours: startHours, minutes: startMinutes } =
-    parseTimeTo24Hour(startTime);
-  const { hours: endHours, minutes: endMinutes } = parseTimeTo24Hour(endTime);
-
-  // Force into ISO format to avoid "Invalid Date"
-  const isoDate = new Date().toISOString();
-
-  const startedAt = new Date(isoDate);
-  startedAt.setUTCHours(startHours, startMinutes, 0, 0);
-
-  const completedAt = new Date(isoDate);
-  completedAt.setUTCHours(endHours, endMinutes, 0, 0);
+  const startedAt = startM.toDate();
+  const completedAt = endM.toDate();
 
   const updateData: any = {
     startTime,

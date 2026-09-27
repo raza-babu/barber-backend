@@ -4,18 +4,16 @@ import AppError from '../../errors/AppError';
 import { BookingStatus, DiscountType } from '@prisma/client';
 import { calculatePagination, formatPaginationResponse } from '../../utils/pagination';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import moment from 'moment-timezone';
+import { getSalonTimezone, resolveTimezone } from '../../utils/timezone.helper';
 
-const normalizeDate = (dateVal: string | Date, isEnd = false): Date => {
-  if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateVal.trim())) {
-    const d = new Date(dateVal.trim());
-    if (isEnd) {
-      d.setUTCHours(23, 59, 59, 999);
-    } else {
-      d.setUTCHours(0, 0, 0, 0);
-    }
-    return d;
+const normalizeDate = (dateVal: string | Date, isEnd = false, zone?: string): Date => {
+  const targetZone = resolveTimezone(zone);
+  const m = moment.tz(dateVal, targetZone);
+  if (!m.isValid()) {
+    return new Date(dateVal);
   }
-  return new Date(dateVal);
+  return isEnd ? m.endOf('day').toDate() : m.startOf('day').toDate();
 };
 
 const createDiscountOfferInDb = async (saloonOwnerId: string, payload: any) => {
@@ -45,6 +43,8 @@ const createDiscountOfferInDb = async (saloonOwnerId: string, payload: any) => {
     }
   }
 
+  const salonZone = getSalonTimezone(saloonOwner);
+
   const result = await prisma.salonDiscountOffer.create({
     data: {
       saloonOwnerId,
@@ -55,8 +55,8 @@ const createDiscountOfferInDb = async (saloonOwnerId: string, payload: any) => {
       discountValue: payload.discountValue,
       maxDiscountAmount: payload.maxDiscountAmount ?? null,
       minBookingAmount: payload.minBookingAmount ?? 0,
-      startDate: normalizeDate(payload.startDate, false),
-      endDate: normalizeDate(payload.endDate, true),
+      startDate: normalizeDate(payload.startDate, false, salonZone),
+      endDate: normalizeDate(payload.endDate, true, salonZone),
       isActive: payload.isActive ?? true,
       usageLimit: payload.usageLimit ?? null,
       perUserLimit: payload.perUserLimit ?? 1,
@@ -177,11 +177,17 @@ const updateDiscountOfferInDb = async (
   if (code !== undefined) {
     updateData.code = code;
   }
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId: saloonOwnerId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
   if (payload.startDate) {
-    updateData.startDate = normalizeDate(payload.startDate, false);
+    updateData.startDate = normalizeDate(payload.startDate, false, salonZone);
   }
   if (payload.endDate) {
-    updateData.endDate = normalizeDate(payload.endDate, true);
+    updateData.endDate = normalizeDate(payload.endDate, true, salonZone);
   }
 
   const result = await prisma.salonDiscountOffer.update({

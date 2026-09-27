@@ -51,4 +51,5 @@ export interface ISearchAndFilterOptions extends IPaginationOptions {
   jobPostId?: string;
   date?: string | Date;
   appointmentAt?: string | Date;
+  timezone?: string;
 }

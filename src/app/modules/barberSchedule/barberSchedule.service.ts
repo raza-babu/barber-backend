@@ -1,7 +1,9 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import moment from 'moment-timezone';
 import { notificationService } from '../notification/notification.service';
+import { getSalonTimezone } from '../../utils/timezone.helper';
 
 const createBarberScheduleIntoDb = async (saloonOwnerId: string, data: any) => {
   const { barberId, schedules } = data;
@@ -9,19 +11,64 @@ const createBarberScheduleIntoDb = async (saloonOwnerId: string, data: any) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Schedule data is required');
   }
 
+  const salon = await prisma.saloonOwner.findUnique({
+    where: { userId: saloonOwnerId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(salon);
+
   // Map for Prisma
-  const dataForDb = schedules.map(schedule => ({
-    saloonOwnerId,
-    barberId: barberId,
-    dayName: schedule.dayName,
-    dayOfWeek: schedule.dayOfWeek,
-    openingDateTime: schedule.openingDateTime,
-    closingDateTime: schedule.closingDateTime,
-    openingTime: schedule.openingTime,
-    closingTime: schedule.closingTime,
-    isActive: schedule.isActive,
-    type: data.type,
-  }));
+  const dataForDb = schedules.map(schedule => {
+    let openingDateTime = schedule.openingDateTime;
+    let closingDateTime = schedule.closingDateTime;
+
+    const today = moment.tz(salonZone).format('YYYY-MM-DD');
+    if (schedule.openingTime) {
+      const openM = moment.tz(
+        `${today} ${schedule.openingTime.trim()}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      );
+      if (openM.isValid()) {
+        openingDateTime = openM.toDate();
+      }
+    }
+    if (schedule.closingTime) {
+      const closeM = moment.tz(
+        `${today} ${schedule.closingTime.trim()}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      );
+      if (closeM.isValid()) {
+        closingDateTime = closeM.toDate();
+      }
+    }
+
+    return {
+      saloonOwnerId,
+      barberId: barberId,
+      dayName: schedule.dayName,
+      dayOfWeek: schedule.dayOfWeek,
+      openingDateTime,
+      closingDateTime,
+      openingTime: schedule.openingTime,
+      closingTime: schedule.closingTime,
+      isActive: schedule.isActive,
+      type: data.type,
+    };
+  });
 
   // Delete old schedules for this barber first
   await prisma.barberSchedule.deleteMany({
@@ -160,11 +207,52 @@ const updateBarberScheduleIntoDb = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'barberScheduleId, not found');
   }
 
+  const salon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(salon);
+
+  const updateData = { ...data };
+  const openingTime = data.openingTime || existing.openingTime;
+  const closingTime = data.closingTime || existing.closingTime;
+
+  if (data.openingTime || data.closingTime) {
+    const today = moment.tz(salonZone).format('YYYY-MM-DD');
+    const openM = moment.tz(
+      `${today} ${openingTime.trim()}`,
+      [
+        'YYYY-MM-DD hh:mm A',
+        'YYYY-MM-DD h:mm A',
+        'YYYY-MM-DD hh:mma',
+        'YYYY-MM-DD h:mma',
+        'YYYY-MM-DD HH:mm',
+      ],
+      salonZone,
+    );
+    if (openM.isValid()) {
+      updateData.openingDateTime = openM.toDate();
+    }
+
+    const closeM = moment.tz(
+      `${today} ${closingTime.trim()}`,
+      [
+        'YYYY-MM-DD hh:mm A',
+        'YYYY-MM-DD h:mm A',
+        'YYYY-MM-DD hh:mma',
+        'YYYY-MM-DD h:mma',
+        'YYYY-MM-DD HH:mm',
+      ],
+      salonZone,
+    );
+    if (closeM.isValid()) {
+      updateData.closingDateTime = closeM.toDate();
+    }
+  }
+
   const result = await prisma.barberSchedule.update({
     where: { id: barberScheduleId },
-    data: {
-      ...data,
-    },
+    data: updateData,
     select: {
       id: true,
       saloonOwnerId: true,

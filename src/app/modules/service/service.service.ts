@@ -6,11 +6,10 @@ import {
   calculatePagination,
   formatPaginationResponse,
 } from '../../utils/pagination';
-import {
-  buildCompleteQuery,
-  buildNumericRangeQuery,
-} from '../../utils/searchFilter';
+import { buildCompleteQuery, buildNumericRangeQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
+import moment from 'moment-timezone';
+import { resolveTimezone } from '../../utils/timezone.helper';
 
 const createServiceIntoDb = async (userId: string, data: any) => {
   const result = await prisma.service.create({
@@ -74,15 +73,18 @@ const getServiceListFromDb = async (options: ISearchAndFilterOptions) => {
   );
 
   // Build date range query
-  const dateRangeQuery =
-    options.startDate || options.endDate
-      ? {
-          createdAt: {
-            ...(options.startDate && { gte: new Date(options.startDate) }),
-            ...(options.endDate && { lte: new Date(options.endDate) }),
-          },
-        }
-      : {};
+  let dateRangeQuery = {};
+  if (options.startDate || options.endDate) {
+    const zone = resolveTimezone(options.timezone);
+    const startM = options.startDate ? moment.tz(options.startDate, zone) : null;
+    const endM = options.endDate ? moment.tz(options.endDate, zone) : null;
+    dateRangeQuery = {
+      createdAt: {
+        ...(startM?.isValid() && { gte: startM.startOf('day').toDate() }),
+        ...(endM?.isValid() && { lte: endM.endOf('day').toDate() }),
+      },
+    };
+  }
 
   // Combine all queries
   const whereClause = {
