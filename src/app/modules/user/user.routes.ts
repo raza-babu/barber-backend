@@ -57,6 +57,8 @@ router.put(
   UserControllers.verifyOtp,
 );
 
+router.get('/timezones', UserControllers.getTimezones);
+
 router.get('/me', auth(), UserControllers.getMyProfile);
 router.get(
   '/saloon-owner-profile',

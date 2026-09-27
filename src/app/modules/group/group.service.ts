@@ -9,7 +9,6 @@ import {
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { UserRoleEnum } from '@prisma/client';
 import config from '../../../config';
-import { DateTime } from 'luxon';
 
 const createGroupIntoDb = async (userId: string, groupData: any) => {
   const { data, groupImage } = groupData;

@@ -16,6 +16,13 @@ import axios from 'axios';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { notificationService } from '../notification/notification.service';
 import { blockService } from '../block/block.service';
+import {
+  getSalonTimezone,
+  resolveTimezone,
+  getDayBoundsInZone,
+  DEFAULT_TIMEZONE,
+  moment,
+} from '../../utils/timezone.helper';
 
 const createCustomerIntoDb = async (userId: string, data: any) => {
   const result = await prisma.saloonOwner.create({
@@ -511,12 +518,17 @@ const getAllSaloonListFromDb = async (
       orderBy = { shopName: 'asc' };
   }
 
+  // Compute broad query bounds to cover any salon's timezone day
+  const queryStart = moment().utc().subtract(36, 'hours').toDate();
+  const queryEnd = moment().utc().add(36, 'hours').toDate();
+
   // Get all saloons
   const allSaloons = await prisma.saloonOwner.findMany({
     where,
     select: {
       id: true,
       userId: true,
+      timezone: true,
       shopName: true,
       shopAddress: true,
       shopImages: true,
@@ -530,8 +542,8 @@ const getAllSaloonListFromDb = async (
         where: {
           bookingType: BookingType.QUEUE,
           date: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+            gte: queryStart,
+            lte: queryEnd,
           },
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
@@ -539,6 +551,7 @@ const getAllSaloonListFromDb = async (
         },
         select: {
           id: true,
+          date: true,
           barberId: true,
         },
       },
@@ -563,8 +576,8 @@ const getAllSaloonListFromDb = async (
                     where: {
                       bookingType: BookingType.QUEUE,
                       date: {
-                        gte: new Date(new Date().setHours(0, 0, 0, 0)),
-                        lt: new Date(new Date().setHours(23, 59, 59, 999)),
+                        gte: queryStart,
+                        lte: queryEnd,
                       },
                       status: {
                         in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
@@ -572,6 +585,7 @@ const getAllSaloonListFromDb = async (
                     },
                     select: {
                       id: true,
+                      date: true,
                     },
                   },
                 },
@@ -611,18 +625,25 @@ const getAllSaloonListFromDb = async (
   // Process saloons with shop status and barber availability
   const processedSaloons = await Promise.all(
     allSaloons.map(async saloon => {
+      const salonZone = saloon.timezone || DEFAULT_TIMEZONE;
+      const { startOfDayUTC: sStart, endOfDayUTC: sEnd } = getDayBoundsInZone(
+        moment().tz(salonZone).toDate(),
+        salonZone,
+      );
+
       // Check if user favorited this shop
       const isFavorite = userId
         ? saloon.FavoriteShop.some(fav => fav.userId === userId)
         : false;
 
       // Check shop open/closed status using models
-      const shopStatus = await checkShopStatus(saloon.userId);
+      const shopStatus = await checkShopStatus(saloon.userId, salonZone);
 
-      // Calculate total queue for the shop
-      const totalShopQueue = Array.isArray(saloon.Booking)
-        ? saloon.Booking.length
-        : 0;
+      // Calculate total queue for the shop in its timezone day
+      const totalShopQueue = (saloon.Booking || []).filter((b: any) => {
+        const bd = new Date(b.date);
+        return bd >= sStart && bd <= sEnd;
+      }).length;
 
       // Process barbers
       const availableBarbers = await Promise.all(
@@ -630,16 +651,17 @@ const getAllSaloonListFromDb = async (
           const barber = hiredBarber.barber;
           if (!barber) return null;
 
-          const availability = await checkBarberAvailability(barber.userId);
+          const availability = await checkBarberAvailability(barber.userId, salonZone);
 
           // Skip barbers not available today
           if (!availability.isAvailableToday) {
             return null;
           }
 
-          const barberQueueCount = Array.isArray(barber.Booking)
-            ? barber.Booking.length
-            : 0;
+          const barberQueueCount = (barber.Booking || []).filter((b: any) => {
+            const bd = new Date(b.date);
+            return bd >= sStart && bd <= sEnd;
+          }).length;
 
           return {
             barberId: barber.userId,
@@ -663,6 +685,7 @@ const getAllSaloonListFromDb = async (
         // Shop Details
         // userId: saloon.id,
         userId: saloon.userId,
+        timezone: saloon.timezone || DEFAULT_TIMEZONE,
         shopName: saloon.shopName,
         shopAddress: saloon.shopAddress,
         shopLogo: saloon.shopLogo,
@@ -806,6 +829,7 @@ const timeToMinutes = (timeStr: string): number => {
 // Helper function to check if shop is open using SaloonSchedule and SaloonHoliday models
 const checkShopStatus = async (
   saloonOwnerId: string,
+  timezone?: string | null,
 ): Promise<{
   isOpen: boolean;
   status: 'open' | 'closed';
@@ -813,29 +837,34 @@ const checkShopStatus = async (
   openingTime?: string;
   closingTime?: string;
 }> => {
-  const now = new Date();
-  const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
-  const todayDate = now.toISOString().split('T')[0];
+  let salonZone = timezone ? resolveTimezone(timezone) : null;
+  if (!salonZone) {
+    const owner = await prisma.saloonOwner.findUnique({
+      where: { userId: saloonOwnerId },
+      select: { timezone: true },
+    });
+    salonZone = getSalonTimezone(owner);
+  }
 
-  // console.log('=== Shop Status Check ===');
-  // console.log('Saloon Owner ID:', saloonOwnerId);
-  // console.log('Today:', today, '(0=Sunday, 6=Saturday)');
-  // console.log('Current time minutes:', currentTimeMinutes);
+  const nowM = moment.tz(salonZone);
+  const today = nowM.day(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+  const currentTimeMinutes = nowM.hour() * 60 + nowM.minute();
+
+  const dayStart = nowM.clone().startOf('day').toDate();
+  const dayEnd = nowM.clone().endOf('day').toDate();
 
   // Check if today is a holiday using SaloonHoliday model
   const todayHoliday = await prisma.saloonHoliday.findFirst({
     where: {
       userId: saloonOwnerId,
       date: {
-        gte: new Date(todayDate + 'T00:00:00.000Z'),
-        lt: new Date(todayDate + 'T23:59:59.999Z'),
+        gte: dayStart,
+        lte: dayEnd,
       },
     },
   });
 
   if (todayHoliday) {
-    console.log('Shop is closed - Holiday:', todayHoliday.holidayName);
     return {
       isOpen: false,
       status: 'closed',
@@ -852,14 +881,11 @@ const checkShopStatus = async (
     },
   });
 
-  // console.log('Today Schedule:', JSON.stringify(todaySchedule, null, 2));
-
   if (
     !todaySchedule ||
     !todaySchedule.openingTime ||
     !todaySchedule.closingTime
   ) {
-    // console.log('No schedule found for today');
     return {
       isOpen: false,
       status: 'closed',
@@ -867,23 +893,11 @@ const checkShopStatus = async (
     };
   }
 
-  console.log('Opening time string:', todaySchedule.openingTime);
-  console.log('Closing time string:', todaySchedule.closingTime);
-
   const openingMinutes = timeToMinutes(todaySchedule.openingTime);
   const closingMinutes = timeToMinutes(todaySchedule.closingTime);
 
-  console.log(
-    `Parsed times - Opening: ${openingMinutes}min, Closing: ${closingMinutes}min`,
-  );
-  console.log(
-    `Current time in minutes: ${currentTimeMinutes}, Opening: ${openingMinutes}, Closing: ${closingMinutes}`,
-  );
-
   const isOpen =
     currentTimeMinutes >= openingMinutes && currentTimeMinutes < closingMinutes;
-
-  console.log(`Shop is currently ${isOpen ? 'open' : 'closed'}`);
 
   return {
     isOpen,
@@ -897,6 +911,7 @@ const checkShopStatus = async (
 // Helper function to check barber availability using BarberSchedule model
 const checkBarberAvailability = async (
   barberId: string,
+  timezone?: string | null,
 ): Promise<{
   isAvailableToday: boolean;
   availableForQueue: boolean;
@@ -905,9 +920,10 @@ const checkBarberAvailability = async (
   openingTime?: string;
   closingTime?: string;
 }> => {
-  const now = new Date();
-  const today = now.getDay();
-  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
+  const zone = resolveTimezone(timezone);
+  const nowM = moment.tz(zone);
+  const today = nowM.day(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+  const currentTimeMinutes = nowM.hour() * 60 + nowM.minute();
 
   const todaySchedule = await prisma.barberSchedule.findFirst({
     where: {
@@ -993,12 +1009,17 @@ const getMyNearestSaloonListFromDb = async (
     where.avgRating = { gte: minRating };
   }
 
+  // Compute broad query bounds to cover any salon's timezone day
+  const queryStart = moment().utc().subtract(36, 'hours').toDate();
+  const queryEnd = moment().utc().add(36, 'hours').toDate();
+
   // Get all verified saloons
   const allSaloons = await prisma.saloonOwner.findMany({
     where,
     select: {
       id: true,
       userId: true,
+      timezone: true,
       shopName: true,
       shopAddress: true,
       shopImages: true,
@@ -1012,8 +1033,8 @@ const getMyNearestSaloonListFromDb = async (
         where: {
           bookingType: BookingType.QUEUE,
           date: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+            gte: queryStart,
+            lte: queryEnd,
           },
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
@@ -1021,6 +1042,7 @@ const getMyNearestSaloonListFromDb = async (
         },
         select: {
           id: true,
+          date: true,
           barberId: true,
         },
       },
@@ -1051,8 +1073,8 @@ const getMyNearestSaloonListFromDb = async (
                     where: {
                       bookingType: BookingType.QUEUE,
                       date: {
-                        gte: new Date(new Date().setHours(0, 0, 0, 0)),
-                        lt: new Date(new Date().setHours(23, 59, 59, 999)),
+                        gte: queryStart,
+                        lte: queryEnd,
                       },
                       status: {
                         in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
@@ -1060,6 +1082,7 @@ const getMyNearestSaloonListFromDb = async (
                     },
                     select: {
                       id: true,
+                      date: true,
                     },
                   },
                 },
@@ -1113,6 +1136,12 @@ const getMyNearestSaloonListFromDb = async (
   // Filter and sort saloons by distance
   const nearbySaloons = await Promise.all(
     allSaloons.map(async saloon => {
+      const salonZone = saloon.timezone || DEFAULT_TIMEZONE;
+      const { startOfDayUTC: sStart, endOfDayUTC: sEnd } = getDayBoundsInZone(
+        moment().tz(salonZone).toDate(),
+        salonZone,
+      );
+
       const distance = calculateDistance(
         latitude,
         longitude,
@@ -1126,12 +1155,13 @@ const getMyNearestSaloonListFromDb = async (
         : false;
 
       // Check shop open/closed status using models
-      const shopStatus = await checkShopStatus(saloon.userId);
+      const shopStatus = await checkShopStatus(saloon.userId, salonZone);
 
-      // Calculate total queue for the shop
-      const totalShopQueue = Array.isArray(saloon.Booking)
-        ? saloon.Booking.length
-        : 0;
+      // Calculate total queue for the shop in its timezone day
+      const totalShopQueue = (saloon.Booking || []).filter((b: any) => {
+        const bd = new Date(b.date);
+        return bd >= sStart && bd <= sEnd;
+      }).length;
 
       // Process barbers
       const availableBarbers = await Promise.all(
@@ -1139,16 +1169,17 @@ const getMyNearestSaloonListFromDb = async (
           const barber = hiredBarber.barber;
           if (!barber) return null;
 
-          const availability = await checkBarberAvailability(barber.userId);
+          const availability = await checkBarberAvailability(barber.userId, salonZone);
 
           // Skip barbers not available today
           if (!availability.isAvailableToday) {
             return null;
           }
 
-          const barberQueueCount = Array.isArray(barber.Booking)
-            ? barber.Booking.length
-            : 0;
+          const barberQueueCount = (barber.Booking || []).filter((b: any) => {
+            const bd = new Date(b.date);
+            return bd >= sStart && bd <= sEnd;
+          }).length;
 
           return {
             barberId: barber.userId,
@@ -1172,6 +1203,7 @@ const getMyNearestSaloonListFromDb = async (
         // Shop Details
         // userId: saloon.id,
         userId: saloon.userId,
+        timezone: saloon.timezone || DEFAULT_TIMEZONE,
         shopName: saloon.shopName,
         shopAddress: saloon.shopAddress,
         shopLogo: saloon.shopLogo,
@@ -1286,12 +1318,17 @@ const getTopRatedSaloonsFromDb = async (
     where.avgRating = { gte: minRating };
   }
 
+  // Compute broad query bounds to cover any salon's timezone day
+  const queryStart = moment().utc().subtract(36, 'hours').toDate();
+  const queryEnd = moment().utc().add(36, 'hours').toDate();
+
   // Get all saloons
   const allSaloons = await prisma.saloonOwner.findMany({
     where,
     select: {
       id: true,
       userId: true,
+      timezone: true,
       shopName: true,
       shopAddress: true,
       shopImages: true,
@@ -1305,8 +1342,8 @@ const getTopRatedSaloonsFromDb = async (
         where: {
           bookingType: BookingType.QUEUE,
           date: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+            gte: queryStart,
+            lte: queryEnd,
           },
           status: {
             in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
@@ -1314,6 +1351,7 @@ const getTopRatedSaloonsFromDb = async (
         },
         select: {
           id: true,
+          date: true,
           barberId: true,
         },
       },
@@ -1339,8 +1377,8 @@ const getTopRatedSaloonsFromDb = async (
                     where: {
                       bookingType: BookingType.QUEUE,
                       date: {
-                        gte: new Date(new Date().setHours(0, 0, 0, 0)),
-                        lt: new Date(new Date().setHours(23, 59, 59, 999)),
+                        gte: queryStart,
+                        lte: queryEnd,
                       },
                       status: {
                         in: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
@@ -1348,6 +1386,7 @@ const getTopRatedSaloonsFromDb = async (
                     },
                     select: {
                       id: true,
+                      date: true,
                     },
                   },
                 },
@@ -1389,18 +1428,25 @@ const getTopRatedSaloonsFromDb = async (
   // Process saloons with shop status and barber availability
   const processedSaloons = await Promise.all(
     allSaloons.map(async saloon => {
+      const salonZone = saloon.timezone || DEFAULT_TIMEZONE;
+      const { startOfDayUTC: sStart, endOfDayUTC: sEnd } = getDayBoundsInZone(
+        moment().tz(salonZone).toDate(),
+        salonZone,
+      );
+
       // Check if user favorited this shop
       const isFavorite = userId
         ? saloon.FavoriteShop.some(fav => fav.userId === userId)
         : false;
 
       // Check shop open/closed status using models
-      const shopStatus = await checkShopStatus(saloon.userId);
+      const shopStatus = await checkShopStatus(saloon.userId, salonZone);
 
-      // Calculate total queue for the shop
-      const totalShopQueue = Array.isArray(saloon.Booking)
-        ? saloon.Booking.length
-        : 0;
+      // Calculate total queue for the shop in its timezone day
+      const totalShopQueue = (saloon.Booking || []).filter((b: any) => {
+        const bd = new Date(b.date);
+        return bd >= sStart && bd <= sEnd;
+      }).length;
 
       // Process barbers
       const availableBarbers = await Promise.all(
@@ -1408,16 +1454,17 @@ const getTopRatedSaloonsFromDb = async (
           const barber = hiredBarber.barber;
           if (!barber) return null;
 
-          const availability = await checkBarberAvailability(barber.userId);
+          const availability = await checkBarberAvailability(barber.userId, salonZone);
 
           // Skip barbers not available today
           if (!availability.isAvailableToday) {
             return null;
           }
 
-          const barberQueueCount = Array.isArray(barber.Booking)
-            ? barber.Booking.length
-            : 0;
+          const barberQueueCount = (barber.Booking || []).filter((b: any) => {
+            const bd = new Date(b.date);
+            return bd >= sStart && bd <= sEnd;
+          }).length;
 
           return {
             barberId: barber.userId,
@@ -1441,6 +1488,7 @@ const getTopRatedSaloonsFromDb = async (
         // Shop Details
         // shopId: saloon.id,
         userId: saloon.userId,
+        timezone: saloon.timezone || DEFAULT_TIMEZONE,
         shopName: saloon.shopName,
         shopAddress: saloon.shopAddress,
         shopLogo: saloon.shopLogo,
@@ -2271,6 +2319,7 @@ const checkInToSaloonInDb = async (
         select: {
           latitude: true,
           longitude: true,
+          timezone: true,
         },
       },
     },
@@ -2295,36 +2344,28 @@ const checkInToSaloonInDb = async (
   /* Check Appointment Date & Time                      */
   /* ---------------------------------------------------- */
 
-  const now = new Date();
-  const appointmentDate = new Date(booking.appointmentAt);
+  const salonZone = booking.saloonOwner?.timezone || DEFAULT_TIMEZONE;
+  const nowM = moment.tz(salonZone);
+  const appointmentM = moment.tz(booking.appointmentAt, salonZone);
 
-  // Check if today's date matches the booking date
-  const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const bookingDate = new Date(
-    appointmentDate.getFullYear(),
-    appointmentDate.getMonth(),
-    appointmentDate.getDate(),
-  );
-
-  if (todayDate.getTime() !== bookingDate.getTime()) {
+  // Check if today's date matches the booking date in salon's timezone
+  if (!nowM.isSame(appointmentM, 'day')) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      `Check-in date mismatch. Booking is scheduled for ${bookingDate.toDateString()}, but today is ${todayDate.toDateString()}`,
+      `Check-in date mismatch. Booking is scheduled for ${appointmentM.format('ddd, DD MMM YYYY')}, but today is ${nowM.format('ddd, DD MMM YYYY')}`,
     );
   }
 
   // Check if current time is within 30 minutes before the appointment time
-  const thirtyMinutesBefore = new Date(
-    appointmentDate.getTime() - 30 * 60 * 1000,
-  );
+  const thirtyMinutesBefore = appointmentM.clone().subtract(30, 'minutes');
 
-  if (now < thirtyMinutesBefore) {
+  if (nowM.isBefore(thirtyMinutesBefore)) {
     const minutesAway = Math.ceil(
-      (thirtyMinutesBefore.getTime() - now.getTime()) / (60 * 1000),
+      thirtyMinutesBefore.diff(nowM, 'minutes', true),
     );
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      `Too early to check in. You can check in ${minutesAway} minutes before your appointment scheduled at ${appointmentDate.toLocaleTimeString()}`,
+      `Too early to check in. You can check in ${minutesAway} minutes before your appointment scheduled at ${appointmentM.format('hh:mm A')}`,
     );
   }
 

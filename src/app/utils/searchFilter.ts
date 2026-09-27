@@ -1,3 +1,6 @@
+import moment from 'moment-timezone';
+import { resolveTimezone } from './timezone.helper';
+
 export interface ISearchOptions {
   searchTerm?: string;
   searchFields?: string[];
@@ -11,6 +14,7 @@ export interface IDateRangeFilter {
   startDate?: string | Date;
   endDate?: string | Date;
   dateField?: string;
+  timezone?: string;
 }
 
 export const buildSearchQuery = (options: ISearchOptions) => {
@@ -58,20 +62,23 @@ export const buildFilterQuery = (filters: IFilterOptions) => {
 };
 
 export const buildDateRangeQuery = (options: IDateRangeFilter) => {
-  const { startDate, endDate, dateField = 'createdAt' } = options;
+  const { startDate, endDate, dateField = 'createdAt', timezone } = options;
   
   if (!startDate && !endDate) {
     return {};
   }
 
+  const zone = resolveTimezone(timezone);
   const dateQuery: any = {};
 
   if (startDate) {
-    dateQuery.gte = new Date(startDate);
+    const startM = moment.tz(startDate, zone);
+    dateQuery.gte = startM.isValid() ? startM.startOf('day').toDate() : new Date(startDate);
   }
 
   if (endDate) {
-    dateQuery.lte = new Date(endDate);
+    const endM = moment.tz(endDate, zone);
+    dateQuery.lte = endM.isValid() ? endM.endOf('day').toDate() : new Date(endDate);
   }
 
   return {

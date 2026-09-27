@@ -181,7 +181,7 @@ const getFreeBarbersOnADate = catchAsync(async (req, res) => {
     'endDate',
   ]);
 
-  const date = parsed.query.utcDateTime as string;
+  const date = (parsed.query.date || parsed.query.utcDateTime) as string;
 
   const result = await saloonService.getFreeBarbersOnADateFromDb(
     user.id,

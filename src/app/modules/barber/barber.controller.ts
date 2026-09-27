@@ -32,7 +32,7 @@ const getMySchedule = catchAsync(async (req, res) => {
 
 const getMyBookings = catchAsync(async (req, res) => {
   const user = req.user as any;
-  const { search, status, startDate, endDate, page, limit } = req.query;
+  const { search, status, startDate, endDate, page, limit, timezone } = req.query;
 
   const result = await barberService.getMyBookingsFromDb(user.id, {
     search: search as string,
@@ -41,6 +41,7 @@ const getMyBookings = catchAsync(async (req, res) => {
     endDate: endDate as string,
     page: page ? Number(page) : undefined,
     limit: limit ? Number(limit) : undefined,
+    timezone: timezone as string,
   });
 
   sendResponse(res, {

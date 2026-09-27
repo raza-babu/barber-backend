@@ -83,7 +83,7 @@ const deleteSaloonHoliday = catchAsync(async (req, res) => {
 const checkSaloonHoliday = catchAsync(async (req, res) => {
   const result = await saloonHolidayService.checkSaloonHolidayFromDb(
     req.params.saloonId,
-    req.query.date ? new Date(req.query.date as string) : new Date()
+    (req.query.date as string) || new Date()
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

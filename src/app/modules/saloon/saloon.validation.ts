@@ -1,5 +1,7 @@
 import { BookingStatus } from '@prisma/client';
 import { z } from 'zod';
+import moment from 'moment-timezone';
+import { DEFAULT_TIMEZONE } from '../../utils/timezone.helper';
 
 const createSchema = z.object({
   body: z.object({
@@ -27,19 +29,29 @@ const updateQueueSchema = z.object({
   }),
 });
 
-function convertToUTC(date: string, time: string): string {
-  // Combine into a single string
-  const combined = `${date} ${time}`;
+function convertToUTC(
+  date: string,
+  time: string,
+  timezone: string = DEFAULT_TIMEZONE,
+): string {
+  const trimmedTime = time.trim();
+  const m = moment.tz(
+    `${date} ${trimmedTime}`,
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+      'YYYY-MM-DD HH:mm',
+    ],
+    timezone,
+  );
 
-  // Parse as local time (system’s local timezone)
-  const localDate = new Date(combined);
-
-  if (isNaN(localDate.getTime())) {
+  if (!m.isValid()) {
     throw new Error('Invalid date or time format');
   }
 
-  // Convert to UTC string (ISO)
-  return localDate.toISOString();
+  return m.toISOString();
 }
 
 const availableBarbersSchema = z.object({
@@ -54,9 +66,9 @@ const availableBarbersSchema = z.object({
       // totalServiceTime: z.coerce.number().int().positive(),
     })
     .transform(({ date, time }) => ({
-      // salonId,
+      date,
+      time,
       utcDateTime: convertToUTC(date, time),
-      // totalServiceTime,
     })),
 });
 
@@ -65,9 +77,13 @@ const availableFreeBarbersSchema = z.object({
     .object({
       date: z.coerce.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     })
-    .transform(({ date }) => ({
-      utcDateTime: new Date(date).toISOString(),
-    })),
+    .transform(({ date }) => {
+      const m = moment.tz(date, DEFAULT_TIMEZONE).startOf('day');
+      return {
+        date,
+        utcDateTime: m.toISOString(),
+      };
+    }),
 });
 
 const getUnemployedBarbersSchema = z.object({

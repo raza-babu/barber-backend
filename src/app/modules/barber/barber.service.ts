@@ -11,6 +11,8 @@ import {
 import { buildCompleteQuery } from '../../utils/searchFilter';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import { TGetAllSaloonsType } from './barber.validation';
+import moment from 'moment-timezone';
+import { getSalonTimezone, resolveTimezone, parseDateInZone } from '../../utils/timezone.helper';
 
 const createBarberIntoDb = async (userId: string, data: any) => {
   const result = await prisma.barber.create({
@@ -75,6 +77,7 @@ const getMyBookingsFromDb = async (
     endDate?: string;
     page?: number;
     limit?: number;
+    timezone?: string;
   },
 ) => {
   const page = options?.page || 1;
@@ -97,17 +100,34 @@ const getMyBookingsFromDb = async (
     whereClause.OR = [{ status: options.status }];
   }
 
-  // Filter by date range
+  // Filter by date range with timezone awareness
   if (options?.startDate || options?.endDate) {
+    let zone = resolveTimezone(options?.timezone);
+    if (!options?.timezone) {
+      const barberRecord = await prisma.barber.findFirst({
+        where: { OR: [{ userId }, { id: userId }] },
+        select: {
+          saloonOwner: {
+            select: { timezone: true },
+          },
+        },
+      });
+      if (barberRecord?.saloonOwner) {
+        zone = getSalonTimezone(barberRecord.saloonOwner);
+      }
+    }
+
     whereClause.AND = whereClause.AND || [];
     if (options?.startDate) {
+      const start = parseDateInZone(options.startDate, zone).startOf('day').toDate();
       whereClause.AND.push({
-        startDateTime: { gte: new Date(options.startDate) },
+        startDateTime: { gte: start },
       });
     }
     if (options?.endDate) {
+      const end = parseDateInZone(options.endDate, zone).endOf('day').toDate();
       whereClause.AND.push({
-        endDateTime: { lte: new Date(options.endDate) },
+        startDateTime: { lte: end },
       });
     }
   }
