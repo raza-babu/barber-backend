@@ -1,38 +1,44 @@
-import { start } from 'repl';
 import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import moment from 'moment-timezone';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import {
   calculatePagination,
   formatPaginationResponse,
 } from '../../utils/pagination';
 import { deleteFileFromSpace } from '../../utils/deleteImage';
+import { getSalonTimezone, resolveTimezone } from '../../utils/timezone.helper';
 
 const createAdsIntoDb = async (userId: string, data: any) => {
-  const startDate = new Date(data.startDate);
-  const endDate = new Date(data.endDate);
+  const salon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(salon);
 
-  // Convert to UTC by adjusting for local timezone offset
-  const startDateUtc = new Date(
-    startDate.getTime() - startDate.getTimezoneOffset() * 60000,
-  );
-  const endDateUtc = new Date(
-    endDate.getTime() - endDate.getTimezoneOffset() * 60000,
-  );
+  const startM = moment.tz(data.startDate, salonZone);
+  const endM = moment.tz(data.endDate, salonZone);
 
-  data.startDate = startDateUtc.toISOString();
-  data.endDate = endDateUtc.toISOString();
-  if (startDate >= endDate) {
+  if (!startM.isValid() || !endM.isValid()) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
+  }
+
+  if (!startM.isBefore(endM)) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Start date must be before end date',
     );
   }
 
-  const durationMs = endDateUtc.getTime() - startDateUtc.getTime();
-  const durationDays = durationMs / (1000 * 60 * 60 * 24);
+  const startDateUtc = startM.toDate();
+  const endDateUtc = endM.toDate();
+
+  data.startDate = startDateUtc.toISOString();
+  data.endDate = endDateUtc.toISOString();
+
+  const durationDays = endM.diff(startM, 'days');
   data.duration = `${durationDays.toString()} days`;
 
   const result = await prisma.ads.create({
@@ -67,15 +73,18 @@ const getAdsListFromDb = async (
 
   // Date range filter
   const dateFilter: any = {};
-  if (options.startDate) {
-    dateFilter.startDate = {
-      gte: new Date(options.startDate as string),
-    };
-  }
-  if (options.endDate) {
-    dateFilter.endDate = {
-      lte: new Date(options.endDate as string),
-    };
+  if (options.startDate || options.endDate) {
+    const zone = resolveTimezone(options.timezone);
+    if (options.startDate) {
+      dateFilter.startDate = {
+        gte: moment.tz(options.startDate as string, zone).startOf('day').toDate(),
+      };
+    }
+    if (options.endDate) {
+      dateFilter.endDate = {
+        lte: moment.tz(options.endDate as string, zone).endOf('day').toDate(),
+      };
+    }
   }
 
   const whereClause = {
@@ -145,22 +154,28 @@ const updateAdsIntoDb = async (
 
   // Dates normalization
   if (data.startDate && data.endDate) {
-    const startDate = new Date(data.startDate);
-    const endDate = new Date(data.endDate);
+    const salon = await prisma.saloonOwner.findUnique({
+      where: { userId: existingAd.userId },
+      select: { timezone: true },
+    });
+    const salonZone = getSalonTimezone(salon);
 
-    if (startDate >= endDate) {
+    const startM = moment.tz(data.startDate, salonZone);
+    const endM = moment.tz(data.endDate, salonZone);
+
+    if (!startM.isValid() || !endM.isValid()) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
+    }
+
+    if (!startM.isBefore(endM)) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
         'Start date must be before end date',
       );
     }
 
-    data.startDate = new Date(
-      startDate.getTime() - startDate.getTimezoneOffset() * 60000,
-    ).toISOString();
-    data.endDate = new Date(
-      endDate.getTime() - endDate.getTimezoneOffset() * 60000,
-    ).toISOString();
+    data.startDate = startM.toDate().toISOString();
+    data.endDate = endM.toDate().toISOString();
   }
 
   // Final images already prepared in controller

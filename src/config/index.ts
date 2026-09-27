@@ -65,7 +65,7 @@ const loadGoogleCredentials = () => {
 export default {
   env: process.env.NODE_ENV,
   port: process.env.PORT,
-  timezone: process.env.TIMEZONE,
+  timezone: process.env.TIMEZONE || 'Europe/London',
   super_admin_password: process.env.SUPER_ADMIN_PASSWORD,
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
   jwt: {

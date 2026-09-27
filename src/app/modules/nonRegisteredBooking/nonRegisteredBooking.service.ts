@@ -9,8 +9,9 @@ import {
 } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { DateTime } from 'luxon';
+import moment from 'moment-timezone';
 import config from '../../../config';
+import { getSalonTimezone, getDayBoundsInZone } from '../../utils/timezone.helper';
 
 const getEstimatedDurationMinutes = async (
   db: any,
@@ -89,31 +90,43 @@ const createNonRegisteredBookingIntoDb = async (
     notes,
   } = data;
 
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
   // Validate and parse date
-  const dateObj = DateTime.fromISO(date, { zone: config.timezone });
-  if (!dateObj.isValid) {
+  const dateObj = moment.tz(date, salonZone);
+  if (!dateObj.isValid()) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
 
-  const today = DateTime.now().startOf('day');
-  if (dateObj < today) {
+  const today = moment.tz(salonZone).startOf('day');
+  if (dateObj.isBefore(today)) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date cannot be in the past');
   }
 
-  // Combine date + time to local DateTime, then convert to UTC JS Date
-  const localDateTime = DateTime.fromFormat(
+  // Combine date + time to local Moment, then convert to UTC JS Date
+  const localDateTime = moment.tz(
     `${date} ${appointmentAt}`,
-    'yyyy-MM-dd hh:mm a',
-    { zone: config.timezone },
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+      'YYYY-MM-DD HH:mm',
+    ],
+    salonZone,
   );
-  if (!localDateTime.isValid) {
+  if (!localDateTime.isValid()) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
   }
-  const utcDateTime = localDateTime.toUTC().toJSDate();
+  const utcDateTime = localDateTime.toDate();
 
-  // Prevent booking more than 3 weeks out
-  const threeWeeksFromNow = DateTime.now().plus({ weeks: 4 });
-  if (localDateTime > threeWeeksFromNow) {
+  // Prevent booking more than 4 weeks out
+  const fourWeeksFromNow = moment.tz(salonZone).add(4, 'weeks');
+  if (localDateTime.isAfter(fourWeeksFromNow)) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Booking cannot be made more than 4 weeks in advance',
@@ -211,13 +224,30 @@ const createNonRegisteredBookingIntoDb = async (
       );
     }
 
-    // Check barber day off
+    // Check salon holiday & barber day off
+    const { startOfDayUTC, endOfDayUTC } = getDayBoundsInZone(
+      dateObj,
+      salonZone,
+    );
+
+    const salonHoliday = await tx.saloonHoliday.findFirst({
+      where: {
+        userId,
+        date: { gte: startOfDayUTC, lte: endOfDayUTC },
+      },
+    });
+    if (salonHoliday) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Salon is closed on this date: ${salonHoliday.holidayName || 'Holiday'}`,
+      );
+    }
 
     const barberDayOff = await tx.barberDayOff.findFirst({
       where: {
         saloonOwnerId: userId,
         barberId: barber.userId,
-        date: dateObj.toJSDate(),
+        date: { gte: startOfDayUTC, lte: endOfDayUTC },
       },
     });
     if (barberDayOff) {
@@ -243,26 +273,48 @@ const createNonRegisteredBookingIntoDb = async (
           'Barber break start or end time is missing',
         );
       }
-      const bookingStartTime = DateTime.fromFormat(appointmentAt, 'hh:mm a', {
-        zone: config.timezone,
-      });
-      const bookingEndTime = bookingStartTime.plus({ minutes: totalDuration });
-
-      const breakStartTime = DateTime.fromFormat(
-        barberBreak.startTime,
-        'hh:mm a',
-        { zone: config.timezone },
+      const bookingStartTime = moment.tz(
+        `${date} ${appointmentAt}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
       );
-      const breakEndTime = DateTime.fromFormat(barberBreak.endTime, 'hh:mm a', {
-        zone: config.timezone,
-      });
+      const bookingEndTime = bookingStartTime
+        .clone()
+        .add(totalDuration, 'minutes');
 
-      // time-only overlap checks
+      const breakStartTime = moment.tz(
+        `${date} ${barberBreak.startTime}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      );
+      const breakEndTime = moment.tz(
+        `${date} ${barberBreak.endTime}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      );
+
+      // time overlap checks
       if (
-        (bookingStartTime >= breakStartTime &&
-          bookingStartTime < breakEndTime) ||
-        (bookingEndTime > breakStartTime && bookingEndTime <= breakEndTime) ||
-        (bookingStartTime <= breakStartTime && bookingEndTime >= breakEndTime)
+        bookingStartTime.isBefore(breakEndTime) &&
+        bookingEndTime.isAfter(breakStartTime)
       ) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
@@ -347,6 +399,10 @@ const createNonRegisteredBookingIntoDb = async (
     //   });
     // }
 
+    const endDateTime = moment(utcDateTime)
+      .add(totalDuration, 'minutes')
+      .toDate();
+
     // 6) Create booking (userId points to nonRegisteredCustomer id here)
     const booking = await tx.booking.create({
       data: {
@@ -355,18 +411,14 @@ const createNonRegisteredBookingIntoDb = async (
         saloonOwnerId: userId,
         appointmentAt: utcDateTime,
         bookingType: BookingType.QUEUE,
-        date: dateObj.toJSDate(),
+        date: startOfDayUTC,
         notes: notes ?? null,
         isInQueue: !!saloonStatus.isQueueEnabled,
         totalPrice,
         startDateTime: utcDateTime,
-        endDateTime: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
-          .toJSDate(),
-        startTime: localDateTime.toFormat('hh:mm a'),
-        endTime: DateTime.fromJSDate(utcDateTime)
-          .plus({ minutes: totalDuration })
-          .toFormat('hh:mm a'),
+        endDateTime,
+        startTime: localDateTime.format('hh:mm A'),
+        endTime: moment.tz(endDateTime, salonZone).format('hh:mm A'),
         estimatedDurationMinutes: totalDuration,
       },
     });
@@ -394,16 +446,15 @@ const createNonRegisteredBookingIntoDb = async (
     //     where: { id: queueSlot.id },
     //     data: {
     //       bookingId: booking.id,
-    //       completedAt: DateTime.fromJSDate(utcDateTime)
-    //         .plus({ minutes: totalDuration })
-    //         .toJSDate(),
+    //       completedAt: moment(utcDateTime).add(totalDuration, 'minutes').toDate(),
     //     },
     //   });
     // }
 
     // 9) Barber schedule and real-time status checks (ensure barber works this day/time)
-    const dayName = DateTime.fromJSDate(utcDateTime)
-      .toFormat('cccc')
+    const dayName = moment
+      .tz(utcDateTime, salonZone)
+      .format('dddd')
       .toLowerCase();
     const barberSchedule = await tx.barberSchedule.findFirst({
       where: { barberId, dayName, isActive: true },
@@ -415,21 +466,36 @@ const createNonRegisteredBookingIntoDb = async (
       );
     }
 
-    const openingDateTime = DateTime.fromFormat(
-      `${date} ${barberSchedule.openingTime}`,
-      'yyyy-MM-dd hh:mm a',
-      { zone: config.timezone },
-    ).toUTC();
-    const closingDateTime = DateTime.fromFormat(
-      `${date} ${barberSchedule.closingTime}`,
-      'yyyy-MM-dd hh:mm a',
-      { zone: config.timezone },
-    ).toUTC();
+    const openingDateTime = moment
+      .tz(
+        `${date} ${barberSchedule.openingTime}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      )
+      .toDate();
+    const closingDateTime = moment
+      .tz(
+        `${date} ${barberSchedule.closingTime}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      )
+      .toDate();
 
     if (
-      DateTime.fromJSDate(utcDateTime) < openingDateTime ||
-      DateTime.fromJSDate(utcDateTime).plus({ minutes: totalDuration }) >
-        closingDateTime
+      utcDateTime < openingDateTime ||
+      endDateTime > closingDateTime
     ) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
@@ -438,10 +504,6 @@ const createNonRegisteredBookingIntoDb = async (
     }
 
     // 10) Ensure no overlapping real-time status (barber availability)
-    const endDateTime = DateTime.fromJSDate(utcDateTime)
-      .plus({ minutes: totalDuration })
-      .toJSDate();
-
     const overlappingStatus = await tx.barberRealTimeStatus.findFirst({
       where: {
         barberId,
@@ -467,8 +529,8 @@ const createNonRegisteredBookingIntoDb = async (
         startDateTime: utcDateTime,
         endDateTime,
         isAvailable: false,
-        startTime: localDateTime.toFormat('hh:mm a'),
-        endTime: DateTime.fromJSDate(endDateTime).toFormat('hh:mm a'),
+        startTime: localDateTime.format('hh:mm A'),
+        endTime: moment.tz(endDateTime, salonZone).format('hh:mm A'),
       },
     });
 

@@ -12,7 +12,7 @@ import {
 } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { DateTime } from 'luxon';
+import moment from 'moment-timezone';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
 import {
   calculatePagination,
@@ -23,6 +23,13 @@ import config from '../../../config';
 import { notificationService } from '../notification/notification.service';
 import { blockService } from '../block/block.service';
 import { salonDiscountOfferService } from '../salonDiscountOffer/salonDiscountOffer.service';
+import {
+  getSalonTimezone,
+  getDayBoundsInZone,
+  DEFAULT_TIMEZONE,
+  parseDateInZone,
+  parseDateTimeInZone,
+} from '../../utils/timezone.helper';
 
 // Initialize Stripe
 const stripe = new Stripe(config.stripe.stripe_secret_key as string, {
@@ -375,12 +382,22 @@ const manageBookingsIntoDb = async (
 
       // Handle queue bookings
       if (updatedBooking.bookingType === BookingType.QUEUE) {
+        const saloonOwner = await tx.saloonOwner.findUnique({
+          where: { userId },
+          select: { timezone: true },
+        });
+        const salonZone = getSalonTimezone(saloonOwner);
+        const { startOfDayUTC, endOfDayUTC } = getDayBoundsInZone(
+          updatedBooking.date,
+          salonZone,
+        );
+
         const saloonQueue = await tx.queue.findFirst({
           where: {
             saloonOwnerId: userId,
             barberId: booking.barberId,
             isActive: true,
-            date: updatedBooking.date,
+            date: { gte: startOfDayUTC, lte: endOfDayUTC },
           },
         });
         if (saloonQueue && saloonQueue.currentPosition > 0) {
@@ -498,12 +515,22 @@ const manageBookingsIntoDb = async (
 
       // Handle queue bookings
       if (updatedBooking.bookingType === BookingType.QUEUE) {
+        const saloonOwner = await tx.saloonOwner.findUnique({
+          where: { userId },
+          select: { timezone: true },
+        });
+        const salonZone = getSalonTimezone(saloonOwner);
+        const { startOfDayUTC, endOfDayUTC } = getDayBoundsInZone(
+          updatedBooking.date,
+          salonZone,
+        );
+
         const saloonQueue = await tx.queue.findFirst({
           where: {
             saloonOwnerId: userId,
             barberId: booking.barberId,
             isActive: true,
-            date: updatedBooking.date,
+            date: { gte: startOfDayUTC, lte: endOfDayUTC },
           },
         });
         if (saloonQueue && saloonQueue.currentPosition > 0) {
@@ -563,10 +590,13 @@ const getBarberDashboardFromDb = async (userId: string) => {
     },
   });
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const saloonOwner = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloonOwner);
+  const { startOfDayUTC: todayStart, endOfDayUTC: todayEnd } =
+    getDayBoundsInZone(moment.tz(salonZone).toDate(), salonZone);
 
   const queueBooking = await prisma.booking.count({
     where: {
@@ -574,8 +604,8 @@ const getBarberDashboardFromDb = async (userId: string) => {
       bookingType: BookingType.QUEUE,
       status: BookingStatus.PENDING,
       date: {
-        gte: today,
-        lt: tomorrow,
+        gte: todayStart,
+        lte: todayEnd,
       },
     },
   });
@@ -593,15 +623,18 @@ const getBarberDashboardFromDb = async (userId: string) => {
   });
 
   // Get customer growth for the last 12 months, grouped by month and year (e.g., Jan 2024)
-  const startDate = new Date();
-  startDate.setUTCHours(0, 0, 0, 0);
+  const startOf12MonthsAgo = moment
+    .tz(salonZone)
+    .subtract(11, 'months')
+    .startOf('month')
+    .toDate();
 
   const customerGrowthRaw = await prisma.booking.findMany({
     where: {
       saloonOwnerId: userId,
       status: BookingStatus.COMPLETED,
       createdAt: {
-        gte: startDate,
+        gte: startOf12MonthsAgo,
       },
     },
     select: {
@@ -612,14 +645,14 @@ const getBarberDashboardFromDb = async (userId: string) => {
   // Prepare a map for each month in the last 12 months (e.g., Jan 2024)
   const monthlyGrowth: { [key: string]: number } = {};
   for (let i = 0; i < 12; i++) {
-    const dt = DateTime.now().minus({ months: 11 - i });
-    const monthYear = dt.toFormat('LLL yyyy'); // e.g., Jan 2024
+    const m = moment.tz(salonZone).subtract(11 - i, 'months');
+    const monthYear = m.format('MMM YYYY'); // e.g., Jan 2024
     monthlyGrowth[monthYear] = 0;
   }
 
   // Count bookings per month-year
   customerGrowthRaw.forEach(item => {
-    const monthYear = DateTime.fromJSDate(item.createdAt).toFormat('LLL yyyy');
+    const monthYear = moment.tz(item.createdAt, salonZone).format('MMM YYYY');
     if (monthlyGrowth[monthYear] !== undefined) {
       monthlyGrowth[monthYear]++;
     }
@@ -631,7 +664,7 @@ const getBarberDashboardFromDb = async (userId: string) => {
       saloonOwnerId: userId,
       status: BookingStatus.COMPLETED,
       createdAt: {
-        gte: startDate,
+        gte: startOf12MonthsAgo,
       },
     },
     select: {
@@ -643,14 +676,14 @@ const getBarberDashboardFromDb = async (userId: string) => {
   // Prepare a map for each month in the last 12 months for earnings
   const monthlyEarnings: { [key: string]: number } = {};
   for (let i = 0; i < 12; i++) {
-    const dt = DateTime.now().minus({ months: 11 - i });
-    const monthYear = dt.toFormat('LLL yyyy');
+    const m = moment.tz(salonZone).subtract(11 - i, 'months');
+    const monthYear = m.format('MMM YYYY');
     monthlyEarnings[monthYear] = 0;
   }
 
   // Sum earnings per month-year
   earningGrowthRaw.forEach(item => {
-    const monthYear = DateTime.fromJSDate(item.createdAt).toFormat('LLL yyyy');
+    const monthYear = moment.tz(item.createdAt, salonZone).format('MMM YYYY');
     if (monthlyEarnings[monthYear] !== undefined) {
       monthlyEarnings[monthYear] += item.totalPrice ?? 0;
     }
@@ -1043,11 +1076,21 @@ const getFreeBarbersOnADateFromDb = async (
   if (!date) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Date is required');
   }
-  const targetDate = DateTime.fromISO(date, { zone: config.timezone });
-  if (!targetDate.isValid) {
+
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
+  const targetDate = parseDateInZone(date, salonZone);
+  if (!targetDate.isValid()) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
-  // const dayName = targetDate.toFormat('cccc'); // e.g., 'Monday'
+  const { startOfDayUTC, endOfDayUTC } = getDayBoundsInZone(
+    targetDate,
+    salonZone,
+  );
 
   // Step 1: Get all hired barbers for this saloon owner
   const hiredBarbers = await prisma.hiredBarber.findMany({
@@ -1109,7 +1152,10 @@ const getFreeBarbersOnADateFromDb = async (
       barberId: { in: scheduledBarberIds },
       saloonOwnerId: userId,
       status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
-      date: targetDate.toJSDate(),
+      OR: [
+        { date: { gte: startOfDayUTC, lte: endOfDayUTC } },
+        { appointmentAt: { gte: startOfDayUTC, lte: endOfDayUTC } },
+      ],
     },
     select: {
       barberId: true,
@@ -1139,55 +1185,79 @@ const getFreeBarbersOnADateFromDb = async (
       const hired = hiredBarbers.find(hb => hb.barberId === schedule.barberId);
       if (!schedule.openingTime || !schedule.closingTime) return null;
 
-      const dateStr = targetDate.toFormat('yyyy-MM-dd');
-      const opening = DateTime.fromFormat(
+      const dateStr = targetDate.format('YYYY-MM-DD');
+      const opening = moment.tz(
         `${dateStr} ${schedule.openingTime}`,
-        'yyyy-MM-dd hh:mm a',
-        { zone: targetDate.zone },
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
       );
-      const closing = DateTime.fromFormat(
+      const closing = moment.tz(
         `${dateStr} ${schedule.closingTime}`,
-        'yyyy-MM-dd hh:mm a',
-        { zone: targetDate.zone },
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
       );
-      if (!opening.isValid || !closing.isValid) return null;
+      if (!opening.isValid() || !closing.isValid()) return null;
 
       // Get all bookings for this barber, sorted by startTime
       const barberBookings = (bookingsByBarber[schedule.barberId] || [])
         .map(b => ({
-          start: DateTime.fromFormat(
+          start: moment.tz(
             `${dateStr} ${b.startTime}`,
-            'yyyy-MM-dd hh:mm a',
-            { zone: targetDate.zone },
+            [
+              'YYYY-MM-DD hh:mm A',
+              'YYYY-MM-DD h:mm A',
+              'YYYY-MM-DD hh:mma',
+              'YYYY-MM-DD h:mma',
+              'YYYY-MM-DD HH:mm',
+            ],
+            salonZone,
           ),
-          end: DateTime.fromFormat(
+          end: moment.tz(
             `${dateStr} ${b.endTime}`,
-            'yyyy-MM-dd hh:mm a',
-            { zone: targetDate.zone },
+            [
+              'YYYY-MM-DD hh:mm A',
+              'YYYY-MM-DD h:mm A',
+              'YYYY-MM-DD hh:mma',
+              'YYYY-MM-DD h:mma',
+              'YYYY-MM-DD HH:mm',
+            ],
+            salonZone,
           ),
         }))
-        .filter(b => b.start.isValid && b.end.isValid)
-        .sort((a, b) => a.start.toMillis() - b.start.toMillis());
+        .filter(b => b.start.isValid() && b.end.isValid())
+        .sort((a, b) => a.start.valueOf() - b.start.valueOf());
 
       // Find free slots between opening and closing, excluding bookings
       const freeSlots: { start: string; end: string }[] = [];
       let lastEnd = opening;
 
       for (const booking of barberBookings) {
-        if (booking.start > lastEnd) {
+        if (booking.start.isAfter(lastEnd)) {
           freeSlots.push({
-            start: lastEnd.toFormat('hh:mm a'),
-            end: booking.start.toFormat('hh:mm a'),
+            start: lastEnd.format('hh:mm A'),
+            end: booking.start.format('hh:mm A'),
           });
         }
-        if (booking.end > lastEnd && booking.end.isValid) {
-          lastEnd = booking.end as DateTime;
+        if (booking.end.isAfter(lastEnd) && booking.end.isValid()) {
+          lastEnd = booking.end;
         }
       }
-      if (lastEnd < closing) {
+      if (lastEnd.isBefore(closing)) {
         freeSlots.push({
-          start: lastEnd.toFormat('hh:mm a'),
-          end: closing.toFormat('hh:mm a'),
+          start: lastEnd.format('hh:mm A'),
+          end: closing.format('hh:mm A'),
         });
       }
 
@@ -1595,14 +1665,19 @@ const terminateBarberIntoDb = async (
   data: {
     barberId: string;
     reason?: string;
-    date: DateTime;
+    date: Date | string;
   },
 ) => {
   const { barberId, reason, date } = data;
   if (!barberId || !date || !userId) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Missing required fields');
   }
-  const terminationDate = DateTime.fromISO(date as unknown as string).toUTC();
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+  const terminationDate = parseDateInZone(date, salonZone).startOf('day');
 
   return await prisma.$transaction(async tx => {
     // Check if the barber exists
@@ -1622,7 +1697,7 @@ const terminateBarberIntoDb = async (
       where: {
         barberId: data.barberId,
         startDateTime: {
-          gte: terminationDate.toJSDate(),
+          gte: terminationDate.toDate(),
         },
         status: {
           in: [BookingStatus.PENDING, BookingStatus.CONFIRMED],
@@ -1634,13 +1709,8 @@ const terminateBarberIntoDb = async (
     });
 
     if (conflictingBooking) {
-      let startTimeString = 'unknown time';
-      if (conflictingBooking.startTime) {
-        const date = new Date(conflictingBooking.startTime);
-        startTimeString = isNaN(date.getTime())
-          ? conflictingBooking.date.toDateString()
-          : date.toISOString();
-      }
+      const bDateStr = moment(conflictingBooking.date).tz(salonZone).format('YYYY-MM-DD');
+      const startTimeString = `${bDateStr} ${conflictingBooking.startTime || ''}`.trim();
       throw new AppError(
         httpStatus.BAD_REQUEST,
         `Cannot terminate barber before ${startTimeString} due to existing bookings.`,
@@ -1653,7 +1723,7 @@ const terminateBarberIntoDb = async (
         barberId: data.barberId,
         reason: data.reason,
         saloonId: userId,
-        date: data.date.toJSDate(),
+        date: terminationDate.toDate(),
       },
     });
 
@@ -1684,7 +1754,7 @@ const terminateBarberIntoDb = async (
       });
 
       if (terminatedBarber?.user?.fcmToken) {
-        const terminationDateStr = data.date.toFormat('MMM dd, yyyy');
+        const terminationDateStr = terminationDate.format('MMM DD, YYYY');
         const reasonText = data.reason ? ` Reason: ${data.reason}` : '';
         const message = `Your employment has been terminated effective ${terminationDateStr}.${reasonText}`;
 
@@ -1741,6 +1811,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
       registrationNumber: true,
       latitude: true,
       longitude: true,
+      timezone: true,
       createdAt: true,
       updatedAt: true,
       user: {
@@ -1803,13 +1874,14 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     },
   });
 
+  const salonZone = (result as any).timezone || DEFAULT_TIMEZONE;
   const barbersWithAvailability = await Promise.all(
     result.Barber.map(async barber => {
       const barberId = barber.user.id; // বারবারের ইউজার আইডি
 
       // Check barber availability
       const availability =
-        await customerService.checkBarberAvailability(barberId);
+        await customerService.checkBarberAvailability(barberId, salonZone);
 
       return {
         id: barberId,
@@ -1846,6 +1918,7 @@ const getASaloonByIdFromDb = async (userId: string, saloonOwnerId: string) => {
     isMe: userId === saloonOwnerId,
     id: result.id,
     userId: result.userId,
+    timezone: (result as any).timezone || DEFAULT_TIMEZONE,
     isSaloonOwner: true,
     shopOwnerName: result.user?.fullName,
     shopOwnerEmail: result.user?.email,
@@ -1883,19 +1956,33 @@ const getScheduledBarbersFromDb = async (
   userId: string,
   data: {
     utcDateTime: string; // ISO string in UTC
+    date?: string;
+    time?: string;
   },
 ) => {
-  const { utcDateTime } = data;
-  if (!utcDateTime || !userId) {
+  const { utcDateTime, date, time } = data;
+  if ((!utcDateTime && (!date || !time)) || !userId) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Missing required fields');
   }
 
-  // Parse incoming UTC ISO string
-  const appointmentDateTime = DateTime.fromISO(utcDateTime, { zone: 'utc' });
-  if (!appointmentDateTime.isValid) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+  let appointmentJSDate: Date;
+
+  if (date && time) {
+    const localMoment = parseDateTimeInZone(date, time, salonZone);
+    appointmentJSDate = localMoment.utc().toDate();
+  } else {
+    // Parse incoming UTC ISO string
+    const appointmentM = moment.utc(utcDateTime);
+    if (!appointmentM.isValid()) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date or time format');
+    }
+    appointmentJSDate = appointmentM.toDate();
   }
-  const appointmentJSDate = appointmentDateTime.toJSDate();
 
   // Find bookings that contain the given instant (start <= t <= end)
   const bookings = await prisma.booking.findMany({

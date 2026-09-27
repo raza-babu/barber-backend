@@ -3,8 +3,9 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { DateTime } from 'luxon';
+import moment from 'moment-timezone';
 import config from '../../../config';
+import { getSalonTimezone } from '../../utils/timezone.helper';
 
 const createBarberLunchIntoDb = async (
   userId: string,
@@ -17,40 +18,50 @@ const createBarberLunchIntoDb = async (
 ) => {
   const { barberId, date, startTime, endTime } = data;
 
-  const baseDate = DateTime.fromISO(date, { zone: config.timezone });
-  if (!baseDate.isValid) {
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
+  const baseDate = moment.tz(date, salonZone);
+  if (!baseDate.isValid()) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
   }
 
-  const parseClockToUTC = (timeStr: string): DateTime => {
-    const [time, modifier] = timeStr.trim().split(' ');
-    let [h, m] = time.split(':').map(Number);
-    if (modifier?.toUpperCase() === 'PM' && h !== 12) h += 12;
-    if (modifier?.toUpperCase() === 'AM' && h === 12) h = 0;
-    return baseDate
-      .set({ hour: h, minute: m, second: 0, millisecond: 0 })
-      .toUTC();
+  const parseClockToUTC = (timeStr: string): moment.Moment => {
+    const m = moment.tz(
+      `${date} ${timeStr.trim()}`,
+      [
+        'YYYY-MM-DD hh:mm A',
+        'YYYY-MM-DD h:mm A',
+        'YYYY-MM-DD hh:mma',
+        'YYYY-MM-DD h:mma',
+        'YYYY-MM-DD HH:mm',
+      ],
+      salonZone,
+    );
+    return m.utc();
   };
 
   const lunchStartDt = parseClockToUTC(startTime);
   const lunchEndDt = parseClockToUTC(endTime);
-  if (!(lunchStartDt < lunchEndDt)) {
+  if (!lunchStartDt.isBefore(lunchEndDt)) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'Lunch start must be before end',
     );
   }
 
-  const dayStartUTC = baseDate.startOf('day').toUTC();
-  const dayEndUTC = baseDate.endOf('day').toUTC();
+  const dayEndUTC = baseDate.clone().endOf('day').utc();
 
   return await prisma.$transaction(async tx => {
-    const dayName = baseDate.toFormat('cccc');
+    const dayName = baseDate.format('dddd').toLowerCase();
     const schedule = await tx.barberSchedule.findFirst({
       where: {
         saloonOwnerId: userId,
         barberId,
-        dayName: dayName.toLowerCase(),
+        dayName,
         isActive: true,
       },
     });
@@ -58,23 +69,25 @@ const createBarberLunchIntoDb = async (
       throw new AppError(httpStatus.BAD_REQUEST, 'Barber is off on this date');
     }
 
-    const opening =
-      schedule.openingDateTime instanceof Date
-        ? DateTime.fromJSDate(schedule.openingDateTime).setZone(config.timezone)
-        : DateTime.fromISO(String(schedule.openingDateTime), { zone: config.timezone });
-    const closing =
-      schedule.closingDateTime instanceof Date
-        ? DateTime.fromJSDate(schedule.closingDateTime).setZone(config.timezone)
-        : DateTime.fromISO(String(schedule.closingDateTime), { zone: config.timezone });
+    const opening = moment.tz(schedule.openingDateTime, salonZone);
+    const closing = moment.tz(schedule.closingDateTime, salonZone);
 
     const workStart = baseDate
-      .set({ hour: opening.hour, minute: opening.minute })
-      .toUTC();
+      .clone()
+      .hour(opening.hour())
+      .minute(opening.minute())
+      .second(0)
+      .millisecond(0)
+      .utc();
     const workEnd = baseDate
-      .set({ hour: closing.hour, minute: closing.minute })
-      .toUTC();
+      .clone()
+      .hour(closing.hour())
+      .minute(closing.minute())
+      .second(0)
+      .millisecond(0)
+      .utc();
 
-    if (lunchStartDt < workStart || lunchEndDt > workEnd) {
+    if (lunchStartDt.isBefore(workStart) || lunchEndDt.isAfter(workEnd)) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
         'Lunch must be within working hours',
@@ -84,8 +97,8 @@ const createBarberLunchIntoDb = async (
     const overlappingLunch = await tx.barberLunch.findFirst({
       where: {
         barberId,
-        lunchStart: { lt: lunchEndDt.toJSDate() },
-        lunchEnd: { gt: lunchStartDt.toJSDate() },
+        lunchStart: { lt: lunchEndDt.toDate() },
+        lunchEnd: { gt: lunchStartDt.toDate() },
       },
     });
     if (overlappingLunch) {
@@ -95,17 +108,17 @@ const createBarberLunchIntoDb = async (
       );
     }
 
-    const now = DateTime.local().toUTC();
+    const now = moment.utc();
 
     // 🚫 Block if lunch intersects with an ongoing status
     const activeStatus = await tx.barberRealTimeStatus.findFirst({
       where: {
         barberId,
-        startDateTime: { lte: now.toJSDate() },
-        endDateTime: { gt: now.toJSDate() },
+        startDateTime: { lte: now.toDate() },
+        endDateTime: { gt: now.toDate() },
         AND: [
-          { startDateTime: { lt: lunchEndDt.toJSDate() } },
-          { endDateTime: { gt: lunchStartDt.toJSDate() } },
+          { startDateTime: { lt: lunchEndDt.toDate() } },
+          { endDateTime: { gt: lunchStartDt.toDate() } },
         ],
       },
     });
@@ -120,11 +133,11 @@ const createBarberLunchIntoDb = async (
     const activeSlot = await tx.queueSlot.findFirst({
       where: {
         barberId,
-        startedAt: { lte: now.toJSDate() },
-        completedAt: { gt: now.toJSDate() },
+        startedAt: { lte: now.toDate() },
+        completedAt: { gt: now.toDate() },
         AND: [
-          { startedAt: { lt: lunchEndDt.toJSDate() } },
-          { completedAt: { gt: lunchStartDt.toJSDate() } },
+          { startedAt: { lt: lunchEndDt.toDate() } },
+          { completedAt: { gt: lunchStartDt.toDate() } },
         ],
       },
     });
@@ -140,8 +153,8 @@ const createBarberLunchIntoDb = async (
       data: {
         barberId,
         saloonOwnerId: userId,
-        lunchStart: lunchStartDt.toJSDate(),
-        lunchEnd: lunchEndDt.toJSDate(),
+        lunchStart: lunchStartDt.toDate(),
+        lunchEnd: lunchEndDt.toDate(),
         startTime,
         endTime,
       },
@@ -174,14 +187,14 @@ const createBarberLunchIntoDb = async (
       where: {
         barberId,
         startDateTime: {
-          gt: now.toJSDate(), // greater than now
-          lt: dayEndUTC.toJSDate(), // less than end of day
+          gt: now.toDate(), // greater than now
+          lt: dayEndUTC.toDate(), // less than end of day
         },
       },
       orderBy: { startDateTime: 'asc' },
     });
 
-    let nextStart: DateTime = lunchEndDt;
+    let nextStart: moment.Moment = lunchEndDt.clone();
     let skipReschedule = false;
 
     for (const st of statuses) {
@@ -193,27 +206,27 @@ const createBarberLunchIntoDb = async (
         continue;
       }
 
-      const sStart = DateTime.fromJSDate(st.startDateTime).toUTC();
-      const sEnd = DateTime.fromJSDate(st.endDateTime).toUTC();
+      const sStart = moment.utc(st.startDateTime);
+      const sEnd = moment.utc(st.endDateTime);
 
-      if (sEnd <= lunchStartDt) continue;
+      if (sEnd.isSameOrBefore(lunchStartDt)) continue;
 
-      if (sStart >= lunchEndDt && nextStart?.equals(lunchEndDt)) {
+      if (sStart.isSameOrAfter(lunchEndDt) && nextStart.isSame(lunchEndDt)) {
         skipReschedule = true;
         continue;
       }
 
-      const duration = sEnd.diff(sStart, 'minutes').as('minutes');
-      const newStart = nextStart!;
-      const newEnd = newStart.plus({ minutes: duration });
+      const duration = sEnd.diff(sStart, 'minutes');
+      const newStart = nextStart.clone();
+      const newEnd = newStart.clone().add(duration, 'minutes');
 
       await tx.barberRealTimeStatus.update({
         where: { id: st.id },
         data: {
-          startDateTime: newStart.toJSDate(),
-          endDateTime: newEnd.toJSDate(),
-          startTime: newStart.setZone(config.timezone).toFormat('hh:mm a'),
-          endTime: newEnd.setZone(config.timezone).toFormat('hh:mm a'),
+          startDateTime: newStart.toDate(),
+          endDateTime: newEnd.toDate(),
+          startTime: newStart.clone().tz(salonZone).format('hh:mm A'),
+          endTime: newEnd.clone().tz(salonZone).format('hh:mm A'),
         },
       });
 
@@ -225,36 +238,36 @@ const createBarberLunchIntoDb = async (
       where: {
         barberId,
         startedAt: {
-          gt: now.toJSDate(), // after now
-          lt: dayEndUTC.toJSDate(), // before end of the day
+          gt: now.toDate(), // after now
+          lt: dayEndUTC.toDate(), // before end of the day
         },
       },
       orderBy: { startedAt: 'asc' },
     });
 
-    nextStart = lunchEndDt;
+    nextStart = lunchEndDt.clone();
     let skipSlotReschedule = false;
     for (const slot of slots) {
       if (!slot.startedAt || !slot.completedAt) continue;
-      const slotStart = DateTime.fromJSDate(slot.startedAt).toUTC();
-      const slotEnd = DateTime.fromJSDate(slot.completedAt).toUTC();
+      const slotStart = moment.utc(slot.startedAt);
+      const slotEnd = moment.utc(slot.completedAt);
 
-      if (slotEnd <= lunchStartDt) continue;
-      if (slotStart >= lunchEndDt && nextStart.equals(lunchEndDt)) {
+      if (slotEnd.isSameOrBefore(lunchStartDt)) continue;
+      if (slotStart.isSameOrAfter(lunchEndDt) && nextStart.isSame(lunchEndDt)) {
         skipSlotReschedule = true; // first one after lunch untouched
         continue;
       }
       if (skipSlotReschedule) continue;
 
-      const duration = slotEnd.diff(slotStart, 'minutes').as('minutes');
-      const newStart = nextStart!;
-      const newEnd = newStart.plus({ minutes: duration });
+      const duration = slotEnd.diff(slotStart, 'minutes');
+      const newStart = nextStart.clone();
+      const newEnd = newStart.clone().add(duration, 'minutes');
 
       await tx.queueSlot.update({
         where: { id: slot.id },
         data: {
-          startedAt: newStart.toJSDate(),
-          completedAt: newEnd.toJSDate(),
+          startedAt: newStart.toDate(),
+          completedAt: newEnd.toDate(),
         },
       });
 
@@ -262,10 +275,10 @@ const createBarberLunchIntoDb = async (
         await tx.booking.update({
           where: { id: slot.bookingId },
           data: {
-            startDateTime: newStart.toJSDate(),
-            endDateTime: newEnd.toJSDate(),
-            startTime: newStart.setZone(config.timezone).toFormat('hh:mm a'),
-            endTime: newEnd.setZone(config.timezone).toFormat('hh:mm a'),
+            startDateTime: newStart.toDate(),
+            endDateTime: newEnd.toDate(),
+            startTime: newStart.clone().tz(salonZone).format('hh:mm A'),
+            endTime: newEnd.clone().tz(salonZone).format('hh:mm A'),
           },
         });
       }
@@ -278,6 +291,12 @@ const createBarberLunchIntoDb = async (
 };
 
 const getBarberLunchListFromDb = async (userId: string) => {
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
   const result = await prisma.barberLunch.findMany({
     where: {
       saloonOwnerId: userId,
@@ -316,10 +335,10 @@ const getBarberLunchListFromDb = async (userId: string) => {
     barberEmail: item.barber.user.email,
     barberPhone: item.barber.user.phoneNumber,
     barberId: item.barberId,
-    lunchStart: DateTime.fromJSDate(item.lunchStart).toUTC().toISO(),
-    lunchEnd: DateTime.fromJSDate(item.lunchEnd).toUTC().toISO(),
-    startTime: DateTime.fromJSDate(item.lunchStart).setZone(config.timezone).toFormat('hh:mm a'),
-    endTime: DateTime.fromJSDate(item.lunchEnd).setZone(config.timezone).toFormat('hh:mm a'),
+    lunchStart: moment.utc(item.lunchStart).toISOString(),
+    lunchEnd: moment.utc(item.lunchEnd).toISOString(),
+    startTime: moment.tz(item.lunchStart, salonZone).format('hh:mm A'),
+    endTime: moment.tz(item.lunchEnd, salonZone).format('hh:mm A'),
   }));
 };
 
@@ -327,6 +346,12 @@ const getBarberLunchByIdFromDb = async (
   userId: string,
   barberLunchId: string,
 ) => {
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
   const result = await prisma.barberLunch.findFirst({
     where: {
       barberId: barberLunchId,
@@ -365,10 +390,10 @@ const getBarberLunchByIdFromDb = async (
     barberImage: result.barber.user.image,
     barberEmail: result.barber.user.email,
     barberPhone: result.barber.user.phoneNumber,
-    lunchStart: DateTime.fromJSDate(result.lunchStart).toUTC().toISO(),
-    lunchEnd: DateTime.fromJSDate(result.lunchEnd).toUTC().toISO(),
-    startTime: DateTime.fromJSDate(result.lunchStart).setZone(config.timezone).toFormat('hh:mm a'),
-    endTime: DateTime.fromJSDate(result.lunchEnd).setZone(config.timezone).toFormat('hh:mm a'),
+    lunchStart: moment.utc(result.lunchStart).toISOString(),
+    lunchEnd: moment.utc(result.lunchEnd).toISOString(),
+    startTime: moment.tz(result.lunchStart, salonZone).format('hh:mm A'),
+    endTime: moment.tz(result.lunchEnd, salonZone).format('hh:mm A'),
   };
 };
 

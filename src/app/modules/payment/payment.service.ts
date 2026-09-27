@@ -16,9 +16,10 @@ import {
 import Stripe from 'stripe';
 import { TStripeSaveWithCustomerInfoPayload } from './payment.interface';
 import { ISearchAndFilterOptions } from '../../interface/pagination.type';
-import { DateTime } from 'luxon';
+import moment from 'moment-timezone';
 import paymentTransfer from '../../utils/paymentTransfer';
 import { blockService } from '../block/block.service';
+import { DEFAULT_TIMEZONE, resolveTimezone } from '../../utils/timezone.helper';
 // import { notificationService } from '../Notification/Notification.service';
 
 // Initialize Stripe with your secret API key
@@ -2545,12 +2546,13 @@ const getPendingBarberPayoutsService = async (
     if (options?.startDate || options?.endDate) {
       const dateField = options?.dateField || 'createdAt';
       where[dateField] = {};
+      const zone = resolveTimezone(options?.timezone);
 
       if (options?.startDate) {
-        where[dateField].gte = new Date(options.startDate);
+        where[dateField].gte = moment.tz(options.startDate, zone).startOf('day').toDate();
       }
       if (options?.endDate) {
-        where[dateField].lte = new Date(options.endDate);
+        where[dateField].lte = moment.tz(options.endDate, zone).endOf('day').toDate();
       }
     }
 
@@ -2867,6 +2869,7 @@ const getAllPayments = async (query: Record<string, unknown>) => {
     searchTerm,
     sortBy = 'createdAt',
     sortOrder = 'desc',
+    timezone,
   } = query;
 
   // Page and limit calculation:
@@ -2884,17 +2887,18 @@ const getAllPayments = async (query: Record<string, unknown>) => {
   }
 
   if (startDate || endDate) {
+    const zone = resolveTimezone(timezone as string);
     const start = startDate
-      ? DateTime.fromISO(startDate as string, { zone: config.timezone })
+      ? moment.tz(startDate as string, zone)
       : null;
     const end = endDate
-      ? DateTime.fromISO(endDate as string, { zone: config.timezone })
+      ? moment.tz(endDate as string, zone)
       : null;
 
-    if (start?.isValid || end?.isValid) {
+    if (start?.isValid() || end?.isValid()) {
       whereClause.paymentDate = {
-        ...(start?.isValid && { gte: start.startOf('day').toJSDate() }),
-        ...(end?.isValid && { lte: end.endOf('day').toJSDate() }),
+        ...(start?.isValid() && { gte: start.startOf('day').toDate() }),
+        ...(end?.isValid() && { lte: end.endOf('day').toDate() }),
       };
     }
   }

@@ -1,5 +1,6 @@
 import { error } from 'node:console';
 import z from 'zod';
+import { isValidTimezone } from '../../utils/timezone.helper';
 const registerUser = z.object({
   body: z.object({
     fullName: z.string({
@@ -212,6 +213,13 @@ const createSaloonOwner = z.object({
     qrCode: z.string().optional(),
 
     isVerified: z.boolean().optional(),
+    timezone: z
+      .string()
+      .refine(val => isValidTimezone(val), {
+        message:
+          'Invalid IANA timezone identifier (e.g. Europe/London, America/New_York)',
+      })
+      .optional(),
 
     // followerCount: z.number().int().nonnegative().default(0),
 
@@ -291,6 +299,13 @@ const updateSaloonOwner = z.object({
     ),
 
     isVerified: z.boolean().optional(),
+    timezone: z
+      .string()
+      .refine(val => isValidTimezone(val), {
+        message:
+          'Invalid IANA timezone identifier (e.g. Europe/London, America/New_York)',
+      })
+      .optional(),
   }),
 });
 

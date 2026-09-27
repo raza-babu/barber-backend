@@ -1,12 +1,12 @@
 import { Server } from 'http';
-// import { Settings } from 'luxon';
+import moment from 'moment-timezone';
 import app from './app';
 import seedSuperAdmin from './app/DB';
 // import { setupWebSocket } from './app/utils/websocket';
 import { setupSocketIO } from './app/utils/socketio';
 import config from './config';
 
-// Settings.defaultZone = config.timezone || 'UTC';
+moment.tz.setDefault(config.timezone || 'Europe/London');
 
 const port = config.port || 8080;
 

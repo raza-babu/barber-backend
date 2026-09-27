@@ -1,30 +1,33 @@
 // saloonScheduleValidation.ts
 import { z } from 'zod';
-import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-import customParseFormat from 'dayjs/plugin/customParseFormat';
-import exp from 'constants';
-
-dayjs.extend(utc);
-dayjs.extend(customParseFormat);
+import moment from 'moment-timezone';
+import { DEFAULT_TIMEZONE } from '../../utils/timezone.helper';
 
 const timeRange12hRegex =
   /^((0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM))\s*-\s*((0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM))$/i;
 
 function convertToUTCWithDisplay(timeRange: string) {
   const [opening, closing] = timeRange.split('-').map(t => t.trim());
-  const today = dayjs().format('YYYY-MM-DD');
+  const today = moment.tz(DEFAULT_TIMEZONE).format('YYYY-MM-DD');
 
-  const openingUTC = dayjs(`${today} ${opening}`, 'YYYY-MM-DD hh:mm A').utc().toDate();
-  const closingUTC = dayjs(`${today} ${closing}`, 'YYYY-MM-DD hh:mm A').utc().toDate();
+  const openingM = moment.tz(
+    `${today} ${opening}`,
+    ['YYYY-MM-DD hh:mm A', 'YYYY-MM-DD h:mm A', 'YYYY-MM-DD hh:mma', 'YYYY-MM-DD h:mma'],
+    DEFAULT_TIMEZONE,
+  );
+  const closingM = moment.tz(
+    `${today} ${closing}`,
+    ['YYYY-MM-DD hh:mm A', 'YYYY-MM-DD h:mm A', 'YYYY-MM-DD hh:mma', 'YYYY-MM-DD h:mma'],
+    DEFAULT_TIMEZONE,
+  );
 
   // Keep original 12h display format
-  const openingTimeDisplay = dayjs(`${today} ${opening}`, 'YYYY-MM-DD hh:mm A').format('hh:mm A');
-  const closingTimeDisplay = dayjs(`${today} ${closing}`, 'YYYY-MM-DD hh:mm A').format('hh:mm A');
+  const openingTimeDisplay = openingM.format('hh:mm A');
+  const closingTimeDisplay = closingM.format('hh:mm A');
 
   return {
-    openingUTC,
-    closingUTC,
+    openingUTC: openingM.toDate(),
+    closingUTC: closingM.toDate(),
     openingTime: openingTimeDisplay,
     closingTime: closingTimeDisplay,
   };

@@ -1,9 +1,10 @@
 import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
-import { DateTime } from 'luxon';
+import moment from 'moment-timezone';
 import config from '../../../config';
 import { notificationService } from '../notification/notification.service';
+import { getSalonTimezone } from '../../utils/timezone.helper';
 
 // Type for schedule input
 type ScheduleInput = {
@@ -49,6 +50,12 @@ const createSaloonScheduleIntoDb = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'Schedule data is required');
   }
 
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
   const mappedSchedules = data.map(schedule => {
     const dayOfWeek = dayNameToIndex[schedule.dayName.toLowerCase()];
     if (
@@ -63,20 +70,33 @@ const createSaloonScheduleIntoDb = async (
       );
     }
 
-    const openingDateTime = DateTime.fromFormat(
-      schedule.openingTime,
-      'hh:mm a',
-      { zone: config.timezone },
-    )
-      .toUTC()
-      .toJSDate();
-    const closingDateTime = DateTime.fromFormat(
-      schedule.closingTime,
-      'hh:mm a',
-      { zone: config.timezone },
-    )
-      .toUTC()
-      .toJSDate();
+    const today = moment.tz(salonZone).format('YYYY-MM-DD');
+    const openingDateTime = moment
+      .tz(
+        `${today} ${schedule.openingTime.trim()}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      )
+      .toDate();
+    const closingDateTime = moment
+      .tz(
+        `${today} ${schedule.closingTime.trim()}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      )
+      .toDate();
 
     return {
       saloonOwnerId: userId,
@@ -245,14 +265,62 @@ const updateSaloonScheduleIntoDb = async (
   saloonScheduleId: string,
   data: any,
 ) => {
+  const existingSchedule = await prisma.saloonSchedule.findUnique({
+    where: {
+      id: saloonScheduleId,
+      saloonOwnerId: userId,
+    },
+  });
+  if (!existingSchedule) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Saloon schedule not found');
+  }
+
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
+  const updateData = { ...data };
+  const openingTime = data.openingTime || existingSchedule.openingTime;
+  const closingTime = data.closingTime || existingSchedule.closingTime;
+
+  if (data.openingTime || data.closingTime) {
+    const today = moment.tz(salonZone).format('YYYY-MM-DD');
+    updateData.openingDateTime = moment
+      .tz(
+        `${today} ${openingTime.trim()}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      )
+      .toDate();
+    updateData.closingDateTime = moment
+      .tz(
+        `${today} ${closingTime.trim()}`,
+        [
+          'YYYY-MM-DD hh:mm A',
+          'YYYY-MM-DD h:mm A',
+          'YYYY-MM-DD hh:mma',
+          'YYYY-MM-DD h:mma',
+          'YYYY-MM-DD HH:mm',
+        ],
+        salonZone,
+      )
+      .toDate();
+  }
+
   const result = await prisma.saloonSchedule.update({
     where: {
       id: saloonScheduleId,
       saloonOwnerId: userId,
     },
-    data: {
-      ...data,
-    },
+    data: updateData,
     select: {
       id: true,
       saloonOwnerId: true,

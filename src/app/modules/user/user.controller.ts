@@ -4,6 +4,7 @@ import sendResponse from '../../utils/sendResponse';
 import { UserServices } from '../user/user.service';
 import AppError from '../../errors/AppError';
 import { uploadFileToS3 } from '../../utils/multipleFile';
+import { getTimezoneList } from '../../utils/timezone.helper';
 
 const registerUser = catchAsync(async (req, res) => {
   const result = await UserServices.registerUserIntoDB(req.body);
@@ -451,6 +452,16 @@ const updateSaloonOwnerStatus = catchAsync(async (req, res) => {
   });
 });
 
+const getTimezones = catchAsync(async (req, res) => {
+  const timezones = getTimezoneList();
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Timezones retrieved successfully',
+    data: timezones,
+  });
+});
+
 export const UserControllers = {
   registerUser,
   registerSaloonOwner,
@@ -473,4 +484,5 @@ export const UserControllers = {
   deactivateAccount,
   updateProfileImage,
   updateSaloonOwnerStatus,
+  getTimezones,
 };

@@ -7,11 +7,7 @@ export const barberDayOffSchema = z.object({
 
   date: z
     .string({ required_error: 'Date is required' })
-    .refine(val => {
-      const parsed = Date.parse(val);
-      return !isNaN(parsed) && new Date(val).toISOString() === new Date(parsed).toISOString();
-    }, 'Invalid date format')
-    .transform(val => new Date(val).toISOString()),
+    .refine(val => !isNaN(Date.parse(val)), 'Invalid date format'),
 
   reason: z
     .string()

@@ -1,10 +1,6 @@
 import { z } from 'zod';
-import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-import customParseFormat from 'dayjs/plugin/customParseFormat';
-
-dayjs.extend(utc);
-dayjs.extend(customParseFormat);
+import moment from 'moment-timezone';
+import { DEFAULT_TIMEZONE } from '../../utils/timezone.helper';
 
 // Map day names to dayOfWeek numbers
 const daysMap: Record<string, number> = {
@@ -22,23 +18,36 @@ const timeRange12hRegex =
   /^((0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM))\s*-\s*((0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM))$/i;
 
 // Convert 12h time to UTC Date object
-function convertToUTC(timeRange: string) {
+function convertToUTC(timeRange: string, timezone: string = DEFAULT_TIMEZONE) {
   const [opening, closing] = timeRange.split('-').map(t => t.trim());
-  const today = dayjs().format('YYYY-MM-DD');
+  const today = moment.tz(timezone).format('YYYY-MM-DD');
 
-  const openingUTC = dayjs(`${today} ${opening}`, 'YYYY-MM-DD hh:mm A')
-    .utc()
-    .toDate();
-  const closingUTC = dayjs(`${today} ${closing}`, 'YYYY-MM-DD hh:mm A')
-    .utc()
-    .toDate();
+  const openingM = moment.tz(
+    `${today} ${opening}`,
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+    ],
+    timezone,
+  );
+  const closingM = moment.tz(
+    `${today} ${closing}`,
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+    ],
+    timezone,
+  );
 
-  const openingTime = dayjs(`${today} ${opening}`, 'YYYY-MM-DD hh:mm A').format(
-    'hh:mm A',
-  );
-  const closingTime = dayjs(`${today} ${closing}`, 'YYYY-MM-DD hh:mm A').format(
-    'hh:mm A',
-  );
+  const openingUTC = openingM.isValid() ? openingM.toDate() : new Date();
+  const closingUTC = closingM.isValid() ? closingM.toDate() : new Date();
+
+  const openingTime = openingM.isValid() ? openingM.format('hh:mm A') : opening;
+  const closingTime = closingM.isValid() ? closingM.format('hh:mm A') : closing;
 
   return { openingUTC, closingUTC, openingTime, closingTime };
 }

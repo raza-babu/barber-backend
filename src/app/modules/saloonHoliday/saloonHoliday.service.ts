@@ -2,12 +2,14 @@ import prisma from '../../utils/prisma';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
 import { messaging } from 'firebase-admin';
+import moment from 'moment-timezone';
 import { notificationService } from '../notification/notification.service';
+import { getSalonTimezone, getDayBoundsInZone } from '../../utils/timezone.helper';
 
 // Type definitions
 type HolidayInput = {
   // saloonId: string;
-  date: Date;
+  date: Date | string;
   holidayName: string;
   description?: string;
   isRecurring?: boolean;
@@ -35,12 +37,18 @@ const createSaloonHolidayIntoDb = async (
     );
   }
 
+  const salonZone = getSalonTimezone(saloon);
+  const { startOfDayUTC, endOfDayUTC } = getDayBoundsInZone(data.date, salonZone);
+  data.date = startOfDayUTC;
+
   // Check for duplicate holidays
   const existingHoliday = await prisma.saloonHoliday.findFirst({
     where: {
-      // saloonId,
       userId,
-      date: data.date,
+      date: {
+        gte: startOfDayUTC,
+        lte: endOfDayUTC,
+      },
     },
     select: {
       id: true,
@@ -92,7 +100,7 @@ const createSaloonHolidayIntoDb = async (
           });
 
           const saloonName = saloon?.user?.fullName || 'Salon';
-          const dateStr = new Date(data.date).toLocaleDateString('en-US');
+          const dateStr = moment(data.date).tz(salonZone).format('MMM DD, YYYY');
           const message = `${saloonName} is closed on ${dateStr}: ${data.holidayName}`;
 
           await Promise.all(
@@ -203,6 +211,17 @@ const updateSaloonHolidayIntoDb = async (
     );
   }
 
+  const saloon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(saloon);
+
+  if (data.date) {
+    const { startOfDayUTC } = getDayBoundsInZone(data.date, salonZone);
+    data.date = startOfDayUTC;
+  }
+
   return await prisma.saloonHoliday
     .update({
       where: { id: holidayId },
@@ -237,9 +256,9 @@ const updateSaloonHolidayIntoDb = async (
           });
 
           const saloonName = saloon?.user?.fullName || 'Salon';
-          const dateStr = new Date(updatedHoliday.date).toLocaleDateString(
-            'en-US',
-          );
+          const dateStr = moment(updatedHoliday.date)
+            .tz(salonZone)
+            .format('MMM DD, YYYY');
           const message = `${saloonName} holiday updated for ${dateStr}: ${updatedHoliday.holidayName}`;
 
           await Promise.all(
@@ -357,13 +376,21 @@ const deleteSaloonHolidayItemFromDb = async (
 };
 
 // Additional utility function
-const checkSaloonHolidayFromDb = async (saloonId: string, date: Date) => {
-  // Check specific date
+const checkSaloonHolidayFromDb = async (saloonId: string, date: Date | string) => {
+  const salon = await prisma.saloonOwner.findFirst({
+    where: { OR: [{ id: saloonId }, { userId: saloonId }] },
+    select: { userId: true, timezone: true },
+  });
+  const salonZone = getSalonTimezone(salon);
+  const { startOfDayUTC, endOfDayUTC } = getDayBoundsInZone(date, salonZone);
+
+  // Check specific date within that day
   const specificHoliday = await prisma.saloonHoliday.findFirst({
     where: {
-      saloonId,
+      userId: salon?.userId || saloonId,
       date: {
-        equals: date,
+        gte: startOfDayUTC,
+        lte: endOfDayUTC,
       },
     },
   });
@@ -373,15 +400,17 @@ const checkSaloonHolidayFromDb = async (saloonId: string, date: Date) => {
   // Check recurring holidays (same month/day)
   const recurringHolidays = await prisma.saloonHoliday.findMany({
     where: {
-      saloonId,
+      userId: salon?.userId || saloonId,
       isRecurring: true,
     },
   });
 
+  const targetM = moment.tz(date, salonZone);
+
   return recurringHolidays.find(h => {
-    const hDate = new Date(h.date);
+    const hM = moment.tz(h.date, salonZone);
     return (
-      hDate.getMonth() === date.getMonth() && hDate.getDate() === date.getDate()
+      hM.month() === targetM.month() && hM.date() === targetM.date()
     );
   });
 };

@@ -2,8 +2,31 @@ import prisma from '../../utils/prisma';
 import { UserRoleEnum, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import httpStatus from 'http-status';
+import { getSalonTimezone, getDayBoundsInZone } from '../../utils/timezone.helper';
 
 const createBarberHolidayIntoDb = async (userId: string, data: any) => {
+  const salon = await prisma.saloonOwner.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  const salonZone = getSalonTimezone(salon);
+  const { startOfDayUTC, endOfDayUTC } = getDayBoundsInZone(data.date, salonZone);
+  data.date = startOfDayUTC;
+
+  const existing = await prisma.barberDayOff.findFirst({
+    where: {
+      saloonOwnerId: userId,
+      barberId: data.barberId,
+      date: { gte: startOfDayUTC, lte: endOfDayUTC },
+    },
+  });
+  if (existing) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      'Barber day off already exists for this date',
+    );
+  }
+
   const result = await prisma.barberDayOff.create({
     data: {
       ...data,
@@ -67,6 +90,16 @@ const updateBarberHolidayIntoDb = async (
   barberHolidayId: string,
   data: any,
 ) => {
+  if (data.date) {
+    const salon = await prisma.saloonOwner.findUnique({
+      where: { userId },
+      select: { timezone: true },
+    });
+    const salonZone = getSalonTimezone(salon);
+    const { startOfDayUTC } = getDayBoundsInZone(data.date, salonZone);
+    data.date = startOfDayUTC;
+  }
+
   const result = await prisma.barberDayOff.update({
     where: {
       id: barberHolidayId,

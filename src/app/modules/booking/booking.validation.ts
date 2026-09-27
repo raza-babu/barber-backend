@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import moment from 'moment-timezone';
+import { DEFAULT_TIMEZONE } from '../../utils/timezone.helper';
 
 const createBookingSchema = z.object({
   body: z.object({
@@ -57,18 +59,24 @@ const updateBookingStatusSchema = z.object({
 });
 
 function convertToUTC(date: string, time: string): string {
-  // Combine into a single string
-  const combined = `${date} ${time}`;
+  const normalizedTime = time.replace(/\s+/g, ' ').trim();
+  const m = moment.tz(
+    `${date} ${normalizedTime}`,
+    [
+      'YYYY-MM-DD hh:mm A',
+      'YYYY-MM-DD h:mm A',
+      'YYYY-MM-DD hh:mma',
+      'YYYY-MM-DD h:mma',
+      'YYYY-MM-DD HH:mm',
+    ],
+    DEFAULT_TIMEZONE,
+  );
 
-  // Parse as local time (system’s local timezone)
-  const localDate = new Date(combined);
-
-  if (isNaN(localDate.getTime())) {
-    throw new Error('Invalid date or time format');
+  if (!m.isValid()) {
+    throw new Error(`Invalid date or time format: ${date} ${time}`);
   }
 
-  // Convert to UTC string (ISO)
-  return localDate.toISOString();
+  return m.toISOString();
 }
 
 const availableBarbersSchema = z.object({
@@ -90,6 +98,7 @@ const availableBarbersSchema = z.object({
       saloonOwnerId,
       utcDateTime: convertToUTC(date, time),
       date,
+      time,
       totalServiceTime,
       type,
     })),
