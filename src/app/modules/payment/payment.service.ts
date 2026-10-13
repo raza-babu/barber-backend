@@ -294,76 +294,110 @@ const authorizeAndSplitPayment = async (
     const totalAmount = Math.round(transferAmount + adminFeeAmount);
 
     // Validate that the saloon owner's Stripe connected account exists
-    let destinationAccountId = findBooking.saloonOwner.user?.stripeAccountId;
+    let destinationAccountId = findBooking.saloonOwner?.user?.stripeAccountId;
 
-    if (!destinationAccountId) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'Saloon owner has not connected their Stripe account',
+    let canTransferDirectly = false;
+    if (destinationAccountId) {
+      try {
+        const destAccount = await stripe.accounts.retrieve(destinationAccountId);
+        const capabilities = destAccount.capabilities || {};
+        if (
+          capabilities.transfers === 'active' ||
+          (capabilities as any).legacy_payments === 'active'
+        ) {
+          canTransferDirectly = true;
+        } else {
+          console.warn(
+            `Destination account ${destinationAccountId} is missing active 'transfers' capability (transfers: ${capabilities.transfers}). Funds will be collected on the platform account until onboarding is completed.`,
+          );
+        }
+      } catch (error: any) {
+        if (
+          error.code === 'resource_missing' ||
+          error.message?.includes('No such account')
+        ) {
+          console.warn(
+            `Stripe account ${destinationAccountId} not found for destination transfer. Funds will be collected on the platform account.`,
+          );
+        } else {
+          console.warn(
+            `Could not verify destination Stripe account ${destinationAccountId}: ${error.message}. Proceeding with platform collection.`,
+          );
+        }
+      }
+    } else {
+      console.warn(
+        `Saloon owner ${findBooking.saloonOwner?.user?.id} has not connected a Stripe account. Funds will be collected on the platform account.`,
       );
     }
 
-    // Verify the destination account exists in current Stripe account
-    try {
-      await stripe.accounts.retrieve(destinationAccountId);
-    } catch (error: any) {
-      if (
-        error.code === 'resource_missing' ||
-        error.message.includes('No such account')
-      ) {
-        console.warn(
-          `Stripe account ${destinationAccountId} not found for destination transfer.`,
-        );
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          'Saloon owner Stripe account is no longer valid. Please reconnect your Stripe account.',
-        );
-      } else {
-        // Re-throw other Stripe errors
-        throw error;
-      }
-    }
-
-    // Create Checkout Session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'payment',
-      customer: customerId,
-      client_reference_id: bookingId,
-      success_url: `${config.frontend_base_url}/booking/${bookingId}/success`,
-      cancel_url: `${config.frontend_base_url}/booking/${bookingId}/cancel`,
-      line_items: [
-        {
-          price_data: {
-            currency: 'gbp',
-            product_data: {
-              name: `Booking Service #${bookingId}`,
-            },
-            unit_amount: totalAmount,
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        bookingId: findBooking.id,
-        customerId: customerId,
-        saloonOwnerId: findBooking.saloonOwner.user?.id,
-        transferAmount: String(transferAmount),
-        adminFeeAmount: String(adminFeeAmount),
-        barberStripeAccountId: findBooking.saloonOwner.user?.stripeAccountId,
-      },
-      payment_intent_data: {
-        capture_method: 'manual',
-        ...(transferAmount > 0
-          ? {
-              transfer_data: {
-                destination: destinationAccountId,
-                amount: transferAmount,
+    // Helper to create Stripe Checkout Session with or without destination transfer_data
+    const createCheckoutSession = async (useDirectTransfer: boolean) => {
+      return await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        customer: customerId,
+        client_reference_id: bookingId,
+        success_url: `${config.frontend_base_url}/booking/${bookingId}/success`,
+        cancel_url: `${config.frontend_base_url}/booking/${bookingId}/cancel`,
+        line_items: [
+          {
+            price_data: {
+              currency: 'gbp',
+              product_data: {
+                name: `Booking Service #${bookingId}`,
               },
-            }
-          : {}),
-      },
-    });
+              unit_amount: totalAmount,
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          bookingId: findBooking.id,
+          customerId: customerId,
+          saloonOwnerId: findBooking.saloonOwner?.user?.id || '',
+          transferAmount: String(transferAmount),
+          adminFeeAmount: String(adminFeeAmount),
+          barberStripeAccountId: destinationAccountId || '',
+          directTransfer: useDirectTransfer ? 'true' : 'false',
+        },
+        payment_intent_data: {
+          capture_method: 'manual',
+          ...(useDirectTransfer && transferAmount > 0
+            ? {
+                transfer_data: {
+                  destination: destinationAccountId,
+                  amount: transferAmount,
+                },
+              }
+            : {}),
+        },
+      });
+    };
+
+    let session;
+    if (canTransferDirectly) {
+      try {
+        session = await createCheckoutSession(true);
+      } catch (stripeError: any) {
+        // Fallback to platform collection if Stripe rejects due to destination capabilities or account restrictions
+        if (
+          stripeError.message?.includes('destination') ||
+          stripeError.message?.includes('transfers') ||
+          stripeError.message?.includes('capabilities') ||
+          stripeError.code === 'account_invalid'
+        ) {
+          console.warn(
+            `Stripe direct destination transfer failed (${stripeError.message}). Falling back to platform checkout session.`,
+          );
+          session = await createCheckoutSession(false);
+        } else {
+          throw stripeError;
+        }
+      }
+    } else {
+      session = await createCheckoutSession(false);
+    }
 
     return {
       sessionId: session.id,
@@ -1290,8 +1324,8 @@ const createAccountIntoStripe = async (userId: string) => {
     );
   }
 
-  if (userData.stripeAccountUrl && userData.stripeCustomerId) {
-    const stripeAccountId = userData.stripeCustomerId;
+  if (userData.stripeAccountUrl && userData.stripeAccountId) {
+    const stripeAccountId = userData.stripeAccountId;
     const accountLink = await stripe.accountLinks.create({
       account: stripeAccountId,
       refresh_url: `${config.backend_base_url}/reauthenticate`,
@@ -2035,7 +2069,7 @@ const withdrawFundsAsSaloonOwnerService = async (userId: string) => {
   }
 
   // Verify user is a saloon owner
-  if (!user.SaloonOwner) {
+  if (!user.SaloonOwner || user.SaloonOwner.length === 0) {
     throw new AppError(httpStatus.FORBIDDEN, 'User is not a saloon owner');
   }
 
@@ -2836,18 +2870,30 @@ const checkAvailableBalanceService = async (userId: string) => {
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
+
+  // If user hasn't connected a Stripe account, return zero balance safely
+  if (!user.stripeAccountId) {
+    return {
+      availableBalance: 0,
+      pendingBalance: 0,
+      currency: 'GBP',
+      isStripeConnected: false,
+    };
+  }
+
   try {
     const balance = await stripe.balance.retrieve({
-      stripeAccount: user.stripeAccountId!,
+      stripeAccount: user.stripeAccountId,
     });
 
     console.log('Stripe Account Balance', balance);
-    const availableBalance = balance.available[0]?.amount || 0; // in pence
-    const pendingBalance = balance.pending[0]?.amount || 0; // in pence
+    const availableBalance = balance.available?.[0]?.amount || 0; // in pence
+    const pendingBalance = balance.pending?.[0]?.amount || 0; // in pence
     return {
       availableBalance: availableBalance / 100, // Convert to GBP
       pendingBalance: pendingBalance / 100, // Convert to GBP
-      currency: balance.available[0]?.currency.toUpperCase() || 'GBP',
+      currency: balance.available?.[0]?.currency?.toUpperCase() || 'GBP',
+      isStripeConnected: true,
     };
   } catch (error: any) {
     console.error('Failed to retrieve balance:', error.message);
