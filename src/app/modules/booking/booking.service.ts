@@ -271,7 +271,7 @@ const sendBookingConfirmationNotification = async (
 };
 
 const createQueueBookingIntoDb = async (userId: string, data: any) => {
-  const {
+  let {
     barberId,
     saloonOwnerId,
     date,
@@ -334,16 +334,7 @@ const createQueueBookingIntoDb = async (userId: string, data: any) => {
   }
 
   const salonZone = getSalonTimezone(saloonOwner);
-
-  // 2. Validate and enforce current date only
-  const dateObj = parseDateInZone(date, salonZone);
-  if (!dateObj.isValid()) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
-  }
-  const todayISO = getTodayISODate(salonZone);
-  if (dateObj.format('YYYY-MM-DD') !== todayISO) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Date must be the current date');
-  }
+  date = getTodayISODate(salonZone);
 
   // 3. Calculate total price and duration using service model
   const serviceRecords = await prisma.service.findMany({
@@ -1080,7 +1071,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
   saloonOwnerId: string,
   data: any,
 ) => {
-  const {
+  let {
     fullName,
     email,
     phone,
@@ -1097,6 +1088,7 @@ const createQueueBookingForSalonOwnerIntoDb = async (
     select: { timezone: true },
   });
   const salonZone = getSalonTimezone(saloon);
+  date = getTodayISODate(salonZone);
 
   // appointmentAt may be omitted — we'll choose it based on barber free slots later.
   let appointmentAt: string | undefined = data.appointmentAt;
@@ -1138,23 +1130,10 @@ const createQueueBookingForSalonOwnerIntoDb = async (
   };
 
   // 1. Basic validation
-  if (!fullName || !date || !Array.isArray(services) || services.length === 0) {
+  if (!fullName || !Array.isArray(services) || services.length === 0) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'fullName, date and services are required',
-    );
-  }
-
-  // Only allow queue for the current local date
-  const dateObj = parseDateInZone(date, salonZone);
-  if (!dateObj.isValid()) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
-  }
-  const todayLocal = getTodayISODate(salonZone);
-  if (dateObj.format('YYYY-MM-DD') !== todayLocal) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Queue bookings can only be created for the current date',
+      'fullName and services are required',
     );
   }
 
@@ -1556,7 +1535,7 @@ const createQueueBookingForCustomerIntoDb = async (
   saloonOwnerId: string,
   data: any,
 ) => {
-  const {
+  let {
     date,
     services,
     notes,
@@ -1571,6 +1550,7 @@ const createQueueBookingForCustomerIntoDb = async (
     select: { timezone: true },
   });
   const salonZone = getSalonTimezone(saloon);
+  date = getTodayISODate(salonZone);
 
   let appointmentAt: string | undefined = data.appointmentAt;
 
@@ -1615,23 +1595,10 @@ const createQueueBookingForCustomerIntoDb = async (
   };
 
   // 1. Basic validation
-  if (!date || !Array.isArray(services) || services.length === 0) {
+  if (!Array.isArray(services) || services.length === 0) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      'date and services are required',
-    );
-  }
-
-  // Only allow queue for the current local date
-  const dateObj = parseDateInZone(date, salonZone);
-  if (!dateObj.isValid()) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid date format');
-  }
-  const todayLocal = getTodayISODate(salonZone);
-  if (dateObj.format('YYYY-MM-DD') !== todayLocal) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Queue bookings can only be created for the current date',
+      'services are required',
     );
   }
 
